@@ -50,25 +50,22 @@ class SpeechmaticsStreamingTranscriptionService:
             "transcription_config": {
                 "language": "ru",
                 "operating_point": "enhanced",
-                "max_delay": 2.0,
+                "max_delay": 3.5,
                 "max_delay_mode": "flexible",
-                "enable_partials": True,
+                "enable_partials": False,
                 "enable_entities": True,
                 "diarization": "speaker",
                 "speaker_diarization_config": {
-                    "max_speakers": 8,
+                    "max_speakers": 3,
                     "prefer_current_speaker": True,
-                    "speaker_sensitivity": 0.5,
+                    "speaker_sensitivity": 0.35,
                 },
                 "punctuation_overrides": {
                     "permitted_marks": ["all"],
                     "sensitivity": 0.55,
                 },
                 "conversation_config": {
-                    "end_of_utterance_silence_trigger": 0.8,
-                },
-                "audio_filtering_config": {
-                    "volume_threshold": 0.0,
+                    "end_of_utterance_silence_trigger": 1.1,
                 },
                 "additional_vocab": ADDITIONAL_VOCAB,
             },
