@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MERIDIAN Mobile — iPhone 15 Pro Max</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --amber:#F5A623; --amber-dim:#C4851A; --amber-glow:rgba(245,166,35,0.14);
+    --green:#2EE59D; --green-dim:rgba(46,229,157,0.14);
+    --red:#FF4B6E; --red-dim:rgba(255,75,110,0.14);
+    --blue:#5B9CF6;
+    --bg:#080A0F; --bg2:#0D1018; --bg3:#111520; --bg4:#161C2C; --bg5:#1A2135;
+    --t1:#EDF2FF; --t2:#8896B3; --t3:#4A5568;
+    --border:rgba(255,255,255,0.06); --border-a:rgba(245,166,35,0.25);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+
+  body {
+    font-family:'Inter',sans-serif;
+    background: #05070C;
+    min-height: 100vh;
+    padding: 48px 40px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* Page header */
+  .page-header {
+    text-align: center;
+    margin-bottom: 52px;
+  }
+  .page-eyebrow {
+    font-family:'JetBrains Mono',monospace;
+    font-size: 10px; letter-spacing:.18em; text-transform:uppercase;
+    color: var(--t3); margin-bottom: 10px;
+  }
+  .page-title {
+    font-family:'Syne',sans-serif; font-weight:800;
+    font-size: 32px; color: var(--t1);
+  }
+  .page-title span { color: var(--amber); }
+  .page-sub {
+    font-size: 14px; color: var(--t2); margin-top: 6px;
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  /* Phones row */
+  .phones-row {
+    display: flex;
+    gap: 36px;
+    align-items: flex-start;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* Phone frame */
+  .phone-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .phone-label {
+    font-family:'JetBrains Mono',monospace;
+    font-size: 10px; color: var(--t3);
+    letter-spacing: .12em; text-transform: uppercase;
+    text-align: center;
+  }
+
+  .phone {
+    width: 290px;
+    height: 628px;
+    background: #0E0E12;
+    border-radius: 46px;
+    border: 1.5px solid rgba(255,255,255,0.12);
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.8),
+      0 40px 80px rgba(0,0,0,0.7),
+      inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  /* Side buttons */
+  .phone::before {
+    content:'';
+    position:absolute;
+    right:-3px; top:110px;
+    width:3px; height:70px;
+    background:#1A1A22;
+    border-radius:0 2px 2px 0;
+    box-shadow: 0 84px 0 #1A1A22, 0 4px 0 rgba(255,255,255,0.05);
+  }
+  .phone::after {
+    content:'';
+    position:absolute;
+    left:-3px; top:90px;
+    width:3px; height:40px;
+    background:#1A1A22;
+    border-radius:2px 0 0 2px;
+    box-shadow: 0 54px 0 #1A1A22, 0 90px 0 #1A1A22, 0 4px 0 rgba(255,255,255,0.05);
+  }
+
+  /* Screen */
+  .phone-screen {
+    position: absolute;
+    inset: 0;
+    border-radius: 45px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* Dynamic Island */
+  .dynamic-island {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 32px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.4s cubic-bezier(.34,1.56,.64,1);
+  }
+  .dynamic-island.active {
+    width: 180px;
+    height: 36px;
+  }
+  .di-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #1a1a1a;
+  }
+  .di-waveform {
+    display: none;
+    align-items: center; gap: 2px; height: 14px;
+  }
+  .dynamic-island.active .di-waveform { display: flex; }
+  .dynamic-island.active .di-dot { display: none; }
+  .di-bar {
+    width: 2px; background: var(--amber);
+    border-radius: 1px;
+    animation: diwave 0.7s ease-in-out infinite;
+  }
+  .di-bar:nth-child(1){height:4px;animation-delay:0s}
+  .di-bar:nth-child(2){height:10px;animation-delay:.1s}
+  .di-bar:nth-child(3){height:14px;animation-delay:.2s}
+  .di-bar:nth-child(4){height:8px;animation-delay:.15s}
+  .di-bar:nth-child(5){height:5px;animation-delay:.05s}
+  @keyframes diwave{0%,100%{transform:scaleY(1);opacity:.6}50%{transform:scaleY(1.6);opacity:1}}
+
+  .di-logo-text {
+    display: none;
+    font-family:'Syne',sans-serif; font-weight:800;
+    font-size: 11px; letter-spacing:.12em;
+    color: var(--t1);
+  }
+  .di-logo-text span { color: var(--amber); }
+  .dynamic-island.active .di-logo-text { display: block; }
+
+  /* Status bar */
+  .status-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 58px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 14px 24px 0;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .sb-time {
+    font-family:'Syne',sans-serif; font-weight:700;
+    font-size: 13px; color: var(--t1);
+  }
+  .sb-icons {
+    display: flex; align-items: center; gap: 5px;
+  }
+  .sb-icon { font-size: 11px; color: var(--t1); }
+
+  /* Home indicator */
+  .home-indicator {
+    position: absolute;
+    bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 4px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 2px;
+    z-index: 100;
+  }
+
+  /* ══ SCREEN CONTENT STYLES ══ */
+
+  /* SCREEN 1: Main listening */
+  .s1 { position:absolute; inset:0; display:flex; flex-direction:column; }
+
+  .s1-header {
+    padding: 64px 20px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .s1-logo {
+    display: flex; align-items: center; gap: 7px;
+  }
+  .s1-logo-text {
+    font-family:'Syne',sans-serif; font-weight:800;
+    font-size: 13px; letter-spacing:.15em;
+  }
+  .s1-logo-text span { color: var(--amber); }
+  .s1-badge {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 9px;
+    background: var(--green-dim);
+    border: 1px solid rgba(46,229,157,.2);
+    border-radius: 20px;
+    font-family:'JetBrains Mono',monospace;
+    font-size: 8px; color: var(--green); letter-spacing:.06em;
+  }
+  .pulse {
+    width: 5px; height: 5px; border-radius:50%;
+    background: var(--green);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
+
+  /* Stats strip */
+  .stats-strip {
+    display: flex; gap: 8px;
+    padding: 0 20px 14px;
+    flex-shrink: 0;
+  }
+  .stat-chip {
+    flex: 1;
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat-chip-val {
+    font-family:'Syne',sans-serif; font-weight:700;
+    font-size: 16px; line-height:1;
+  }
+  .stat-chip-val.w { color: var(--amber); }
+  .stat-chip-val.g { color: var(--green); }
+  .stat-chip-val.r { color: var(--red); }
+  .stat-chip-lbl {
+    font-size: 8px; color: var(--t3); margin-top:3px;
+    letter-spacing: .04em;
+  }
+
+  /* Hints feed */
+  .hints-feed {
+    flex: 1; overflow-y: auto; padding: 0 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    padding-bottom: 160px;
+    scrollbar-width: none;
+  }
+  .hints-feed::-webkit-scrollbar { display: none; }
+
+  /* AI thinking pill */
+  .ai-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 13px;
+    background: var(--amber-glow);
+    border: 1px solid var(--border-a);
+    border-radius: 12px;
+    font-family:'JetBrains Mono',monospace;
+    font-size: 9px; color: var(--amber); letter-spacing:.05em;
+  }
+  .dots { display:flex; gap:3px; }
+  .dots span {
+    width:3px; height:3px; border-radius:50%;
+    background:var(--amber);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  .dots span:nth-child(2){animation-delay:.2s}
+  .dots span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+
+  /* Hint card mobile */
+  .hcard {
+    background: var(--bg5);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 15px;
+    position: relative;
+    overflow: hidden;
+    transition: all .2s;
+    animation: sin .35s ease both;
+  }
+  @keyframes sin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .hcard::before {
+    content:''; position:absolute;
+    left:0;top:0;bottom:0;width:3px;border-radius:14px 0 0 14px;
+  }
+  .hcard.p { border-color:var(--border-a); background:linear-gradient(135deg,var(--bg5),rgba(245,166,35,.06)); }
+  .hcard.p::before { background:linear-gradient(to bottom,var(--amber),var(--amber-dim)); }
+  .hcard.c::before { background:linear-gradient(to bottom,var(--blue),#3B7DE8); }
+  .hcard.q::before { background:var(--green); }
+  .hcard.r::before { background:var(--red); }
+
+  .htag {
+    display:inline-flex; align-items:center; gap:4px;
+    padding: 2px 7px; border-radius:4px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:8px; letter-spacing:.1em; text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .tp { background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,166,35,.2); }
+  .tc { background:rgba(91,156,246,.1);color:var(--blue);border:1px solid rgba(91,156,246,.2); }
+  .tq { background:rgba(46,229,157,.1);color:var(--green);border:1px solid rgba(46,229,157,.2); }
+  .tr { background:var(--red-dim);color:var(--red);border:1px solid rgba(255,75,110,.2); }
+
+  .htext {
+    font-size: 12.5px; line-height: 1.6; color: var(--t1); margin-bottom: 10px;
+  }
+  .hcard.p .htext { font-size: 13px; }
+
+  /* Confidence bar */
+  .cbar-row {
+    display:flex; align-items:center; gap:6px; margin-bottom:8px;
+  }
+  .cbar-lbl { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--t3); letter-spacing:.06em; white-space:nowrap; }
+  .cbar { flex:1; height:2px; background:var(--bg4); border-radius:1px; overflow:hidden; }
+  .cfill { height:100%; border-radius:1px; background:linear-gradient(to right,var(--amber-dim),var(--amber)); }
+  .cval { font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--amber); }
+
+  .hactions { display:flex; gap:6px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+  .hbtn {
+    padding:5px 11px; border-radius:8px;
+    font-size:10px; font-weight:600;
+    cursor:pointer; border:none;
+    font-family:'Inter',sans-serif; transition:all .15s;
+  }
+  .hbtn.pri { background:var(--amber); color:#080A0F; }
+  .hbtn.gho { background:var(--bg4); color:var(--t2); border:1px solid var(--border); font-size:10px; }
+
+  /* Floating bottom controls */
+  .bottom-controls {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 0 16px 28px;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    z-index: 20;
+  }
+  .bottom-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .mic-btn {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px;
+    border-radius: 16px;
+    background: var(--red);
+    border: none; cursor: pointer;
+    font-family:'Syne',sans-serif; font-weight:700;
+    font-size: 12px; color: white;
+    letter-spacing: .04em;
+    box-shadow: 0 0 24px rgba(255,75,110,.3);
+  }
+  .mic-pulse {
+    width: 8px; height: 8px; border-radius:50%;
+    background: rgba(255,255,255,.6);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  .icon-btn {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  /* Transcript drawer tab */
+  .drawer-tab {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 16px 12px;
+    cursor: pointer;
+  }
+  .drawer-handle { width: 32px; height: 3px; background: rgba(255,255,255,.15); border-radius:2px; }
+  .drawer-label {
+    font-family:'JetBrains Mono',monospace;
+    font-size: 9px; color: var(--t3); letter-spacing:.1em; text-transform:uppercase;
+  }
+
+  /* ── SCREEN 2: Transcript drawer ── */
+  .s2 { position:absolute; inset:0; background:var(--bg); }
+  .s2-hints-bg {
+    position:absolute; top:0; left:0; right:0; bottom:260px;
+    background:var(--bg); opacity:.4;
+  }
+  .transcript-sheet {
+    position:absolute; bottom:0; left:0; right:0;
+    height: 340px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .sheet-handle-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 12px 20px 8px;
+    flex-shrink:0;
+  }
+  .sheet-handle { width:36px; height:4px; background:rgba(255,255,255,.15); border-radius:2px; }
+  .sheet-title {
+    display:flex; align-items:center; gap:6px;
+    font-family:'Syne',sans-serif; font-weight:700;
+    font-size: 10px; letter-spacing:.12em; text-transform:uppercase; color:var(--t2);
+  }
+  .sheet-title .dot { width:5px; height:5px; border-radius:50%; background:var(--blue); }
+  .sheet-close {
+    width: 24px; height: 24px; border-radius:50%;
+    background:var(--bg4); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; color:var(--t3); cursor:pointer;
+  }
+  .transcript-lines {
+    flex:1; overflow-y:auto; padding: 8px 20px 20px;
+    display:flex; flex-direction:column; gap:12px;
+    scrollbar-width:none;
+  }
+  .transcript-lines::-webkit-scrollbar{display:none}
+  .tline { display:flex; flex-direction:column; gap:3px; }
+  .spk { font-size:8px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; font-family:'JetBrains Mono',monospace; }
+  .spk.you { color:var(--amber); } .spk.them { color:var(--blue); }
+  .stxt { color:var(--t2); line-height:1.5; font-size:11.5px; }
+  .tline.active .stxt { color:var(--t1); }
+
+  /* Live waveform row */
+  .live-row {
+    display:flex; align-items:center; gap:8px;
+    padding: 10px 20px 14px;
+    border-top: 1px solid var(--border);
+    flex-shrink:0;
+  }
+  .wform { display:flex; align-items:center; gap:2px; height:14px; }
+  .wb { width:2px; background:var(--amber); border-radius:1px; animation:wave .8s ease-in-out infinite; opacity:.7; }
+  .wb:nth-child(1){height:3px;animation-delay:0s}
+  .wb:nth-child(2){height:7px;animation-delay:.1s}
+  .wb:nth-child(3){height:12px;animation-delay:.2s}
+  .wb:nth-child(4){height:8px;animation-delay:.15s}
+  .wb:nth-child(5){height:5px;animation-delay:.05s}
+  .wb:nth-child(6){height:10px;animation-delay:.25s}
+  @keyframes wave{0%,100%{transform:scaleY(1);opacity:.4}50%{transform:scaleY(1.8);opacity:1}}
+  .live-txt { font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--t3); letter-spacing:.08em; text-transform:uppercase; flex:1; }
+
+  /* ── SCREEN 3: Context ── */
+  .s3 { position:absolute; inset:0; display:flex; flex-direction:column; }
+  .s3-header {
+    padding: 64px 20px 12px;
+    display:flex; align-items:center; gap:10px;
+    flex-shrink:0;
+    border-bottom: 1px solid var(--border);
+  }
+  .back-ico {
+    width:32px;height:32px;border-radius:10px;
+    background:var(--bg4);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;color:var(--t2);
+  }
+  .s3-title { font-family:'Syne',sans-serif;font-weight:700;font-size:16px; }
+  .s3-content {
+    flex:1;overflow-y:auto;padding:16px;
+    display:flex;flex-direction:column;gap:12px;
+    scrollbar-width:none; padding-bottom:90px;
+  }
+  .s3-content::-webkit-scrollbar{display:none}
+  .form-card {
+    background:var(--bg4);border:1px solid var(--border);
+    border-radius:14px;overflow:hidden;
+  }
+  .fc-header {
+    padding:10px 14px;border-bottom:1px solid var(--border);
+    background:var(--bg3);
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);
+    display:flex;align-items:center;gap:6px;
+  }
+  .fc-dot{width:4px;height:4px;border-radius:50%;}
+  .fc-body{padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+  .fc-field{display:flex;flex-direction:column;gap:4px;}
+  .fc-label{font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
+  .fc-input{
+    width:100%;padding:9px 12px;
+    background:var(--bg3);border:1px solid var(--border);
+    border-radius:9px;font-size:12px;color:var(--t1);
+    font-family:'Inter',sans-serif;outline:none;
+  }
+  .fc-input::placeholder{color:var(--t3);}
+  .fc-textarea{
+    width:100%;padding:9px 12px;
+    background:var(--bg3);border:1px solid var(--border);
+    border-radius:9px;font-size:12px;color:var(--t2);
+    font-family:'Inter',sans-serif;outline:none;resize:none;line-height:1.5;
+  }
+  .upload-mini {
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;
+    background:var(--bg3);border:1px dashed rgba(255,255,255,.1);
+    border-radius:9px;cursor:pointer;
+  }
+  .upload-mini:hover{border-color:var(--border-a);}
+  .upload-mini-ico{font-size:16px;opacity:.5;}
+  .upload-mini-text{flex:1;}
+  .upload-mini-title{font-size:11px;color:var(--t2);font-weight:500;}
+  .upload-mini-sub{font-size:9px;color:var(--t3);font-family:'JetBrains Mono',monospace;margin-top:1px;}
+  .s3-footer{
+    position:absolute;bottom:0;left:0;right:0;
+    padding:12px 16px 28px;
+    background:linear-gradient(to top,var(--bg) 50%,transparent);
+  }
+  .save-btn{
+    width:100%;padding:14px;border-radius:14px;
+    background:var(--amber);color:#080A0F;
+    font-family:'Syne',sans-serif;font-weight:700;
+    font-size:13px;letter-spacing:.06em;
+    border:none;cursor:pointer;
+  }
+
+  /* ── SCREEN 4: Empty / onboarding ── */
+  .s4 { position:absolute;inset:0;display:flex;flex-direction:column; }
+  .s4-header {
+    padding:64px 20px 20px;
+    flex-shrink:0;
+  }
+  .s4-content {
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:20px;gap:24px;
+  }
+  .s4-mark { opacity:.9; }
+  .s4-headline {
+    text-align:center;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:22px;line-height:1.25;
+  }
+  .s4-headline span{color:var(--amber);}
+  .s4-sub {
+    text-align:center;font-size:13px;color:var(--t2);
+    line-height:1.6;max-width:220px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .start-btn {
+    width:100%;padding:16px;border-radius:16px;
+    background:var(--amber);color:#080A0F;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:14px;letter-spacing:.08em;
+    border:none;cursor:pointer;
+    box-shadow:0 0 32px rgba(245,166,35,.3);
+  }
+  .prep-btn {
+    width:100%;padding:13px;border-radius:16px;
+    background:transparent;color:var(--t2);
+    border:1px solid var(--border);
+    font-family:'Inter',sans-serif;font-weight:500;
+    font-size:13px;cursor:pointer;
+  }
+  .s4-footer-btns { display:flex;flex-direction:column;gap:8px;width:100%;padding:0 16px 28px; }
+
+  /* Bottom Nav */
+  .bottom-nav {
+    position:absolute;bottom:0;left:0;right:0;
+    height:80px;
+    background:var(--bg2);
+    border-top:1px solid var(--border);
+    display:flex;align-items:flex-start;
+    padding:10px 0 0;
+    z-index:30;
+  }
+  .nav-item {
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;gap:3px;cursor:pointer;
+  }
+  .nav-ico { font-size:20px; }
+  .nav-lbl {
+    font-family:'JetBrains Mono',monospace;
+    font-size:8px;letter-spacing:.06em;color:var(--t3);
+  }
+  .nav-item.active .nav-lbl { color:var(--amber); }
+  .nav-dot {
+    width:4px;height:4px;border-radius:50%;
+    background:var(--amber);margin-top:1px;
+  }
+
+  /* Doc item in sheet */
+  .doc-mini {
+    display:flex;align-items:center;gap:8px;
+    padding:8px 10px;
+    background:var(--bg3);border:1px solid var(--border);
+    border-radius:8px;
+  }
+  .doc-mini-ico {
+    width:26px;height:26px;border-radius:5px;
+    background:rgba(91,156,246,.12);border:1px solid rgba(91,156,246,.2);
+    display:flex;align-items:center;justify-content:center;
+    font-size:9px;color:var(--blue);font-family:'JetBrains Mono',monospace;font-weight:600;
+  }
+  .doc-mini-name{font-size:11px;color:var(--t1);font-weight:500;}
+  .doc-mini-size{font-size:9px;color:var(--t3);font-family:'JetBrains Mono',monospace;}
+
+  /* Blurred bg cards in s2 */
+  .bg-card-mini{
+    margin:0 16px;
+    background:var(--bg5);border:1px solid var(--border);
+    border-radius:12px;padding:12px 14px;
+    opacity:.4;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="page-eyebrow">Mobile UI Concept</div>
+  <div class="page-title">MERIDI<span>AN</span></div>
+  <div class="page-sub">iPhone 15 Pro Max · 4 ключевых экрана</div>
+</div>
+
+<div class="phones-row">
+
+  <!-- ══ PHONE 1: Старт / готовность ══ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="phone-screen">
+        <!-- Dynamic Island -->
+        <div class="dynamic-island">
+          <div class="di-dot"></div>
+          <div class="di-dot"></div>
+        </div>
+        <div class="status-bar">
+          <div class="sb-time">9:41</div>
+          <div class="sb-icons">
+            <span class="sb-icon">●●●</span>
+            <span class="sb-icon">WiFi</span>
+            <span class="sb-icon">🔋</span>
+          </div>
+        </div>
+
+        <!-- S4 content -->
+        <div class="s4">
+          <div class="s4-header">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="12" stroke="#F5A623" stroke-width="1.5" opacity="0.3"/>
+                <circle cx="14" cy="14" r="7" stroke="#F5A623" stroke-width="1.5" opacity="0.6"/>
+                <circle cx="14" cy="14" r="2.5" fill="#F5A623"/>
+                <line x1="14" y1="2" x2="14" y2="6" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="14" y1="22" x2="14" y2="26" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="2" y1="14" x2="6" y2="14" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="22" y1="14" x2="26" y2="14" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;letter-spacing:.15em">MERIDI<span style="color:var(--amber)">AN</span></span>
+            </div>
+          </div>
+
+          <div class="s4-content">
+            <div class="s4-mark">
+              <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="50" r="46" stroke="#F5A623" stroke-width="1" opacity="0.1"/>
+                <circle cx="50" cy="50" r="36" stroke="#F5A623" stroke-width="1" stroke-dasharray="3 5" opacity="0.25"/>
+                <circle cx="50" cy="50" r="24" stroke="#F5A623" stroke-width="1.5" opacity="0.55"/>
+                <circle cx="50" cy="50" r="12" stroke="#F5A623" stroke-width="2" opacity="0.8"/>
+                <circle cx="50" cy="50" r="4" fill="#F5A623"/>
+                <line x1="50" y1="4" x2="50" y2="14" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+                <line x1="50" y1="86" x2="50" y2="96" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+                <line x1="4" y1="50" x2="14" y2="50" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+                <line x1="86" y1="50" x2="96" y2="50" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+                <line x1="50" y1="26" x2="50" y2="30" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                <line x1="50" y1="70" x2="50" y2="74" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                <line x1="26" y1="50" x2="30" y2="50" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                <line x1="70" y1="50" x2="74" y2="50" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+              </svg>
+            </div>
+            <div>
+              <div class="s4-headline">Ваш тактик<br>в <span>реальном</span> времени</div>
+              <div class="s4-sub" style="margin:10px auto 0">Слушает переговоры и подсказывает нужные аргументы в нужный момент</div>
+            </div>
+
+            <!-- Meeting info card -->
+            <div style="width:100%;background:var(--bg4);border:1px solid var(--border-a);border-radius:14px;padding:14px 16px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Следующая встреча</div>
+              <div style="font-size:13px;font-weight:600;color:var(--t1)">Финальные условия — ЖК Рассвет</div>
+              <div style="font-size:10px;color:var(--t2);margin-top:3px;font-family:'JetBrains Mono',monospace">Сегодня · 14:00 · Контекст загружен ✓</div>
+            </div>
+          </div>
+
+          <div class="s4-footer-btns">
+            <button class="start-btn">● Начать прослушивание</button>
+            <button class="prep-btn">⚙ Настроить контекст</button>
+          </div>
+        </div>
+
+        <!-- Bottom Nav -->
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <div class="nav-ico">◎</div>
+            <div class="nav-lbl">Сессия</div>
+            <div class="nav-dot"></div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-ico">📄</div>
+            <div class="nav-lbl">Контекст</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-ico">⚙</div>
+            <div class="nav-lbl">Настройки</div>
+          </div>
+        </div>
+
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+    <div class="phone-label">01 · Старт сессии</div>
+  </div>
+
+  <!-- ══ PHONE 2: Активная сессия ══ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="phone-screen">
+        <!-- Dynamic Island ACTIVE -->
+        <div class="dynamic-island active">
+          <div class="di-logo-text">MERIDI<span>AN</span></div>
+          <div class="di-waveform">
+            <div class="di-bar"></div><div class="di-bar"></div>
+            <div class="di-bar"></div><div class="di-bar"></div>
+            <div class="di-bar"></div>
+          </div>
+        </div>
+        <div class="status-bar">
+          <div class="sb-time">14:23</div>
+          <div class="sb-icons">
+            <span class="sb-icon">●●●</span><span class="sb-icon">🔋</span>
+          </div>
+        </div>
+
+        <div class="s1">
+          <div class="s1-header">
+            <div class="s1-logo">
+              <svg width="18" height="18" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="12" stroke="#F5A623" stroke-width="1.5" opacity="0.3"/>
+                <circle cx="14" cy="14" r="7" stroke="#F5A623" stroke-width="1.5" opacity="0.6"/>
+                <circle cx="14" cy="14" r="2.5" fill="#F5A623"/>
+                <line x1="14" y1="2" x2="14" y2="6" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="14" y1="22" x2="14" y2="26" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="2" y1="14" x2="6" y2="14" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="22" y1="14" x2="26" y2="14" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <div class="s1-logo-text">MERIDI<span>AN</span></div>
+            </div>
+            <div class="s1-badge"><div class="pulse"></div>18:42</div>
+          </div>
+
+          <!-- Stats -->
+          <div class="stats-strip">
+            <div class="stat-chip">
+              <div class="stat-chip-val w">62%</div>
+              <div class="stat-chip-lbl">Позиция</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-val g">3</div>
+              <div class="stat-chip-lbl">Принято</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-val r">2</div>
+              <div class="stat-chip-lbl">Возраж.</div>
+            </div>
+          </div>
+
+          <!-- Hints -->
+          <div class="hints-feed">
+            <div class="ai-pill">
+              <div class="dots"><span></span><span></span><span></span></div>
+              Анализирую возражение по цене...
+            </div>
+
+            <div class="hcard p" style="animation-delay:.05s">
+              <div class="htag tp">⚡ Приоритет</div>
+              <div class="cbar-row">
+                <span class="cbar-lbl">Уверенность</span>
+                <div class="cbar"><div class="cfill" style="width:87%"></div></div>
+                <span class="cval">87%</span>
+              </div>
+              <div class="htext">Их возражение по цене — стандартная тактика. Переведите на <strong>ROI</strong>: окупаемость за 4–5 месяцев, экономия ~₽2.4М/год.</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t3);display:flex;align-items:center;gap:4px">
+                <span style="display:inline-block;width:10px;height:1px;background:var(--t3)"></span>
+                КП v4, партнёрское соглашение
+              </div>
+              <div class="hactions">
+                <button class="hbtn pri">Использовать</button>
+                <button class="hbtn gho">Развернуть</button>
+              </div>
+            </div>
+
+            <div class="hcard c" style="animation-delay:.1s">
+              <div class="htag tc">↩ Контраргумент</div>
+              <div class="htext">Спросите про горизонт планирования. Бюджет Q2 открывается через 3 недели — предложите LOI.</div>
+              <div class="hactions">
+                <button class="hbtn gho">Использовать</button>
+              </div>
+            </div>
+
+            <div class="hcard q" style="animation-delay:.15s">
+              <div class="htag tq">? Вопрос</div>
+              <div class="htext">«Какой результат сделает эту сделку выгодной для вашей команды?»</div>
+              <div class="hactions">
+                <button class="hbtn gho">Использовать</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom controls -->
+          <div class="bottom-controls">
+            <div class="drawer-tab">
+              <div class="drawer-handle"></div>
+              <div class="drawer-label">Транскрипция</div>
+            </div>
+            <div class="bottom-row">
+              <div class="icon-btn">⚡</div>
+              <button class="mic-btn">
+                <div class="mic-pulse"></div>
+                Слушаю · Стоп
+              </button>
+              <div class="icon-btn">↑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+    <div class="phone-label">02 · Активная сессия</div>
+  </div>
+
+  <!-- ══ PHONE 3: Транскрипция ══ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="dynamic-island active">
+          <div class="di-logo-text">MERIDI<span>AN</span></div>
+          <div class="di-waveform">
+            <div class="di-bar"></div><div class="di-bar"></div>
+            <div class="di-bar"></div><div class="di-bar"></div>
+            <div class="di-bar"></div>
+          </div>
+        </div>
+        <div class="status-bar">
+          <div class="sb-time">14:31</div>
+          <div class="sb-icons"><span class="sb-icon">●●●</span><span class="sb-icon">🔋</span></div>
+        </div>
+
+        <div class="s2">
+          <!-- Blurred hints behind -->
+          <div style="padding:70px 16px 0">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 12px">
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;color:var(--t2);opacity:.5">MERIDI<span style="color:var(--amber)">AN</span></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--t3);opacity:.5">18:56</div>
+            </div>
+            <div class="bg-card-mini">
+              <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:var(--amber);opacity:.8;margin-bottom:5px;letter-spacing:.08em">⚡ ПРИОРИТЕТ</div>
+              <div style="font-size:11px;color:var(--t2);line-height:1.5">Переведите разговор на ROI: окупаемость...</div>
+            </div>
+          </div>
+          <div class="s2-hints-bg"></div>
+
+          <!-- Transcript sheet -->
+          <div class="transcript-sheet">
+            <div class="sheet-handle-row">
+              <div style="width:24px"></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="width:4px;height:4px;border-radius:50%;background:var(--blue)"></div>
+                <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--t2)">Транскрипция</div>
+              </div>
+              <div class="sheet-close">✕</div>
+            </div>
+
+            <div class="transcript-lines">
+              <div class="tline">
+                <span class="spk you">Вы</span>
+                <span class="stxt">Спасибо за время. Хочу начать с результатов пилота.</span>
+              </div>
+              <div class="tline">
+                <span class="spk them">Клиент</span>
+                <span class="stxt">Пилот выглядел интересно. Но цена финального контракта нас смущает.</span>
+              </div>
+              <div class="tline">
+                <span class="spk you">Вы</span>
+                <span class="stxt">Давайте посмотрим через призму ROI — срок окупаемости у наших клиентов в среднем...</span>
+              </div>
+              <div class="tline">
+                <span class="spk them">Клиент</span>
+                <span class="stxt">Нам нужно утвердить бюджет — это вопрос квартала как минимум.</span>
+              </div>
+              <div class="tline active">
+                <span class="spk them">Клиент</span>
+                <span class="stxt">У нас есть другой поставщик с более низкой ценой на входе...</span>
+              </div>
+            </div>
+
+            <div class="live-row">
+              <div class="wform">
+                <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+                <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+              </div>
+              <div class="live-txt">слушаю · 48kHz · ElevenLabs</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t3)">18:56</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+    <div class="phone-label">03 · Транскрипция</div>
+  </div>
+
+  <!-- ══ PHONE 4: Контекст встречи ══ -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="dynamic-island">
+          <div class="di-dot"></div><div class="di-dot"></div>
+        </div>
+        <div class="status-bar">
+          <div class="sb-time">9:41</div>
+          <div class="sb-icons"><span class="sb-icon">●●●</span><span class="sb-icon">🔋</span></div>
+        </div>
+
+        <div class="s3">
+          <div class="s3-header">
+            <div class="back-ico">←</div>
+            <div class="s3-title">Контекст встречи</div>
+          </div>
+
+          <div class="s3-content">
+            <!-- Documents -->
+            <div class="form-card">
+              <div class="fc-header">
+                <div class="fc-dot" style="background:var(--blue)"></div>
+                Документы
+              </div>
+              <div class="fc-body">
+                <div class="upload-mini">
+                  <div class="upload-mini-ico">📄</div>
+                  <div class="upload-mini-text">
+                    <div class="upload-mini-title">Добавить файл</div>
+                    <div class="upload-mini-sub">PDF, DOCX · до 10 МБ</div>
+                  </div>
+                  <div style="padding:5px 10px;background:var(--bg4);border:1px solid var(--border-a);border-radius:7px;font-size:10px;color:var(--amber);font-weight:600">+</div>
+                </div>
+                <div class="doc-mini">
+                  <div class="doc-mini-ico">PDF</div>
+                  <div>
+                    <div class="doc-mini-name">КП v3.2.pdf</div>
+                    <div class="doc-mini-size">1.2 МБ · Контракт</div>
+                  </div>
+                  <div style="color:var(--t3);font-size:13px;margin-left:auto">✕</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Meeting info -->
+            <div class="form-card">
+              <div class="fc-header">
+                <div class="fc-dot" style="background:var(--amber)"></div>
+                О встрече
+              </div>
+              <div class="fc-body">
+                <div class="fc-field">
+                  <label class="fc-label">Тема</label>
+                  <input class="fc-input" value="Финальные условия — ЖК Рассвет">
+                </div>
+                <div class="fc-field">
+                  <label class="fc-label">Тип</label>
+                  <input class="fc-input" value="Продажа / заключение сделки">
+                </div>
+                <div class="fc-field">
+                  <label class="fc-label">Ваша роль</label>
+                  <input class="fc-input" value="Коммерческий директор">
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="form-card">
+              <div class="fc-header">
+                <div class="fc-dot" style="background:var(--green)"></div>
+                Заметки и цели
+              </div>
+              <div class="fc-body">
+                <div class="fc-field">
+                  <label class="fc-label">Ключевые условия</label>
+                  <textarea class="fc-textarea" rows="4">Целевая сумма: ₽18.5М. Дедлайн: 20 марта. Клиент давит на скидку 15%, наш лимит — 8%.</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="s3-footer">
+            <button class="save-btn">💾 Сохранить контекст</button>
+          </div>
+        </div>
+
+        <!-- Bottom Nav -->
+        <div class="bottom-nav">
+          <div class="nav-item">
+            <div class="nav-ico">◎</div>
+            <div class="nav-lbl">Сессия</div>
+          </div>
+          <div class="nav-item active">
+            <div class="nav-ico">📄</div>
+            <div class="nav-lbl">Контекст</div>
+            <div class="nav-dot"></div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-ico">⚙</div>
+            <div class="nav-lbl">Настройки</div>
+          </div>
+        </div>
+
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+    <div class="phone-label">04 · Контекст встречи</div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>MERIDIAN — Логотипы</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080A0F; --surface: #0D1018; --card: #111520;
+    --amber: #F5A623; --amber-dim: #C4851A;
+    --text: #EDF2FF; --muted: #4A5568; --border: rgba(255,255,255,0.06);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 48px 60px; min-height: 100vh;
+  }
+  .page-title {
+    font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--muted); font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 8px;
+  }
+  .page-heading {
+    font-size: 28px; font-weight: 800; margin-bottom: 6px;
+  }
+  .page-heading span { color: var(--amber); }
+  .page-sub {
+    font-size: 13px; color: var(--muted);
+    font-family: 'JetBrains Mono', monospace; margin-bottom: 52px;
+  }
+
+  /* GRID */
+  .logo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .logo-grid.two { grid-template-columns: 1fr 1fr; }
+
+  .logo-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 40px 32px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 20px;
+    position: relative; overflow: hidden;
+  }
+  .logo-card.dark-bg { background: #06080D; }
+  .logo-card.light-bg { background: #F0EDE6; }
+  .logo-card.amber-bg { background: var(--amber); }
+
+  .card-label {
+    position: absolute; top: 14px; left: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .logo-card.light-bg .card-label { color: #999; }
+  .logo-card.amber-bg .card-label { color: rgba(0,0,0,.4); }
+
+  .logo-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .1em;
+    color: var(--muted); text-align: center;
+  }
+  .logo-card.light-bg .logo-name { color: #aaa; }
+  .logo-card.amber-bg .logo-name { color: rgba(0,0,0,.4); }
+
+  /* Divider section */
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--muted);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-top: 12px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Brand Identity System</div>
+<div class="page-heading">MERIDI<span>AN</span></div>
+<div class="page-sub">AI Тактик · Логотипы и знаки · 7 вариантов</div>
+
+<!-- ROW 1: Primary logos -->
+<div class="section-label">Основные варианты</div>
+<div class="logo-grid">
+
+  <!-- 01: Compass mark + wordmark -->
+  <div class="logo-card dark-bg">
+    <div class="card-label">01 · Основной</div>
+    <svg width="200" height="72" viewBox="0 0 200 72" fill="none">
+      <!-- Mark -->
+      <circle cx="36" cy="36" r="28" stroke="#F5A623" stroke-width="1" opacity="0.2"/>
+      <circle cx="36" cy="36" r="18" stroke="#F5A623" stroke-width="1" opacity="0.45"/>
+      <circle cx="36" cy="36" r="8" stroke="#F5A623" stroke-width="1.5" opacity="0.8"/>
+      <circle cx="36" cy="36" r="3" fill="#F5A623"/>
+      <!-- Cross lines -->
+      <line x1="36" y1="8" x2="36" y2="14" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="36" y1="58" x2="36" y2="64" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="8" y1="36" x2="14" y2="36" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="58" y1="36" x2="64" y2="36" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Diagonal ticks -->
+      <line x1="16" y1="16" x2="20" y2="20" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+      <line x1="52" y1="16" x2="56" y2="20" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.5" transform="rotate(90 36 36) translate(-36,0) rotate(-90 36 36)"/>
+      <line x1="56" y1="52" x2="52" y2="56" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+      <line x1="16" y1="52" x2="20" y2="56" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.5" transform="rotate(90 18 54)"/>
+      <!-- Wordmark -->
+      <text x="82" y="30" font-family="Syne, sans-serif" font-weight="800" font-size="22" letter-spacing="5" fill="#EDF2FF">MERIDIAN</text>
+      <text x="83" y="50" font-family="JetBrains Mono, monospace" font-weight="400" font-size="9" letter-spacing="3.5" fill="#4A5568">AI  ТАКТИК</text>
+    </svg>
+    <div class="logo-name">Горизонтальный · На тёмном</div>
+  </div>
+
+  <!-- 02: Light version -->
+  <div class="logo-card light-bg">
+    <div class="card-label">02 · Светлый фон</div>
+    <svg width="200" height="72" viewBox="0 0 200 72" fill="none">
+      <circle cx="36" cy="36" r="28" stroke="#C4851A" stroke-width="1" opacity="0.2"/>
+      <circle cx="36" cy="36" r="18" stroke="#C4851A" stroke-width="1" opacity="0.5"/>
+      <circle cx="36" cy="36" r="8" stroke="#C4851A" stroke-width="1.5" opacity="0.9"/>
+      <circle cx="36" cy="36" r="3" fill="#C4851A"/>
+      <line x1="36" y1="8" x2="36" y2="14" stroke="#C4851A" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="36" y1="58" x2="36" y2="64" stroke="#C4851A" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="8" y1="36" x2="14" y2="36" stroke="#C4851A" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="58" y1="36" x2="64" y2="36" stroke="#C4851A" stroke-width="1.5" stroke-linecap="round"/>
+      <text x="82" y="30" font-family="Syne, sans-serif" font-weight="800" font-size="22" letter-spacing="5" fill="#1A1A2E">MERIDIAN</text>
+      <text x="83" y="50" font-family="JetBrains Mono, monospace" font-weight="400" font-size="9" letter-spacing="3.5" fill="#888">AI  ТАКТИК</text>
+    </svg>
+    <div class="logo-name">Горизонтальный · На светлом</div>
+  </div>
+
+  <!-- 03: Amber version -->
+  <div class="logo-card amber-bg">
+    <div class="card-label">03 · Брендовый</div>
+    <svg width="200" height="72" viewBox="0 0 200 72" fill="none">
+      <circle cx="36" cy="36" r="28" stroke="#080A0F" stroke-width="1" opacity="0.15"/>
+      <circle cx="36" cy="36" r="18" stroke="#080A0F" stroke-width="1" opacity="0.3"/>
+      <circle cx="36" cy="36" r="8" stroke="#080A0F" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="36" cy="36" r="3" fill="#080A0F" opacity="0.8"/>
+      <line x1="36" y1="8" x2="36" y2="14" stroke="#080A0F" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="36" y1="58" x2="36" y2="64" stroke="#080A0F" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="8" y1="36" x2="14" y2="36" stroke="#080A0F" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="58" y1="36" x2="64" y2="36" stroke="#080A0F" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <text x="82" y="30" font-family="Syne, sans-serif" font-weight="800" font-size="22" letter-spacing="5" fill="#080A0F">MERIDIAN</text>
+      <text x="83" y="50" font-family="JetBrains Mono, monospace" font-weight="400" font-size="9" letter-spacing="3.5" fill="rgba(0,0,0,0.45)">AI  ТАКТИК</text>
+    </svg>
+    <div class="logo-name">Горизонтальный · Инверсия</div>
+  </div>
+</div>
+
+<!-- ROW 2: Vertical + Icon only -->
+<div class="section-label">Вертикальный и иконка</div>
+<div class="logo-grid">
+
+  <!-- 04: Vertical stacked -->
+  <div class="logo-card dark-bg">
+    <div class="card-label">04 · Вертикальный</div>
+    <svg width="160" height="120" viewBox="0 0 160 120" fill="none">
+      <!-- Large centered mark -->
+      <circle cx="80" cy="44" r="32" stroke="#F5A623" stroke-width="1" opacity="0.18"/>
+      <circle cx="80" cy="44" r="21" stroke="#F5A623" stroke-width="1" opacity="0.4"/>
+      <circle cx="80" cy="44" r="10" stroke="#F5A623" stroke-width="1.5" opacity="0.75"/>
+      <circle cx="80" cy="44" r="3.5" fill="#F5A623"/>
+      <line x1="80" y1="12" x2="80" y2="20" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="80" y1="68" x2="80" y2="76" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="48" y1="44" x2="56" y2="44" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="104" y1="44" x2="112" y2="44" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Diagonals -->
+      <line x1="57" y1="21" x2="62" y2="26" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.45"/>
+      <line x1="98" y1="21" x2="103" y2="26" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.45" transform="scale(-1,1) translate(-160,0)"/>
+      <line x1="57" y1="62" x2="62" y2="67" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.45" transform="scale(1,-1) translate(0,-88)"/>
+      <line x1="98" y1="62" x2="103" y2="67" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.45" transform="scale(-1,-1) translate(-160,-88)"/>
+      <!-- Wordmark below -->
+      <text x="80" y="99" font-family="Syne, sans-serif" font-weight="800" font-size="18" letter-spacing="6" fill="#EDF2FF" text-anchor="middle">MERIDIAN</text>
+      <text x="80" y="115" font-family="JetBrains Mono, monospace" font-weight="400" font-size="8" letter-spacing="3" fill="#4A5568" text-anchor="middle">AI  ТАКТИК</text>
+    </svg>
+    <div class="logo-name">Вертикальный · На тёмном</div>
+  </div>
+
+  <!-- 05: Icon only — full detail -->
+  <div class="logo-card dark-bg">
+    <div class="card-label">05 · Знак</div>
+    <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+      <!-- Outer ring with dashes -->
+      <circle cx="60" cy="60" r="56" stroke="#F5A623" stroke-width="1" opacity="0.12"/>
+      <circle cx="60" cy="60" r="44" stroke="#F5A623" stroke-width="1" stroke-dasharray="4 6" opacity="0.3"/>
+      <circle cx="60" cy="60" r="30" stroke="#F5A623" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="60" cy="60" r="16" stroke="#F5A623" stroke-width="2" opacity="0.85"/>
+      <!-- Core -->
+      <circle cx="60" cy="60" r="5" fill="#F5A623"/>
+      <!-- Cardinal lines -->
+      <line x1="60" y1="4" x2="60" y2="16" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+      <line x1="60" y1="104" x2="60" y2="116" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+      <line x1="4" y1="60" x2="16" y2="60" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+      <line x1="104" y1="60" x2="116" y2="60" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+      <!-- Mid-ring marks -->
+      <line x1="60" y1="30" x2="60" y2="36" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="60" y1="84" x2="60" y2="90" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="30" y1="60" x2="36" y2="60" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="84" y1="60" x2="90" y2="60" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <!-- Diagonal ticks at 45° -->
+      <line x1="22" y1="22" x2="28" y2="28" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+      <line x1="92" y1="22" x2="98" y2="28" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.4" transform="scale(-1,1) translate(-120,0)"/>
+      <line x1="22" y1="92" x2="28" y2="98" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.4" transform="scale(1,-1) translate(0,-120)"/>
+      <line x1="92" y1="92" x2="98" y2="98" stroke="#F5A623" stroke-width="1" stroke-linecap="round" opacity="0.4" transform="scale(-1,-1) translate(-120,-120)"/>
+    </svg>
+    <div class="logo-name">Знак · Фавиконка / аватар</div>
+  </div>
+
+  <!-- 06: Monogram compact -->
+  <div class="logo-card dark-bg">
+    <div class="card-label">06 · Монограмма</div>
+    <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+      <!-- Square bg with rounded corners -->
+      <rect x="10" y="10" width="100" height="100" rx="22" fill="#0D1018"/>
+      <rect x="10" y="10" width="100" height="100" rx="22" stroke="#F5A623" stroke-width="1.5" opacity="0.35"/>
+      <!-- Inner corner accents -->
+      <path d="M10 32 L10 10 L32 10" stroke="#F5A623" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="M88 10 L110 10 L110 32" stroke="#F5A623" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="M110 88 L110 110 L88 110" stroke="#F5A623" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="M32 110 L10 110 L10 88" stroke="#F5A623" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <!-- M letter stylized -->
+      <text x="60" y="72" font-family="Syne, sans-serif" font-weight="800" font-size="52" fill="#F5A623" text-anchor="middle" opacity="0.95">M</text>
+      <!-- Tiny dot under M -->
+      <circle cx="60" cy="86" r="3" fill="#F5A623" opacity="0.5"/>
+    </svg>
+    <div class="logo-name">Монограмма · App icon</div>
+  </div>
+</div>
+
+<!-- ROW 3: Micro / utility -->
+<div class="section-label">Микроразмеры и спецприменения</div>
+<div class="logo-grid two">
+
+  <!-- 07: Minimal wordmark -->
+  <div class="logo-card dark-bg">
+    <div class="card-label">07 · Минимальный</div>
+    <svg width="260" height="52" viewBox="0 0 260 52" fill="none">
+      <!-- Just the crosshair mark small -->
+      <circle cx="26" cy="26" r="20" stroke="#F5A623" stroke-width="1" opacity="0.25"/>
+      <circle cx="26" cy="26" r="10" stroke="#F5A623" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="26" cy="26" r="3" fill="#F5A623"/>
+      <line x1="26" y1="6" x2="26" y2="13" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="26" y1="39" x2="26" y2="46" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="6" y1="26" x2="13" y2="26" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="39" y1="26" x2="46" y2="26" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Separator -->
+      <line x1="60" y1="10" x2="60" y2="42" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+      <!-- Wordmark clean -->
+      <text x="74" y="33" font-family="Syne, sans-serif" font-weight="800" font-size="26" letter-spacing="4" fill="#EDF2FF">MERIDIAN</text>
+    </svg>
+    <div class="logo-name">Minimal · Шапка приложения</div>
+  </div>
+
+  <!-- Size samples -->
+  <div class="logo-card dark-bg">
+    <div class="card-label">Размерный ряд</div>
+    <svg width="280" height="100" viewBox="0 0 280 100" fill="none">
+      <!-- 64px -->
+      <circle cx="32" cy="50" r="28" stroke="#F5A623" stroke-width="1" opacity="0.18"/>
+      <circle cx="32" cy="50" r="18" stroke="#F5A623" stroke-width="1.2" opacity="0.5"/>
+      <circle cx="32" cy="50" r="8" stroke="#F5A623" stroke-width="1.5" opacity="0.8"/>
+      <circle cx="32" cy="50" r="3" fill="#F5A623"/>
+      <line x1="32" y1="22" x2="32" y2="28" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="32" y1="72" x2="32" y2="78" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="4" y1="50" x2="10" y2="50" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="54" y1="50" x2="60" y2="50" stroke="#F5A623" stroke-width="1.5" stroke-linecap="round"/>
+      <text x="32" y="96" font-family="JetBrains Mono, monospace" font-size="8" fill="#4A5568" text-anchor="middle">64px</text>
+      <!-- 32px -->
+      <circle cx="100" cy="50" r="14" stroke="#F5A623" stroke-width="1" opacity="0.2"/>
+      <circle cx="100" cy="50" r="9" stroke="#F5A623" stroke-width="1" opacity="0.5"/>
+      <circle cx="100" cy="50" r="4" stroke="#F5A623" stroke-width="1.5" opacity="0.8"/>
+      <circle cx="100" cy="50" r="1.5" fill="#F5A623"/>
+      <line x1="100" y1="36" x2="100" y2="40" stroke="#F5A623" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="100" y1="60" x2="100" y2="64" stroke="#F5A623" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="86" y1="50" x2="90" y2="50" stroke="#F5A623" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="110" y1="50" x2="114" y2="50" stroke="#F5A623" stroke-width="1.2" stroke-linecap="round"/>
+      <text x="100" y="96" font-family="JetBrains Mono, monospace" font-size="8" fill="#4A5568" text-anchor="middle">32px</text>
+      <!-- 20px -->
+      <circle cx="152" cy="50" r="9" stroke="#F5A623" stroke-width="1" opacity="0.25"/>
+      <circle cx="152" cy="50" r="5.5" stroke="#F5A623" stroke-width="1" opacity="0.55"/>
+      <circle cx="152" cy="50" r="2" fill="#F5A623" opacity="0.9"/>
+      <line x1="152" y1="41" x2="152" y2="44" stroke="#F5A623" stroke-width="1" stroke-linecap="round"/>
+      <line x1="152" y1="56" x2="152" y2="59" stroke="#F5A623" stroke-width="1" stroke-linecap="round"/>
+      <line x1="143" y1="50" x2="146" y2="50" stroke="#F5A623" stroke-width="1" stroke-linecap="round"/>
+      <line x1="158" y1="50" x2="161" y2="50" stroke="#F5A623" stroke-width="1" stroke-linecap="round"/>
+      <text x="152" y="96" font-family="JetBrains Mono, monospace" font-size="8" fill="#4A5568" text-anchor="middle">20px</text>
+      <!-- 14px mono -->
+      <circle cx="198" cy="50" r="6" stroke="#F5A623" stroke-width="0.8" opacity="0.3"/>
+      <circle cx="198" cy="50" r="3.5" stroke="#F5A623" stroke-width="0.8" opacity="0.6"/>
+      <circle cx="198" cy="50" r="1.2" fill="#F5A623"/>
+      <line x1="198" y1="44" x2="198" y2="46" stroke="#F5A623" stroke-width="0.8" stroke-linecap="round"/>
+      <line x1="198" y1="54" x2="198" y2="56" stroke="#F5A623" stroke-width="0.8" stroke-linecap="round"/>
+      <line x1="192" y1="50" x2="194" y2="50" stroke="#F5A623" stroke-width="0.8" stroke-linecap="round"/>
+      <line x1="202" y1="50" x2="204" y2="50" stroke="#F5A623" stroke-width="0.8" stroke-linecap="round"/>
+      <text x="198" y="96" font-family="JetBrains Mono, monospace" font-size="8" fill="#4A5568" text-anchor="middle">14px</text>
+      <!-- Filled square favicon -->
+      <rect x="222" y="36" width="28" height="28" rx="6" fill="#F5A623"/>
+      <circle cx="236" cy="50" r="10" stroke="#080A0F" stroke-width="1" opacity="0.25"/>
+      <circle cx="236" cy="50" r="6" stroke="#080A0F" stroke-width="1" opacity="0.5"/>
+      <circle cx="236" cy="50" r="2" fill="#080A0F" opacity="0.8"/>
+      <line x1="236" y1="40" x2="236" y2="43" stroke="#080A0F" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="236" y1="57" x2="236" y2="60" stroke="#080A0F" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="226" y1="50" x2="229" y2="50" stroke="#080A0F" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="243" y1="50" x2="246" y2="50" stroke="#080A0F" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <text x="236" y="96" font-family="JetBrains Mono, monospace" font-size="8" fill="#4A5568" text-anchor="middle">favicon</text>
+    </svg>
+    <div class="logo-name">Масштабирование знака</div>
+  </div>
+</div>
+
+<!-- Colour system strip -->
+<div class="section-label" style="margin-top:12px">Цветовой код</div>
+<div style="display:flex;gap:12px;margin-bottom:48px">
+  <div style="flex:1;background:#F5A623;border-radius:10px;padding:16px 20px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:rgba(0,0,0,.5);margin-bottom:6px">PRIMARY</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#080A0F">#F5A623</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,0,0,.4);margin-top:2px">Amber · Фокус</div>
+  </div>
+  <div style="flex:1;background:#080A0F;border:1px solid rgba(245,166,35,.25);border-radius:10px;padding:16px 20px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:#4A5568;margin-bottom:6px">BACKGROUND</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#EDF2FF">#080A0F</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#4A5568;margin-top:2px">Void · База</div>
+  </div>
+  <div style="flex:1;background:#2EE59D;border-radius:10px;padding:16px 20px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:rgba(0,0,0,.4);margin-bottom:6px">CONFIRM</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#080A0F">#2EE59D</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,0,0,.4);margin-top:2px">Green · Успех</div>
+  </div>
+  <div style="flex:1;background:#FF4B6E;border-radius:10px;padding:16px 20px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:rgba(255,255,255,.5);margin-bottom:6px">ALERT</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:white">#FF4B6E</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">Red · Риск</div>
+  </div>
+  <div style="flex:1;background:#5B9CF6;border-radius:10px;padding:16px 20px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:rgba(0,0,0,.4);margin-bottom:6px">INFO</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#080A0F">#5B9CF6</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,0,0,.4);margin-top:2px">Blue · Контекст</div>
+  </div>
+</div>
+
+</body>
+</html>
