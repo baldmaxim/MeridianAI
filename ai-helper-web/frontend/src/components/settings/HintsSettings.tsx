@@ -385,7 +385,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   input: {
     padding: '7px 10px',
-    background: theme.bg.surface,
+    background: theme.bg.input,
     border: `1px solid ${theme.border.default}`,
     borderRadius: 6,
     color: theme.text.primary,
@@ -395,7 +395,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   textarea: {
     padding: '7px 10px',
-    background: theme.bg.surface,
+    background: theme.bg.input,
     border: `1px solid ${theme.border.default}`,
     borderRadius: 6,
     color: theme.text.primary,

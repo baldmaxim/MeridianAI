@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getRoles, createRole, updateRole, deleteRole } from '../../api/roles';
+import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import type { NegotiationRole } from '../../types';
 
@@ -15,7 +16,21 @@ const EMPTY_FORM = {
   custom_instructions: '',
 };
 
+const PRESET_INSTRUCTIONS = [
+  'Не выдумывай номера договоров, пунктов, статей или документов',
+  'Давай только общие рекомендации на основе контекста разговора',
+  'Ссылайся на загруженные документы, если они релевантны',
+  'Отвечай кратко и по существу, без воды',
+  'Предупреждай о возможных рисках и подводных камнях',
+  'Предлагай конкретные формулировки для ответов оппоненту',
+  'Учитывай рыночные цены и нормы строительной отрасли',
+  'Не соглашайся на первое предложение оппонента',
+  'Фокусируйся на защите финансовых интересов',
+  'Предлагай альтернативные варианты при тупике в переговорах',
+];
+
 export function RolesTab({ onRoleSelect }: Props) {
+  const setActiveRoleName = useMeetingStore((s) => s.setActiveRoleName);
   const [roles, setRoles] = useState<NegotiationRole[]>([]);
   const [activeRoleId, setActiveRoleId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -29,6 +44,7 @@ export function RolesTab({ onRoleSelect }: Props) {
       setRoles(r);
       if (r.length > 0 && !activeRoleId) {
         setActiveRoleId(r[0].id);
+        setActiveRoleName(r[0].name);
       }
     });
   }, []);
@@ -36,6 +52,8 @@ export function RolesTab({ onRoleSelect }: Props) {
   const selectRole = (id: number) => {
     setActiveRoleId(id);
     onRoleSelect(id);
+    const role = roles.find((r) => r.id === id);
+    if (role) setActiveRoleName(role.name);
   };
 
   const startEdit = (role: NegotiationRole) => {
@@ -75,6 +93,7 @@ export function RolesTab({ onRoleSelect }: Props) {
         setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
         if (activeRoleId === editingId) {
           onRoleSelect(editingId);
+          setActiveRoleName(form.name);
         }
       }
       cancel();
@@ -108,7 +127,7 @@ ${r.custom_instructions || '(не указаны)'}`;
   const isEditing = creating || editingId !== null;
 
   return (
-    <div style={s.container}>
+    <div className="roles-container" style={s.container}>
       {/* Role list */}
       <div style={s.roleList}>
         <div style={s.listHeader}>
@@ -194,6 +213,21 @@ ${r.custom_instructions || '(не указаны)'}`;
             />
 
             <label style={s.label}>Дополнительные инструкции для ИИ</label>
+            <select
+              style={s.select}
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const cur = form.custom_instructions.trim();
+                const next = cur ? `${cur}\n${e.target.value}` : e.target.value;
+                setForm({ ...form, custom_instructions: next });
+              }}
+            >
+              <option value="">Выбрать из шаблонов...</option>
+              {PRESET_INSTRUCTIONS.map((text) => (
+                <option key={text} value={text}>{text}</option>
+              ))}
+            </select>
             <textarea
               style={s.textarea}
               rows={3}
@@ -402,6 +436,18 @@ const s: Record<string, React.CSSProperties> = {
     fontFamily: theme.font.body,
     outline: 'none',
     resize: 'vertical' as const,
+  },
+  select: {
+    padding: '10px 14px',
+    background: theme.bg.input,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 7,
+    color: theme.text.secondary,
+    fontSize: 13,
+    fontFamily: theme.font.body,
+    outline: 'none',
+    cursor: 'pointer',
+    appearance: 'auto' as const,
   },
   toggleBtn: {
     background: 'none',

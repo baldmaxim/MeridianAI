@@ -180,6 +180,7 @@ export function useWebSocket() {
         break;
 
       case 'meeting_context':
+        if (data.title) s.setMeetingName(data.title);
         s.setMeetingTopic(data.topic);
         s.setMeetingNotes(data.notes);
         s.setNegotiationType(data.negotiation_type);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 
+
 interface Props {
   userName?: string;
   userRole?: string;
@@ -61,51 +62,81 @@ function SessionTimer() {
 }
 
 export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory }: Props) {
+  const activeRoleName = useMeetingStore((s) => s.activeRoleName);
+  const meetingName = useMeetingStore((s) => s.meetingName);
+
   return (
-    <header className="header-inner" style={styles.header}>
-      <div className="header-logo" style={styles.logo}>
-        <LogoMark />
-        <div>
-          <div className="header-logo-text" style={styles.logoText}>
-            MERIDI<span style={{ color: theme.accent.amber }}>AN</span>
+    <>
+      <header className="header-inner" style={styles.header}>
+        <div className="header-logo" style={styles.logo}>
+          <LogoMark />
+          <div>
+            <div className="header-logo-text" style={styles.logoText}>
+              MERIDI<span style={{ color: theme.accent.amber }}>AN</span>
+            </div>
+            <div className="header-logo-sub" style={styles.logoSub}>AI Тактик</div>
           </div>
-          <div className="header-logo-sub" style={styles.logoSub}>AI Тактик</div>
         </div>
-      </div>
 
-      <div className="header-center" style={styles.center}>
-        <SessionTimer />
-      </div>
+        <div className="header-center" style={styles.center}>
+          {meetingName && (
+            <span className="header-meeting-name" style={styles.meetingName}>{meetingName}</span>
+          )}
+          <SessionTimer />
+        </div>
 
-      <div className="header-right" style={styles.right}>
-        {userName && (
-          <div className="header-avatar" style={styles.avatar}>
-            {(userName[0] || 'U').toUpperCase()}
-          </div>
-        )}
-        {onShowHistory && (
-          <button
-            className="header-desktop-btn"
-            onClick={onShowHistory}
-            style={showHistory ? styles.adminBtnActive : styles.adminBtn}
-          >
-            История
+        <div className="header-right" style={styles.right}>
+          {activeRoleName && (
+            <span className="header-role-badge" style={styles.roleBadge}>
+              {activeRoleName}
+            </span>
+          )}
+          {userName && (
+            <div className="header-avatar" style={styles.avatar}>
+              {(userName[0] || 'U').toUpperCase()}
+            </div>
+          )}
+          {onShowHistory && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowHistory}
+              style={showHistory ? styles.adminBtnActive : styles.adminBtn}
+            >
+              История
+            </button>
+          )}
+          {userRole === 'admin' && onToggleAdmin && (
+            <button
+              className="header-desktop-btn"
+              onClick={onToggleAdmin}
+              style={showAdmin ? styles.adminBtnActive : styles.adminBtn}
+            >
+              Админ
+            </button>
+          )}
+          <button className="header-desktop-btn" onClick={onLogout} style={styles.logout}>
+            Выход
           </button>
-        )}
-        {userRole === 'admin' && onToggleAdmin && (
-          <button
-            className="header-desktop-btn"
-            onClick={onToggleAdmin}
-            style={showAdmin ? styles.adminBtnActive : styles.adminBtn}
-          >
-            Админ
-          </button>
-        )}
-        <button className="header-desktop-btn" onClick={onLogout} style={styles.logout}>
-          Выход
-        </button>
-      </div>
-    </header>
+        </div>
+      </header>
+      {(activeRoleName || meetingName) && (
+        <div className="mobile-role-strip" style={styles.mobileRoleStrip}>
+          {meetingName && (
+            <>
+              <span style={styles.mobileRoleDot} />
+              <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{meetingName}</span>
+            </>
+          )}
+          {activeRoleName && meetingName && <span style={{ opacity: 0.3, margin: '0 4px' }}>|</span>}
+          {activeRoleName && (
+            <>
+              <span style={styles.mobileRoleDot} />
+              {activeRoleName}
+            </>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -142,6 +173,17 @@ const styles: Record<string, React.CSSProperties> = {
   center: {
     display: 'flex',
     alignItems: 'center',
+    gap: 12,
+  },
+  meetingName: {
+    fontFamily: theme.font.body,
+    fontSize: 12,
+    fontWeight: 500,
+    color: theme.text.secondary,
+    maxWidth: 220,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    whiteSpace: 'nowrap' as const,
   },
   sessionGroup: {
     display: 'flex',
@@ -242,5 +284,41 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     fontFamily: theme.font.mono,
     letterSpacing: '0.08em',
+  },
+  roleBadge: {
+    padding: '3px 10px',
+    fontSize: 9,
+    fontFamily: theme.font.mono,
+    fontWeight: 500,
+    letterSpacing: '0.06em',
+    color: theme.accent.amber,
+    border: '1px solid rgba(245,166,35,0.25)',
+    borderRadius: 12,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    maxWidth: 140,
+  },
+  mobileRoleStrip: {
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '4px 14px',
+    background: theme.bg.secondary,
+    borderBottom: `1px solid ${theme.border.default}`,
+    fontSize: 10,
+    fontFamily: theme.font.mono,
+    fontWeight: 500,
+    color: theme.accent.amber,
+    letterSpacing: '0.06em',
+    flexShrink: 0,
+  },
+  mobileRoleDot: {
+    width: 5,
+    height: 5,
+    borderRadius: '50%',
+    background: theme.accent.amber,
+    flexShrink: 0,
   },
 };

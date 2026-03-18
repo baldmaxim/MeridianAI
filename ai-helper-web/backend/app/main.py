@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_settings
+from sqlalchemy import text
 from .database import engine, Base
 from .auth.router import router as auth_router
 from .api.admin import router as admin_router
@@ -49,6 +50,14 @@ async def lifespan(app: FastAPI):
     # Create tables (in dev; use alembic in production)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Dev migration: add local_storage_path if missing
+        try:
+            await conn.execute(
+                text("ALTER TABLE user_settings ADD COLUMN local_storage_path VARCHAR(500)")
+            )
+            logger.info("Added local_storage_path column")
+        except Exception:
+            pass  # already exists
     logger.info("Database tables created")
 
     yield

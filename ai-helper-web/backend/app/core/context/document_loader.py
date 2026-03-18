@@ -1,4 +1,4 @@
-"""Document loader for meeting context (PDF, DOCX, XLSX, TXT, MD)."""
+"""Document loader for meeting context (PDF, MD)."""
 
 import io
 from dataclasses import dataclass
@@ -12,19 +12,7 @@ try:
 except ImportError:
     PYPDF2_AVAILABLE = False
 
-try:
-    from docx import Document as DocxDocument
-    DOCX_AVAILABLE = True
-except ImportError:
-    DOCX_AVAILABLE = False
-
-try:
-    from openpyxl import load_workbook
-    OPENPYXL_AVAILABLE = True
-except ImportError:
-    OPENPYXL_AVAILABLE = False
-
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".txt", ".md"}
+SUPPORTED_EXTENSIONS = {".pdf", ".md"}
 
 DOC_TYPE_LABELS = {
     "contract": "Договор",
@@ -62,46 +50,7 @@ def _extract_pdf(source: Union[Path, bytes]) -> Tuple[str, int]:
     return "\n\n".join(pages_text), len(reader.pages)
 
 
-def _extract_docx(source: Union[Path, bytes]) -> Tuple[str, int]:
-    if not DOCX_AVAILABLE:
-        raise RuntimeError("python-docx not installed")
-    if isinstance(source, bytes):
-        doc = DocxDocument(io.BytesIO(source))
-    else:
-        doc = DocxDocument(str(source))
-    parts: list[str] = []
-    for para in doc.paragraphs:
-        if para.text.strip():
-            parts.append(para.text.strip())
-    for table in doc.tables:
-        for row in table.rows:
-            cells = [c.text.strip() for c in row.cells if c.text.strip()]
-            if cells:
-                parts.append(" | ".join(cells))
-    return "\n".join(parts), 1
-
-
-def _extract_xlsx(source: Union[Path, bytes]) -> Tuple[str, int]:
-    if not OPENPYXL_AVAILABLE:
-        raise RuntimeError("openpyxl not installed")
-    if isinstance(source, bytes):
-        wb = load_workbook(io.BytesIO(source), read_only=True, data_only=True)
-    else:
-        wb = load_workbook(str(source), read_only=True, data_only=True)
-    parts: list[str] = []
-    for sheet in wb.worksheets:
-        parts.append(f"[Лист: {sheet.title}]")
-        for row in sheet.iter_rows(values_only=True):
-            cells = [str(c) if c is not None else "" for c in row]
-            line = "\t".join(cells).strip()
-            if line:
-                parts.append(line)
-    sheet_count = len(wb.sheetnames)
-    wb.close()
-    return "\n".join(parts), sheet_count
-
-
-def _extract_text(source: Union[Path, bytes]) -> Tuple[str, int]:
+def _extract_md(source: Union[Path, bytes]) -> Tuple[str, int]:
     if isinstance(source, bytes):
         return source.decode("utf-8", errors="replace"), 1
     return Path(source).read_text(encoding="utf-8", errors="replace"), 1
@@ -111,14 +60,10 @@ def _extract_content(filename: str, source: Union[Path, bytes]) -> Tuple[str, in
     ext = Path(filename).suffix.lower()
     if ext == ".pdf":
         return _extract_pdf(source)
-    elif ext == ".docx":
-        return _extract_docx(source)
-    elif ext == ".xlsx":
-        return _extract_xlsx(source)
-    elif ext in (".txt", ".md"):
-        return _extract_text(source)
+    elif ext == ".md":
+        return _extract_md(source)
     else:
-        raise ValueError(f"Формат {ext} не поддерживается")
+        raise ValueError(f"Формат {ext} не поддерживается. Поддерживаемые: PDF, MD")
 
 
 # --------------- main class ---------------
@@ -209,12 +154,7 @@ class DocumentLoader:
             for doc in self.documents:
                 label = DOC_TYPE_LABELS.get(doc.doc_type, doc.doc_type)
                 ext = Path(doc.filename).suffix.lower()
-                if ext == ".xlsx":
-                    count_label = f"{doc.page_count} лист."
-                elif ext in (".txt", ".md"):
-                    count_label = ""
-                else:
-                    count_label = f"{doc.page_count} стр."
+                count_label = f"{doc.page_count} стр." if ext == ".pdf" else ""
                 meta = f" ({count_label})" if count_label else ""
                 header = f"--- {label}: {doc.filename}{meta} ---"
                 if len(doc.content) <= chars_per_doc:

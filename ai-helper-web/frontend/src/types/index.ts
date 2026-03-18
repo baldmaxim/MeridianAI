@@ -60,6 +60,7 @@ export interface UserSettings {
   silence_filter: boolean;
   custom_suggestion_types: SuggestionTypeConfig[] | null;
   custom_trigger_keywords: TriggerKeywordConfig[] | null;
+  local_storage_path: string | null;
 }
 
 export interface NegotiationRole {
@@ -119,7 +120,7 @@ export type WSMessageFromServer =
   | { type: 'suggestion_loading'; loading: boolean }
   | { type: 'strengthen_loading'; loading: boolean }
   | { type: 'analysis_status'; status: string | null }
-  | { type: 'meeting_context'; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
+  | { type: 'meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'meeting_saved'; meeting_id: number }
   | { type: 'error'; message: string }
   | { type: 'status'; message: string };
@@ -131,9 +132,9 @@ export type WSMessageToServer =
   | { type: 'strengthen_position' }
   | { type: 'request_batch_finalize' }
   | { type: 'mark_speaker'; name: string }
-  | { type: 'update_meeting_context'; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
+  | { type: 'update_meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; silence_filter?: boolean }
-  | { type: 'save_to_history' };
+  | { type: 'save_to_history'; meeting_name?: string };
 
 // --- Meeting history ---
 

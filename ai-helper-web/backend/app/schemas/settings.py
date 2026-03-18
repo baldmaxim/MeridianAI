@@ -32,6 +32,7 @@ class UserSettingsResponse(BaseModel):
     silence_filter: bool
     custom_suggestion_types: list[SuggestionTypeConfig] | None = None
     custom_trigger_keywords: list[TriggerKeywordConfig] | None = None
+    local_storage_path: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -53,6 +54,7 @@ class UserSettingsUpdate(BaseModel):
     silence_filter: bool | None = None
     custom_suggestion_types: list[SuggestionTypeConfig] | None = None
     custom_trigger_keywords: list[TriggerKeywordConfig] | None = None
+    local_storage_path: str | None = None
 
 
 class ApiKeyCreate(BaseModel):

@@ -5,8 +5,7 @@ import { theme } from '../../styles/theme';
 function getDocColor(ext: string): string {
   switch (ext.toUpperCase()) {
     case 'PDF': return '#FF4B6E';
-    case 'DOCX': return '#5B9CF6';
-    case 'XLSX': return '#2EE59D';
+    case 'MD': return '#5B9CF6';
     default: return '#8896B3';
   }
 }
@@ -56,8 +55,7 @@ export function DocumentList() {
       {documents.map((doc) => {
         const ext = doc.filename.split('.').pop() || 'PDF';
         const extLower = ext.toLowerCase();
-        const countLabel = extLower === 'xlsx' ? `${doc.page_count} лист.`
-          : ['txt', 'md'].includes(extLower) ? '' : `${doc.page_count} стр.`;
+        const countLabel = extLower === 'pdf' ? `${doc.page_count} стр.` : '';
         return (
           <div key={doc.filename} style={styles.item}>
             <DocIcon ext={ext} />

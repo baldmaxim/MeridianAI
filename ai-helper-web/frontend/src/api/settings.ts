@@ -16,6 +16,11 @@ export async function getActiveProviders(): Promise<string[]> {
   return data.active_services;
 }
 
+export async function pickFolder(): Promise<string> {
+  const { data } = await api.get<{ path: string }>('/settings/pick-folder');
+  return data.path;
+}
+
 // Admin API key management
 export async function listApiKeys(): Promise<ApiKeyInfo[]> {
   const { data } = await api.get<ApiKeyInfo[]>('/admin/api-keys');

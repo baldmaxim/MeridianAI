@@ -487,6 +487,32 @@ button:disabled {
     grid-template-columns: 1fr !important;
   }
 
+  /* ── Roles ── */
+  .roles-container {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding-bottom: 80px;
+  }
+
+  /* ── Role: hide desktop badge, show mobile strip ── */
+  .header-role-badge {
+    display: none !important;
+  }
+  .mobile-role-strip {
+    display: flex !important;
+  }
+
+  /* ── Meeting name in header ── */
+  .header-meeting-name {
+    display: none !important;
+  }
+
+  /* ── Save meeting button mobile ── */
+  .save-meeting-btn {
+    width: 100% !important;
+    align-self: stretch !important;
+  }
+
   /* ── Content padding for bottom nav ── */
   .mobile-content-pad {
     padding-bottom: 80px !important;

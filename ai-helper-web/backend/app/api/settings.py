@@ -1,6 +1,9 @@
 """User settings API routes."""
 
+import asyncio
 import json
+import platform
+import subprocess
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -73,3 +76,40 @@ async def update_settings(
         setattr(settings, field, value)
 
     return settings
+
+
+def _open_folder_dialog() -> str:
+    """Open native OS folder picker dialog via subprocess."""
+    if platform.system() == "Windows":
+        import tempfile, os
+        # Use PowerShell with Shell.Application COM — always shows on top
+        ps_script = (
+            "$shell = New-Object -ComObject Shell.Application;"
+            "$folder = $shell.BrowseForFolder(0, 'Выберите папку для хранения встреч', 0x40, 0);"
+            "if ($folder) { $folder.Self.Path } else { '' }"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-STA", "-Command", ps_script],
+            capture_output=True, text=True, timeout=120,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        return result.stdout.strip()
+    else:
+        try:
+            result = subprocess.run(
+                ["zenity", "--file-selection", "--directory",
+                 "--title=Выберите папку для хранения встреч"],
+                capture_output=True, text=True, timeout=120,
+            )
+            return result.stdout.strip() if result.returncode == 0 else ""
+        except FileNotFoundError:
+            return ""
+
+
+@router.get("/pick-folder")
+async def pick_folder(
+    user: User = Depends(get_current_user),
+):
+    """Open native OS folder picker dialog and return selected path."""
+    path = await asyncio.get_event_loop().run_in_executor(None, _open_folder_dialog)
+    return {"path": path}

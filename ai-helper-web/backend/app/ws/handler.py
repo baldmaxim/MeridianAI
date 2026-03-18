@@ -21,6 +21,7 @@ from ..models.api_key import ApiKey
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord, MeetingDocumentRecord
 from ..models.role import NegotiationRole
 from ..services.session_manager import get_session_manager, remove_session_manager
+from ..services.local_storage import save_meeting_to_local
 from ..core.context.document_loader import MeetingDocument
 from ..services.encryption import decrypt_api_key
 
@@ -148,6 +149,7 @@ async def _load_or_create_meeting_session(user_id: int, session) -> None:
             session.negotiation_type = meeting.negotiation_type or "sale"
             session.meeting_role = meeting.meeting_role or ""
             session.opponent_weaknesses = meeting.opponent_weaknesses or ""
+            session.meeting_title = meeting.title or ""
             session.db_session_id = meeting.id
 
             # Restore documents from DB if not already loaded
@@ -291,9 +293,10 @@ async def meeting_websocket(websocket: WebSocket, token: str = Query(...)):
     await websocket.send_json({"type": "status", "message": "Подключено. Готов к работе."})
 
     # Send restored meeting context
-    if session.document_loader.meeting_topic or session.document_loader.meeting_notes or session.meeting_role or session.opponent_weaknesses or session.negotiation_type != "sale":
+    if session.document_loader.meeting_topic or session.document_loader.meeting_notes or session.meeting_role or session.opponent_weaknesses or session.negotiation_type != "sale" or session.meeting_title:
         await websocket.send_json({
             "type": "meeting_context",
+            "title": session.meeting_title,
             "topic": session.document_loader.meeting_topic,
             "notes": session.document_loader.meeting_notes,
             "negotiation_type": session.negotiation_type,
@@ -368,6 +371,7 @@ async def _handle_control_message(
             session.mark_speaker(name)
 
     elif msg_type == "update_meeting_context":
+        title = data.get("title")
         topic = data.get("topic", "")
         notes = data.get("notes", "")
         negotiation_type = data.get("negotiation_type", "sale")
@@ -377,6 +381,8 @@ async def _handle_control_message(
         session.negotiation_type = negotiation_type
         session.meeting_role = meeting_role
         session.opponent_weaknesses = opponent_weaknesses
+        if title is not None:
+            session.meeting_title = title
         # Persist to DB
         if session.db_session_id:
             async with async_session() as db:
@@ -390,6 +396,8 @@ async def _handle_control_message(
                     meeting.negotiation_type = negotiation_type
                     meeting.meeting_role = meeting_role
                     meeting.opponent_weaknesses = opponent_weaknesses
+                    if title is not None:
+                        meeting.title = title
                     await db.commit()
 
     elif msg_type == "change_role":
@@ -409,8 +417,25 @@ async def _handle_control_message(
                 )
 
     elif msg_type == "save_to_history":
+        meeting_name = data.get("meeting_name")
         meeting_id = session.db_session_id
+        # Update title if provided
+        if meeting_name and meeting_id:
+            async with async_session() as db:
+                result = await db.execute(
+                    select(MeetingSession).where(MeetingSession.id == meeting_id)
+                )
+                m = result.scalar_one_or_none()
+                if m:
+                    m.title = meeting_name
+                    await db.commit()
         await _finalize_session(session)
+        # Save to local storage (best-effort)
+        if meeting_id:
+            try:
+                await save_meeting_to_local(session.user_id, meeting_id)
+            except Exception as e:
+                logger.error(f"Local storage save failed: {e}")
         remove_session_manager(session.user_id)
         await websocket.send_json({"type": "meeting_saved", "meeting_id": meeting_id})
 

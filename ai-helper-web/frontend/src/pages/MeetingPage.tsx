@@ -15,6 +15,7 @@ import { RolesTab } from '../components/context/RolesTab';
 import { STTSettings } from '../components/settings/STTSettings';
 import { LLMSettings } from '../components/settings/LLMSettings';
 import { HintsSettings } from '../components/settings/HintsSettings';
+import { StorageSettings } from '../components/settings/StorageSettings';
 import { theme } from '../styles/theme';
 import type { UserSettings, SuggestionTypeConfig, TriggerKeywordConfig } from '../types';
 
@@ -44,13 +45,14 @@ const SETTINGS_SECTIONS = [
   { id: 'stt', icon: '\u{1F399}', label: 'Распознавание речи' },
   { id: 'llm', icon: '\u{1F916}', label: 'Языковая модель' },
   { id: 'hints', icon: '\u26A1', label: 'Подсказки' },
+  { id: 'roles', icon: '\u{1F465}', label: 'Роли' },
+  { id: 'storage', icon: '\u{1F4C1}', label: 'Хранилище' },
   { id: 'notifications', icon: '\u{1F514}', label: 'Уведомления' },
   { id: 'locale', icon: '\u{1F310}', label: 'Язык и регион' },
 ] as const;
 
 export function MeetingPage() {
   const [activeTab, setActiveTab] = useState(0);
-  const [contextSubTab, setContextSubTab] = useState(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState('stt');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -145,8 +147,23 @@ export function MeetingPage() {
   }, [stopAudio, sendJSON]);
 
   const handleContextChange = useCallback((topic: string, notes: string, negotiationType: string, meetingRole: string, opponentWeaknesses: string) => {
-    sendJSON({ type: 'update_meeting_context', topic, notes, negotiation_type: negotiationType, meeting_role: meetingRole, opponent_weaknesses: opponentWeaknesses });
-  }, [sendJSON]);
+    sendJSON({ type: 'update_meeting_context', title: store.meetingName || undefined, topic, notes, negotiation_type: negotiationType, meeting_role: meetingRole, opponent_weaknesses: opponentWeaknesses });
+  }, [sendJSON, store.meetingName]);
+
+  const handleMeetingNameChange = useCallback((name: string) => {
+    store.setMeetingName(name);
+    sendJSON({ type: 'update_meeting_context', title: name, topic: store.meetingTopic, notes: store.meetingNotes, negotiation_type: store.negotiationType, meeting_role: store.meetingRole, opponent_weaknesses: store.opponentWeaknesses });
+  }, [sendJSON, store.meetingTopic, store.meetingNotes, store.negotiationType, store.meetingRole, store.opponentWeaknesses]);
+
+  const [savingMeeting, setSavingMeeting] = useState(false);
+
+  const handleSaveMeeting = useCallback(() => {
+    if (savingMeeting) return;
+    setSavingMeeting(true);
+    sendJSON({ type: 'save_to_history', meeting_name: store.meetingName || undefined });
+    showToast('Встреча сохранена', 'success');
+    setTimeout(() => setSavingMeeting(false), 2000);
+  }, [sendJSON, store.meetingName, savingMeeting, showToast]);
 
   const handleRoleSelect = useCallback((roleId: number) => {
     sendJSON({ type: 'change_role', role_id: roleId });
@@ -251,42 +268,48 @@ export function MeetingPage() {
         {/* Контекст встречи */}
         {activeTab === 1 && (
           <div className="mobile-content-pad" style={styles.contextPanel}>
-            {/* Sub-tabs */}
-            <div style={styles.subTabs}>
-              {(['Документы', 'Контекст', 'Роли'] as const).map((label, i) => (
-                <button
-                  key={label}
-                  onClick={() => setContextSubTab(i)}
-                  style={{
-                    ...styles.subTab,
-                    color: contextSubTab === i ? theme.accent.amber : theme.text.muted,
-                    borderBottom: contextSubTab === i ? `2px solid ${theme.accent.amber}` : '2px solid transparent',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+            {/* Название встречи */}
+            <div style={styles.contextCard}>
+              <div style={styles.sectionHeader}>
+                <span style={styles.dot} />
+                <span style={styles.sectionTitle}>Название встречи</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
+                value={store.meetingName}
+                onChange={(e) => handleMeetingNameChange(e.target.value)}
+                style={styles.contextInput}
+              />
             </div>
 
-            {contextSubTab === 0 && (
-              <div style={styles.contextCard}>
-                <div style={styles.sectionHeader}>
-                  <span style={styles.dot} />
-                  <span style={styles.sectionTitle}>Документы встречи</span>
-                  <span style={styles.sectionMeta}>PDF, DOCX, TXT · до 10 МБ</span>
-                </div>
-                <DocumentUpload />
-                <DocumentList />
+            {/* Документы */}
+            <div style={styles.contextCard}>
+              <div style={styles.sectionHeader}>
+                <span style={styles.dot} />
+                <span style={styles.sectionTitle}>Документы встречи</span>
+                <span style={styles.sectionMeta}>PDF, MD · до 10 МБ</span>
               </div>
-            )}
+              <DocumentUpload />
+              <DocumentList />
+            </div>
 
-            {contextSubTab === 1 && (
-              <MeetingContext onContextChange={handleContextChange} />
-            )}
+            {/* Контекст */}
+            <MeetingContext onContextChange={handleContextChange} />
 
-            {contextSubTab === 2 && (
-              <RolesTab onRoleSelect={handleRoleSelect} />
-            )}
+            {/* Сохранить встречу */}
+            <button
+              className="save-meeting-btn"
+              onClick={handleSaveMeeting}
+              disabled={savingMeeting}
+              style={{
+                ...styles.saveMeetingBtn,
+                opacity: savingMeeting ? 0.6 : 1,
+                cursor: savingMeeting ? 'wait' : 'pointer',
+              }}
+            >
+              {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
+            </button>
           </div>
         )}
 
@@ -333,6 +356,15 @@ export function MeetingPage() {
                   triggerKeywords={settings.custom_trigger_keywords || DEFAULT_TRIGGER_KEYWORDS}
                   onSuggestionTypesChange={(types) => setSettings({ ...settings, custom_suggestion_types: types })}
                   onTriggerKeywordsChange={(keywords) => setSettings({ ...settings, custom_trigger_keywords: keywords })}
+                />
+              )}
+              {settingsSection === 'roles' && (
+                <RolesTab onRoleSelect={handleRoleSelect} />
+              )}
+              {settingsSection === 'storage' && (
+                <StorageSettings
+                  localPath={settings.local_storage_path || ''}
+                  onChange={(path) => setSettings({ ...settings, local_storage_path: path })}
                 />
               )}
               {settingsSection === 'notifications' && (
@@ -447,22 +479,38 @@ const styles: Record<string, React.CSSProperties> = {
   contentNegotiations: { flex: 1, overflow: 'hidden', padding: '16px 20px 0' },
 
   /* Переговоры */
-  negotiationWrap: { display: 'flex', flexDirection: 'column', height: '100%' },
+  negotiationWrap: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
   meetingLayout: { display: 'flex', gap: 16, flex: 1, minHeight: 0 },
-  leftPanel: { flex: 3, display: 'flex', flexDirection: 'column', minWidth: 0 },
+  leftPanel: { flex: 3, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 },
   rightPanel: { width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0 },
 
   /* Контекст встречи */
   contextPanel: { display: 'flex', flexDirection: 'column', gap: 20 },
-  subTabs: {
-    display: 'flex', gap: 0,
-    borderBottom: `1px solid ${theme.border.default}`,
-    marginBottom: 4,
+  contextInput: {
+    padding: '10px 14px',
+    background: theme.bg.input,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 7,
+    color: theme.text.primary,
+    fontSize: 13,
+    fontFamily: theme.font.body,
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box' as const,
   },
-  subTab: {
-    padding: '8px 16px', background: 'transparent', border: 'none',
-    cursor: 'pointer', fontSize: 12, fontWeight: 500,
-    fontFamily: theme.font.body, letterSpacing: '0.02em', transition: 'color 0.2s',
+  saveMeetingBtn: {
+    padding: '12px 28px',
+    background: theme.accent.amber,
+    border: 'none',
+    borderRadius: 8,
+    color: '#080A0F',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: theme.font.body,
+    alignSelf: 'flex-start',
+    transition: 'opacity 0.2s',
+    letterSpacing: '0.02em',
   },
   contextCard: {
     background: theme.bg.card, border: `1px solid ${theme.border.default}`,

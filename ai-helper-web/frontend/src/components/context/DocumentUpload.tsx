@@ -68,10 +68,10 @@ export function DocumentUpload() {
         </div>
         <div>
           <div style={styles.dropTitle}>Перетащите файл или нажмите для выбора</div>
-          <div style={styles.dropSub}>PDF, DOCX, XLSX, TXT — AI использует для генерации подсказок</div>
+          <div style={styles.dropSub}>PDF, MD — AI использует содержимое для анализа и подсказок</div>
         </div>
       </div>
-      <input ref={fileRef} type="file" accept=".pdf,.docx,.xlsx,.txt,.md" style={{ display: 'none' }} onChange={handleUpload} />
+      <input ref={fileRef} type="file" accept=".pdf,.md" style={{ display: 'none' }} onChange={handleUpload} />
 
       {/* Controls row */}
       <div style={styles.controls}>

@@ -58,11 +58,13 @@ interface MeetingState {
   setError: (msg: string | null) => void;
 
   // Meeting context
+  meetingName: string;
   meetingTopic: string;
   meetingNotes: string;
   negotiationType: string;
   meetingRole: string;
   opponentWeaknesses: string;
+  setMeetingName: (n: string) => void;
   setMeetingTopic: (t: string) => void;
   setMeetingNotes: (n: string) => void;
   setNegotiationType: (t: string) => void;
@@ -76,6 +78,10 @@ interface MeetingState {
   // Custom suggestion types
   customSuggestionTypes: SuggestionTypeConfig[] | null;
   setCustomSuggestionTypes: (types: SuggestionTypeConfig[] | null) => void;
+
+  // Active role
+  activeRoleName: string | null;
+  setActiveRoleName: (name: string | null) => void;
 
   // Meeting saved
   meetingSavedId: number | null;
@@ -187,11 +193,13 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   lastError: null,
   setError: (msg) => set({ lastError: msg }),
 
+  meetingName: '',
   meetingTopic: '',
   meetingNotes: '',
   negotiationType: 'sale',
   meetingRole: '',
   opponentWeaknesses: '',
+  setMeetingName: (n) => set({ meetingName: n }),
   setMeetingTopic: (t) => set({ meetingTopic: t }),
   setMeetingNotes: (n) => set({ meetingNotes: n }),
   setNegotiationType: (t) => set({ negotiationType: t }),
@@ -200,6 +208,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   customSuggestionTypes: null,
   setCustomSuggestionTypes: (types) => set({ customSuggestionTypes: types }),
+
+  activeRoleName: null,
+  setActiveRoleName: (name) => set({ activeRoleName: name }),
 
   meetingSavedId: null,
   setMeetingSavedId: (id) => set({ meetingSavedId: id }),
@@ -223,11 +234,13 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       suggestionLoading: false,
       strengthenLoading: false,
       documents: [],
+      meetingName: '',
       analysisStatus: null,
       statusMessage: 'Готов к работе',
       lastError: null,
       isListening: false,
       lastSuggestionTime: null,
+      activeRoleName: null,
       meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
     }),
 }));

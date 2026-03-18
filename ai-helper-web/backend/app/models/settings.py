@@ -30,6 +30,9 @@ class UserSettings(Base):
     custom_trigger_keywords: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None
     )
+    local_storage_path: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, default=None
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )

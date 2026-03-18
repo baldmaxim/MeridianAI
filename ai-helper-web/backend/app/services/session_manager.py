@@ -92,6 +92,7 @@ class SessionManager:
         self.negotiation_type: str = "sale"
         self.meeting_role: str = ""
         self.opponent_weaknesses: str = ""
+        self.meeting_title: str = ""
 
         # State
         self.is_listening = False
@@ -399,6 +400,10 @@ class SessionManager:
             document_context=doc_context,
         )
 
+        logger.info(f"[AutoHint] keyword='{triggered_keyword}', "
+                     f"docs={len(self.document_loader.documents)}, prompt_len={len(prompt)}")
+        logger.debug(f"[AutoHint] PROMPT:\n{prompt}")
+
         raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
         if raw:
             hint = self._parse_single_hint(raw, triggered_keyword)
@@ -480,6 +485,11 @@ class SessionManager:
             opponent_weaknesses=self.opponent_weaknesses,
         )
 
+        logger.info(f"[Suggestion] docs={len(self.document_loader.documents)}, "
+                     f"topic='{self.document_loader.meeting_topic}', "
+                     f"type='{self.negotiation_type}', prompt_len={len(prompt)}")
+        logger.debug(f"[Suggestion] PROMPT:\n{prompt}")
+
         raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
         if raw:
             hints = self._parse_hints_array(raw)
@@ -517,6 +527,11 @@ class SessionManager:
             meeting_role=self.meeting_role,
             opponent_weaknesses=self.opponent_weaknesses,
         )
+
+        logger.info(f"[Strengthen] docs={len(self.document_loader.documents)}, "
+                     f"topic='{self.document_loader.meeting_topic}', "
+                     f"type='{self.negotiation_type}', prompt_len={len(prompt)}")
+        logger.debug(f"[Strengthen] PROMPT:\n{prompt}")
 
         full_text_parts: list[str] = []
         async for chunk_text in self.llm_client.get_suggestion_streaming_async(
