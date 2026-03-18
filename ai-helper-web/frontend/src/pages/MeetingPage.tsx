@@ -258,7 +258,7 @@ export function MeetingPage() {
                   </div>
                   <button className="sheet-close" onClick={() => setDrawerOpen(false)}>&times;</button>
                 </div>
-                <ChatDisplay />
+                <ChatDisplay onSetSpeakerRole={(name, side) => sendJSON({ type: 'set_speaker_role', name, side } as any)} />
                 <MeetingStats onSaveToHistory={() => sendJSON({ type: 'save_to_history' })} />
               </div>
             </div>

@@ -312,6 +312,7 @@ async def meeting_websocket(websocket: WebSocket, token: str = Query(...)):
                 if "bytes" in message and message["bytes"]:
                     # Binary frame = audio data
                     if session.is_listening and session.audio_queue:
+                        session.touch()
                         await session.audio_queue.put(
                             (datetime.now(), message["bytes"])
                         )
@@ -347,6 +348,7 @@ async def _handle_control_message(
 ):
     """Route control messages to session manager methods."""
     msg_type = data.get("type", "")
+    session.touch()
     logger.info(f"[WS] Control message: {msg_type}")
 
     if msg_type == "start_listening":
@@ -369,6 +371,16 @@ async def _handle_control_message(
         name = data.get("name", "")
         if name:
             session.mark_speaker(name)
+
+    elif msg_type == "set_speaker_role":
+        name = data.get("name", "")
+        side = data.get("side", "")
+        if name:
+            session.set_speaker_role(name, side)
+            await websocket.send_json({
+                "type": "speaker_roles_updated",
+                "roles": session.speaker_roles,
+            })
 
     elif msg_type == "update_meeting_context":
         title = data.get("title")

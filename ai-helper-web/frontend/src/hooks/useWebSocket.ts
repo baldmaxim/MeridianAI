@@ -192,6 +192,26 @@ export function useWebSocket() {
         s.setMeetingSavedId(data.meeting_id);
         break;
 
+      case 'speaker_roles_updated':
+        s.setSpeakerRoles(data.roles);
+        break;
+
+      case 'turn_update':
+        s.handleTurnUpdate({
+          turn_id: data.turn_id,
+          speaker: data.speaker,
+          text: data.text,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          timestamp: data.timestamp,
+          segment_count: data.segment_count,
+        });
+        break;
+
+      case 'turns_reset':
+        s.resetTurns();
+        break;
+
       case 'error':
         s.setError(data.message);
         break;

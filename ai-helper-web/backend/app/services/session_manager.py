@@ -18,11 +18,15 @@ from ..core.context.analyzer import ContextAnalyzer
 from ..core.context.document_loader import DocumentLoader
 from ..core.context.knowledge_base import get_arguments_for_keyword
 from ..core.llm.client import LLMClient
+from ..core.llm.prompt_context_builder import PromptContextBuilder
 from ..core.llm.prompts import PromptBuilder
 from ..core.transcription.models import (
     TranscriptSegment, CommittedSegment, PartialTranscript,
     UNKNOWN_SPEAKER,
 )
+from ..core.context.event_detector import EventDetector
+from ..core.context.meeting_memory import MeetingMemory
+from ..core.transcription.turn_assembler import TurnAssembler
 from .audio_recorder import AudioRecorder
 
 logger = logging.getLogger("ai_helper.session")
@@ -34,6 +38,14 @@ _sessions: Dict[int, "SessionManager"] = {}
 HINT_DEBOUNCE_SEC = 3.0
 HINT_COOLDOWN_SEC = 30.0
 MIN_SEGMENTS_FOR_HINT = 2
+
+# Speaker side labels for prompt annotation
+ROLE_LABELS = {
+    "self": "МЫ",
+    "opponent": "ОППОНЕНТ",
+    "ally": "СОЮЗНИК",
+    "third_party": "ТРЕТЬЯ СТОРОНА",
+}
 
 # Keyword → analysis status message (defaults)
 DEFAULT_KEYWORD_STATUS = {
@@ -66,6 +78,19 @@ def remove_session_manager(user_id: int):
         session.cleanup()
 
 
+def cleanup_idle_sessions(max_idle: float = 3600) -> int:
+    """Remove sessions idle longer than max_idle seconds. Skip listening sessions."""
+    now = time.time()
+    to_remove = [
+        uid for uid, s in _sessions.items()
+        if now - s.last_activity > max_idle and not s.is_listening
+    ]
+    for uid in to_remove:
+        logger.info("[SessionCleanup] removing idle session user=%d", uid)
+        remove_session_manager(uid)
+    return len(to_remove)
+
+
 class SessionManager:
     """Manages a single user's meeting session state."""
 
@@ -95,6 +120,7 @@ class SessionManager:
         self.meeting_title: str = ""
 
         # State
+        self.last_activity: float = time.time()
         self.is_listening = False
         self._transcription_task: Optional[asyncio.Task] = None
 
@@ -109,6 +135,7 @@ class SessionManager:
         # Speaker
         self.speaker_mapping: Dict[str, str] = {}
         self.current_speaker: Optional[str] = None
+        self.speaker_roles: Dict[str, str] = {}  # display_name → side
 
         # Stored API keys for batch finalization
         self._elevenlabs_key: Optional[str] = None
@@ -117,8 +144,30 @@ class SessionManager:
         self._valid_suggestion_types = set(DEFAULT_VALID_SUGGESTION_TYPES)
         self._keyword_status = dict(DEFAULT_KEYWORD_STATUS)
 
+        # Turn assembler (merges consecutive same-speaker segments)
+        self._turn_assembler = TurnAssembler()
+
+        # Meeting memory (three-layer context for long meetings)
+        self._meeting_memory = MeetingMemory()
+
+        # Event detector (rule-based negotiation events)
+        self._event_detector = EventDetector()
+
+        # Prompt context builder (unified context assembly for 3 modes)
+        self._ctx_builder = PromptContextBuilder(
+            meeting_memory=self._meeting_memory,
+            document_loader=self.document_loader,
+            context_analyzer=self.context_analyzer,
+            committed_context_fn=self._get_committed_context,
+            speaker_roles_fn=lambda: self.speaker_roles,
+        )
+
         # WebSocket send callback
         self._ws_send: Optional[Callable] = None
+
+    def touch(self):
+        """Update last activity timestamp."""
+        self.last_activity = time.time()
 
     def set_ws_send(self, send_func: Callable):
         """Set WebSocket send function for pushing messages to client."""
@@ -308,6 +357,23 @@ class SessionManager:
                 **segment.to_wire_full(),
             }))
 
+        # Update turn assembler and send turn_update
+        speaker = segment.speaker_label or segment.speaker_id
+        turn, _ = self._turn_assembler.push(
+            speaker=speaker,
+            text=segment.text,
+            start_time=segment.start_time,
+            end_time=segment.end_time,
+            wall_clock=segment.wall_clock,
+        )
+        if self._ws_send:
+            asyncio.create_task(self._send_turn_update(turn))
+
+        # Feed meeting memory
+        self._meeting_memory.ingest_turn(turn)
+        if self._meeting_memory.needs_summary_update() and self.llm_client:
+            asyncio.create_task(self._meeting_memory.update_summary(self.llm_client))
+
         # Schedule debounced AI hint check
         self._schedule_hint_check(segment)
 
@@ -340,8 +406,23 @@ class SessionManager:
         if self._ws_send:
             asyncio.create_task(self._send_transcript(segment, is_partial))
 
-            # Check auto-triggers for final segments
             if not is_partial:
+                # Update turn assembler and send turn_update
+                turn, _ = self._turn_assembler.push(
+                    speaker=segment.speaker,
+                    text=segment.text,
+                    start_time=segment.start_time,
+                    end_time=segment.end_time,
+                    wall_clock=segment.timestamp,
+                )
+                asyncio.create_task(self._send_turn_update(turn))
+
+                # Feed meeting memory
+                self._meeting_memory.ingest_turn(turn)
+                if self._meeting_memory.needs_summary_update() and self.llm_client:
+                    asyncio.create_task(self._meeting_memory.update_summary(self.llm_client))
+
+                # Check auto-triggers for final segments
                 asyncio.create_task(self._check_legacy_auto_triggers(segment.text))
 
     # ---------------------------------------------------------------
@@ -356,7 +437,7 @@ class SessionManager:
         self._hint_debounce_task = asyncio.create_task(self._debounced_hint_check())
 
     async def _debounced_hint_check(self):
-        """Wait for pause, then check buffered segments for keywords."""
+        """Wait for pause, then check buffered segments for events/keywords."""
         await asyncio.sleep(HINT_DEBOUNCE_SEC)
 
         if not self._hint_buffer or not self.llm_client:
@@ -368,8 +449,37 @@ class SessionManager:
         batch_text = " ".join(s.text for s in self._hint_buffer)
         self._hint_buffer.clear()
 
-        keywords = self.context_analyzer.detect_trigger_keywords(batch_text)
         now = time.time()
+        ctx = self._ctx_builder.build_reactive(batch_text)
+        recent = ctx["recent_dialog"]
+        doc_context = ctx["document_context"]
+
+        # --- Event detection (priority over keywords) ---
+        events = self._event_detector.detect(batch_text)
+        for ev in events:
+            cooldown_key = f"event:{ev.event_type}"
+            last = self._auto_trigger_cooldown.get(cooldown_key, 0)
+            if now - last < HINT_COOLDOWN_SEC:
+                continue
+            self._auto_trigger_cooldown[cooldown_key] = now
+
+            await self._send_analysis_status(ev.status_message)
+            prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
+                keyword=ev.keyword_for_prompt,
+                recent_dialog=recent,
+                document_context=doc_context,
+            )
+            logger.info(f"[AutoHint] event='{ev.event_type}', "
+                         f"docs={len(self.document_loader.documents)}, prompt_len={len(prompt)}")
+            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
+            if raw:
+                hint = self._parse_single_hint(raw, ev.keyword_for_prompt)
+                await self._send_structured_suggestion(hint, is_auto=True)
+            await self._send_analysis_status(None)
+            return  # event handled, skip keyword fallback
+
+        # --- Keyword fallback ---
+        keywords = self.context_analyzer.detect_trigger_keywords(batch_text)
 
         triggered_keyword = None
         for kw in keywords:
@@ -382,18 +492,11 @@ class SessionManager:
         if not triggered_keyword:
             return
 
-        # Send analysis status
         status_msg = self._keyword_status.get(
             triggered_keyword, f"Анализирую: «{triggered_keyword}»..."
         )
         await self._send_analysis_status(status_msg)
 
-        # Build structured prompt
-        recent = self._get_committed_context(minutes=5)
-        doc_context = (
-            self.document_loader.get_context_for_prompt()
-            if self.document_loader.has_context() else ""
-        )
         prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
             keyword=triggered_keyword,
             recent_dialog=recent,
@@ -412,12 +515,39 @@ class SessionManager:
         await self._send_analysis_status(None)
 
     async def _check_legacy_auto_triggers(self, text: str):
-        """Legacy auto-trigger check for Deepgram/Gemini."""
+        """Legacy auto-trigger check for Deepgram/Gemini (event-first, keyword fallback)."""
         if not self.llm_client:
             return
 
-        keywords = self.context_analyzer.detect_trigger_keywords(text)
         now = time.time()
+        ctx = self._ctx_builder.build_reactive(text)
+        recent = ctx["recent_dialog"]
+        doc_context = ctx["document_context"]
+
+        # --- Event detection (priority) ---
+        events = self._event_detector.detect(text)
+        for ev in events:
+            cooldown_key = f"event:{ev.event_type}"
+            last = self._auto_trigger_cooldown.get(cooldown_key, 0)
+            if now - last < HINT_COOLDOWN_SEC:
+                continue
+            self._auto_trigger_cooldown[cooldown_key] = now
+
+            await self._send_analysis_status(ev.status_message)
+            prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
+                keyword=ev.keyword_for_prompt,
+                recent_dialog=recent,
+                document_context=doc_context,
+            )
+            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
+            if raw:
+                hint = self._parse_single_hint(raw, ev.keyword_for_prompt)
+                await self._send_structured_suggestion(hint, is_auto=True)
+            await self._send_analysis_status(None)
+            return  # event handled
+
+        # --- Keyword fallback ---
+        keywords = self.context_analyzer.detect_trigger_keywords(text)
 
         for keyword in keywords:
             last_trigger = self._auto_trigger_cooldown.get(keyword, 0)
@@ -431,11 +561,6 @@ class SessionManager:
             )
             await self._send_analysis_status(status_msg)
 
-            recent = self.context_analyzer.get_recent_context(5)
-            doc_context = (
-                self.document_loader.get_context_for_prompt()
-                if self.document_loader.has_context() else ""
-            )
             prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
                 keyword=keyword, recent_dialog=recent,
                 document_context=doc_context,
@@ -464,25 +589,22 @@ class SessionManager:
         await self._send_json({"type": "suggestion_loading", "loading": True})
         await self._send_analysis_status("Формирую тактические подсказки...")
 
-        context = self._get_committed_context(minutes=5)
-        if not context:
-            context = self.context_analyzer.get_context_by_time(5)
+        ctx = self._ctx_builder.build_tactical(
+            topic=self.document_loader.meeting_topic,
+            notes=self.document_loader.meeting_notes,
+            negotiation_type=self.negotiation_type,
+            meeting_role=self.meeting_role,
+            opponent_weaknesses=self.opponent_weaknesses,
+        )
+        context = ctx.pop("recent_dialog", "")
         if not context:
             await self._send_error("Нет данных для анализа")
             await self._send_analysis_status(None)
             await self._send_json({"type": "suggestion_loading", "loading": False})
             return
 
-        doc_context = self.document_loader.get_document_context()
-
         prompt = self.prompt_builder.build_tactical_hints_prompt(
-            recent_dialog=context,
-            document_context=doc_context,
-            topic=self.document_loader.meeting_topic,
-            notes=self.document_loader.meeting_notes,
-            negotiation_type=self.negotiation_type,
-            meeting_role=self.meeting_role,
-            opponent_weaknesses=self.opponent_weaknesses,
+            recent_dialog=context, **ctx,
         )
 
         logger.info(f"[Suggestion] docs={len(self.document_loader.documents)}, "
@@ -508,24 +630,22 @@ class SessionManager:
         await self._send_json({"type": "strengthen_loading", "loading": True})
         await self._send_analysis_status("Анализирую позицию и аргументы...")
 
-        context = self._get_committed_context(minutes=5)
-        if not context:
-            context = self.context_analyzer.get_context_by_time(5)
+        ctx = self._ctx_builder.build_strategic(
+            topic=self.document_loader.meeting_topic,
+            notes=self.document_loader.meeting_notes,
+            negotiation_type=self.negotiation_type,
+            meeting_role=self.meeting_role,
+            opponent_weaknesses=self.opponent_weaknesses,
+        )
+        context = ctx.pop("full_transcript", "")
         if not context:
             await self._send_error("Нет данных для анализа")
             await self._send_analysis_status(None)
             await self._send_json({"type": "strengthen_loading", "loading": False})
             return
 
-        doc_context = self.document_loader.get_document_context()
         prompt = self.prompt_builder.build_strengthen_position_prompt(
-            full_transcript=context,
-            document_context=doc_context,
-            topic=self.document_loader.meeting_topic,
-            notes=self.document_loader.meeting_notes,
-            negotiation_type=self.negotiation_type,
-            meeting_role=self.meeting_role,
-            opponent_weaknesses=self.opponent_weaknesses,
+            full_transcript=context, **ctx,
         )
 
         logger.info(f"[Strengthen] docs={len(self.document_loader.documents)}, "
@@ -581,11 +701,27 @@ class SessionManager:
             # Replace committed segments with batch results
             self._committed_segments = segments
 
+            # Rebuild turns from batch segments
+            items = [
+                (
+                    s.speaker_label or s.speaker_id,
+                    s.text,
+                    s.start_time,
+                    s.end_time,
+                    s.wall_clock,
+                )
+                for s in segments
+            ]
+            rebuilt_turns = self._turn_assembler.rebuild(items)
+
             # Send to client
+            await self._send_json({"type": "turns_reset"})
             await self._send_json({
                 "type": "batch_finalized",
                 "segments": [s.to_wire_full() for s in segments],
             })
+            for turn in rebuilt_turns:
+                await self._send_turn_update(turn)
             await self._send_status(
                 f"Финализация завершена: {len(segments)} сегментов"
             )
@@ -600,6 +736,13 @@ class SessionManager:
     def mark_speaker(self, speaker_name: str):
         """Mark current speaker for identification."""
         self.current_speaker = speaker_name
+
+    def set_speaker_role(self, speaker_name: str, side: str):
+        """Assign negotiation side to a speaker display name."""
+        if side in ("self", "opponent", "ally", "third_party"):
+            self.speaker_roles[speaker_name] = side
+        elif side == "":
+            self.speaker_roles.pop(speaker_name, None)
 
     def update_meeting_context(self, topic: str, notes: str):
         """Update meeting topic and notes."""
@@ -629,7 +772,9 @@ class SessionManager:
         for seg in recent:
             ts = seg.wall_clock.strftime("%H:%M:%S")
             speaker = seg.speaker_label or seg.speaker_id
-            line = f"[{ts}] {speaker}: {seg.text}"
+            role_tag = ROLE_LABELS.get(self.speaker_roles.get(speaker, ""), "")
+            label = f"{speaker} [{role_tag}]" if role_tag else speaker
+            line = f"[{ts}] {label}: {seg.text}"
             if seg.is_low_confidence:
                 line += "  [НИЗКАЯ УВЕРЕННОСТЬ]"
             lines.append(line)
@@ -641,6 +786,26 @@ class SessionManager:
         """Public access to committed segments (read-only intent)."""
         return self._committed_segments
 
+    @property
+    def turns(self):
+        """Public access to assembled turns."""
+        return self._turn_assembler.turns
+
+    def _get_turn_context(self, minutes: int = 5) -> str:
+        """Format recent turns as text (prepared for future LLM prompts)."""
+        if not self._turn_assembler.turns:
+            return ""
+        from datetime import timedelta
+        cutoff = datetime.now() - timedelta(minutes=minutes)
+        lines = []
+        for t in self._turn_assembler.turns:
+            if t.wall_clock >= cutoff:
+                ts = t.wall_clock.strftime("%H:%M:%S")
+                role_tag = ROLE_LABELS.get(self.speaker_roles.get(t.speaker, ""), "")
+                label = f"{t.speaker} [{role_tag}]" if role_tag else t.speaker
+                lines.append(f"[{ts}] {label}: {t.text}")
+        return "\n".join(lines)
+
     # ---------------------------------------------------------------
     # WebSocket message helpers
     # ---------------------------------------------------------------
@@ -648,6 +813,10 @@ class SessionManager:
     async def _send_json(self, data: dict):
         if self._ws_send:
             await self._ws_send(data)
+
+    async def _send_turn_update(self, turn):
+        """Send turn_update WS message."""
+        await self._send_json({"type": "turn_update", **turn.to_wire()})
 
     async def _send_transcript(self, segment: TranscriptSegment, is_partial: bool):
         """Legacy transcript format for Deepgram/Gemini."""
@@ -787,3 +956,5 @@ class SessionManager:
         if self.audio_recorder:
             self.audio_recorder.stop()
         self.document_loader.clear()
+        self._turn_assembler.reset()
+        self._meeting_memory.reset()

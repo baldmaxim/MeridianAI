@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig } from '../types';
+import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire } from '../types';
 
 interface MeetingStats {
   positionStrength: number;
@@ -19,8 +19,14 @@ interface MeetingState {
   addMessage: (msg: ChatMessage) => void;
   addCommittedSegment: (seg: CommittedSegmentWire) => void;
   replaceBatchSegments: (segs: CommittedSegmentWire[]) => void;
+  partialMessage: ChatMessage | null;
   updatePartial: (msg: ChatMessage) => void;
   clearPartial: () => void;
+
+  // Turns (server-assembled utterances)
+  turns: TurnWire[];
+  handleTurnUpdate: (turn: TurnWire) => void;
+  resetTurns: () => void;
 
   // Suggestions
   suggestions: Suggestion[];
@@ -79,6 +85,10 @@ interface MeetingState {
   customSuggestionTypes: SuggestionTypeConfig[] | null;
   setCustomSuggestionTypes: (types: SuggestionTypeConfig[] | null) => void;
 
+  // Speaker roles
+  speakerRoles: Record<string, string>;
+  setSpeakerRoles: (roles: Record<string, string>) => void;
+
   // Active role
   activeRoleName: string | null;
   setActiveRoleName: (name: string | null) => void;
@@ -125,23 +135,26 @@ export const useMeetingStore = create<MeetingState>((set) => ({
         timestamp: seg.timestamp,
         is_partial: false,
       })),
+      turns: [],
     }),
+  partialMessage: null,
   updatePartial: (msg) =>
-    set((s) => {
-      const msgs = [...s.messages];
-      // Find last partial message and update it, or add new
-      const lastIdx = msgs.findLastIndex((m: ChatMessage) => m.is_partial);
-      if (lastIdx >= 0) {
-        msgs[lastIdx] = { ...msg, id: msgs[lastIdx].id };
-      } else {
-        msgs.push({ ...msg, id: String(++messageCounter) });
-      }
-      return { messages: msgs };
-    }),
+    set({ partialMessage: { ...msg, id: msg.id || 'partial' } }),
   clearPartial: () =>
-    set((s) => ({
-      messages: s.messages.filter((m: ChatMessage) => !m.is_partial),
-    })),
+    set({ partialMessage: null }),
+
+  turns: [],
+  handleTurnUpdate: (turn) =>
+    set((s) => {
+      const idx = s.turns.findIndex((t) => t.turn_id === turn.turn_id);
+      if (idx >= 0) {
+        const updated = [...s.turns];
+        updated[idx] = turn;
+        return { turns: updated };
+      }
+      return { turns: [...s.turns, turn] };
+    }),
+  resetTurns: () => set({ turns: [] }),
 
   suggestions: [],
   currentSuggestionIndex: -1,
@@ -209,6 +222,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   customSuggestionTypes: null,
   setCustomSuggestionTypes: (types) => set({ customSuggestionTypes: types }),
 
+  speakerRoles: {},
+  setSpeakerRoles: (roles) => set({ speakerRoles: roles }),
+
   activeRoleName: null,
   setActiveRoleName: (name) => set({ activeRoleName: name }),
 
@@ -228,6 +244,8 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     set({
       messages: [],
       committedSegments: [],
+      partialMessage: null,
+      turns: [],
       suggestions: [],
       currentSuggestionIndex: -1,
       currentStreamingText: null,
@@ -240,6 +258,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       lastError: null,
       isListening: false,
       lastSuggestionTime: null,
+      speakerRoles: {},
       activeRoleName: null,
       meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
     }),

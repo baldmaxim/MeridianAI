@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # Encryption key for API keys in DB
     encryption_key: str = Field(default="", alias="ENCRYPTION_KEY")
 
+    # Dev mode: auto-migration, pick-folder, ad-hoc ALTER TABLE
+    dev_mode: bool = Field(default=True, alias="DEV_MODE")
+
+    # Session idle TTL in seconds (cleanup abandoned sessions)
+    session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

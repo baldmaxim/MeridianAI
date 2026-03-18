@@ -111,5 +111,9 @@ async def pick_folder(
     user: User = Depends(get_current_user),
 ):
     """Open native OS folder picker dialog and return selected path."""
+    from ..config import get_settings as _get_settings
+    from fastapi import HTTPException
+    if not _get_settings().dev_mode:
+        raise HTTPException(403, "Folder picker is only available in DEV_MODE")
     path = await asyncio.get_event_loop().run_in_executor(None, _open_folder_dialog)
     return {"path": path}

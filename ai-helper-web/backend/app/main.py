@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import asyncio
 import logging
 import os
 import sys
@@ -41,27 +42,47 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     logger.info("Starting AI Helper API...")
     logger.info(f"Database: {settings.database_url}")
-    logger.info(f"CORS origins: localhost:3000-3009, 5170-5199, 8000-8009")
+    logger.info(f"DEV_MODE: {settings.dev_mode}")
+
+    # --- Startup security checks ---
+    if settings.jwt_secret == "change-me-in-production":
+        logger.warning("JWT_SECRET is insecure default! Set a strong secret in .env")
+    if not settings.encryption_key:
+        logger.warning("ENCRYPTION_KEY is empty — API key encryption will fail")
 
     # Create upload directories
     os.makedirs(settings.upload_dir, exist_ok=True)
     os.makedirs(settings.transcription_dir, exist_ok=True)
 
-    # Create tables (in dev; use alembic in production)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Dev migration: add local_storage_path if missing
-        try:
-            await conn.execute(
-                text("ALTER TABLE user_settings ADD COLUMN local_storage_path VARCHAR(500)")
-            )
-            logger.info("Added local_storage_path column")
-        except Exception:
-            pass  # already exists
-    logger.info("Database tables created")
+    # Database init (dev-only auto-migration)
+    if settings.dev_mode:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            try:
+                await conn.execute(
+                    text("ALTER TABLE user_settings ADD COLUMN local_storage_path VARCHAR(500)")
+                )
+                logger.info("Added local_storage_path column")
+            except Exception:
+                pass
+        logger.info("Database tables created (DEV_MODE)")
+    else:
+        logger.info("Production mode — skipping auto-migration (use alembic)")
+
+    # Background session cleanup
+    async def _session_cleanup_loop():
+        while True:
+            await asyncio.sleep(600)
+            from .services.session_manager import cleanup_idle_sessions
+            n = cleanup_idle_sessions(settings.session_idle_ttl)
+            if n:
+                logger.info("[Cleanup] Removed %d idle session(s)", n)
+
+    cleanup_task = asyncio.create_task(_session_cleanup_loop())
 
     yield
 
+    cleanup_task.cancel()
     await engine.dispose()
     logger.info("Shutdown complete")
 

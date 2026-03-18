@@ -1,6 +1,7 @@
-"""Document loader for meeting context (PDF, MD)."""
+"""Document loader for meeting context (PDF, MD, TXT, DOCX, XLSX)."""
 
 import io
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +13,24 @@ try:
 except ImportError:
     PYPDF2_AVAILABLE = False
 
-SUPPORTED_EXTENSIONS = {".pdf", ".md"}
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
+try:
+    from openpyxl import load_workbook
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
+from .document_chunker import DocumentChunker
+from .document_retriever import DocumentRetriever
+
+logger = logging.getLogger("ai_helper.document_loader")
+
+SUPPORTED_EXTENSIONS = {".pdf", ".md", ".txt", ".docx", ".xlsx"}
 
 DOC_TYPE_LABELS = {
     "contract": "Договор",
@@ -56,14 +74,62 @@ def _extract_md(source: Union[Path, bytes]) -> Tuple[str, int]:
     return Path(source).read_text(encoding="utf-8", errors="replace"), 1
 
 
+def _extract_txt(source: Union[Path, bytes]) -> Tuple[str, int]:
+    if isinstance(source, bytes):
+        return source.decode("utf-8", errors="replace"), 1
+    return Path(source).read_text(encoding="utf-8", errors="replace"), 1
+
+
+def _extract_docx(source: Union[Path, bytes]) -> Tuple[str, int]:
+    if not DOCX_AVAILABLE:
+        raise RuntimeError("python-docx not installed")
+    if isinstance(source, bytes):
+        doc = DocxDocument(io.BytesIO(source))
+    else:
+        doc = DocxDocument(str(source))
+    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    return "\n\n".join(paragraphs), 1
+
+
+def _extract_xlsx(source: Union[Path, bytes]) -> Tuple[str, int]:
+    if not OPENPYXL_AVAILABLE:
+        raise RuntimeError("openpyxl not installed")
+    if isinstance(source, bytes):
+        wb = load_workbook(io.BytesIO(source), read_only=True, data_only=True)
+    else:
+        wb = load_workbook(str(source), read_only=True, data_only=True)
+    parts = []
+    for sheet in wb.sheetnames:
+        ws = wb[sheet]
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            cells = [str(c) if c is not None else "" for c in row]
+            line = "\t".join(cells).strip()
+            if line:
+                rows.append(line)
+        if rows:
+            parts.append(f"[Лист: {sheet}]\n" + "\n".join(rows))
+    wb.close()
+    return "\n\n".join(parts), len(wb.sheetnames)
+
+
 def _extract_content(filename: str, source: Union[Path, bytes]) -> Tuple[str, int]:
     ext = Path(filename).suffix.lower()
     if ext == ".pdf":
         return _extract_pdf(source)
     elif ext == ".md":
         return _extract_md(source)
+    elif ext == ".txt":
+        return _extract_txt(source)
+    elif ext == ".docx":
+        return _extract_docx(source)
+    elif ext == ".xlsx":
+        return _extract_xlsx(source)
     else:
-        raise ValueError(f"Формат {ext} не поддерживается. Поддерживаемые: PDF, MD")
+        raise ValueError(
+            f"Формат {ext} не поддерживается. "
+            f"Поддерживаемые: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+        )
 
 
 # --------------- main class ---------------
@@ -75,6 +141,8 @@ class DocumentLoader:
         self.documents: List[MeetingDocument] = []
         self.meeting_topic: str = ""
         self.meeting_notes: str = ""
+        self._chunker = DocumentChunker()
+        self._retriever = DocumentRetriever()
 
     def load_file(self, path, doc_type: str = "other") -> Optional[MeetingDocument]:
         """Load a file and extract text."""
@@ -104,6 +172,7 @@ class DocumentLoader:
             page_count=page_count,
         )
         self.documents.append(doc)
+        self._index_doc(doc)
         return doc
 
     def load_bytes(self, filename: str, content_bytes: bytes,
@@ -131,15 +200,28 @@ class DocumentLoader:
             page_count=page_count,
         )
         self.documents.append(doc)
+        self._index_doc(doc)
         return doc
+
+    def _index_doc(self, doc: MeetingDocument) -> None:
+        """Chunk and index a document for retrieval."""
+        chunks = self._chunker.chunk(doc)
+        self._retriever.index(chunks)
 
     def remove_document(self, filename: str):
         self.documents = [d for d in self.documents if d.filename != filename]
+        self._retriever.remove(filename)
 
     def clear(self):
         self.documents.clear()
         self.meeting_topic = ""
         self.meeting_notes = ""
+        self._retriever.clear()
+
+    def retrieve_relevant(self, query: str, max_chunks: int = 5,
+                          max_chars: int = 2000) -> str:
+        """Retrieve document chunks relevant to query. Returns formatted text or ''."""
+        return self._retriever.retrieve(query, max_chunks=max_chunks, max_chars=max_chars)
 
     def get_context_for_prompt(self, max_chars: int = 3000) -> str:
         """Get combined document context for LLM prompt, with smart truncation."""

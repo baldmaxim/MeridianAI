@@ -3,9 +3,8 @@
 import asyncio
 import json
 import logging
-import time
 from datetime import datetime
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 import websockets
 
@@ -52,7 +51,7 @@ class SpeechmaticsStreamingTranscriptionService:
                 "operating_point": "enhanced",
                 "max_delay": 3.5,
                 "max_delay_mode": "flexible",
-                "enable_partials": False,
+                "enable_partials": True,
                 "enable_entities": True,
                 "diarization": "speaker",
                 "speaker_diarization_config": {
@@ -223,86 +222,50 @@ class SpeechmaticsStreamingTranscriptionService:
         self.message_callback(segment, is_partial=True)
 
     def _handle_transcript(self, data: dict):
-        """Handle final transcript — group by speaker and emit."""
-        results = data.get("results", [])
-        if not results:
+        """Handle final transcript — single utterance, dominant speaker."""
+        metadata = data.get("metadata", {})
+        transcript = metadata.get("transcript", "").strip()
+        if not transcript:
             return
-        segments = self._group_words_by_speaker(results)
-        logger.info("Emitting %d segment(s)", len(segments))
-        for segment in segments:
-            self.message_callback(segment, is_partial=False)
 
-    def _group_words_by_speaker(self, results: list) -> List[TranscriptSegment]:
-        if not results:
-            return []
+        results = data.get("results", [])
 
-        segments = []
-        current_speaker = None
-        current_words = []
-
+        # Dominant speaker: count words per speaker, pick the most frequent
+        speaker_counts: dict[str, int] = {}
         for word in results:
-            if word.get("type") not in ("word", "punctuation"):
+            if word.get("type") != "word":
                 continue
             alts = word.get("alternatives", [])
             if not alts:
                 continue
-            alt = alts[0]
-            speaker = alt.get("speaker", None)
-            speaker_label = f"SM_{speaker}" if speaker is not None else "Unknown"
+            spk = alts[0].get("speaker")
+            label = f"SM_{spk}" if spk is not None else "Unknown"
+            speaker_counts[label] = speaker_counts.get(label, 0) + 1
 
-            if current_speaker is None:
-                current_speaker = speaker_label
-                current_words = [word]
-            elif speaker_label == current_speaker:
-                current_words.append(word)
-            else:
-                seg = self._words_to_segment(current_words, current_speaker)
-                if seg:
-                    segments.append(seg)
-                current_speaker = speaker_label
-                current_words = [word]
+        speaker = max(speaker_counts, key=speaker_counts.get) if speaker_counts else "Unknown"
 
-        if current_words:
-            seg = self._words_to_segment(current_words, current_speaker)
-            if seg:
-                segments.append(seg)
+        # Timing from results
+        start_time = results[0].get("start_time", 0.0) if results else 0.0
+        end_time = results[-1].get("end_time", 0.0) if results else 0.0
 
-        return segments
-
-    def _words_to_segment(self, words: list, speaker: str) -> Optional[TranscriptSegment]:
-        if not words:
-            return None
-        text_parts = []
-        for w in words:
-            alts = w.get("alternatives", [])
-            if alts:
-                content = alts[0].get("content", "")
-                # Punctuation attaches without space
-                if w.get("type") == "punctuation":
-                    text_parts.append(content)
-                else:
-                    text_parts.append(f" {content}" if text_parts else content)
-        text = "".join(text_parts).strip()
-        if not text:
-            return None
-
-        start_time = words[0].get("start_time", 0.0)
-        end_time = words[-1].get("end_time", 0.0)
+        # Average confidence
         confidences = []
-        for w in words:
+        for w in results:
             alts = w.get("alternatives", [])
             if alts and "confidence" in alts[0]:
                 confidences.append(alts[0]["confidence"])
         avg_confidence = sum(confidences) / len(confidences) if confidences else None
 
-        return TranscriptSegment(
+        segment = TranscriptSegment(
             speaker=speaker,
-            text=text,
+            text=transcript,
             start_time=start_time,
             end_time=end_time,
             timestamp=datetime.now(),
             confidence=avg_confidence,
         )
+        logger.info("Emitting 1 segment: speaker=%s, len=%d", speaker, len(transcript))
+        self.message_callback(segment, is_partial=False)
 
     def stop(self):
         self.is_running = False

@@ -110,6 +110,20 @@ export interface CommittedSegmentWire {
   timestamp: string;
 }
 
+// Speaker negotiation side
+export type SpeakerSide = 'self' | 'opponent' | 'ally' | 'third_party';
+
+// Utterance turn (server-assembled from consecutive same-speaker segments)
+export interface TurnWire {
+  turn_id: string;
+  speaker: string;
+  text: string;
+  start_time: number;
+  end_time: number;
+  timestamp: string;
+  segment_count: number;
+}
+
 // WebSocket message types
 export type WSMessageFromServer =
   | { type: 'transcript'; speaker: string; text: string; timestamp: string; is_partial: boolean }
@@ -122,6 +136,9 @@ export type WSMessageFromServer =
   | { type: 'analysis_status'; status: string | null }
   | { type: 'meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'meeting_saved'; meeting_id: number }
+  | { type: 'speaker_roles_updated'; roles: Record<string, SpeakerSide> }
+  | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number }
+  | { type: 'turns_reset' }
   | { type: 'error'; message: string }
   | { type: 'status'; message: string };
 
@@ -134,7 +151,8 @@ export type WSMessageToServer =
   | { type: 'mark_speaker'; name: string }
   | { type: 'update_meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; silence_filter?: boolean }
-  | { type: 'save_to_history'; meeting_name?: string };
+  | { type: 'save_to_history'; meeting_name?: string }
+  | { type: 'set_speaker_role'; name: string; side: SpeakerSide };
 
 // --- Meeting history ---
 
