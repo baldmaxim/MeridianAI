@@ -11,12 +11,14 @@ interface Props {
   onToggleAdmin?: () => void;
   onShowHistory?: () => void;
   showHistory?: boolean;
+  onShowBatch?: () => void;
+  showBatch?: boolean;
 }
 
-export function AppLayout({ children, userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory }: Props) {
+export function AppLayout({ children, userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch }: Props) {
   return (
     <div style={styles.container}>
-      <Header userName={userName} userRole={userRole} onLogout={onLogout} showAdmin={showAdmin} onToggleAdmin={onToggleAdmin} onShowHistory={onShowHistory} showHistory={showHistory} />
+      <Header userName={userName} userRole={userRole} onLogout={onLogout} showAdmin={showAdmin} onToggleAdmin={onToggleAdmin} onShowHistory={onShowHistory} showHistory={showHistory} onShowBatch={onShowBatch} showBatch={showBatch} />
       <main style={styles.main}>{children}</main>
     </div>
   );

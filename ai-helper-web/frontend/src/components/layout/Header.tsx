@@ -11,6 +11,8 @@ interface Props {
   onToggleAdmin?: () => void;
   onShowHistory?: () => void;
   showHistory?: boolean;
+  onShowBatch?: () => void;
+  showBatch?: boolean;
 }
 
 /* Inline SVG compass mark from branding/meridian-logos.html */
@@ -61,7 +63,7 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory }: Props) {
+export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
 
@@ -95,6 +97,15 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
             <div className="header-avatar" style={styles.avatar}>
               {(userName[0] || 'U').toUpperCase()}
             </div>
+          )}
+          {onShowBatch && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowBatch}
+              style={showBatch ? styles.adminBtnActive : styles.adminBtn}
+            >
+              Протоколы
+            </button>
           )}
           {onShowHistory && (
             <button

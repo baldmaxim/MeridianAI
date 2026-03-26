@@ -20,6 +20,7 @@ from .api.documents import router as documents_router
 from .api.meetings import router as meetings_router
 from .api.roles import router as roles_router
 from .api.history import router as history_router
+from .api.batch import router as batch_router
 from .ws.handler import router as ws_router
 
 # Configure logging
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
     # Create upload directories
     os.makedirs(settings.upload_dir, exist_ok=True)
     os.makedirs(settings.transcription_dir, exist_ok=True)
+    os.makedirs(os.path.join(settings.upload_dir, "batch"), exist_ok=True)
 
     # Database init (dev-only auto-migration)
     if settings.dev_mode:
@@ -129,6 +131,7 @@ app.include_router(documents_router, prefix="/api/documents", tags=["documents"]
 app.include_router(meetings_router, prefix="/api/transcriptions", tags=["meetings"])
 app.include_router(roles_router, prefix="/api/roles", tags=["roles"])
 app.include_router(history_router, prefix="/api/meetings", tags=["meetings-history"])
+app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
 app.include_router(ws_router)
 
 

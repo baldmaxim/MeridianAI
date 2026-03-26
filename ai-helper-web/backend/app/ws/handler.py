@@ -17,13 +17,12 @@ from ..auth.service import decode_token
 from ..database import async_session
 from ..models.user import User
 from ..models.settings import UserSettings
-from ..models.api_key import ApiKey
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord, MeetingDocumentRecord
 from ..models.role import NegotiationRole
 from ..services.session_manager import get_session_manager, remove_session_manager
 from ..services.local_storage import save_meeting_to_local
 from ..core.context.document_loader import MeetingDocument
-from ..services.encryption import decrypt_api_key
+from ..services.api_keys import load_api_keys
 
 router = APIRouter()
 
@@ -73,19 +72,6 @@ async def _load_user_settings(user_id: int) -> dict:
         "custom_suggestion_types": None,
         "custom_trigger_keywords": None,
     }
-
-
-async def _load_api_keys() -> dict:
-    """Load active API keys from database."""
-    keys = {}
-    async with async_session() as db:
-        result = await db.execute(select(ApiKey).where(ApiKey.is_active == True))
-        for key in result.scalars().all():
-            try:
-                keys[key.service] = decrypt_api_key(key.encrypted_key)
-            except Exception:
-                logger.error(f"Failed to decrypt key for {key.service}")
-    return keys
 
 
 async def _load_default_role(user_id: int) -> dict | None:
@@ -261,7 +247,7 @@ async def meeting_websocket(websocket: WebSocket, token: str = Query(...)):
     session = get_session_manager(user.id)
     await _load_or_create_meeting_session(user.id, session)
     settings = await _load_user_settings(user.id)
-    api_keys = await _load_api_keys()
+    api_keys = await load_api_keys()
 
     # Configure LLM
     openrouter_key = api_keys.get("openrouter", "")
