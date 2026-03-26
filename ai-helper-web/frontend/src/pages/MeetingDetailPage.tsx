@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
 import { getMeetingDetail, updateMeetingTitle, deleteMeeting, continueMeeting } from '../api/history';
-import type { MeetingDetail, MeetingSuggestionRecord, TranscriptSegmentRecord, MeetingDocumentRecord } from '../types';
+import type { MeetingDetail, MeetingSuggestionRecord, TranscriptSegmentRecord } from '../types';
 
 interface Props {
   meetingId: number;

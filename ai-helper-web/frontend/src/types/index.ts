@@ -152,7 +152,8 @@ export type WSMessageToServer =
   | { type: 'update_meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; silence_filter?: boolean }
   | { type: 'save_to_history'; meeting_name?: string }
-  | { type: 'set_speaker_role'; name: string; side: SpeakerSide };
+  | { type: 'set_speaker_role'; name: string; side: SpeakerSide }
+  | { type: 'change_role'; role_id: number };
 
 // --- Meeting history ---
 
