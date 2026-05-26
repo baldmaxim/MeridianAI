@@ -278,7 +278,7 @@ echo ""
 echo "  :443  → Xray REALITY"
 echo "  :4443 → Nginx SSL (через xray fallback)"
 echo "  :80   → Nginx HTTP (redirect + certbot)"
-echo "  :8080 → Docker AI Helper"
+echo "  :8080 → Meridian Docker"
 echo "  :8000 → Kong/Supabase"
 echo ""
 if [ $HAS_SU10 -eq 0 ]; then

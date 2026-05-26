@@ -59,7 +59,7 @@ Thumbs.db
 *.db
 
 # Frontend build
-ai-helper-web/frontend/dist/
+meridian-web/frontend/dist/
 
 # Claude
 .claude/

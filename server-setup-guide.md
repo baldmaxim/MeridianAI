@@ -14,14 +14,14 @@ Internet :443 → Xray (VLESS REALITY)
 
 System Nginx :4443 (SSL termination через xray fallback):
   ├── odintsovlive.fvds.ru → SPA /var/www/odintsovlive + Supabase API → :8000
-  ├── meridian.fvds.ru     → proxy → 127.0.0.1:8080 (AI Helper Docker)
+  ├── meridian.fvds.ru     → proxy → 127.0.0.1:8080 (Meridian Docker)
   └── su10info.fvds.ru     → SPA /var/www/su10-signature
 
 System Nginx :80 (HTTP):
   ├── /.well-known/acme-challenge/ → certbot webroot
   └── всё остальное → 301 → HTTPS
 
-127.0.0.1:8080 → Docker AI Helper:
+127.0.0.1:8080 → Meridian Docker:
   docker-nginx → frontend:80 + backend:8000 (внутренняя сеть)
 
 0.0.0.0:8000 → Kong/OpenResty (Supabase, host network)
@@ -36,7 +36,7 @@ System Nginx :80 (HTTP):
 | :80 | system nginx | HTTP redirect + certbot |
 | :443 | xray | VLESS REALITY VPN |
 | :4443 | system nginx | HTTPS (через xray fallback) |
-| 127.0.0.1:8080 | docker nginx (ai-helper) | AI Helper reverse proxy |
+| 127.0.0.1:8080 | docker nginx (meridian) | Meridian reverse proxy |
 | :8000 | kong/openresty (supabase) | Supabase API gateway |
 
 ---
@@ -45,7 +45,7 @@ System Nginx :80 (HTTP):
 
 | Домен | HTTP :80 | HTTPS :4443 | Backend |
 |-------|----------|-------------|---------|
-| meridian.fvds.ru | 301 → HTTPS | proxy → 127.0.0.1:8080 | AI Helper Docker |
+| meridian.fvds.ru | 301 → HTTPS | proxy → 127.0.0.1:8080 | Meridian Docker |
 | odintsovlive.fvds.ru | 301 → HTTPS | SPA + /rest/v1/ → :8000 | Supabase |
 | su10info.fvds.ru | 301 → HTTPS | SPA статика | нет |
 
@@ -60,10 +60,10 @@ System Nginx :80 (HTTP):
 - `/etc/nginx/sites-available/su10-signature` → listen :80 + :4443 ssl
 - `/etc/nginx/sites-enabled/` — symlinks на sites-available
 
-### Docker AI Helper
-- `/opt/ai-helper/docker-compose.yml` — postgres, backend, frontend, nginx
-- `/opt/ai-helper/nginx/nginx.conf` — HTTP-only proxy (без SSL)
-- `/opt/ai-helper/.env` — API ключи
+### Meridian Docker
+- `/opt/meridian/docker-compose.yml` — postgres, backend, frontend, nginx
+- `/opt/meridian/nginx/nginx.conf` — HTTP-only proxy (без SSL)
+- `/opt/meridian/.env` — API ключи
 
 ### Xray
 - `/usr/local/etc/xray/config.json` — VLESS REALITY, fallback dest: 4443
@@ -87,9 +87,9 @@ System Nginx :80 (HTTP):
 nginx -t && systemctl reload nginx
 ```
 
-### Перезапуск AI Helper
+### Перезапуск Meridian
 ```bash
-cd /opt/ai-helper
+cd /opt/meridian
 docker compose restart
 # или полная пересборка:
 docker compose down && docker compose up -d --build
@@ -140,7 +140,7 @@ System nginx падал при старте: `bind() to 0.0.0.0:443 failed (Addr
 
 ### Корневые причины
 1. **odintsovlive конфиг** содержал `listen 443 ssl` → конфликт с xray на :443
-2. **docker-compose.yml** AI Helper публиковал порты `80:80` и `443:443` → конфликт с xray и system nginx
+2. **docker-compose.yml** Meridian публиковал порты `80:80` и `443:443` → конфликт с xray и system nginx
 3. Docker nginx контейнер не мог запуститься (status: Created)
 
 ### Исправления

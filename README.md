@@ -13,24 +13,24 @@
 
 ```bash
 # Запуск (backend + frontend)
-ai-helper-web\start_dev.bat
+meridian-web\start_dev.bat
 ```
 
 Или вручную:
 
 ```bash
 # Backend (терминал 1)
-cd ai-helper-web\backend
+cd meridian-web\backend
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Frontend (терминал 2)
-cd ai-helper-web\frontend
+cd meridian-web\frontend
 npm run dev
 ```
 
 ## Конфигурация
 
-Настройки в `ai-helper-web/backend/.env` — создать по шаблону `.env.example`.
+Настройки в `meridian-web/backend/.env` — создать по шаблону `.env.example`.
 
 ## Тестовый доступ
 

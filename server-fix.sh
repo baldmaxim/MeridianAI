@@ -4,7 +4,7 @@
 # Запуск: sudo bash server-fix.sh
 #
 # Что делает:
-#   1. Фиксит docker-compose AI Helper (убирает конфликт портов 80/443)
+#   1. Фиксит docker-compose Meridian (убирает конфликт портов 80/443)
 #   2. Фиксит system nginx (убирает listen 443 из odintsovlive)
 #   3. Запускает всё в правильном порядке
 #
@@ -30,44 +30,44 @@ section() { echo -e "\n${CYAN}${BOLD}=== $1 ===${NC}"; }
 [[ $EUID -ne 0 ]] && err "Запускай от root: sudo bash $0"
 
 BACKUP_SUFFIX="bak.$(date +%Y%m%d_%H%M%S)"
-AI_HELPER_DIR="/opt/ai-helper"
+MERIDIAN_DIR="/opt/meridian"
 
 # Предварительные проверки
-[ -d "$AI_HELPER_DIR" ] || err "Директория $AI_HELPER_DIR не найдена"
+[ -d "$MERIDIAN_DIR" ] || err "Директория $MERIDIAN_DIR не найдена"
 systemctl is-active xray >/dev/null 2>&1 || err "Xray не запущен! Отмена."
 
 # =========================================================================
 section "ФАЗА 1: Бэкапы"
 # =========================================================================
 
-cp "$AI_HELPER_DIR/docker-compose.yml" "$AI_HELPER_DIR/docker-compose.yml.$BACKUP_SUFFIX"
+cp "$MERIDIAN_DIR/docker-compose.yml" "$MERIDIAN_DIR/docker-compose.yml.$BACKUP_SUFFIX"
 log "Бэкап docker-compose.yml"
 
-cp "$AI_HELPER_DIR/nginx/nginx.conf" "$AI_HELPER_DIR/nginx/nginx.conf.$BACKUP_SUFFIX"
+cp "$MERIDIAN_DIR/nginx/nginx.conf" "$MERIDIAN_DIR/nginx/nginx.conf.$BACKUP_SUFFIX"
 log "Бэкап docker nginx.conf"
 
 cp -r /etc/nginx "/etc/nginx.$BACKUP_SUFFIX"
 log "Бэкап /etc/nginx → /etc/nginx.$BACKUP_SUFFIX"
 
 # =========================================================================
-section "ФАЗА 2: Фикс Docker AI Helper"
+section "ФАЗА 2: Фикс Meridian Docker"
 # =========================================================================
 
 # --- 2.1. Новый docker-compose.yml ---
-cat > "$AI_HELPER_DIR/docker-compose.yml" <<'COMPOSE'
+cat > "$MERIDIAN_DIR/docker-compose.yml" <<'COMPOSE'
 version: '3.8'
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ai_helper
-      POSTGRES_USER: ai_helper
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ai_helper_dev}
+      POSTGRES_DB: meridian
+      POSTGRES_USER: meridian
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-meridian_dev}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ai_helper"]
+      test: ["CMD-SHELL", "pg_isready -U meridian"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -77,7 +77,7 @@ services:
     build: ./backend
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://ai_helper:${DB_PASSWORD:-ai_helper_dev}@postgres/ai_helper
+      DATABASE_URL: postgresql+asyncpg://meridian:${DB_PASSWORD:-meridian_dev}@postgres/meridian
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-prod}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       UPLOAD_DIR: /app/uploads
@@ -115,7 +115,7 @@ COMPOSE
 log "docker-compose.yml обновлён (nginx → 127.0.0.1:8080, certbot удалён)"
 
 # --- 2.2. Новый docker nginx.conf (HTTP only) ---
-cat > "$AI_HELPER_DIR/nginx/nginx.conf" <<'NGINX'
+cat > "$MERIDIAN_DIR/nginx/nginx.conf" <<'NGINX'
 events {
     worker_connections 1024;
 }
@@ -173,8 +173,8 @@ NGINX
 log "docker nginx.conf обновлён (HTTP only, без SSL)"
 
 # --- 2.3. Пересобрать и перезапустить ---
-section "Перезапуск Docker AI Helper"
-cd "$AI_HELPER_DIR"
+section "Перезапуск Meridian Docker"
+cd "$MERIDIAN_DIR"
 
 echo "Останавливаю контейнеры..."
 docker compose down 2>&1 | tail -5
@@ -192,7 +192,7 @@ sleep 10
 section "Проверка Docker"
 
 echo "Контейнеры:"
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep ai-helper || warn "ai-helper контейнеры не найдены"
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep meridian || warn "meridian контейнеры не найдены"
 
 if ss -tlnp | grep -q ':8080'; then
     log "Порт 8080 слушает"
@@ -403,7 +403,7 @@ echo -n "  xray:   "; systemctl is-active xray 2>/dev/null || echo "inactive"
 
 echo ""
 echo -e "${BOLD}Docker контейнеры:${NC}"
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -E 'ai-helper|NAMES'
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -E 'meridian|NAMES'
 
 echo ""
 echo -e "${BOLD}HTTP ответы (localhost):${NC}"
@@ -428,7 +428,7 @@ echo "Текущее состояние:"
 echo "  ✓ Xray на :443 — не тронут"
 echo "  ✓ System Nginx на :80 — запущен"
 echo "  ✓ System Nginx на :4443 — odintsovlive (SSL через xray fallback)"
-echo "  ✓ Docker AI Helper на 127.0.0.1:8080 — запущен"
+echo "  ✓ Meridian Docker на 127.0.0.1:8080 — запущен"
 echo "  ✓ Kong/Supabase на :8000 — не тронут"
 echo ""
 echo -e "${YELLOW}Следующие шаги:${NC}"

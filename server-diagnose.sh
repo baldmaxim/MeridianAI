@@ -125,20 +125,20 @@ docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null ||
 subsec "6.2. Docker networks"
 docker network ls 2>/dev/null || true
 
-subsec "6.3. Поиск docker-compose файлов ai-helper"
-find / -maxdepth 5 -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yml' -o -name 'compose.yaml' 2>/dev/null | grep -i -E 'ai.?helper|meridian' || echo "(не найдено по ai-helper/meridian)"
+subsec "6.3. Поиск docker-compose файлов meridian"
+find / -maxdepth 5 -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yml' -o -name 'compose.yaml' 2>/dev/null | grep -i -E 'meridian' || echo "(не найдено по meridian/meridian)"
 echo "Все найденные compose файлы:"
 find / -maxdepth 4 -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yml' 2>/dev/null || true
 
-subsec "6.4. Docker-compose.yml ai-helper (содержимое)"
-for d in $(find / -maxdepth 5 -name 'docker-compose.yml' 2>/dev/null | grep -i -E 'ai.?helper|meridian' | head -3); do
+subsec "6.4. Docker-compose.yml meridian (содержимое)"
+for d in $(find / -maxdepth 5 -name 'docker-compose.yml' 2>/dev/null | grep -i -E 'meridian' | head -3); do
     echo -e "${GREEN}=== $d ===${NC}"
     cat "$d"
 done
 
 subsec "6.5. Docker nginx конфиг (если есть)"
 # Ищем nginx.conf рядом с docker-compose
-for d in $(find / -maxdepth 5 -name 'docker-compose.yml' 2>/dev/null | grep -i -E 'ai.?helper|meridian' | head -3); do
+for d in $(find / -maxdepth 5 -name 'docker-compose.yml' 2>/dev/null | grep -i -E 'meridian' | head -3); do
     DIR=$(dirname "$d")
     if [ -f "$DIR/nginx/nginx.conf" ]; then
         echo -e "${GREEN}=== $DIR/nginx/nginx.conf ===${NC}"
