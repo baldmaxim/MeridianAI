@@ -8,6 +8,7 @@ import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
+import { PopNumber } from '../components/common/PopNumber';
 import { DocumentUpload } from '../components/context/DocumentUpload';
 import { DocumentList } from '../components/context/DocumentList';
 import { MeetingContext } from '../components/context/MeetingContext';
@@ -224,19 +225,19 @@ export function MeetingPage() {
             <div className="mobile-stats-strip">
               <div className="stat-chip">
                 <div className="stat-chip-val" style={{ color: store.meetingStats.positionStrength >= 60 ? theme.accent.green : theme.accent.amber }}>
-                  {store.meetingStats.positionStrength}%
+                  <PopNumber value={`${store.meetingStats.positionStrength}%`} />
                 </div>
                 <div className="stat-chip-lbl">Позиция</div>
               </div>
               <div className="stat-chip">
                 <div className="stat-chip-val" style={{ color: theme.accent.green }}>
-                  {store.meetingStats.suggestionsUsed}
+                  <PopNumber value={store.meetingStats.suggestionsUsed} />
                 </div>
                 <div className="stat-chip-lbl">Принято</div>
               </div>
               <div className="stat-chip">
                 <div className="stat-chip-val" style={{ color: store.meetingStats.activeObjections > 0 ? theme.accent.red : theme.text.primary }}>
-                  {store.meetingStats.activeObjections}
+                  <PopNumber value={store.meetingStats.activeObjections} />
                 </div>
                 <div className="stat-chip-lbl">Возраж.</div>
               </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { theme } from '../../styles/theme';
 
 interface Props {
@@ -11,6 +11,22 @@ export function LoginForm({ onLogin, onSwitchToRegister, error }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [shakeKey, setShakeKey] = useState(0);
+
+  // error-shake (transitions.dev 12): новая ошибка → перезапуск шейка.
+  useEffect(() => {
+    if (error) setShakeKey((k) => k + 1);
+  }, [error]);
+
+  useEffect(() => {
+    if (shakeKey === 0) return;
+    const el = formRef.current;
+    if (!el) return;
+    el.classList.remove('is-shaking');
+    void el.offsetWidth; // reflow для перезапуска анимации
+    el.classList.add('is-shaking');
+  }, [shakeKey]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +39,7 @@ export function LoginForm({ onLogin, onSwitchToRegister, error }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="auth-form" style={styles.form}>
+    <form ref={formRef} onSubmit={handleSubmit} className="auth-form t-input" style={styles.form}>
       <h2 style={styles.title}>Вход</h2>
       {error && <div style={styles.error}>{error}</div>}
       <input

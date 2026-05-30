@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { useExitTransition } from '../../hooks/useExitTransition';
 import type { Suggestion, SuggestionTypeConfig } from '../../types';
 
 interface TypeStyle {
@@ -228,6 +229,12 @@ export function SuggestionPanel() {
     : strengthenLoading ? 'Анализирую позицию и аргументы...'
     : null);
 
+  // panel-reveal (transitions.dev 07): анализ-бар плавно въезжает/уезжает.
+  const analysis = useExitTransition(isAnalyzing && statusText != null, {
+    closeVar: '--panel-close-dur',
+    fallbackMs: 350,
+  });
+
   return (
     <div className="suggestion-panel" style={styles.container}>
       {/* Header */}
@@ -246,8 +253,12 @@ export function SuggestionPanel() {
       </div>
 
       {/* Analysis status bar */}
-      {isAnalyzing && statusText && (
-        <div style={styles.analysisBar}>
+      {analysis.mounted && (
+        <div
+          className="t-panel-slide"
+          data-open={analysis.open ? 'true' : 'false'}
+          style={{ ...styles.analysisBar, ['--panel-translate-y']: '10px' } as React.CSSProperties}
+        >
           <span style={styles.analysisDots}>•••</span> {statusText}
         </div>
       )}

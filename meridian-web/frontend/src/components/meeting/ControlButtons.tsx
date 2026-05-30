@@ -1,5 +1,6 @@
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { TextSwap } from '../common/TextSwap';
 
 interface Props {
   onStartListening: () => void;
@@ -34,7 +35,7 @@ export function ControlButtons({
         disabled={!isConnected || suggestionLoading}
         style={styles.btnSuggestion}
       >
-        <span className="btn-ico">{'\u26A1'}</span>
+        <span className="btn-ico">{'⚡'}</span>
         <span className="btn-text">{suggestionLoading ? 'Загрузка...' : 'Подсказка'}</span>
       </button>
 
@@ -44,8 +45,11 @@ export function ControlButtons({
         disabled={!isConnected}
         style={isListening ? styles.btnStop : styles.btnListen}
       >
-        {isListening && <span className="mic-pulse" />}
-        <span>{isListening ? 'Слушаю · Стоп' : '\u25B6 Начать'}</span>
+        <span className="t-icon-swap" data-state={isListening ? 'b' : 'a'} aria-hidden="true">
+          <span className="t-icon" data-icon="a">{'▶'}</span>
+          <span className="t-icon" data-icon="b"><span className="mic-pulse" /></span>
+        </span>
+        <span>{isListening ? 'Слушаю · Стоп' : 'Начать'}</span>
       </button>
 
       <button
@@ -54,7 +58,7 @@ export function ControlButtons({
         disabled={!isConnected || strengthenLoading}
         style={styles.btnStrengthen}
       >
-        <span className="btn-ico">{'\u2191'}</span>
+        <span className="btn-ico">{'↑'}</span>
         <span className="btn-text">{strengthenLoading ? 'Анализ...' : 'Усилить позицию'}</span>
       </button>
 
@@ -66,10 +70,10 @@ export function ControlButtons({
 
       <div className="control-status" style={styles.status}>
         <span style={statusDot(isConnected && !lastError)} />
-        <span style={{ ...styles.statusText, color: lastError ? theme.accent.red : isConnected ? theme.accent.green : theme.accent.red }}>
-          {lastError ? lastError : isConnected ? 'Подключено' : 'Отключено'}
-          {!lastError && shortModel ? ` · ${shortModel}` : ''}
-        </span>
+        <TextSwap
+          value={`${lastError ? lastError : isConnected ? 'Подключено' : 'Отключено'}${!lastError && shortModel ? ` · ${shortModel}` : ''}`}
+          style={{ ...styles.statusText, color: lastError ? theme.accent.red : isConnected ? theme.accent.green : theme.accent.red }}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { PopNumber } from '../common/PopNumber';
+import { SuccessCheck } from '../common/SuccessCheck';
 
 interface Props {
   onSaveToHistory: () => void;
@@ -73,24 +75,24 @@ export function MeetingStats({ onSaveToHistory }: Props) {
       <div className="meeting-stats-grid" style={styles.grid}>
         <div style={styles.item}>
           <div style={{ ...styles.value, color: stats.positionStrength >= 60 ? theme.accent.green : theme.accent.amber }}>
-            {stats.positionStrength}%
+            <PopNumber value={`${stats.positionStrength}%`} />
           </div>
           <div style={styles.label}>Позиция силы</div>
         </div>
         <div style={styles.item}>
           <div style={{ ...styles.value, color: theme.accent.green }}>
-            {stats.suggestionsUsed}
+            <PopNumber value={stats.suggestionsUsed} />
           </div>
           <div style={styles.label}>Подсказок принято</div>
         </div>
         <div style={styles.item}>
           <div style={{ ...styles.value, color: stats.activeObjections > 0 ? theme.accent.red : theme.text.primary }}>
-            {stats.activeObjections}
+            <PopNumber value={stats.activeObjections} />
           </div>
           <div style={styles.label}>Активных возражений</div>
         </div>
         <div style={styles.item}>
-          <div style={styles.value}>{elapsed}</div>
+          <div style={styles.value}><PopNumber value={elapsed} /></div>
           <div style={styles.label}>Время встречи</div>
         </div>
       </div>
@@ -102,9 +104,14 @@ export function MeetingStats({ onSaveToHistory }: Props) {
         style={{
           ...styles.saveBtn,
           opacity: messages.length === 0 ? 0.4 : 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
         }}
       >
-        {saving ? 'Сохранение...' : saveMsg || 'Сохранить в историю'}
+        {saveMsg && !saving && <SuccessCheck show={!!saveMsg} size={13} />}
+        <span>{saving ? 'Сохранение...' : saveMsg || 'Сохранить в историю'}</span>
       </button>
 
       {/* CSS keyframes for waveform */}
