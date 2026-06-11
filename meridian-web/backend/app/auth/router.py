@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models.user import User
 from ..models.settings import UserSettings
 from ..schemas.auth import RegisterRequest, LoginRequest, TokenResponse, UserResponse
+from ..ratelimit import limiter
 from .service import hash_password, verify_password, create_access_token
 from .dependencies import get_current_user
 
@@ -19,7 +20,8 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user."""
     data.email = data.email.strip().lower()
     logger.info(f"Registration attempt: {data.email}")
@@ -56,7 +58,8 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Login with email and password."""
     data.email = data.email.strip().lower()
     logger.info(f"Login attempt: {data.email}")

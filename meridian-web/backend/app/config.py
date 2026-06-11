@@ -1,7 +1,7 @@
 """Application configuration."""
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 from functools import lru_cache
 
 
@@ -13,6 +13,14 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://meridian:meridian@localhost:5432/meridian",
         alias="DATABASE_URL",
     )
+    # Отдельный URL для миграций (§7: migration-пользователь с DDL-правами).
+    # Пусто → миграции идут под database_url (dev-фолбэк).
+    migration_database_url: str = Field(default="", alias="MIGRATION_DATABASE_URL")
+
+    # Пул соединений (§5/§7: задаётся явно)
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout: int = Field(default=30, alias="DB_POOL_TIMEOUT")
 
     # JWT
     jwt_secret: str = Field(default="change-me-in-production", alias="JWT_SECRET")
@@ -23,8 +31,15 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="uploads", alias="UPLOAD_DIR")
     transcription_dir: str = Field(default="transcriptions", alias="TRANSCRIPTION_DIR")
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # CORS — точный allowlist (§23). Override через CORS_ORIGINS (JSON или CSV).
+    cors_origins: list[str] = Field(
+        default=[
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://meridian.fvds.ru",
+        ],
+        alias="CORS_ORIGINS",
+    )
 
     # Encryption key for API keys in DB
     encryption_key: str = Field(default="", alias="ENCRYPTION_KEY")
@@ -32,10 +47,24 @@ class Settings(BaseSettings):
     # Dev mode: auto-migration, pick-folder, ad-hoc ALTER TABLE
     dev_mode: bool = Field(default=True, alias="DEV_MODE")
 
+    # Observability (§20) — Sentry включается заданием DSN; иначе выключен
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+    environment: str = Field(default="development", alias="ENVIRONMENT")
+
     # Session idle TTL in seconds (cleanup abandoned sessions)
     session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_cors(cls, v):
+        """Принять как JSON-список, так и CSV-строку из env."""
+        if isinstance(v, str):
+            s = v.strip()
+            if not s.startswith("["):
+                return [o.strip() for o in s.split(",") if o.strip()]
+        return v
 
 
 @lru_cache

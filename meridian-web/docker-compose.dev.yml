@@ -1,0 +1,46 @@
+# Dev-инфраструктура Meridian (только зависимости — backend/frontend запускаются на хосте).
+# Корп. стандарт §7: PostgreSQL вместо SQLite. §15: S3-совместимое хранилище (MinIO для dev).
+#
+# Запуск:  docker compose -f docker-compose.dev.yml up -d --wait
+# Затем:   cd backend && alembic upgrade head
+#
+# Прод-инфраструктура (nginx, registry-образы) — в deploy/ (фаза 3), не здесь.
+
+name: meridian-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: meridian
+      POSTGRES_USER: meridian
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-meridian_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - meridian_dev_pg:/var/lib/postgresql/data
+      # init-SQL выполняется ОДИН раз при создании пустого тома: роли runtime/migration (§7)
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meridian -d meridian"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # MinIO — S3-совместимое хранилище для dev (используется в фазе 5).
+  # Без healthcheck, чтобы `--wait` не блокировал старт на нём. Бакет создаётся в фазе 5.
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web-консоль
+    volumes:
+      - meridian_dev_minio:/data
+
+volumes:
+  meridian_dev_pg:
+  meridian_dev_minio:

@@ -17,6 +17,7 @@ from ..config import get_settings
 from ..services.session_manager import get_session_manager
 from ..core.context.document_loader import SUPPORTED_EXTENSIONS, DOC_TYPE_LABELS
 from ..models.meeting import MeetingDocumentRecord
+from ..utils.files import safe_filename
 
 router = APIRouter()
 
@@ -46,8 +47,8 @@ async def upload_document(
     user_upload_dir = os.path.join(settings.upload_dir, str(user.id))
     os.makedirs(user_upload_dir, exist_ok=True)
 
-    # Save file to disk
-    file_path = os.path.join(user_upload_dir, file.filename)
+    # Save file to disk (имя санитизируется — защита от path traversal)
+    file_path = os.path.join(user_upload_dir, safe_filename(file.filename))
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
@@ -119,9 +120,9 @@ async def remove_document(
         )
         await db.flush()
 
-    # Also remove file from disk
+    # Also remove file from disk (имя санитизируется — защита от path traversal)
     settings = get_settings()
-    file_path = os.path.join(settings.upload_dir, str(user.id), filename)
+    file_path = os.path.join(settings.upload_dir, str(user.id), safe_filename(filename))
     if os.path.exists(file_path):
         os.remove(file_path)
 

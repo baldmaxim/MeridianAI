@@ -3,16 +3,24 @@
 import asyncio
 import logging
 import os
+import re
 import sys
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy import text
 
 from .config import get_settings
-from sqlalchemy import text
-from .database import engine, Base
+from .database import engine
+from .logging_setup import setup_logging, request_id_var
+from .ratelimit import limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from .auth.router import router as auth_router
 from .api.admin import router as admin_router
 from .api.settings import router as settings_router, providers_router
@@ -23,55 +31,84 @@ from .api.history import router as history_router
 from .api.batch import router as batch_router
 from .ws.handler import router as ws_router
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    stream=sys.stdout,
-)
-# Silence noisy libraries
-logging.getLogger("aiosqlite").setLevel(logging.WARNING)
-logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
-logging.getLogger("watchfiles").setLevel(logging.WARNING)
-
+settings = get_settings()
+setup_logging(dev_mode=settings.dev_mode)
 logger = logging.getLogger("meridian")
 
-settings = get_settings()
+
+# --- Sentry (опционально, §20) ---
+def _sentry_scrub(event, hint):
+    """Удалить из событий Sentry заголовки/куки/query/тела с возможными секретами."""
+    req = event.get("request")
+    if isinstance(req, dict):
+        req.pop("cookies", None)
+        req.pop("data", None)
+        if "query_string" in req:
+            req["query_string"] = ""
+        headers = req.get("headers")
+        if isinstance(headers, dict):
+            for h in list(headers):
+                if h.lower() in ("authorization", "cookie"):
+                    headers[h] = "***"
+    return event
+
+
+if settings.sentry_dsn:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        send_default_pii=False,
+        before_send=_sentry_scrub,
+    )
+    logger.info("Sentry enabled (env=%s)", settings.environment)
+
+
+def _redact_db_url(url: str) -> str:
+    """Скрыть пароль в DB URL перед логированием (§20: no secrets in logs)."""
+    return re.sub(r"://([^:/@]+):[^@]*@", r"://\1:***@", url)
+
+
+def run_startup_checks() -> None:
+    """§25: в проде отказываемся стартовать при небезопасной конфигурации."""
+    problems = []
+    if settings.jwt_secret == "change-me-in-production":
+        problems.append("JWT_SECRET — небезопасный дефолт")
+    if not settings.encryption_key:
+        problems.append("ENCRYPTION_KEY пуст — шифрование API-ключей не работает")
+    if "sqlite" in settings.database_url:
+        problems.append("DATABASE_URL указывает на sqlite (§7: только PostgreSQL)")
+    if not settings.database_url:
+        problems.append("DATABASE_URL не задан")
+
+    if not problems:
+        return
+    if settings.dev_mode:
+        for p in problems:
+            logger.warning("startup check: %s", p)
+    else:
+        for p in problems:
+            logger.error("startup check FAILED: %s", p)
+        raise RuntimeError("Небезопасная конфигурация для прода: " + "; ".join(problems))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Meridian API...")
-    logger.info(f"Database: {settings.database_url}")
-    logger.info(f"DEV_MODE: {settings.dev_mode}")
+    logger.info("Database: %s", _redact_db_url(settings.database_url))
+    logger.info("DEV_MODE: %s", settings.dev_mode)
 
-    # --- Startup security checks ---
-    if settings.jwt_secret == "change-me-in-production":
-        logger.warning("JWT_SECRET is insecure default! Set a strong secret in .env")
-    if not settings.encryption_key:
-        logger.warning("ENCRYPTION_KEY is empty — API key encryption will fail")
+    run_startup_checks()
 
     # Create upload directories
     os.makedirs(settings.upload_dir, exist_ok=True)
     os.makedirs(settings.transcription_dir, exist_ok=True)
     os.makedirs(os.path.join(settings.upload_dir, "batch"), exist_ok=True)
 
-    # Database init (dev-only auto-migration)
-    if settings.dev_mode:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            try:
-                await conn.execute(
-                    text("ALTER TABLE user_settings ADD COLUMN local_storage_path VARCHAR(500)")
-                )
-                logger.info("Added local_storage_path column")
-            except Exception:
-                pass
-        logger.info("Database tables created (DEV_MODE)")
-    else:
-        logger.info("Production mode — skipping auto-migration (use alembic)")
+    # Схема БД управляется ТОЛЬКО миграциями Alembic (§8): `alembic upgrade head`
+    # отдельным шагом до старта приложения. Никаких create_all/ALTER из рантайма.
 
-    # Background session cleanup
     async def _session_cleanup_loop():
         while True:
             await asyncio.sleep(600)
@@ -96,29 +133,66 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# In dev mode, allow all localhost origins
+# rate limit (§5)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-class LoggingMiddleware(BaseHTTPMiddleware):
+
+class RequestContextMiddleware(BaseHTTPMiddleware):
+    """Назначает request_id и пишет один редактированный access-лог (без query)."""
+
     async def dispatch(self, request: Request, call_next):
-        logger.info(f">> {request.method} {request.url.path} (origin: {request.headers.get('origin', '-')})")
+        rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:16]
+        tok = request_id_var.set(rid)
+        start = time.monotonic()
         try:
             response = await call_next(request)
-            logger.info(f"<< {request.method} {request.url.path} -> {response.status_code}")
-            return response
-        except Exception as exc:
-            logger.error(f"XX {request.method} {request.url.path} -> ERROR: {exc}", exc_info=True)
+        except Exception:
+            dur = round((time.monotonic() - start) * 1000, 1)
+            # path без query → не утекает ?token=
+            logger.exception(
+                "request error",
+                extra={"method": request.method, "path": request.url.path, "duration_ms": dur},
+            )
+            request_id_var.reset(tok)
             raise
+        dur = round((time.monotonic() - start) * 1000, 1)
+        response.headers["X-Request-ID"] = rid
+        logger.info(
+            "access",
+            extra={
+                "event": "access",
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": dur,
+            },
+        )
+        request_id_var.reset(tok)
+        return response
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Базовые security-заголовки (§23). HSTS/CSP — на nginx (фаза 3)."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        return response
 
 
 # Order matters: add_middleware uses LIFO — last added = outermost.
-# CORSMiddleware must be outermost to handle OPTIONS preflight BEFORE anything else.
-app.add_middleware(LoggingMiddleware)
+# CORS должен быть самым внешним, чтобы обрабатывать OPTIONS preflight раньше всего.
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^https?://(localhost(:\d+)?|meridian\.fvds\.ru(:\d+)?)$",
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
 
@@ -135,6 +209,25 @@ app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
 app.include_router(ws_router)
 
 
+@app.get("/health/live")
+async def health_live():
+    """Liveness: процесс жив (§5)."""
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """Readiness: доступна БД (§5)."""
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ready"}
+    except Exception as e:
+        logger.warning("readiness check failed: %s", e)
+        return JSONResponse({"status": "not ready"}, status_code=503)
+
+
 @app.get("/api/health")
 async def health():
+    """Алиас для обратной совместимости фронта."""
     return {"status": "ok"}

@@ -52,6 +52,11 @@ Thumbs.db
 .env
 .env.local
 
+# Deploy secrets & runtime (§18) — НЕ коммитить
+meridian-web/deploy/portal/meridian.env
+meridian-web/deploy/infra-nginx/certbot/
+meridian-web/certbot/
+
 # Logs
 *.log
 

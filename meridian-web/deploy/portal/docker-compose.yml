@@ -1,0 +1,120 @@
+# Portal-scoped compose для Meridian (корп. стандарт §4, §19).
+# На VPS живёт в /opt/portals/meridian. Деплой этого проекта НЕ трогает
+# nginx, Keycloak и соседние сервисы (Xray/Supabase) — §19, corp-no-neighbor-damage.
+#
+# Образы — ТОЛЬКО из registry с immutable-тегом (${TAG}). Никаких build: на VPS.
+# Порты наружу не публикуются: ingress (TLS/80/443) — отдельный infra-nginx проект.
+#
+# Запуск только через deploy/deploy.sh (health-gated). Секреты — из meridian.env (§18).
+
+name: meridian
+
+services:
+  api:
+    image: ${REGISTRY}/meridian-api:${TAG}
+    env_file: [./meridian.env]
+    environment:
+      # runtime-пользователь БД (DML only, §7)
+      DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
+      DEV_MODE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      internal: {}
+      infra_web:
+        aliases: [meridian-api]
+    restart: unless-stopped
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health/ready').status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Worker для фоновых задач — активируется в фазе 4 (требует app/worker.py).
+  # worker:
+  #   image: ${REGISTRY}/meridian-api:${TAG}
+  #   env_file: [./meridian.env]
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
+  #     DEV_MODE: "false"
+  #   command: ["python", "-m", "app.worker"]
+  #   depends_on: { postgres: { condition: service_healthy } }
+  #   networks: [internal]
+  #   restart: unless-stopped
+
+  # Миграции — отдельный шаг (§8), под migration-пользователем (DDL).
+  # Запускается deploy.sh: docker compose run --rm migrate
+  migrate:
+    image: ${REGISTRY}/meridian-api:${TAG}
+    env_file: [./meridian.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meridian_migration:${MIGRATION_DB_PASSWORD}@postgres:5432/meridian
+      MIGRATION_DATABASE_URL: postgresql+asyncpg://meridian_migration:${MIGRATION_DB_PASSWORD}@postgres:5432/meridian
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    profiles: ["tools"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: meridian
+      POSTGRES_USER: meridian
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ../../backend/db/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meridian -d meridian"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ежедневный pg_dump в локальный том (в фазе 5 — выгрузка в S3). §26.
+  backup:
+    image: postgres:16-alpine
+    env_file: [./meridian.env]
+    volumes:
+      - pg_backups:/backups
+    networks: [internal]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          ts=$$(date +%Y%m%d_%H%M%S)
+          PGPASSWORD=$${DB_PASSWORD} pg_dump -h postgres -U meridian -d meridian \
+            | gzip > /backups/meridian_$${ts}.sql.gz \
+            && echo "backup ok: meridian_$${ts}.sql.gz" \
+            || echo "backup FAILED"
+          # хранить 7 последних
+          ls -1t /backups/*.sql.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
+          sleep 86400
+        done
+
+  frontend:
+    image: ${REGISTRY}/meridian-frontend:${TAG}
+    networks:
+      infra_web:
+        aliases: [meridian-frontend]
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge
+  # Внешняя сеть, общая с infra-nginx. Создаётся один раз:
+  #   docker network create infra_web
+  infra_web:
+    external: true
+
+volumes:
+  pg_data:
+  pg_backups:

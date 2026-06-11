@@ -1,6 +1,5 @@
 """Database engine and session management."""
 
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -8,15 +7,23 @@ from .config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(settings.database_url, echo=False)
-
-# Enable foreign key enforcement for SQLite
+# Корп. стандарт §7: только PostgreSQL. SQLite больше не поддерживается.
 if "sqlite" in settings.database_url:
-    @event.listens_for(engine.sync_engine, "connect")
-    def _set_sqlite_pragma(dbapi_conn, connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    raise RuntimeError(
+        "SQLite не поддерживается (корп. стандарт §7). "
+        "Используйте PostgreSQL: docker compose -f docker-compose.dev.yml up -d, "
+        "затем DATABASE_URL=postgresql+asyncpg://..."
+    )
+
+# Явный пул соединений (§5/§7); pool_pre_ping снимает «битые» коннекты после простоя/рестарта БД.
+engine = create_async_engine(
+    settings.database_url,
+    echo=False,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_pre_ping=True,
+)
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
