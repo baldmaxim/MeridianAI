@@ -22,6 +22,7 @@ from .ratelimit import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .auth.router import router as auth_router
+from .auth.oidc import router as oidc_router
 from .api.admin import router as admin_router
 from .api.settings import router as settings_router, providers_router
 from .api.documents import router as documents_router
@@ -81,6 +82,10 @@ def run_startup_checks() -> None:
         problems.append("DATABASE_URL указывает на sqlite (§7: только PostgreSQL)")
     if not settings.database_url:
         problems.append("DATABASE_URL не задан")
+    if settings.auth_mode not in ("local", "keycloak", "both"):
+        problems.append(f"AUTH_MODE невалиден: {settings.auth_mode}")
+    if settings.auth_mode in ("keycloak", "both") and not settings.oidc_enabled:
+        problems.append("AUTH_MODE требует OIDC, но OIDC_ISSUER/CLIENT_ID/SECRET не заданы")
 
     if not problems:
         return
@@ -198,6 +203,7 @@ app.add_middleware(
 
 # Routes
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(oidc_router, prefix="/api/auth", tags=["auth-oidc"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 app.include_router(providers_router, prefix="/api/settings/providers", tags=["settings"])
 app.include_router(settings_router, prefix="/api/settings", tags=["settings"])

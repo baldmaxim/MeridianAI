@@ -13,6 +13,7 @@ from .batch_job import BatchJob
 from .job import Job
 from .file import FileRecord
 from .audit import AuditLog
+from .user_identity import UserIdentity
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "Job",
     "FileRecord",
     "AuditLog",
+    "UserIdentity",
 ]

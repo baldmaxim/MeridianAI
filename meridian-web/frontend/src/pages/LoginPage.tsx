@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LoginForm } from '../components/auth/LoginForm';
 import { RegisterForm } from '../components/auth/RegisterForm';
 import { theme } from '../styles/theme';
@@ -26,6 +26,14 @@ function LogoMark() {
 export function LoginPage({ onLogin, onRegister }: Props) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [error, setError] = useState('');
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/config')
+      .then((r) => r.json())
+      .then((c) => setSsoEnabled(!!c.oidc_enabled))
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (email: string, password: string) => {
     setError('');
@@ -67,6 +75,15 @@ export function LoginPage({ onLogin, onRegister }: Props) {
           error={error}
         />
       )}
+      {ssoEnabled && (
+        <button
+          type="button"
+          onClick={() => { window.location.href = '/api/auth/oidc/login'; }}
+          style={styles.ssoBtn}
+        >
+          Войти через SSO (Keycloak)
+        </button>
+      )}
     </div>
   );
 }
@@ -100,5 +117,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: theme.text.muted,
     letterSpacing: '0.12em',
+  },
+  ssoBtn: {
+    fontFamily: theme.font.body,
+    fontSize: 13,
+    padding: '10px 18px',
+    background: 'transparent',
+    color: theme.text.secondary,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 8,
+    cursor: 'pointer',
   },
 };

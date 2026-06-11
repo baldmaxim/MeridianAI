@@ -57,6 +57,21 @@ class Settings(BaseSettings):
     # Audit (§22): ключ HMAC для email в audit_log. Пусто → фолбэк на JWT_SECRET.
     audit_hmac_key: str = Field(default="", alias="AUDIT_HMAC_KEY")
 
+    # Keycloak OIDC (§9/§12). AUTH_MODE: local | keycloak | both (default local — деплой inert).
+    auth_mode: str = Field(default="local", alias="AUTH_MODE")
+    oidc_issuer: str = Field(default="", alias="OIDC_ISSUER")  # https://auth.su10.ru/realms/su10
+    oidc_client_id: str = Field(default="", alias="OIDC_CLIENT_ID")
+    oidc_client_secret: str = Field(default="", alias="OIDC_CLIENT_SECRET")
+    oidc_redirect_uri: str = Field(default="", alias="OIDC_REDIRECT_URI")
+    # URL фронта, куда callback вернёт токен (по умолчанию первый CORS-origin)
+    frontend_url: str = Field(default="", alias="FRONTEND_URL")
+
+    @property
+    def oidc_enabled(self) -> bool:
+        return self.auth_mode in ("keycloak", "both") and bool(
+            self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret
+        )
+
     # S3-совместимое хранилище (§15). Включается при заданных endpoint+bucket+ключах.
     s3_endpoint: str = Field(default="", alias="S3_ENDPOINT")
     s3_region: str = Field(default="ru-central-1", alias="S3_REGION")

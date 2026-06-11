@@ -7,6 +7,12 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // SSO session bridging: callback вернул локальный JWT во fragment (#sso_token=...)
+    const m = window.location.hash.match(/sso_token=([^&]+)/);
+    if (m) {
+      localStorage.setItem('token', decodeURIComponent(m[1]));
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
     const token = localStorage.getItem('token');
     if (token) {
       getMe()
