@@ -227,10 +227,11 @@ Breakpoints:
 - ✅ **3** — Деплой: deploy/portal compose + infra-nginx + build.sh/deploy.sh с health gates · compose/скрипты валидны
 - ✅ **3-FVDS** — Боевой передеплой на vds (2026-06-11): `/opt/portals/meridian`, build-на-сервере, edge на 127.0.0.1:8080, свежая БД + бэкап старой, §7 роли. Соседи (Xray/VPN/Supabase) не тронуты. Live: https://meridian.fvds.ru health 200/200, auth/rate-limit/headers ✓
 - ✅ **4** — Jobs: PG-таблица jobs (§16), worker-процесс, batch через outbox · на проде (worker claim/dispatch/complete проверены live; edge-resolver устойчив к рестартам api)
-- ☐ **5** — Файлы: presigned S3 (MinIO dev / R2-cloud.ru prod), soft delete
+- ◑ **5** — Файлы: presigned S3 для batch-аудио (§15, upload-session/confirm, soft-delete, физ. удаление через job) · код на проде; **presigned ждёт креды cloud.ru** в meridian.env (пока graceful fallback на multipart). Документы — пока multipart (под-шаг позже)
 - ☐ **6** — Keycloak OIDC + identity linking + AUTH_MODE (session bridging)
-- ☐ **7** — Audit log (§22)
+- ✅ **7** — Audit log (§22): login/role/api-key/dead-job, email как HMAC, своя транзакция · на проде (login_failed → audit-запись с HMAC проверено live)
 - ☐ **8** — Observability: Sentry frontend, uptime, алерты
+- ✅ **CI/GHCR** — GitHub Actions собирает образы → GHCR (public) → vds `docker pull` (deploy-ghcr.sh). Локальный Docker сломан (cred-helper), vds-сборка = OOM. Это рабочий путь деплоя
 
 ## Known Issues
 
