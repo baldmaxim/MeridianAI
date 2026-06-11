@@ -1,6 +1,5 @@
 """Batch audio transcription and protocol generation API."""
 
-import asyncio
 import json
 import logging
 import os
@@ -14,15 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.dependencies import get_current_user
-from ..database import get_db, async_session
+from ..database import get_db
 from ..models.user import User
 from ..models.batch_job import BatchJob
 from ..schemas.batch import BatchJobResponse, BatchJobDetailResponse
-from ..services.api_keys import load_api_keys
-from ..core.batch.audio_compressor import AudioCompressor
-from ..core.batch.transcription_service import BatchTranscriptionService
-from ..core.batch.protocol_generator import ProtocolGenerator
-from ..core.batch.utils import format_transcription_txt, split_protocol_output
+from ..services.jobs import enqueue
+from ..core.batch.utils import format_transcription_txt
 from ..config import get_settings
 
 logger = logging.getLogger("meridian.batch")
@@ -65,10 +61,11 @@ async def upload_batch_audio(
         file_path=str(file_path),
     )
     db.add(job)
+    await db.flush()
+    # outbox: задача в очередь в той же транзакции, что и BatchJob (§16)
+    await enqueue(db, "batch_transcribe", {"batch_job_id": job.id})
     await db.commit()
     await db.refresh(job)
-
-    asyncio.create_task(_process_batch_job(job.id))
 
     return job
 
@@ -182,100 +179,3 @@ async def download_batch_result(
         )
 
     raise HTTPException(400, f"Неизвестный тип: {download_type}")
-
-
-async def _process_batch_job(job_id: int):
-    """Background processing pipeline: compress -> transcribe -> protocol."""
-    try:
-        api_keys = await load_api_keys()
-
-        async with async_session() as db:
-            result = await db.execute(select(BatchJob).where(BatchJob.id == job_id))
-            job = result.scalar_one_or_none()
-            if not job:
-                return
-
-            file_to_transcribe = job.file_path
-
-            # Step 1: Compress (optional)
-            ext = Path(job.file_path).suffix.lower()
-            skip_compression = ext in {".ogg", ".opus"}
-
-            if not skip_compression:
-                compressor = AudioCompressor()
-                if compressor.is_available:
-                    job.status = "compressing"
-                    await db.commit()
-
-                    output_dir = str(Path(job.file_path).parent)
-                    compress_result = await compressor.compress_to_opus(job.file_path, output_dir)
-
-                    if compress_result:
-                        compressed_path, _, compressed_size = compress_result
-                        job.compressed_path = compressed_path
-                        job.compressed_size = compressed_size
-                        file_to_transcribe = compressed_path
-                        await db.commit()
-                else:
-                    logger.info("FFmpeg not available, skipping compression")
-
-            # Step 2: Transcribe
-            elevenlabs_key = api_keys.get("elevenlabs")
-            if not elevenlabs_key:
-                job.status = "error"
-                job.error_message = "API ключ ElevenLabs не найден"
-                await db.commit()
-                return
-
-            job.status = "transcribing"
-            await db.commit()
-
-            svc = BatchTranscriptionService(elevenlabs_key)
-            transcription = await svc.transcribe(file_to_transcribe)
-
-            if not transcription:
-                job.status = "error"
-                job.error_message = "Ошибка транскрипции ElevenLabs"
-                await db.commit()
-                return
-
-            job.transcription_text = transcription.get("text", "")
-            job.transcription_json = json.dumps(transcription, ensure_ascii=False)
-            await db.commit()
-
-            # Step 3: Generate protocol
-            openrouter_key = api_keys.get("openrouter")
-            if not openrouter_key:
-                job.status = "done"
-                await db.commit()
-                logger.info(f"Job {job_id}: no OpenRouter key, skipping protocol")
-                return
-
-            job.status = "generating_protocol"
-            await db.commit()
-
-            generator = ProtocolGenerator(openrouter_key)
-            raw_protocol = await generator.generate(transcription)
-
-            if raw_protocol:
-                markdown, json_data = split_protocol_output(raw_protocol)
-                job.protocol_markdown = markdown
-                if json_data:
-                    job.protocol_json = json.dumps(json_data, ensure_ascii=False)
-
-            job.status = "done"
-            await db.commit()
-            logger.info(f"Job {job_id}: completed successfully")
-
-    except Exception as e:
-        logger.error(f"Job {job_id} failed: {e}")
-        try:
-            async with async_session() as db:
-                result = await db.execute(select(BatchJob).where(BatchJob.id == job_id))
-                job = result.scalar_one_or_none()
-                if job:
-                    job.status = "error"
-                    job.error_message = str(e)[:500]
-                    await db.commit()
-        except Exception:
-            pass

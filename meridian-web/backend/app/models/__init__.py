@@ -10,6 +10,7 @@ from .meeting import (
 )
 from .role import NegotiationRole
 from .batch_job import BatchJob
+from .job import Job
 
 __all__ = [
     "User",
@@ -22,4 +23,5 @@ __all__ = [
     "SavedTranscription",
     "NegotiationRole",
     "BatchJob",
+    "Job",
 ]

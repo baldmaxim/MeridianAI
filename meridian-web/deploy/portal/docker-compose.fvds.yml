@@ -56,6 +56,20 @@ services:
     networks: [internal]
     restart: unless-stopped
 
+  worker:
+    build: ../../backend
+    image: meridian-api:local
+    env_file: [./meridian.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
+      DEV_MODE: "false"
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    restart: unless-stopped
+
   frontend:
     build: ../../frontend
     image: meridian-frontend:local

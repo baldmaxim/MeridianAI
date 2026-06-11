@@ -7,10 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models.user import User
 from ..models.api_key import ApiKey
+from ..models.job import Job
 from ..schemas.auth import UserResponse
 from ..schemas.settings import ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate
 from ..auth.dependencies import require_admin
 from ..services.encryption import encrypt_api_key, decrypt_api_key, mask_api_key
+from ..services.jobs import retry_dead
 
 router = APIRouter()
 
@@ -138,3 +140,41 @@ async def delete_api_key(
 
     await db.delete(key)
     return {"ok": True}
+
+
+# --- Jobs (§16) ---
+
+
+@router.get("/jobs")
+async def list_jobs(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(select(Job).order_by(Job.created_at.desc()).limit(100))
+    ).scalars().all()
+    return [
+        {
+            "id": j.id,
+            "type": j.type,
+            "status": j.status,
+            "attempts": j.attempts,
+            "max_attempts": j.max_attempts,
+            "last_error": j.last_error,
+            "next_run_at": j.next_run_at,
+            "created_at": j.created_at,
+        }
+        for j in rows
+    ]
+
+
+@router.post("/jobs/{job_id}/retry")
+async def retry_job(
+    job_id: int,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await retry_dead(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"ok": True, "status": job.status}
