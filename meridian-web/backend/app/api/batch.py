@@ -2,11 +2,13 @@
 
 import json
 import logging
+import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +35,45 @@ router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".opus", ".webm"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+
+
+@router.post("/upload", response_model=BatchJobResponse)
+async def upload_batch_audio(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fallback-загрузка через backend, когда S3 не настроен.
+    При настроенном S3 фронт использует upload-session/confirm (§15)."""
+    settings = get_settings()
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"Формат {ext} не поддерживается. Допустимые: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    upload_dir = Path(settings.upload_dir) / "batch" / str(user.id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex[:8]}_{Path(file.filename or 'audio').name}"
+    file_path = upload_dir / safe_name
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(400, f"Файл слишком большой (макс. {MAX_FILE_SIZE // 1024 // 1024}MB)")
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    job = BatchJob(
+        user_id=user.id,
+        status="uploaded",
+        original_filename=file.filename or "unknown",
+        original_size=len(content),
+        file_path=str(file_path),
+    )
+    db.add(job)
+    await db.flush()
+    await enqueue(db, "batch_transcribe", {"batch_job_id": job.id})
+    await db.commit()
+    await db.refresh(job)
+    return job
 
 
 @router.post("/upload-session", response_model=UploadSessionResponse)

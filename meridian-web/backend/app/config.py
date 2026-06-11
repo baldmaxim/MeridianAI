@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
     environment: str = Field(default="development", alias="ENVIRONMENT")
 
+    # Audit (§22): ключ HMAC для email в audit_log. Пусто → фолбэк на JWT_SECRET.
+    audit_hmac_key: str = Field(default="", alias="AUDIT_HMAC_KEY")
+
     # S3-совместимое хранилище (§15). Включается при заданных endpoint+bucket+ключах.
     s3_endpoint: str = Field(default="", alias="S3_ENDPOINT")
     s3_region: str = Field(default="ru-central-1", alias="S3_REGION")

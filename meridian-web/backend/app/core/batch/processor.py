@@ -47,9 +47,14 @@ async def handle_batch_transcribe(payload: dict) -> None:
             # Транскрипция (с предшествующими download + compress) — только если ещё нет
             if not job.transcription_json:
                 tmpdir = tempfile.mkdtemp(prefix="meridian_batch_")
-                local_audio = os.path.join(tmpdir, os.path.basename(job.original_filename) or "audio")
-                # скачать из S3
-                await s3.download_to(job.file_path, local_audio)
+                # file_path = локальный путь (fallback) ИЛИ S3-ключ (presigned)
+                if os.path.exists(job.file_path):
+                    local_audio = job.file_path
+                else:
+                    local_audio = os.path.join(
+                        tmpdir, os.path.basename(job.original_filename) or "audio"
+                    )
+                    await s3.download_to(job.file_path, local_audio)
                 file_to_transcribe = local_audio
 
                 # сжатие (опционально, в temp)

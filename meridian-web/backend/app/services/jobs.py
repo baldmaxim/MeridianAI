@@ -78,13 +78,17 @@ async def fail(db: AsyncSession, job_id: int, error: str) -> None:
     job.last_error = (error or "")[:1000]
     job.locked_by = None
     job.locked_until = None
-    if job.attempts >= job.max_attempts:
+    went_dead = job.attempts >= job.max_attempts
+    if went_dead:
         job.status = "dead"
     else:
         backoff = min(MAX_BACKOFF_SECONDS, 2 ** job.attempts) + random.uniform(0, 5)
         job.status = "pending"
         job.next_run_at = _utcnow() + timedelta(seconds=backoff)
     await db.commit()
+    if went_dead:
+        from .audit import audit
+        await audit("job_dead", job_type=job.type, job_id=job.id, last_error=job.last_error)
 
 
 async def retry_dead(db: AsyncSession, job_id: int) -> Job | None:

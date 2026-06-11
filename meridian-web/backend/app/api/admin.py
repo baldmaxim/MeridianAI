@@ -1,6 +1,6 @@
 """Admin API routes: manage users and API keys."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,11 +8,13 @@ from ..database import get_db
 from ..models.user import User
 from ..models.api_key import ApiKey
 from ..models.job import Job
+from ..models.audit import AuditLog
 from ..schemas.auth import UserResponse
 from ..schemas.settings import ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate
 from ..auth.dependencies import require_admin
 from ..services.encryption import encrypt_api_key, decrypt_api_key, mask_api_key
 from ..services.jobs import retry_dead
+from ..services.audit import audit, client_ip
 
 router = APIRouter()
 
@@ -31,6 +33,7 @@ async def list_users(
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
+    request: Request,
     user_id: int,
     is_active: bool | None = None,
     role: str | None = None,
@@ -42,10 +45,15 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if is_active is not None:
-        user.is_active = is_active
-    if role is not None:
+    ip = client_ip(request)
+    if role is not None and role != user.role:
+        await audit("user_role_changed", actor_user_id=admin.id, ip=ip,
+                    target_user_id=user_id, old=user.role, new=role)
         user.role = role
+    if is_active is not None and is_active != user.is_active:
+        await audit("user_active_changed", actor_user_id=admin.id, ip=ip,
+                    target_user_id=user_id, new=is_active)
+        user.is_active = is_active
     return user
 
 
@@ -74,6 +82,7 @@ async def list_api_keys(
 
 @router.post("/api-keys", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
+    request: Request,
     data: ApiKeyCreate,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
@@ -92,6 +101,7 @@ async def create_api_key(
     )
     db.add(key)
     await db.flush()
+    await audit("api_key_created", actor_user_id=admin.id, ip=client_ip(request), service=data.service)
 
     return ApiKeyResponse(
         id=key.id,
@@ -103,6 +113,7 @@ async def create_api_key(
 
 @router.put("/api-keys/{key_id}", response_model=ApiKeyResponse)
 async def update_api_key(
+    request: Request,
     key_id: int,
     data: ApiKeyUpdate,
     admin: User = Depends(require_admin),
@@ -117,6 +128,8 @@ async def update_api_key(
         key.encrypted_key = encrypt_api_key(data.api_key)
     if data.is_active is not None:
         key.is_active = data.is_active
+    await audit("api_key_updated", actor_user_id=admin.id, ip=client_ip(request),
+                service=key.service, key_id=key_id)
 
     try:
         plain = decrypt_api_key(key.encrypted_key)
@@ -129,6 +142,7 @@ async def update_api_key(
 
 @router.delete("/api-keys/{key_id}")
 async def delete_api_key(
+    request: Request,
     key_id: int,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
@@ -138,6 +152,8 @@ async def delete_api_key(
     if not key:
         raise HTTPException(status_code=404, detail="API key not found")
 
+    await audit("api_key_deleted", actor_user_id=admin.id, ip=client_ip(request),
+                service=key.service, key_id=key_id)
     await db.delete(key)
     return {"ok": True}
 
@@ -178,3 +194,27 @@ async def retry_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"ok": True, "status": job.status}
+
+
+# --- Audit (§22) ---
+
+
+@router.get("/audit")
+async def list_audit(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(select(AuditLog).order_by(AuditLog.ts.desc()).limit(200))
+    ).scalars().all()
+    return [
+        {
+            "id": a.id,
+            "ts": a.ts,
+            "actor_user_id": a.actor_user_id,
+            "event_type": a.event_type,
+            "ip": a.ip,
+            "details": a.details,
+        }
+        for a in rows
+    ]

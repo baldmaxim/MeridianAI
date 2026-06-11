@@ -12,6 +12,7 @@ from .role import NegotiationRole
 from .batch_job import BatchJob
 from .job import Job
 from .file import FileRecord
+from .audit import AuditLog
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "BatchJob",
     "Job",
     "FileRecord",
+    "AuditLog",
 ]

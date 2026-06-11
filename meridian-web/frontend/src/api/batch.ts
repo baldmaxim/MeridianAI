@@ -38,16 +38,27 @@ export async function uploadBatchAudio(
   file: File,
   onProgress?: (frac: number) => void
 ): Promise<BatchJob> {
-  // 1. upload session → presigned URL
-  const { data: session } = await api.post('/batch/upload-session', {
-    filename: file.name,
-    size: file.size,
-  });
-  // 2. прямая загрузка в S3
-  await putToS3(session.upload_url, file, onProgress);
-  // 3. подтверждение → создаёт задачу обработки
-  const { data } = await api.post(`/batch/confirm/${session.file_id}`);
-  return data;
+  try {
+    // 1. upload session → presigned URL (§15)
+    const { data: session } = await api.post('/batch/upload-session', {
+      filename: file.name,
+      size: file.size,
+    });
+    // 2. прямая загрузка в S3
+    await putToS3(session.upload_url, file, onProgress);
+    // 3. подтверждение → создаёт задачу обработки
+    const { data } = await api.post(`/batch/confirm/${session.file_id}`);
+    return data;
+  } catch (e: any) {
+    // S3 не настроен → fallback на загрузку через backend
+    if (e?.response?.status === 503) {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await api.post('/batch/upload', form);
+      return data;
+    }
+    throw e;
+  }
 }
 
 export async function getBatchJobs(): Promise<BatchJob[]> {
