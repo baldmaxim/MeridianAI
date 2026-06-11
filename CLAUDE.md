@@ -225,7 +225,7 @@ Breakpoints:
 - ✅ **2** — Hardening: JSON-логи с редакцией, /health/*, startup checks, фикс path traversal, rate limit, Sentry backend · верифицировано TestClient 13/13
 - ✅ **3** — Деплой: deploy/portal compose + infra-nginx + build.sh/deploy.sh с health gates · compose/скрипты валидны
 - ✅ **3-FVDS** — Боевой передеплой на vds (2026-06-11): `/opt/portals/meridian`, build-на-сервере, edge на 127.0.0.1:8080, свежая БД + бэкап старой, §7 роли. Соседи (Xray/VPN/Supabase) не тронуты. Live: https://meridian.fvds.ru health 200/200, auth/rate-limit/headers ✓
-- ☐ **4** — Jobs: PG-таблица jobs (§16), worker-процесс, batch через outbox
+- ✅ **4** — Jobs: PG-таблица jobs (§16), worker-процесс, batch через outbox · на проде (worker claim/dispatch/complete проверены live; edge-resolver устойчив к рестартам api)
 - ☐ **5** — Файлы: presigned S3 (MinIO dev / R2-cloud.ru prod), soft delete
 - ☐ **6** — Keycloak OIDC + identity linking + AUTH_MODE (session bridging)
 - ☐ **7** — Audit log (§22)
