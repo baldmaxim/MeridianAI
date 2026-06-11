@@ -1,6 +1,8 @@
 """Application configuration."""
 
-from pydantic_settings import BaseSettings
+from typing import Annotated
+
+from pydantic_settings import BaseSettings, NoDecode
 from pydantic import Field, field_validator
 from functools import lru_cache
 
@@ -32,7 +34,8 @@ class Settings(BaseSettings):
     transcription_dir: str = Field(default="transcriptions", alias="TRANSCRIPTION_DIR")
 
     # CORS — точный allowlist (§23). Override через CORS_ORIGINS (JSON или CSV).
-    cors_origins: list[str] = Field(
+    # NoDecode: не давать env-источнику делать json.loads до валидатора (иначе CSV падает).
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default=[
             "http://localhost:5173",
             "http://localhost:3000",
@@ -62,8 +65,10 @@ class Settings(BaseSettings):
         """Принять как JSON-список, так и CSV-строку из env."""
         if isinstance(v, str):
             s = v.strip()
-            if not s.startswith("["):
-                return [o.strip() for o in s.split(",") if o.strip()]
+            if s.startswith("["):
+                import json
+                return json.loads(s)
+            return [o.strip() for o in s.split(",") if o.strip()]
         return v
 
 
