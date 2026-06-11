@@ -30,7 +30,7 @@ services:
 
   migrate:
     build: ../../backend
-    image: meridian-api:local
+    image: ${API_IMAGE:-meridian-api:local}
     env_file: [./meridian.env]
     environment:
       DATABASE_URL: postgresql+asyncpg://meridian_migration:${MIGRATION_DB_PASSWORD}@postgres:5432/meridian
@@ -44,7 +44,7 @@ services:
 
   api:
     build: ../../backend
-    image: meridian-api:local
+    image: ${API_IMAGE:-meridian-api:local}
     env_file: [./meridian.env]
     environment:
       DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
@@ -58,7 +58,7 @@ services:
 
   worker:
     build: ../../backend
-    image: meridian-api:local
+    image: ${API_IMAGE:-meridian-api:local}
     env_file: [./meridian.env]
     environment:
       DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
@@ -72,7 +72,7 @@ services:
 
   frontend:
     build: ../../frontend
-    image: meridian-frontend:local
+    image: ${FRONTEND_IMAGE:-meridian-frontend:local}
     networks: [internal]
     restart: unless-stopped
 
