@@ -17,10 +17,36 @@ export interface BatchJobDetail extends BatchJob {
   protocol_json: string | null;
 }
 
-export async function uploadBatchAudio(file: File): Promise<BatchJob> {
-  const form = new FormData();
-  form.append('file', file);
-  const { data } = await api.post('/batch/upload', form);
+/** Прямой PUT в S3 по presigned URL (§15) — без авторизации, с прогрессом. */
+function putToS3(url: string, file: File, onProgress?: (frac: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
+    xhr.onerror = () => reject(new Error('Сбой сети при загрузке'));
+    xhr.send(file);
+  });
+}
+
+export async function uploadBatchAudio(
+  file: File,
+  onProgress?: (frac: number) => void
+): Promise<BatchJob> {
+  // 1. upload session → presigned URL
+  const { data: session } = await api.post('/batch/upload-session', {
+    filename: file.name,
+    size: file.size,
+  });
+  // 2. прямая загрузка в S3
+  await putToS3(session.upload_url, file, onProgress);
+  // 3. подтверждение → создаёт задачу обработки
+  const { data } = await api.post(`/batch/confirm/${session.file_id}`);
   return data;
 }
 

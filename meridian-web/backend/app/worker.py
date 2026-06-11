@@ -16,6 +16,7 @@ from .database import async_session, engine
 from .logging_setup import setup_logging
 from .services.jobs import claim_one, complete, fail
 from .core.batch.processor import handle_batch_transcribe
+from .services.files import handle_file_physical_delete
 
 settings = get_settings()
 setup_logging(dev_mode=settings.dev_mode)
@@ -23,6 +24,7 @@ logger = logging.getLogger("meridian.worker")
 
 HANDLERS = {
     "batch_transcribe": handle_batch_transcribe,
+    "file_physical_delete": handle_file_physical_delete,
 }
 
 IDLE_SLEEP = 2

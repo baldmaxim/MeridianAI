@@ -54,6 +54,18 @@ class Settings(BaseSettings):
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
     environment: str = Field(default="development", alias="ENVIRONMENT")
 
+    # S3-совместимое хранилище (§15). Включается при заданных endpoint+bucket+ключах.
+    s3_endpoint: str = Field(default="", alias="S3_ENDPOINT")
+    s3_region: str = Field(default="ru-central-1", alias="S3_REGION")
+    s3_bucket: str = Field(default="", alias="S3_BUCKET")
+    s3_access_key: str = Field(default="", alias="S3_ACCESS_KEY")
+    s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
+    s3_presign_ttl: int = Field(default=900, alias="S3_PRESIGN_TTL")
+
+    @property
+    def s3_enabled(self) -> bool:
+        return bool(self.s3_endpoint and self.s3_bucket and self.s3_access_key and self.s3_secret_key)
+
     # Session idle TTL in seconds (cleanup abandoned sessions)
     session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")
 

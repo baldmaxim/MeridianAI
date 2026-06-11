@@ -21,6 +21,9 @@ cryptography>=41.0.0
 slowapi>=0.1.9
 sentry-sdk[fastapi]>=2.62.0
 
+# S3-совместимое хранилище (§15)
+boto3>=1.43.0
+
 # Core reused dependencies
 openai>=1.3.0
 elevenlabs>=0.2.24

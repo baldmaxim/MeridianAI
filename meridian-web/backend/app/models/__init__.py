@@ -11,6 +11,7 @@ from .meeting import (
 from .role import NegotiationRole
 from .batch_job import BatchJob
 from .job import Job
+from .file import FileRecord
 
 __all__ = [
     "User",
@@ -24,4 +25,5 @@ __all__ = [
     "NegotiationRole",
     "BatchJob",
     "Job",
+    "FileRecord",
 ]

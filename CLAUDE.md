@@ -236,6 +236,7 @@ Breakpoints:
 - ElevenLabs, Deepgram, Gemini и OpenRouter — платные API
 - Gemini: НЕ true streaming, задержка ~5 сек
 - venv общий (`.venv/` в корне), frontend node_modules в `meridian-web/frontend/`
-- Path traversal в `app/api/documents.py` (фикс в фазе 2)
-- Batch: до 500MB в RAM, задачи гибнут при рестарте (фикс в фазах 4–5)
-- WS `?token=` течёт в access-логи uvicorn (фикс в фазе 2)
+- ✅ Path traversal в `app/api/documents.py` — пофикшено (фаза 2, `safe_filename`)
+- ✅ Batch: 500MB в RAM / гибель при рестарте — пофикшено (фаза 4 jobs + фаза 5 presigned S3, аудио мимо backend)
+- ✅ WS `?token=` в access-логах — пофикшено (фаза 2, `--no-access-log` + редакция)
+- ☐ Документы (`/api/documents/upload`) пока multipart (маленькие, traversal закрыт). Перевод на presigned S3 — под-шаг фазы 5 позже

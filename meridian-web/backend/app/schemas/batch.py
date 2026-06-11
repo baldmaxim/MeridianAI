@@ -22,3 +22,13 @@ class BatchJobDetailResponse(BatchJobResponse):
     transcription_text: Optional[str] = None
     protocol_markdown: Optional[str] = None
     protocol_json: Optional[str] = None
+
+
+class UploadSessionRequest(BaseModel):
+    filename: str
+    size: Optional[int] = None
+
+
+class UploadSessionResponse(BaseModel):
+    file_id: int
+    upload_url: str
