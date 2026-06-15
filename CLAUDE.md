@@ -114,6 +114,30 @@ npm run dev
 > Схема БД создаётся **только** миграциями Alembic. `create_all`/ad-hoc ALTER из рантайма удалены (§8).
 > Новое изменение модели → `alembic revision --autogenerate -m "..."` → вычитать → коммит.
 
+## Команды
+
+### Frontend (meridian-web/frontend)
+```bash
+npm run dev        # vite dev server
+npm run build      # tsc -b && vite build (типчек + прод-сборка)
+npm run lint       # eslint . (ESLint 9 flat config)
+npm run preview    # предпросмотр прод-сборки
+```
+> Vitest/Jest и Prettier НЕ настроены. Отдельной typecheck-команды нет — проверка типов внутри `build`. Vite proxy на backend НЕ настроен.
+
+### Backend (meridian-web/backend)
+```bash
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8001 --reload   # запуск
+..\.venv\Scripts\python.exe -m alembic upgrade head                        # применить миграции
+..\.venv\Scripts\python.exe -m alembic revision --autogenerate -m "..."    # новая миграция
+```
+> Тестов нет (`pytest` в requirements, но `tests/` отсутствует). Линтера (ruff/black/mypy) нет.
+> Alembic — async engine; `migration_database_url` = юзер `meridian_migration` (DDL), runtime = `meridian_runtime` (DML). Роли создаёт `backend/db/init/01-users.sql`.
+
+### Deploy (meridian-web/deploy)
+> Рабочий путь — CI/GHCR: push в `main` → `.github/workflows/deploy.yml` собирает образы → на vds `deploy-ghcr.sh`.
+> Скрипты: `build.sh` / `build-local.sh` (dev→prod), `deploy.sh` (на VPS, health-gate + flock), `deploy-ghcr.sh` (pull из GHCR).
+
 ## API
 
 ```
@@ -227,7 +251,7 @@ Breakpoints:
 - ✅ **3** — Деплой: deploy/portal compose + infra-nginx + build.sh/deploy.sh с health gates · compose/скрипты валидны
 - ✅ **3-FVDS** — Боевой передеплой на vds (2026-06-11): `/opt/portals/meridian`, build-на-сервере, edge на 127.0.0.1:8080, свежая БД + бэкап старой, §7 роли. Соседи (Xray/VPN/Supabase) не тронуты. Live: https://meridian.fvds.ru health 200/200, auth/rate-limit/headers ✓
 - ✅ **4** — Jobs: PG-таблица jobs (§16), worker-процесс, batch через outbox · на проде (worker claim/dispatch/complete проверены live; edge-resolver устойчив к рестартам api)
-- ◑ **5** — Файлы: presigned S3 для batch-аудио (§15, upload-session/confirm, soft-delete, физ. удаление через job) · код на проде; **presigned ждёт креды cloud.ru** в meridian.env (пока graceful fallback на multipart). Документы — пока multipart (под-шаг позже)
+- ✅ **5** — Файлы: presigned S3 для batch-аудио (§15, upload-session/confirm, soft-delete, физ. удаление через job) · **вживую на проде** (cloud.ru, tenant-проект; server round-trip + браузерный CORS-preflight проверены). Graceful fallback на multipart без S3. Документы — пока multipart (под-шаг позже)
 - ☐ **6** — Keycloak OIDC + identity linking + AUTH_MODE (session bridging)
 - ✅ **7** — Audit log (§22): login/role/api-key/dead-job, email как HMAC, своя транзакция · на проде (login_failed → audit-запись с HMAC проверено live)
 - ☐ **8** — Observability: Sentry frontend, uptime, алерты
@@ -242,3 +266,4 @@ Breakpoints:
 - ✅ Batch: 500MB в RAM / гибель при рестарте — пофикшено (фаза 4 jobs + фаза 5 presigned S3, аудио мимо backend)
 - ✅ WS `?token=` в access-логах — пофикшено (фаза 2, `--no-access-log` + редакция)
 - ☐ Документы (`/api/documents/upload`) пока multipart (маленькие, traversal закрыт). Перевод на presigned S3 — под-шаг фазы 5 позже
+- ☐ Нет автотестов (backend/frontend) и линтеров (ruff/black/mypy) — добавить отдельной фазой
