@@ -2,7 +2,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import { useExitTransition } from '../../hooks/useExitTransition';
-import type { Suggestion, SuggestionTypeConfig } from '../../types';
+import type { Suggestion, SuggestionTypeConfig, SuggestionCard as SuggestionCardT } from '../../types';
+
+const CARD_TYPE_META: Record<string, { label: string; color: string }> = {
+  say_now: { label: 'Сказать', color: theme.accent.amber },
+  ask: { label: 'Вопрос', color: theme.accent.green },
+  counter: { label: 'Контраргумент', color: theme.accent.blue },
+  risk: { label: 'Риск', color: theme.accent.red },
+  fixation: { label: 'Зафиксировать', color: theme.accent.red },
+  trade_concession: { label: 'Уступка в обмен', color: theme.accent.amber },
+  pause: { label: 'Пауза', color: theme.text.secondary },
+  clarify: { label: 'Уточнить', color: theme.accent.green },
+  summarize: { label: 'Резюмировать', color: theme.accent.blue },
+};
 
 interface TypeStyle {
   badge: string;
@@ -209,6 +221,41 @@ function SuggestionCard({ suggestion, typeStyles }: { suggestion: Suggestion; ty
   );
 }
 
+function StructuredSuggestionCard({ card }: { card: SuggestionCardT }) {
+  const [showEv, setShowEv] = useState(false);
+  const meta = CARD_TYPE_META[card.type] || { label: card.type, color: '#8896B3' };
+  const conf = Math.round(card.confidence * 100);
+  return (
+    <div style={{ ...styles.card, borderLeftColor: meta.color }}>
+      <div style={styles.cardTop}>
+        <span style={{ ...styles.badge, color: meta.color, background: hexToRgba(meta.color, 0.1), border: `1px solid ${hexToRgba(meta.color, 0.25)}` }}>
+          {meta.label}
+        </span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {card.needs_user_check && <span style={styles.checkBadge}>Проверить</span>}
+          <span style={{ fontSize: 11, color: meta.color, fontFamily: theme.font.mono }}>{conf}%</span>
+        </div>
+      </div>
+      {card.title && <div style={styles.cardTitle2}>{card.title}</div>}
+      <div style={styles.cardText}>{card.text}</div>
+      {card.why && <div style={styles.whyLine}>— {card.why}</div>}
+      {card.evidence.length > 0 && (
+        <div>
+          <button style={styles.evToggle} onClick={() => setShowEv((v) => !v)}>
+            {showEv ? 'Скрыть источники' : `Источники (${card.evidence.length})`}
+          </button>
+          {showEv && card.evidence.map((e, i) => (
+            <div key={i} style={styles.evRow}>
+              <span style={styles.evSource}>{e.source}{e.ref ? ` · ${e.ref}` : ''}</span>
+              <div>{e.text}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SuggestionPanel() {
   const suggestions = useMeetingStore((s) => s.suggestions);
   const streamingText = useMeetingStore((s) => s.currentStreamingText);
@@ -289,7 +336,9 @@ export function SuggestionPanel() {
 
         {/* Suggestion cards (newest first) */}
         {[...suggestions].reverse().map((s, i) => (
-          <SuggestionCard key={i} suggestion={s} typeStyles={typeStyles} />
+          s.card
+            ? <StructuredSuggestionCard key={i} card={s.card} />
+            : <SuggestionCard key={i} suggestion={s} typeStyles={typeStyles} />
         ))}
       </div>
 
@@ -449,6 +498,29 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.text.primary,
     fontFamily: theme.font.body,
     whiteSpace: 'pre-wrap' as const,
+  },
+  cardTitle2: {
+    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 13, color: theme.text.primary,
+  },
+  whyLine: {
+    fontSize: 11, fontFamily: theme.font.mono, color: theme.text.muted, lineHeight: 1.4,
+  },
+  checkBadge: {
+    padding: '2px 8px', borderRadius: 4, fontSize: 8, fontFamily: theme.font.mono,
+    fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+    color: theme.accent.amber, background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.3)',
+  },
+  evToggle: {
+    padding: '4px 10px', background: 'transparent', border: `1px solid ${theme.border.default}`,
+    borderRadius: 5, color: theme.text.secondary, fontSize: 10, fontFamily: theme.font.mono, cursor: 'pointer',
+  },
+  evRow: {
+    marginTop: 6, padding: '6px 10px', background: theme.bg.tertiary, borderRadius: 6,
+    fontSize: 11, color: theme.text.secondary, fontFamily: theme.font.body, lineHeight: 1.5,
+  },
+  evSource: {
+    display: 'block', fontFamily: theme.font.mono, fontSize: 9, color: theme.accent.amber,
+    marginBottom: 2, letterSpacing: '0.04em',
   },
   metaLine: {
     fontSize: 11,

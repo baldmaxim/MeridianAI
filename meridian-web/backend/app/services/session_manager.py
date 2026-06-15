@@ -26,8 +26,12 @@ from ..core.transcription.models import (
 )
 from ..core.context.event_detector import EventDetector
 from ..core.context.meeting_memory import MeetingMemory
+from ..core.llm.suggestion_prompts import (
+    build_auto_cards_prompt, build_manual_cards_prompt, build_strengthen_prompt,
+)
 from ..core.transcription.turn_assembler import TurnAssembler
 from .audio_recorder import AudioRecorder
+from .suggestion_parser import parse_suggestion_response, apply_safety_checks, fallback_response
 
 logger = logging.getLogger("meridian.session")
 
@@ -165,6 +169,12 @@ class SessionManager:
         # WebSocket send callback
         self._ws_send: Optional[Callable] = None
 
+        # Этап 4: провайдер контекста документов встречи (DB-backed), async(meeting_id, query)->str
+        self._doc_context_provider: Optional[Callable] = None
+
+        # Этап 7: провайдер утверждённой базы знаний, async(meeting_id, query)->str
+        self._knowledge_provider: Optional[Callable] = None
+
     def touch(self):
         """Update last activity timestamp."""
         self.last_activity = time.time()
@@ -172,6 +182,35 @@ class SessionManager:
     def set_ws_send(self, send_func: Callable):
         """Set WebSocket send function for pushing messages to client."""
         self._ws_send = send_func
+
+    def set_doc_context_provider(self, provider: Callable):
+        """Этап 4: провайдер релевантных фрагментов документов встречи из БД."""
+        self._doc_context_provider = provider
+
+    def set_knowledge_provider(self, provider: Callable):
+        """Этап 7: провайдер утверждённой базы знаний (approved-элементы в scope встречи)."""
+        self._knowledge_provider = provider
+
+    async def _knowledge_block(self, query_text: str = "") -> str:
+        """Блок утверждённой базы знаний для подсказок (или '')."""
+        if not self._knowledge_provider or not self.db_session_id:
+            return ""
+        try:
+            return await self._knowledge_provider(self.db_session_id, query_text or "")
+        except Exception:
+            return ""
+
+    async def _augment_doc_context(self, base: str, query_text: str) -> str:
+        """Дополнить doc-контекст (из in-memory loader) фрагментами документов встречи из БД."""
+        if not self._doc_context_provider or not self.db_session_id:
+            return base
+        try:
+            db_block = await self._doc_context_provider(self.db_session_id, query_text or "")
+        except Exception:
+            db_block = ""
+        if db_block and base:
+            return f"{base}\n\n{db_block}"
+        return db_block or base
 
     def configure_llm(self, api_key: str, model: str, temperature: float):
         """Configure LLM client with API key from database."""
@@ -452,7 +491,7 @@ class SessionManager:
         now = time.time()
         ctx = self._ctx_builder.build_reactive(batch_text)
         recent = ctx["recent_dialog"]
-        doc_context = ctx["document_context"]
+        doc_context = await self._augment_doc_context(ctx["document_context"], batch_text)
 
         # --- Event detection (priority over keywords) ---
         events = self._event_detector.detect(batch_text)
@@ -464,17 +503,7 @@ class SessionManager:
             self._auto_trigger_cooldown[cooldown_key] = now
 
             await self._send_analysis_status(ev.status_message)
-            prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
-                keyword=ev.keyword_for_prompt,
-                recent_dialog=recent,
-                document_context=doc_context,
-            )
-            logger.info(f"[AutoHint] event='{ev.event_type}', "
-                         f"docs={len(self.document_loader.documents)}, prompt_len={len(prompt)}")
-            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
-            if raw:
-                hint = self._parse_single_hint(raw, ev.keyword_for_prompt)
-                await self._send_structured_suggestion(hint, is_auto=True)
+            await self._auto_suggestion(ev.keyword_for_prompt, recent, doc_context)
             await self._send_analysis_status(None)
             return  # event handled, skip keyword fallback
 
@@ -496,22 +525,7 @@ class SessionManager:
             triggered_keyword, f"Анализирую: «{triggered_keyword}»..."
         )
         await self._send_analysis_status(status_msg)
-
-        prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
-            keyword=triggered_keyword,
-            recent_dialog=recent,
-            document_context=doc_context,
-        )
-
-        logger.info(f"[AutoHint] keyword='{triggered_keyword}', "
-                     f"docs={len(self.document_loader.documents)}, prompt_len={len(prompt)}")
-        logger.debug(f"[AutoHint] PROMPT:\n{prompt}")
-
-        raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
-        if raw:
-            hint = self._parse_single_hint(raw, triggered_keyword)
-            await self._send_structured_suggestion(hint, is_auto=True)
-
+        await self._auto_suggestion(triggered_keyword, recent, doc_context)
         await self._send_analysis_status(None)
 
     async def _check_legacy_auto_triggers(self, text: str):
@@ -522,7 +536,7 @@ class SessionManager:
         now = time.time()
         ctx = self._ctx_builder.build_reactive(text)
         recent = ctx["recent_dialog"]
-        doc_context = ctx["document_context"]
+        doc_context = await self._augment_doc_context(ctx["document_context"], text)
 
         # --- Event detection (priority) ---
         events = self._event_detector.detect(text)
@@ -534,15 +548,7 @@ class SessionManager:
             self._auto_trigger_cooldown[cooldown_key] = now
 
             await self._send_analysis_status(ev.status_message)
-            prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
-                keyword=ev.keyword_for_prompt,
-                recent_dialog=recent,
-                document_context=doc_context,
-            )
-            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
-            if raw:
-                hint = self._parse_single_hint(raw, ev.keyword_for_prompt)
-                await self._send_structured_suggestion(hint, is_auto=True)
+            await self._auto_suggestion(ev.keyword_for_prompt, recent, doc_context)
             await self._send_analysis_status(None)
             return  # event handled
 
@@ -560,19 +566,7 @@ class SessionManager:
                 keyword, f"Анализирую: «{keyword}»..."
             )
             await self._send_analysis_status(status_msg)
-
-            prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
-                keyword=keyword, recent_dialog=recent,
-                document_context=doc_context,
-            )
-
-            raw = await self.llm_client.get_suggestion_async(
-                prompt, max_tokens=200
-            )
-            if raw:
-                hint = self._parse_single_hint(raw, keyword)
-                await self._send_structured_suggestion(hint, is_auto=True)
-
+            await self._auto_suggestion(keyword, recent, doc_context)
             await self._send_analysis_status(None)
             break
 
@@ -603,20 +597,24 @@ class SessionManager:
             await self._send_json({"type": "suggestion_loading", "loading": False})
             return
 
-        prompt = self.prompt_builder.build_tactical_hints_prompt(
-            recent_dialog=context, **ctx,
-        )
+        # Этап 4: добавить релевантные фрагменты документов встречи (из БД)
+        ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
 
-        logger.info(f"[Suggestion] docs={len(self.document_loader.documents)}, "
-                     f"topic='{self.document_loader.meeting_topic}', "
-                     f"type='{self.negotiation_type}', prompt_len={len(prompt)}")
-        logger.debug(f"[Suggestion] PROMPT:\n{prompt}")
-
-        raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
-        if raw:
-            hints = self._parse_hints_array(raw)
-            for hint in hints:
-                await self._send_structured_suggestion(hint, is_auto=False)
+        settings = get_settings()
+        if settings.suggestion_structured_enabled:
+            mcb = self._meeting_context_block(ctx)
+            kb = await self._knowledge_block(context)
+            prompt = build_manual_cards_prompt(
+                self._role_name(), mcb, context, ctx.get("document_context", ""),
+                settings.suggestion_max_cards_manual, knowledge_context=kb)
+            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=1400)
+            await self._emit_suggestion_cards(raw, "manual", doc_context_text=ctx.get("document_context", ""))
+        else:
+            prompt = self.prompt_builder.build_tactical_hints_prompt(recent_dialog=context, **ctx)
+            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
+            if raw:
+                for hint in self._parse_hints_array(raw):
+                    await self._send_structured_suggestion(hint, is_auto=False)
 
         await self._send_analysis_status(None)
         await self._send_json({"type": "suggestion_loading", "loading": False})
@@ -644,8 +642,15 @@ class SessionManager:
             await self._send_json({"type": "strengthen_loading", "loading": False})
             return
 
-        prompt = self.prompt_builder.build_strengthen_position_prompt(
-            full_transcript=context, **ctx,
+        # Этап 4: добавить релевантные фрагменты документов встречи (из БД)
+        ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
+
+        # Этап 6: структурированный strengthen-промпт (7 секций, пометки источника)
+        # Этап 7: + утверждённая база знаний
+        kb = await self._knowledge_block(context)
+        prompt = build_strengthen_prompt(
+            self._role_name(), self._meeting_context_block(ctx), context,
+            ctx.get("document_context", ""), knowledge_context=kb,
         )
 
         logger.info(f"[Strengthen] docs={len(self.document_loader.documents)}, "
@@ -864,6 +869,114 @@ class SessionManager:
         await self._send_json(msg)
         # Persist to DB (fire-and-forget)
         asyncio.create_task(self._persist_suggestion(hint, is_auto))
+
+    # ---------------------------------------------------------------
+    # Этап 6: структурированные карточки подсказок
+    # ---------------------------------------------------------------
+
+    def _role_name(self) -> str:
+        return (self.role_data or {}).get("name") or "переговорщик"
+
+    def _meeting_context_block(self, ctx: dict) -> str:
+        lines = []
+        if ctx.get("topic"):
+            lines.append(f"Тема: {ctx['topic']}")
+        if ctx.get("notes"):
+            lines.append(f"Цели/условия: {ctx['notes']}")
+        if ctx.get("negotiation_type"):
+            lines.append(f"Тип переговоров: {ctx['negotiation_type']}")
+        if ctx.get("meeting_role"):
+            lines.append(f"Наша роль: {ctx['meeting_role']}")
+        if ctx.get("opponent_weaknesses"):
+            lines.append(f"Слабые стороны оппонента: {ctx['opponent_weaknesses']}")
+        return "\n".join(lines)
+
+    async def _auto_suggestion(self, keyword: str, recent: str, doc_context: str):
+        """Авто-подсказка карточками (legacy single-hint при выключенном structured)."""
+        settings = get_settings()
+        if not settings.suggestion_structured_enabled:
+            prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
+                keyword=keyword, recent_dialog=recent, document_context=doc_context)
+            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
+            if raw:
+                hint = self._parse_single_hint(raw, keyword)
+                await self._send_structured_suggestion(hint, is_auto=True)
+            return
+        kb = await self._knowledge_block(recent or keyword)
+        prompt = build_auto_cards_prompt(self._role_name(), keyword, recent, doc_context,
+                                         settings.suggestion_max_cards_auto, knowledge_context=kb)
+        raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
+        await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_context)
+
+    async def _emit_suggestion_cards(self, raw, source_mode: str, trigger=None, doc_context_text=""):
+        settings = get_settings()
+        model = getattr(self.llm_client, "model", None) if self.llm_client else None
+        response = parse_suggestion_response(raw, source_mode=source_mode, model=model)
+        if response is None and settings.suggestion_repair_enabled and self.llm_client:
+            repair = (
+                "Преобразуй ответ в ОДИН валидный JSON-объект {\"cards\":[...]} по схеме карточек. "
+                "Верни ТОЛЬКО JSON, без markdown:\n\n" + (raw or "")[:8000]
+            )
+            repaired = await self.llm_client.get_suggestion_async(repair, max_tokens=600)
+            response = parse_suggestion_response(repaired, source_mode=source_mode, model=model)
+        if response is None:
+            response = fallback_response("Модель вернула некорректную структуру", raw_text=raw)
+
+        response.cards = apply_safety_checks(response.cards, doc_context_text)
+        for c in response.cards:
+            if trigger and not c.trigger:
+                c.trigger = trigger
+        if not response.cards:
+            return  # 0 полезных карточек (auto без действия)
+
+        await self._send_cards_event(response, source_mode)
+        for c in response.cards:
+            await self._persist_card(c, source_mode)
+
+    async def _send_cards_event(self, response, source_mode: str):
+        settings = get_settings()
+        first = response.cards[0]
+        msg: Dict[str, Any] = {
+            "type": "suggestion",
+            "is_auto": source_mode == "auto",
+            # backward-compat для старого фронта
+            "text": first.text,
+            "suggestion_type": first.type,
+            "confidence": int(round(first.confidence * 100)),
+        }
+        if settings.suggestion_structured_enabled:
+            msg["cards"] = [c.model_dump(mode="json") for c in response.cards]
+            msg["degraded"] = response.degraded
+            msg["source_mode"] = source_mode
+            msg["raw_text"] = None
+        await self._send_json(msg)
+
+    async def _persist_card(self, card, source_mode: str):
+        if not self.db_session_id:
+            return
+        try:
+            from ..database import async_session
+            from ..models.meeting import MeetingSuggestion
+            async with async_session() as db:
+                db.add(MeetingSuggestion(
+                    session_id=self.db_session_id,
+                    text=card.text,
+                    is_auto=(source_mode == "auto"),
+                    suggestion_type=card.type,
+                    trigger=card.trigger,
+                    confidence=int(round(card.confidence * 100)),
+                    source="strengthen" if source_mode == "strengthen" else "suggestion",
+                    title=card.title or None,
+                    why=card.why or None,
+                    evidence_json=json.dumps([e.model_dump() for e in card.evidence], ensure_ascii=False),
+                    card_json=card.model_dump_json(),
+                    needs_user_check=card.needs_user_check,
+                    source_mode=source_mode,
+                    priority=card.priority,
+                ))
+                await db.commit()
+        except Exception as e:
+            logger.error(f"Failed to persist suggestion card: {e}")
 
     # ---------------------------------------------------------------
     # JSON parsing helpers

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 from app.config import get_settings
-from app.database import Base
+from app.database import Base, normalize_async_url
 import app.models  # noqa: F401 — регистрирует ВСЕ таблицы в Base.metadata
 
 config = context.config
@@ -20,7 +20,9 @@ target_metadata = Base.metadata
 
 # §7: миграции под migration-пользователем (DDL). Пусто → фолбэк на database_url.
 _settings = get_settings()
-DB_URL = _settings.migration_database_url or _settings.database_url
+_RAW_DB_URL = _settings.migration_database_url or _settings.database_url
+# asyncpg-драйвер + connect_args (ssl/pgbouncer) для Yandex Managed PG
+DB_URL, CONNECT_ARGS = normalize_async_url(_RAW_DB_URL)
 
 
 def run_migrations_offline() -> None:
@@ -41,7 +43,7 @@ def do_run_migrations(connection):
 
 
 async def run_async_migrations() -> None:
-    connectable = create_async_engine(DB_URL, poolclass=pool.NullPool)
+    connectable = create_async_engine(DB_URL, poolclass=pool.NullPool, connect_args=CONNECT_ARGS)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

@@ -4,8 +4,14 @@ import { useRef, useCallback, useState } from 'react';
  * Browser audio capture hook.
  * Captures microphone audio, downsamples to 16kHz 16-bit mono PCM,
  * and sends binary chunks via provided sendBinary callback.
+ *
+ * getUserMedia вызывается ТОЛЬКО из start() (по явному нажатию пользователя) —
+ * важно для мобильного Safari/Chrome. onLevel — колбэк уровня сигнала (0..1) для индикатора.
  */
-export function useAudioRecorder(sendBinary: (data: ArrayBuffer) => void) {
+export function useAudioRecorder(
+  sendBinary: (data: ArrayBuffer) => void,
+  onLevel?: (level: number) => void,
+) {
   const [isRecording, setIsRecording] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
@@ -64,6 +70,18 @@ export function useAudioRecorder(sendBinary: (data: ArrayBuffer) => void) {
 
       worklet.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
         const newData = new Int16Array(event.data);
+
+        // Уровень сигнала (RMS, 0..1) для индикатора
+        if (onLevel && newData.length) {
+          let sum = 0;
+          for (let i = 0; i < newData.length; i++) {
+            const v = newData[i] / 0x8000;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / newData.length);
+          onLevel(Math.min(1, rms * 2.5));
+        }
+
         const merged = new Int16Array(buffer.length + newData.length);
         merged.set(buffer);
         merged.set(newData, buffer.length);
@@ -89,7 +107,7 @@ export function useAudioRecorder(sendBinary: (data: ArrayBuffer) => void) {
       console.error('Failed to start audio recording:', err);
       throw err;
     }
-  }, [sendBinary]);
+  }, [sendBinary, onLevel]);
 
   const stop = useCallback(() => {
     if (workletRef.current) {
@@ -104,8 +122,9 @@ export function useAudioRecorder(sendBinary: (data: ArrayBuffer) => void) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    if (onLevel) onLevel(0);
     setIsRecording(false);
-  }, []);
+  }, [onLevel]);
 
   return { isRecording, start, stop };
 }

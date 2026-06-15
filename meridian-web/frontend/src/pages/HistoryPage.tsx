@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
 import { listMeetings, batchDeleteMeetings } from '../api/history';
-import type { MeetingListItem } from '../types';
+import { retryFinalization } from '../api/finalization';
+import { listCustomers } from '../api/customers';
+import { listObjects } from '../api/objects';
+import type { MeetingListItem, Customer, ProjectObject, FinalizationStatus } from '../types';
+
+const FIN_LABELS: Record<string, string> = {
+  queued: 'сохраняется', running: 'протокол…', completed: 'протокол готов',
+  partial: 'протокол частично', error: 'ошибка протокола',
+};
+
+function finBadgeStyle(s: FinalizationStatus): React.CSSProperties {
+  const color = s === 'completed' ? '#2EE59D' : s === 'error' ? '#FF4B6E'
+    : s === 'partial' ? '#F5A623' : '#5B9CF6';
+  return {
+    padding: '2px 8px', background: 'transparent', border: `1px solid ${color}`,
+    borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+    color, letterSpacing: '0.04em',
+  };
+}
 
 interface Props {
   onBack: () => void;
@@ -42,14 +60,37 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [confirmBatch, setConfirmBatch] = useState(false);
 
+  // Этап 1 MVP: фильтры по заказчику/объекту + поиск
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [objects, setObjects] = useState<ProjectObject[]>([]);
+  const [filterCustomerId, setFilterCustomerId] = useState<number | ''>('');
+  const [filterObjectId, setFilterObjectId] = useState<number | ''>('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    listCustomers().then(setCustomers).catch(() => { /* пусто */ });
+  }, []);
+
+  useEffect(() => {
+    listObjects(filterCustomerId === '' ? undefined : filterCustomerId)
+      .then(setObjects)
+      .catch(() => setObjects([]));
+    setFilterObjectId('');
+  }, [filterCustomerId]);
+
   useEffect(() => {
     loadMeetings();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCustomerId, filterObjectId]);
 
   async function loadMeetings() {
     try {
       setLoading(true);
-      const data = await listMeetings();
+      const data = await listMeetings({
+        customer_id: filterCustomerId === '' ? undefined : filterCustomerId,
+        object_id: filterObjectId === '' ? undefined : filterObjectId,
+        q: search.trim() || undefined,
+      });
       setMeetings(data);
     } catch {
       setError('Ошибка загрузки истории');
@@ -86,6 +127,13 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
     } catch { /* ignore */ } finally {
       setDeleting(false);
     }
+  }
+
+  async function handleRetry(id: number) {
+    try {
+      await retryFinalization(id);
+      await loadMeetings();
+    } catch { /* ignore */ }
   }
 
   const selMode = selected.size > 0;
@@ -132,6 +180,34 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Фильтры (Этап 1 MVP) */}
+      <div style={styles.filters}>
+        <select
+          style={styles.filterSelect}
+          value={filterCustomerId}
+          onChange={(e) => setFilterCustomerId(e.target.value === '' ? '' : Number(e.target.value))}
+        >
+          <option value="">Все заказчики</option>
+          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select
+          style={styles.filterSelect}
+          value={filterObjectId}
+          onChange={(e) => setFilterObjectId(e.target.value === '' ? '' : Number(e.target.value))}
+        >
+          <option value="">Все объекты</option>
+          {objects.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <input
+          style={styles.filterInput}
+          placeholder="Поиск по названию/теме…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') loadMeetings(); }}
+        />
+        <button style={styles.filterBtn} onClick={loadMeetings}>Найти</button>
       </div>
 
       {/* Content */}
@@ -200,7 +276,25 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                   <div style={styles.cardTopic}>{m.meeting_topic}</div>
                 )}
 
+                {(m.customer_name || m.object_name) && (
+                  <div style={styles.cardDir}>
+                    {m.customer_name && <span style={styles.dirChip}>🏢 {m.customer_name}</span>}
+                    {m.object_name && <span style={styles.dirChip}>📍 {m.object_name}</span>}
+                  </div>
+                )}
+
+                {m.micro_summary && <div style={styles.cardTopic}>{m.micro_summary}</div>}
+
+                {m.tags && m.tags.length > 0 && (
+                  <div style={styles.cardDir}>
+                    {m.tags.map((t) => <span key={t} style={styles.tagChip}>#{t}</span>)}
+                  </div>
+                )}
+
                 <div style={styles.cardBadges}>
+                  {m.finalization_status && m.finalization_status !== 'not_started' && (
+                    <span style={finBadgeStyle(m.finalization_status)}>{FIN_LABELS[m.finalization_status] || m.finalization_status}</span>
+                  )}
                   {m.negotiation_type && (
                     <span style={styles.badge}>
                       {NEGOTIATION_TYPE_LABELS[m.negotiation_type] || m.negotiation_type}
@@ -217,6 +311,9 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                   </span>
                 </div>
               </button>
+              {m.finalization_status === 'error' && (
+                <button style={styles.retrySide} onClick={() => handleRetry(m.id)} title="Повторить формирование протокола">↻</button>
+              )}
             </div>
           ))}
         </div>
@@ -451,6 +548,80 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+  },
+  cardDir: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+  },
+  dirChip: {
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    color: theme.text.secondary,
+    background: theme.bg.tertiary,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 4,
+    padding: '2px 8px',
+  },
+  tagChip: {
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    color: theme.accent.amber,
+    background: theme.accent.amberGlow,
+    border: '1px solid rgba(245,166,35,0.2)',
+    borderRadius: 4,
+    padding: '2px 8px',
+  },
+  retrySide: {
+    flexShrink: 0,
+    width: 40,
+    background: theme.bg.card,
+    border: `1px solid ${theme.accent.red}`,
+    borderLeft: 'none',
+    borderRadius: '0 10px 10px 0',
+    color: theme.accent.red,
+    cursor: 'pointer',
+    fontSize: 16,
+  },
+  filters: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+  },
+  filterSelect: {
+    padding: '8px 12px',
+    background: theme.bg.input,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 7,
+    color: theme.text.primary,
+    fontSize: 12,
+    fontFamily: theme.font.body,
+    outline: 'none',
+  },
+  filterInput: {
+    padding: '8px 12px',
+    background: theme.bg.input,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 7,
+    color: theme.text.primary,
+    fontSize: 12,
+    fontFamily: theme.font.body,
+    outline: 'none',
+    flex: 1,
+    minWidth: 160,
+  },
+  filterBtn: {
+    padding: '8px 16px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.amber}`,
+    borderRadius: 7,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontSize: 11,
+    fontFamily: theme.font.mono,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
   },
   cardBadges: {
     display: 'flex',

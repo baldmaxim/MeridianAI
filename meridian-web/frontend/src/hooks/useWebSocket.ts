@@ -9,17 +9,29 @@ function getWsBase() {
   return `${proto}//${window.location.host}`;
 }
 
+interface ConnectOpts {
+  meetingId?: number;
+  deviceRole?: 'desktop' | 'phone' | 'viewer' | 'participant';
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const closedIntentionally = useRef(false);
+  const connectOpts = useRef<ConnectOpts>({});
 
-  const connect = useCallback(() => {
+  const connect = useCallback((opts?: ConnectOpts) => {
     const token = localStorage.getItem('token');
     if (!token) return;
+    if (opts) connectOpts.current = opts;
 
+    const { meetingId, deviceRole = 'desktop' } = connectOpts.current;
     closedIntentionally.current = false;
-    const ws = new WebSocket(`${getWsBase()}/ws/meeting?token=${token}`);
+    // Этап 2: по возможности подключаемся к конкретной встрече; иначе — legacy fallback
+    const url = meetingId != null
+      ? `${getWsBase()}/ws/meetings/${meetingId}?token=${token}&device_role=${deviceRole}`
+      : `${getWsBase()}/ws/meeting?token=${token}`;
+    const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -32,10 +44,11 @@ export function useWebSocket() {
     ws.onclose = () => {
       const s = useMeetingStore.getState();
       s.setConnected(false);
+      s.setRoomConnected(false);
       s.setStatus('Отключено от сервера');
       // Auto-reconnect only if not intentionally closed
       if (!closedIntentionally.current) {
-        reconnectTimer.current = setTimeout(connect, 3000);
+        reconnectTimer.current = setTimeout(() => connect(), 3000);
       }
     };
 
@@ -124,15 +137,40 @@ export function useWebSocket() {
         break;
 
       case 'suggestion':
-        s.addSuggestion({
-          text: data.text,
-          is_auto: data.is_auto,
-          timestamp: new Date(),
-          type: data.suggestion_type,
-          trigger: data.trigger,
-          confidence: data.confidence,
-          context_info: data.context_info,
-        });
+        if (data.cards && data.cards.length > 0) {
+          // Этап 6: структурированные карточки
+          for (const card of data.cards) {
+            s.addSuggestion({
+              text: card.text,
+              is_auto: card.source_mode === 'auto',
+              timestamp: new Date(),
+              type: card.type,
+              trigger: card.trigger ?? undefined,
+              confidence: Math.round(card.confidence * 100),
+              card,
+            });
+          }
+        } else {
+          // backward-compat: старый формат
+          s.addSuggestion({
+            text: data.text,
+            is_auto: data.is_auto,
+            timestamp: new Date(),
+            type: data.suggestion_type,
+            trigger: data.trigger,
+            confidence: data.confidence,
+            context_info: data.context_info,
+          });
+        }
+        break;
+
+      case 'strengthen_summary':
+        for (const card of data.cards) {
+          s.addSuggestion({
+            text: card.text, is_auto: false, timestamp: new Date(),
+            type: card.type, confidence: Math.round(card.confidence * 100), card,
+          });
+        }
         break;
 
       case 'analysis_status':
@@ -180,6 +218,7 @@ export function useWebSocket() {
         break;
 
       case 'meeting_context':
+      case 'meeting_context_updated':
         if (data.title) s.setMeetingName(data.title);
         s.setMeetingTopic(data.topic);
         s.setMeetingNotes(data.notes);
@@ -190,6 +229,60 @@ export function useWebSocket() {
 
       case 'meeting_saved':
         s.setMeetingSavedId(data.meeting_id);
+        break;
+
+      // --- Этап 2: MeetingRoom / multi-device ---
+      case 'room_joined':
+        s.setCurrentMeetingId(data.meeting_id);
+        s.setRoomJoined({
+          connectionId: data.connection_id,
+          deviceRole: data.device_role,
+          canSendAudio: data.can_send_audio,
+          activeAudioSource: data.active_audio_source,
+        });
+        break;
+
+      case 'device_joined':
+        s.setStatus('Подключено устройство к встрече');
+        break;
+
+      case 'device_left':
+        break;
+
+      case 'recording_status':
+        s.setRecording(data.recording);
+        s.setActiveAudioSource(data.active_audio_source);
+        if (data.recording) s.setRecordPermissionDenied(false);
+        break;
+
+      case 'audio_source_busy':
+        s.setError('Источник аудио занят другим устройством');
+        break;
+
+      case 'record_permission_denied':
+        s.setRecordPermissionDenied(true);
+        s.setListening(false);
+        s.setError(data.message);
+        break;
+
+      case 'phone_recording_started':
+        s.setPhoneRecording(true);
+        s.setRecording(true);
+        break;
+
+      case 'phone_recording_stopped':
+        s.setPhoneRecording(false);
+        break;
+
+      case 'audio_source_disconnected':
+        s.setActiveAudioSource(null);
+        s.setRecording(false);
+        s.setListening(false);
+        s.setStatus('Источник аудио отключился');
+        break;
+
+      case 'room_status':
+        if (data.status === 'finalized') s.setStatus('Встреча завершена');
         break;
 
       case 'speaker_roles_updated':

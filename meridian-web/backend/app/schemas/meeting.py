@@ -53,6 +53,16 @@ class MeetingListItem(BaseModel):
     ended_at: datetime | None
     segment_count: int
     suggestion_count: int
+    # Этап 1 MVP: справочники
+    status: str | None = None
+    customer_id: int | None = None
+    object_id: int | None = None
+    customer_name: str | None = None
+    object_name: str | None = None
+    # Этап 5: финализация
+    finalization_status: str | None = None
+    micro_summary: str | None = None
+    tags: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -94,6 +104,14 @@ class MeetingDetailResponse(BaseModel):
     opponent_weaknesses: str | None
     started_at: datetime
     ended_at: datetime | None
+    # Этап 1 MVP: справочники
+    status: str | None = None
+    customer_id: int | None = None
+    object_id: int | None = None
+    customer_name: str | None = None
+    object_name: str | None = None
+    micro_summary: str | None = None
+    tags_json: str | None = None
     segments: list[TranscriptSegmentResponse]
     suggestions: list[MeetingSuggestionResponse]
     documents: list[MeetingDocumentResponse] = []
@@ -107,3 +125,39 @@ class MeetingTitleUpdate(BaseModel):
 
 class MeetingBatchDelete(BaseModel):
     ids: list[int]
+
+
+# --- Этап 1 MVP: создание/обновление встречи (REST draft) ---
+
+
+class MeetingCreate(BaseModel):
+    title: str | None = None
+    customer_id: int | None = None
+    object_id: int | None = None
+    meeting_topic: str | None = None
+    meeting_notes: str | None = None
+    negotiation_type: str | None = None
+    meeting_role: str | None = None
+    opponent_weaknesses: str | None = None
+
+
+class MeetingUpdate(BaseModel):
+    title: str | None = None
+    customer_id: int | None = None
+    object_id: int | None = None
+    status: str | None = None
+    meeting_topic: str | None = None
+    meeting_notes: str | None = None
+    negotiation_type: str | None = None
+    meeting_role: str | None = None
+    opponent_weaknesses: str | None = None
+
+
+class MeetingCreateResponse(BaseModel):
+    id: int
+    customer_id: int | None = None
+    object_id: int | None = None
+    status: str | None = None
+    is_active: bool
+
+    model_config = {"from_attributes": True}

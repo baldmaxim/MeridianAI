@@ -14,6 +14,20 @@ from .job import Job
 from .file import FileRecord
 from .audit import AuditLog
 from .user_identity import UserIdentity
+from .directory import (
+    Customer,
+    ProjectObject,
+    Department,
+    UserDepartment,
+    ObjectAccessGrant,
+    MeetingParticipant,
+)
+from .document import DocumentRecord, DocumentChunk
+from .protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
+from .knowledge import (
+    LearningCandidate, GlossaryTerm, TriggerPhrase,
+    NegotiationPlaybook, CounterpartyTrait, ForbiddenPhrase,
+)
 
 __all__ = [
     "User",
@@ -30,4 +44,22 @@ __all__ = [
     "FileRecord",
     "AuditLog",
     "UserIdentity",
+    "Customer",
+    "ProjectObject",
+    "Department",
+    "UserDepartment",
+    "ObjectAccessGrant",
+    "MeetingParticipant",
+    "DocumentRecord",
+    "DocumentChunk",
+    "MeetingDecision",
+    "MeetingActionItem",
+    "MeetingRisk",
+    "MeetingOpenQuestion",
+    "LearningCandidate",
+    "GlossaryTerm",
+    "TriggerPhrase",
+    "NegotiationPlaybook",
+    "CounterpartyTrait",
+    "ForbiddenPhrase",
 ]

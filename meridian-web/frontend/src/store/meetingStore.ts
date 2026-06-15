@@ -97,6 +97,37 @@ interface MeetingState {
   meetingSavedId: number | null;
   setMeetingSavedId: (id: number | null) => void;
 
+  // Directory selection (Этап 1 MVP): заказчик/объект встречи + draft id
+  selectedCustomerId: number | null;
+  selectedObjectId: number | null;
+  draftMeetingId: number | null;
+  setSelectedCustomerId: (id: number | null) => void;
+  setSelectedObjectId: (id: number | null) => void;
+  setDraftMeetingId: (id: number | null) => void;
+
+  // MeetingRoom / multi-device (Этап 2)
+  currentMeetingId: number | null;
+  roomConnected: boolean;
+  connectionId: string | null;
+  deviceRole: string | null;
+  canSendAudio: boolean;
+  activeAudioSource: string | null;
+  recording: boolean;
+  setCurrentMeetingId: (id: number | null) => void;
+  setRoomConnected: (v: boolean) => void;
+  setRoomJoined: (p: { connectionId: string; deviceRole: string; canSendAudio: boolean; activeAudioSource: string | null }) => void;
+  setActiveAudioSource: (id: string | null) => void;
+  setRecording: (v: boolean) => void;
+
+  // Этап 3: право записи / телефон-диктофон
+  recordPermissionDenied: boolean;
+  phoneRecording: boolean;
+  setRecordPermissionDenied: (v: boolean) => void;
+  setPhoneRecording: (v: boolean) => void;
+
+  // Сбросить идентичность встречи для НОВОЙ сессии (без reload)
+  newMeetingSession: () => void;
+
   // Reset
   reset: () => void;
 }
@@ -231,6 +262,48 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   meetingSavedId: null,
   setMeetingSavedId: (id) => set({ meetingSavedId: id }),
 
+  selectedCustomerId: null,
+  selectedObjectId: null,
+  draftMeetingId: null,
+  setSelectedCustomerId: (id) => set({ selectedCustomerId: id }),
+  setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+  setDraftMeetingId: (id) => set({ draftMeetingId: id }),
+
+  currentMeetingId: null,
+  roomConnected: false,
+  connectionId: null,
+  deviceRole: null,
+  canSendAudio: false,
+  activeAudioSource: null,
+  recording: false,
+  setCurrentMeetingId: (id) => set({ currentMeetingId: id }),
+  setRoomConnected: (v) => set({ roomConnected: v }),
+  setRoomJoined: (p) => set({
+    roomConnected: true,
+    connectionId: p.connectionId,
+    deviceRole: p.deviceRole,
+    canSendAudio: p.canSendAudio,
+    activeAudioSource: p.activeAudioSource,
+  }),
+  setActiveAudioSource: (id) => set({ activeAudioSource: id }),
+  setRecording: (v) => set({ recording: v }),
+
+  recordPermissionDenied: false,
+  phoneRecording: false,
+  setRecordPermissionDenied: (v) => set({ recordPermissionDenied: v }),
+  setPhoneRecording: (v) => set({ phoneRecording: v }),
+
+  newMeetingSession: () => set({
+    messages: [], committedSegments: [], partialMessage: null, turns: [],
+    suggestions: [], currentSuggestionIndex: -1, currentStreamingText: null,
+    analysisStatus: null, isListening: false, lastError: null,
+    currentMeetingId: null, draftMeetingId: null, meetingSavedId: null,
+    roomConnected: false, connectionId: null, deviceRole: null,
+    canSendAudio: false, activeAudioSource: null, recording: false,
+    recordPermissionDenied: false, phoneRecording: false,
+    meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
+  }),
+
   setConnected: (connected) => set({ isConnected: connected }),
   setListening: (listening) => set((s) => ({
     isListening: listening,
@@ -261,5 +334,17 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       speakerRoles: {},
       activeRoleName: null,
       meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
+      selectedCustomerId: null,
+      selectedObjectId: null,
+      draftMeetingId: null,
+      currentMeetingId: null,
+      roomConnected: false,
+      connectionId: null,
+      deviceRole: null,
+      canSendAudio: false,
+      activeAudioSource: null,
+      recording: false,
+      recordPermissionDenied: false,
+      phoneRecording: false,
     }),
 }));

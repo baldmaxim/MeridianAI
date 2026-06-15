@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
+import { ProtocolSection } from '../components/protocol/ProtocolSection';
+import { LearningCandidates } from '../components/learning/LearningCandidates';
 import { getMeetingDetail, updateMeetingTitle, deleteMeeting, continueMeeting } from '../api/history';
 import type { MeetingDetail, MeetingSuggestionRecord, TranscriptSegmentRecord } from '../types';
 
@@ -143,6 +145,18 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue }: Props) {
           {formatDateTime(meeting.started_at)}
           {meeting.ended_at && ` — ${formatTime(meeting.ended_at)}`}
         </div>
+      </div>
+
+      {/* Этап 5: протокол встречи */}
+      <ProtocolSection meetingId={meetingId} />
+
+      {/* Этап 7: кандидаты в базу знаний по этой встрече */}
+      <div style={{ ...styles.section, padding: '12px 16px' }}>
+        <div style={{ ...styles.panelHeader, padding: 0, border: 'none', marginBottom: 10 }}>
+          <span style={styles.dot} />
+          <span style={styles.panelTitle}>База знаний по встрече</span>
+        </div>
+        <LearningCandidates meetingId={meetingId} compact />
       </div>
 
       {/* Mobile tabs */}

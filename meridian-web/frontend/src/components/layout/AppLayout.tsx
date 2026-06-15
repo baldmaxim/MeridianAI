@@ -13,12 +13,16 @@ interface Props {
   showHistory?: boolean;
   onShowBatch?: () => void;
   showBatch?: boolean;
+  onShowDirectory?: () => void;
+  showDirectory?: boolean;
+  onShowKnowledge?: () => void;
+  showKnowledge?: boolean;
 }
 
-export function AppLayout({ children, userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch }: Props) {
+export function AppLayout({ children, userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge }: Props) {
   return (
     <div style={styles.container}>
-      <Header userName={userName} userRole={userRole} onLogout={onLogout} showAdmin={showAdmin} onToggleAdmin={onToggleAdmin} onShowHistory={onShowHistory} showHistory={showHistory} onShowBatch={onShowBatch} showBatch={showBatch} />
+      <Header userName={userName} userRole={userRole} onLogout={onLogout} showAdmin={showAdmin} onToggleAdmin={onToggleAdmin} onShowHistory={onShowHistory} showHistory={showHistory} onShowBatch={onShowBatch} showBatch={showBatch} onShowDirectory={onShowDirectory} showDirectory={showDirectory} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} />
       <main style={styles.main}>{children}</main>
     </div>
   );

@@ -80,9 +80,60 @@ class Settings(BaseSettings):
     s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
     s3_presign_ttl: int = Field(default=900, alias="S3_PRESIGN_TTL")
 
+    # Документы встречи (Этап 4): загрузка на S3, извлечение текста, чанкинг, контекст
+    document_max_upload_mb: int = Field(default=50, alias="DOCUMENT_MAX_UPLOAD_MB")
+    document_allowed_extensions: str = Field(
+        default=".pdf,.docx,.xlsx,.txt,.md,.csv", alias="DOCUMENT_ALLOWED_EXTENSIONS"
+    )
+    document_chunk_target_chars: int = Field(default=7000, alias="DOCUMENT_CHUNK_TARGET_CHARS")
+    document_chunk_overlap_chars: int = Field(default=1000, alias="DOCUMENT_CHUNK_OVERLAP_CHARS")
+    document_context_max_chunks: int = Field(default=6, alias="DOCUMENT_CONTEXT_MAX_CHUNKS")
+    document_context_max_chars: int = Field(default=14000, alias="DOCUMENT_CONTEXT_MAX_CHARS")
+    document_max_extract_chars: int = Field(default=3_000_000, alias="DOCUMENT_MAX_EXTRACT_CHARS")
+    s3_document_prefix: str = Field(default="documents", alias="S3_DOCUMENT_PREFIX")
+    s3_extracted_text_prefix: str = Field(default="documents_extracted", alias="S3_EXTRACTED_TEXT_PREFIX")
+
     @property
     def s3_enabled(self) -> bool:
         return bool(self.s3_endpoint and self.s3_bucket and self.s3_access_key and self.s3_secret_key)
+
+    @property
+    def document_allowed_extensions_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.document_allowed_extensions.split(",") if e.strip()}
+
+    # Финализация встречи (Этап 5): фоновое формирование протокола через LLM
+    meeting_finalization_enabled: bool = Field(default=True, alias="MEETING_FINALIZATION_ENABLED")
+    meeting_finalization_model: str = Field(default="", alias="MEETING_FINALIZATION_MODEL")  # ""→дефолт LLM
+    meeting_finalization_max_transcript_chars: int = Field(default=120000, alias="MEETING_FINALIZATION_MAX_TRANSCRIPT_CHARS")
+    meeting_finalization_max_document_chars: int = Field(default=20000, alias="MEETING_FINALIZATION_MAX_DOCUMENT_CHARS")
+    meeting_finalization_timeout_seconds: int = Field(default=180, alias="MEETING_FINALIZATION_TIMEOUT_SECONDS")
+    meeting_finalization_retry_attempts: int = Field(default=2, alias="MEETING_FINALIZATION_RETRY_ATTEMPTS")
+
+    @property
+    def finalization_model(self) -> str:
+        return self.meeting_finalization_model or "google/gemini-3-flash-preview"
+
+    # Структурированные live-подсказки (Этап 6)
+    suggestion_structured_enabled: bool = Field(default=True, alias="SUGGESTION_STRUCTURED_ENABLED")
+    suggestion_repair_enabled: bool = Field(default=True, alias="SUGGESTION_REPAIR_ENABLED")
+    suggestion_max_cards_auto: int = Field(default=2, alias="SUGGESTION_MAX_CARDS_AUTO")
+    suggestion_max_cards_manual: int = Field(default=5, alias="SUGGESTION_MAX_CARDS_MANUAL")
+    suggestion_evidence_required_for_high_confidence: bool = Field(
+        default=True, alias="SUGGESTION_EVIDENCE_REQUIRED_FOR_HIGH_CONFIDENCE"
+    )
+
+    # Controlled auto-learning (Этап 7)
+    learning_extraction_enabled: bool = Field(default=True, alias="LEARNING_EXTRACTION_ENABLED")
+    learning_extraction_min_confidence: float = Field(default=0.55, alias="LEARNING_EXTRACTION_MIN_CONFIDENCE")
+    learning_extraction_max_candidates: int = Field(default=15, alias="LEARNING_EXTRACTION_MAX_CANDIDATES")
+    learning_extraction_model: str = Field(default="", alias="LEARNING_EXTRACTION_MODEL")
+    learning_extraction_timeout_seconds: int = Field(default=120, alias="LEARNING_EXTRACTION_TIMEOUT_SECONDS")
+    learning_extraction_repair_enabled: bool = Field(default=True, alias="LEARNING_EXTRACTION_REPAIR_ENABLED")
+    learning_context_max_transcript_chars: int = Field(default=40000, alias="LEARNING_CONTEXT_MAX_TRANSCRIPT_CHARS")
+
+    @property
+    def learning_model(self) -> str:
+        return self.learning_extraction_model or "google/gemini-3-flash-preview"
 
     # Session idle TTL in seconds (cleanup abandoned sessions)
     session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")

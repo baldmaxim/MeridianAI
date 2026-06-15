@@ -13,6 +13,10 @@ interface Props {
   showHistory?: boolean;
   onShowBatch?: () => void;
   showBatch?: boolean;
+  onShowDirectory?: () => void;
+  showDirectory?: boolean;
+  onShowKnowledge?: () => void;
+  showKnowledge?: boolean;
 }
 
 /* Inline SVG compass mark from branding/meridian-logos.html */
@@ -63,7 +67,7 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch }: Props) {
+export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
 
@@ -97,6 +101,24 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
             <div className="header-avatar" style={styles.avatar}>
               {(userName[0] || 'U').toUpperCase()}
             </div>
+          )}
+          {onShowDirectory && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowDirectory}
+              style={showDirectory ? styles.adminBtnActive : styles.adminBtn}
+            >
+              Справочники
+            </button>
+          )}
+          {onShowKnowledge && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowKnowledge}
+              style={showKnowledge ? styles.adminBtnActive : styles.adminBtn}
+            >
+              База знаний
+            </button>
           )}
           {onShowBatch && (
             <button

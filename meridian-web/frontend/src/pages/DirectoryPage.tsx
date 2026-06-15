@@ -1,0 +1,123 @@
+import { useState } from 'react';
+import { theme } from '../styles/theme';
+import { CustomersDirectory } from '../components/directory/CustomersDirectory';
+import { ObjectsDirectory } from '../components/directory/ObjectsDirectory';
+import { DepartmentsDirectory } from '../components/directory/DepartmentsDirectory';
+
+interface Props {
+  onBack: () => void;
+}
+
+type Tab = 'customers' | 'objects' | 'departments';
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'customers', label: 'Заказчики' },
+  { key: 'objects', label: 'Объекты' },
+  { key: 'departments', label: 'Отделы' },
+];
+
+export function DirectoryPage({ onBack }: Props) {
+  const [tab, setTab] = useState<Tab>('customers');
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.topBar}>
+        <button onClick={onBack} style={styles.backBtn}>&larr; К переговорам</button>
+        <span style={styles.topTitle}>СПРАВОЧНИКИ</span>
+        <span style={{ flex: 1 }} />
+      </div>
+
+      <div style={styles.tabs}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={tab === t.key ? styles.tabActive : styles.tab}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={styles.body}>
+        {tab === 'customers' && <CustomersDirectory />}
+        {tab === 'objects' && <ObjectsDirectory />}
+        {tab === 'departments' && <DepartmentsDirectory />}
+      </div>
+    </div>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    padding: '28px 32px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 18,
+    overflow: 'auto',
+    flex: 1,
+  },
+  topBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    paddingBottom: 16,
+    borderBottom: `1px solid ${theme.border.default}`,
+  },
+  backBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '6px 16px',
+    background: 'transparent',
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 6,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: theme.font.mono,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+    flexShrink: 0,
+  },
+  topTitle: {
+    fontFamily: theme.font.mono,
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: '0.16em',
+    color: theme.text.secondary,
+  },
+  tabs: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+  },
+  tab: {
+    padding: '8px 16px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 7,
+    color: theme.text.secondary,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: theme.font.mono,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+  },
+  tabActive: {
+    padding: '8px 16px',
+    background: theme.accent.amberGlow,
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 7,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: theme.font.mono,
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+  },
+  body: {
+    maxWidth: 760,
+    width: '100%',
+  },
+};

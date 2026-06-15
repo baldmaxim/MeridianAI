@@ -17,6 +17,9 @@ from .logging_setup import setup_logging
 from .services.jobs import claim_one, complete, fail
 from .core.batch.processor import handle_batch_transcribe
 from .services.files import handle_file_physical_delete
+from .services.document_processing import handle_document_process
+from .services.meeting_finalize import handle_meeting_finalize
+from .services.learning_extract import handle_learning_extract
 
 settings = get_settings()
 setup_logging(dev_mode=settings.dev_mode)
@@ -25,6 +28,9 @@ logger = logging.getLogger("meridian.worker")
 HANDLERS = {
     "batch_transcribe": handle_batch_transcribe,
     "file_physical_delete": handle_file_physical_delete,
+    "document_process": handle_document_process,
+    "meeting_finalize": handle_meeting_finalize,
+    "learning_extract": handle_learning_extract,
 }
 
 IDLE_SLEEP = 2

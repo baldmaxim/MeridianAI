@@ -78,6 +78,16 @@ async def download_to(key: str, dest_path: str) -> None:
     await asyncio.to_thread(_client().download_file, s.s3_bucket, key, dest_path)
 
 
+async def put_bytes(key: str, data: bytes, content_type: str = "text/plain; charset=utf-8") -> None:
+    """Серверная загрузка байтов в S3 (например, извлечённый текст документа)."""
+    s = get_settings()
+
+    def _p():
+        _client().put_object(Bucket=s.s3_bucket, Key=key, Body=data, ContentType=content_type)
+
+    await asyncio.to_thread(_p)
+
+
 async def delete_object(key: str) -> None:
     """Идемпотентно (§15): удаление отсутствующего объекта = успех."""
     s = get_settings()

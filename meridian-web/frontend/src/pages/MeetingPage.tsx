@@ -3,14 +3,17 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings, updateSettings as apiUpdateSettings, getActiveProviders } from '../api/settings';
-import { listDocuments } from '../api/documents';
+import { createMeeting } from '../api/meetings';
+import { getLiveState } from '../api/mobile';
+import { QRCodeSVG } from 'qrcode.react';
+import type { LiveState } from '../types';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
 import { PopNumber } from '../components/common/PopNumber';
-import { DocumentUpload } from '../components/context/DocumentUpload';
-import { DocumentList } from '../components/context/DocumentList';
+import { MeetingDocuments } from '../components/context/MeetingDocuments';
+import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
 import { MeetingContext } from '../components/context/MeetingContext';
 import { RolesTab } from '../components/context/RolesTab';
 import { STTSettings } from '../components/settings/STTSettings';
@@ -71,16 +74,57 @@ export function MeetingPage() {
   const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendBinary);
   const store = useMeetingStore();
 
+  // Этап 2/3: обеспечить meeting_id (draft) и подключиться как desktop.
+  // forceNew=true — начать НОВУЮ встречу без reload (Этап 3, замечание о finalize).
+  const startSession = useCallback(async (forceNew = false) => {
+    if (forceNew) {
+      disconnect();
+      useMeetingStore.getState().newMeetingSession();
+    }
+    const st = useMeetingStore.getState();
+    let id = st.draftMeetingId ?? st.meetingSavedId ?? null;
+    if (id == null) {
+      try {
+        const m = await createMeeting({
+          customer_id: st.selectedCustomerId,
+          object_id: st.selectedObjectId,
+          meeting_topic: st.meetingTopic || null,
+          meeting_notes: st.meetingNotes || null,
+          negotiation_type: st.negotiationType || null,
+          meeting_role: st.meetingRole || null,
+          opponent_weaknesses: st.opponentWeaknesses || null,
+        });
+        id = m.id;
+        st.setDraftMeetingId(m.id);
+      } catch {
+        // draft не создан — подключимся через legacy endpoint
+      }
+    }
+    if (id != null) st.setCurrentMeetingId(id);
+    connect(id != null ? { meetingId: id, deviceRole: 'desktop' } : undefined);
+  }, [connect, disconnect]);
+
   useEffect(() => {
-    connect();
+    startSession(false);
     getSettings().then((s) => {
       setSettings(s);
       store.setCustomSuggestionTypes(s.custom_suggestion_types);
     }).catch(() => {});
     getActiveProviders().then(setActiveServices).catch(() => {});
-    listDocuments().then(store.setDocuments).catch(() => {});
-    return () => disconnect();
+    return () => { disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Этап 3: лёгкий поллинг live-состояния для блока «Телефон-диктофон»
+  const [liveState, setLiveState] = useState<LiveState | null>(null);
+  useEffect(() => {
+    if (store.currentMeetingId == null) return;
+    const id = store.currentMeetingId;
+    const tick = () => getLiveState(id).then(setLiveState).catch(() => {});
+    tick();
+    const t = setInterval(tick, 4000);
+    return () => clearInterval(t);
+  }, [store.currentMeetingId]);
 
   // Перезагружать провайдеров при переключении на вкладку настроек
   useEffect(() => {
@@ -109,13 +153,18 @@ export function MeetingPage() {
         e.preventDefault();
         if (store.isListening) {
           stopAudio();
-          sendJSON({ type: 'stop_listening' });
+          sendJSON({ type: 'stop_audio' });
           store.setListening(false);
         } else if (store.isConnected) {
-          startAudio().then(() => {
-            sendJSON({ type: 'start_listening' });
-            store.setListening(true);
-          }).catch(() => store.setError('Не удалось получить доступ к микрофону'));
+          const st = useMeetingStore.getState();
+          if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
+            store.setError('Источник аудио занят (идёт запись с телефона)');
+          } else {
+            startAudio().then(() => {
+              sendJSON({ type: 'start_audio' });
+              store.setListening(true);
+            }).catch(() => store.setError('Не удалось получить доступ к микрофону'));
+          }
         }
       } else if (e.code === 'KeyH' && !e.ctrlKey && !e.metaKey) {
         if (store.isConnected && !store.suggestionLoading) {
@@ -132,9 +181,15 @@ export function MeetingPage() {
   }, [store.isListening, store.isConnected, store.suggestionLoading, store.strengthenLoading, startAudio, stopAudio, sendJSON]);
 
   const handleStartListening = useCallback(async () => {
+    // Этап 3: если активный источник аудио — другое устройство (телефон), не стартуем
+    const st = useMeetingStore.getState();
+    if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
+      store.setError('Источник аудио занят (идёт запись с телефона)');
+      return;
+    }
     try {
       await startAudio();
-      sendJSON({ type: 'start_listening' });
+      sendJSON({ type: 'start_audio' });
       store.setListening(true);
     } catch {
       store.setError('Не удалось получить доступ к микрофону');
@@ -143,7 +198,7 @@ export function MeetingPage() {
 
   const handleStopListening = useCallback(() => {
     stopAudio();
-    sendJSON({ type: 'stop_listening' });
+    sendJSON({ type: 'stop_audio' });
     store.setListening(false);
   }, [stopAudio, sendJSON]);
 
@@ -161,7 +216,7 @@ export function MeetingPage() {
   const handleSaveMeeting = useCallback(() => {
     if (savingMeeting) return;
     setSavingMeeting(true);
-    sendJSON({ type: 'save_to_history', meeting_name: store.meetingName || undefined });
+    sendJSON({ type: 'finalize_meeting', meeting_name: store.meetingName || undefined });
     showToast('Встреча сохранена', 'success');
     setTimeout(() => setSavingMeeting(false), 2000);
   }, [sendJSON, store.meetingName, savingMeeting, showToast]);
@@ -269,6 +324,69 @@ export function MeetingPage() {
         {/* Контекст встречи */}
         {activeTab === 1 && (
           <div className="mobile-content-pad" style={styles.contextPanel}>
+            {/* Этап 2: статус live-комнаты */}
+            {store.currentMeetingId != null && (
+              <div style={styles.roomStatus}>
+                <span style={styles.roomStatusItem}>Meeting ID: <b style={{ color: theme.text.primary }}>{store.currentMeetingId}</b></span>
+                <span style={styles.roomStatusItem}>
+                  <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
+                  {store.roomConnected ? 'Room connected' : 'Room offline'}
+                </span>
+                <span style={styles.roomStatusItem}>
+                  Active audio: <b style={{ color: store.recording ? theme.accent.green : theme.text.muted }}>
+                    {store.recording ? (store.deviceRole || 'устройство') : 'none'}
+                  </b>
+                </span>
+              </div>
+            )}
+
+            {/* Этап 3: Телефон как диктофон */}
+            {store.currentMeetingId != null && (
+              <div style={styles.contextCard}>
+                <div style={styles.sectionHeader}>
+                  <span style={styles.dot} />
+                  <span style={styles.sectionTitle}>Телефон как диктофон</span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ background: '#0D1018', padding: 8, borderRadius: 8, border: `1px solid ${theme.border.default}`, lineHeight: 0 }}>
+                    <QRCodeSVG
+                      value={`${window.location.origin}/recorder/${store.currentMeetingId}`}
+                      size={120}
+                      bgColor="#0D1018"
+                      fgColor="#EDF2FF"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 200 }}>
+                    <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, wordBreak: 'break-all' }}>
+                      {`${window.location.origin}/recorder/${store.currentMeetingId}`}
+                    </div>
+                    <button
+                      style={styles.copyBtn}
+                      onClick={() => {
+                        const url = `${window.location.origin}/recorder/${store.currentMeetingId}`;
+                        navigator.clipboard?.writeText(url)
+                          .then(() => showToast('Ссылка скопирована', 'success'))
+                          .catch(() => showToast('Не удалось скопировать', 'error'));
+                      }}
+                    >
+                      Скопировать ссылку
+                    </button>
+                    <span style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted }}>
+                      отсканируйте QR телефоном (после входа) — откроется диктофон
+                    </span>
+                  </div>
+                </div>
+                <div style={styles.phoneStatus}>
+                  <span><Dot2 on={!!liveState?.desktop_connected} /> desktop</span>
+                  <span><Dot2 on={!!liveState?.phone_connected} /> phone</span>
+                  <span><Dot2 on={!!liveState?.phone_recording} color={theme.accent.red} /> phone recording</span>
+                  <span style={{ color: theme.text.muted }}>
+                    источник: {liveState?.active_audio_source ? (liveState?.phone_recording ? 'телефон' : 'desktop') : 'нет'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Название встречи */}
             <div style={styles.contextCard}>
               <div style={styles.sectionHeader}>
@@ -284,33 +402,40 @@ export function MeetingPage() {
               />
             </div>
 
-            {/* Документы */}
-            <div style={styles.contextCard}>
-              <div style={styles.sectionHeader}>
-                <span style={styles.dot} />
-                <span style={styles.sectionTitle}>Документы встречи</span>
-                <span style={styles.sectionMeta}>PDF, MD · до 10 МБ</span>
-              </div>
-              <DocumentUpload />
-              <DocumentList />
-            </div>
+            {/* Документы встречи (Этап 4: S3 + извлечение текста + контекст LLM) */}
+            <MeetingDocuments
+              meetingId={store.currentMeetingId}
+              customerId={store.selectedCustomerId}
+              objectId={store.selectedObjectId}
+            />
 
             {/* Контекст */}
             <MeetingContext onContextChange={handleContextChange} />
 
-            {/* Сохранить встречу */}
-            <button
-              className="save-meeting-btn"
-              onClick={handleSaveMeeting}
-              disabled={savingMeeting}
-              style={{
-                ...styles.saveMeetingBtn,
-                opacity: savingMeeting ? 0.6 : 1,
-                cursor: savingMeeting ? 'wait' : 'pointer',
-              }}
-            >
-              {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
-            </button>
+            {/* Сохранить встречу / Новая встреча */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                className="save-meeting-btn"
+                onClick={handleSaveMeeting}
+                disabled={savingMeeting}
+                style={{
+                  ...styles.saveMeetingBtn,
+                  opacity: savingMeeting ? 0.6 : 1,
+                  cursor: savingMeeting ? 'wait' : 'pointer',
+                }}
+              >
+                {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
+              </button>
+              <button
+                onClick={() => { startSession(true); showToast('Новая встреча', 'success'); }}
+                style={styles.newMeetingBtn}
+              >
+                + Новая встреча
+              </button>
+            </div>
+
+            {/* Этап 5: итоги встречи / протокол */}
+            <FinalizationPanel meetingId={store.currentMeetingId} />
           </div>
         )}
 
@@ -452,6 +577,15 @@ export function MeetingPage() {
   );
 }
 
+function Dot2({ on, color }: { on: boolean; color?: string }) {
+  return (
+    <span style={{
+      width: 7, height: 7, borderRadius: '50%', display: 'inline-block', marginRight: 5,
+      background: on ? (color || theme.accent.green) : theme.text.muted, flexShrink: 0,
+    }} />
+  );
+}
+
 function PlaceholderSection({ title, text }: { title: string; text: string }) {
   return (
     <div style={styles.placeholderCard}>
@@ -487,6 +621,28 @@ const styles: Record<string, React.CSSProperties> = {
 
   /* Контекст встречи */
   contextPanel: { display: 'flex', flexDirection: 'column', gap: 20 },
+  roomStatus: {
+    display: 'flex', gap: 18, flexWrap: 'wrap' as const, alignItems: 'center',
+    padding: '8px 14px', background: theme.bg.tertiary,
+    border: `1px solid ${theme.border.default}`, borderRadius: 8,
+    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary,
+  },
+  roomStatusItem: { display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.04em' },
+  roomDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
+  copyBtn: {
+    padding: '8px 14px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
+    borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 11,
+    fontFamily: theme.font.mono, fontWeight: 500,
+  },
+  phoneStatus: {
+    display: 'flex', gap: 14, flexWrap: 'wrap' as const, alignItems: 'center',
+    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, marginTop: 2,
+  },
+  newMeetingBtn: {
+    padding: '12px 22px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
+    borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 13,
+    fontWeight: 600, fontFamily: theme.font.body, alignSelf: 'flex-start', letterSpacing: '0.02em',
+  },
   contextInput: {
     padding: '10px 14px',
     background: theme.bg.input,
