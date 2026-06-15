@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 logger = logging.getLogger("meridian.ws")
 
+from ..config import get_settings
 from ..database import async_session
 from ..models.meeting import MeetingSession
 from ..services.meeting_setup import authenticate_ws
@@ -59,12 +60,19 @@ async def serve_meeting_connection(
         f"(conn {conn.connection_id})"
     )
 
+    max_frame = get_settings().ws_max_binary_frame_bytes
     try:
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.receive":
                 if "bytes" in message and message["bytes"]:
-                    await room.handle_audio_frame(conn.connection_id, message["bytes"])
+                    frame = message["bytes"]
+                    if len(frame) > max_frame:
+                        # слишком большой аудио-фрейм — отклоняем, соединение живёт
+                        await send_json({"type": "error",
+                                         "message": "Аудио-фрейм превышает допустимый размер"})
+                        continue
+                    await room.handle_audio_frame(conn.connection_id, frame)
                 elif "text" in message and message["text"]:
                     try:
                         data = json.loads(message["text"])
@@ -83,6 +91,11 @@ async def serve_meeting_connection(
         logger.info(
             f"[WS] user {user.id} left meeting {meeting_id} (conn {conn.connection_id})"
         )
+        # §16/Этап 10: освободить пустую неактивную комнату (сегменты сохраняются внутри)
+        try:
+            await room_registry.remove_room_if_idle(meeting_id)
+        except Exception:
+            logger.warning("[WS] idle room reap failed for meeting %s", meeting_id)
 
 
 @router.websocket("/ws/meetings/{meeting_id}")

@@ -10,11 +10,12 @@ import logging
 import os
 import signal
 import socket
+import time
 
 from .config import get_settings
 from .database import async_session, engine
 from .logging_setup import setup_logging
-from .services.jobs import claim_one, complete, fail
+from .services.jobs import claim_one, complete, fail, recover_stale_jobs
 from .core.batch.processor import handle_batch_transcribe
 from .services.files import handle_file_physical_delete
 from .services.document_processing import handle_document_process
@@ -33,7 +34,7 @@ HANDLERS = {
     "learning_extract": handle_learning_extract,
 }
 
-IDLE_SLEEP = 2
+IDLE_SLEEP = settings.worker_poll_interval_seconds
 
 
 async def _sleep_or_stop(stop: asyncio.Event, seconds: float) -> None:
@@ -54,6 +55,15 @@ async def run() -> None:
             pass  # Windows
     logger.info("worker %s started", worker_id)
 
+    # §16: при старте вернуть в очередь задачи, зависшие после падения воркера
+    try:
+        async with async_session() as db:
+            rec = await recover_stale_jobs(db)
+        if rec["scanned"]:
+            logger.info("worker startup recovery: %s", rec)
+    except Exception:
+        logger.exception("worker startup stale-recovery failed")
+
     while not stop.is_set():
         try:
             async with async_session() as db:
@@ -67,16 +77,19 @@ async def run() -> None:
             if handler is None:
                 async with async_session() as db:
                     await fail(db, jid, f"нет обработчика для type={jtype}")
+                logger.warning("job %s (%s) no handler -> failed", jid, jtype)
                 continue
 
-            logger.info("job %s (%s) attempt %s", jid, jtype, claimed["attempts"])
+            logger.info("job %s (%s) attempt %s started", jid, jtype, claimed["attempts"])
+            t0 = time.monotonic()
             try:
                 await handler(claimed["payload"])
                 async with async_session() as db:
                     await complete(db, jid)
-                logger.info("job %s done", jid)
+                logger.info("job %s (%s) done in %dms", jid, jtype, int((time.monotonic() - t0) * 1000))
             except Exception as e:
-                logger.exception("job %s failed", jid)
+                # одна плохая задача не валит воркер: фиксируем fail (retry/dead) и продолжаем
+                logger.exception("job %s (%s) failed in %dms", jid, jtype, int((time.monotonic() - t0) * 1000))
                 async with async_session() as db:
                     await fail(db, jid, str(e))
         except Exception:

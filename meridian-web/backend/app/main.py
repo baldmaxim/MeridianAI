@@ -38,6 +38,7 @@ from .api.learning import router as learning_router
 from .api.knowledge import router as knowledge_router
 from .api.context_sources import router as context_sources_router
 from .api.ai_settings import router as ai_settings_router, meeting_router as ai_settings_meeting_router
+from .api.health import router as health_api_router
 from .ws.handler import router as ws_router
 
 settings = get_settings()
@@ -94,6 +95,17 @@ def run_startup_checks() -> None:
         problems.append(f"AUTH_MODE невалиден: {settings.auth_mode}")
     if settings.auth_mode in ("keycloak", "both") and not settings.oidc_enabled:
         problems.append("AUTH_MODE требует OIDC, но OIDC_ISSUER/CLIENT_ID/SECRET не заданы")
+
+    # Необязательные сервисы: предупреждаем (health покажет configured=false), но не падаем
+    advisories = []
+    if not settings.s3_enabled:
+        advisories.append("S3 не настроен — загрузка документов/аудио недоступна")
+    if settings.document_max_upload_mb <= 0 or settings.document_max_upload_mb > 1024:
+        advisories.append(f"DOCUMENT_MAX_UPLOAD_MB вне разумных пределов: {settings.document_max_upload_mb}")
+    if settings.job_max_attempts <= 0 or settings.job_max_attempts > 20:
+        advisories.append(f"JOB_MAX_ATTEMPTS вне разумных пределов: {settings.job_max_attempts}")
+    for a in advisories:
+        logger.warning("config advisory: %s", a)
 
     if not problems:
         return
@@ -229,6 +241,7 @@ app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"]
 app.include_router(context_sources_router, prefix="/api/meetings", tags=["context-sources"])
 app.include_router(ai_settings_router, prefix="/api/ai-settings", tags=["ai-settings"])
 app.include_router(ai_settings_meeting_router, prefix="/api/meetings", tags=["ai-settings"])
+app.include_router(health_api_router, prefix="/api/health", tags=["health"])
 app.include_router(ws_router)
 
 
@@ -250,7 +263,4 @@ async def health_ready():
         return JSONResponse({"status": "not ready"}, status_code=503)
 
 
-@app.get("/api/health")
-async def health():
-    """Алиас для обратной совместимости фронта."""
-    return {"status": "ok"}
+# /api/health* обслуживается health_api_router (Этап 10): rich status + /deep + /jobs + /config-summary

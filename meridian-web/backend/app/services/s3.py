@@ -88,6 +88,24 @@ async def put_bytes(key: str, data: bytes, content_type: str = "text/plain; char
     await asyncio.to_thread(_p)
 
 
+async def ping() -> tuple[bool, str]:
+    """Лёгкая проверка связности S3 (head_bucket). Не раскрывает секретов."""
+    s = get_settings()
+    if not s.s3_enabled:
+        return False, "not configured"
+
+    def _h():
+        try:
+            _client().head_bucket(Bucket=s.s3_bucket)
+            return True, "ok"
+        except ClientError as e:
+            return False, str(e.response.get("Error", {}).get("Code", "error"))
+        except Exception as e:  # сетевые/конфиг ошибки — без деталей с секретами
+            return False, type(e).__name__
+
+    return await asyncio.to_thread(_h)
+
+
 async def delete_object(key: str) -> None:
     """Идемпотентно (§15): удаление отсутствующего объекта = успех."""
     s = get_settings()

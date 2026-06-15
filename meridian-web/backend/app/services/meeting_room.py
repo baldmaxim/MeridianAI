@@ -352,11 +352,23 @@ class MeetingRoom:
     # --- сообщения клиента (старые + новые алиасы) ---
 
     async def handle_client_message(self, connection_id: str, message: dict) -> None:
+        try:
+            await self._dispatch_client_message(connection_id, message)
+        except Exception as e:
+            # одно плохое сообщение не должно рвать соединение/комнату
+            logger.warning(f"[room {self.meeting_id}] message handler error ({message.get('type')!r}): {e}")
+            await self.send_to_connection(connection_id, {
+                "type": "error", "message": "Не удалось обработать сообщение",
+            })
+
+    async def _dispatch_client_message(self, connection_id: str, message: dict) -> None:
         conn = self.connections.get(connection_id)
         if conn:
             conn.last_seen_at = datetime.utcnow()
         self.session.touch()
         t = message.get("type", "")
+        if not isinstance(t, str):
+            t = ""
 
         if t in ("start_audio", "start_listening"):
             await self.start_audio(connection_id)

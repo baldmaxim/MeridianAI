@@ -145,6 +145,51 @@ class Settings(BaseSettings):
     # Session idle TTL in seconds (cleanup abandoned sessions)
     session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")
 
+    # --- Этап 10: production hardening ---
+    app_version: str = Field(default="0.10.0", alias="APP_VERSION")
+
+    # Jobs/worker (§16)
+    job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
+    job_retry_base_seconds: int = Field(default=30, alias="JOB_RETRY_BASE_SECONDS")
+    job_error_max_chars: int = Field(default=2000, alias="JOB_ERROR_MAX_CHARS")
+    job_stale_running_minutes: int = Field(default=30, alias="JOB_STALE_RUNNING_MINUTES")
+    worker_poll_interval_seconds: float = Field(default=2.0, alias="WORKER_POLL_INTERVAL_SECONDS")
+
+    # WebSocket / MeetingRoom
+    ws_max_binary_frame_bytes: int = Field(default=2 * 1024 * 1024, alias="WS_MAX_BINARY_FRAME_BYTES")
+    meeting_room_idle_ttl_minutes: int = Field(default=120, alias="MEETING_ROOM_IDLE_TTL_MINUTES")
+    ws_heartbeat_interval_seconds: int = Field(default=30, alias="WS_HEARTBEAT_INTERVAL_SECONDS")
+    ws_client_timeout_seconds: int = Field(default=120, alias="WS_CLIENT_TIMEOUT_SECONDS")
+
+    # Загрузка batch-аудио (S3)
+    audio_max_upload_mb: int = Field(default=500, alias="AUDIO_MAX_UPLOAD_MB")
+
+    @property
+    def s3_configured(self) -> bool:
+        return self.s3_enabled
+
+    def safe_config_summary(self) -> dict:
+        """Безопасные флаги конфигурации (БЕЗ секретов) для health/диагностики."""
+        return {
+            "version": self.app_version,
+            "environment": self.environment,
+            "dev_mode": self.dev_mode,
+            "auth_mode": self.auth_mode,
+            "oidc_enabled": self.oidc_enabled,
+            "s3_configured": self.s3_enabled,
+            "sentry_enabled": bool(self.sentry_dsn),
+            "encryption_configured": bool(self.encryption_key),
+            "finalization_enabled": self.meeting_finalization_enabled,
+            "learning_extraction_enabled": self.learning_extraction_enabled,
+            "previous_meetings_context_enabled": self.previous_meetings_context_enabled,
+            "document_max_upload_mb": self.document_max_upload_mb,
+            "audio_max_upload_mb": self.audio_max_upload_mb,
+            "job_max_attempts": self.job_max_attempts,
+            "job_stale_running_minutes": self.job_stale_running_minutes,
+            "ws_max_binary_frame_bytes": self.ws_max_binary_frame_bytes,
+            "allowed_document_extensions": sorted(self.document_allowed_extensions_set),
+        }
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
     @field_validator("cors_origins", mode="before")

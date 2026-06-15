@@ -39,6 +39,22 @@ def _scrub(text: str) -> str:
     return text
 
 
+def redact_secrets(text: str) -> str:
+    """Публичный хелпер: скрабит токены/пароли/presigned-подписи в произвольной строке."""
+    return _scrub(text or "")
+
+
+def truncate_for_log(value, max_chars: int = 500) -> str:
+    """Обрезать значение для безопасного лога (после редакции секретов)."""
+    s = redact_secrets(str(value if value is not None else ""))
+    return s if len(s) <= max_chars else s[:max_chars] + "…"
+
+
+def safe_log_value(value, max_chars: int = 500) -> str:
+    """Алиас: редакция + обрезка. Для transcript/prompt/chunks/payload в логах."""
+    return truncate_for_log(value, max_chars)
+
+
 class RedactionFilter(logging.Filter):
     """Маскирует секреты в сообщении и строковых аргументах до форматирования."""
 
