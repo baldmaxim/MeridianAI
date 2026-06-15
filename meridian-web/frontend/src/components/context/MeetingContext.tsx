@@ -6,6 +6,7 @@ import { listCustomers } from '../../api/customers';
 import { listObjects } from '../../api/objects';
 import { createMeeting, updateMeeting } from '../../api/meetings';
 import { apiErrorMessage } from '../../lib/apiError';
+import { PreviousMeetingsContext } from './PreviousMeetingsContext';
 
 interface Props {
   onContextChange: (topic: string, notes: string, negotiationType: string, meetingRole: string, opponentWeaknesses: string) => void;
@@ -154,6 +155,25 @@ export function MeetingContext({ onContextChange }: Props) {
       {dirInfo && <div style={{ ...styles.dirHint, color: theme.accent.green }}>{dirInfo}</div>}
       {dirError && <div style={{ ...styles.dirHint, color: theme.accent.red }}>{dirError}</div>}
     </div>
+
+    {/* Этап 8: предыдущие встречи как контекст (нужна подготовленная draft-встреча) */}
+    {draftMeetingId ? (
+      <PreviousMeetingsContext
+        meetingId={draftMeetingId}
+        currentCustomerId={selectedCustomerId}
+        currentObjectId={selectedObjectId}
+      />
+    ) : (
+      <div style={styles.dirCard}>
+        <div style={styles.cardHeader}>
+          <span style={styles.dot} />
+          <span style={styles.cardTitle}>Предыдущие встречи как контекст</span>
+        </div>
+        <div style={styles.dirHint}>
+          Выберите заказчика или объект — встреча подготовится, и можно будет добавить прошлые встречи.
+        </div>
+      </div>
+    )}
 
     <div className="context-columns" style={styles.columns}>
       {/* Left: meeting context */}

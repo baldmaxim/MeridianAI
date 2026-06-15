@@ -198,6 +198,26 @@ async def mobile_meeting_detail(
         except (ValueError, TypeError):
             return []
 
+    # Этап 8: выбранные прошлые встречи как контекст (read-only, только included)
+    from ..models.context_source import MeetingContextSource
+    from ..services.previous_meeting_context import get_summary_cards
+    src_ids = (await db.execute(
+        select(MeetingContextSource.source_id)
+        .where(
+            MeetingContextSource.meeting_id == meeting_id,
+            MeetingContextSource.source_type == "previous_meeting",
+            MeetingContextSource.included == True,  # noqa: E712
+            MeetingContextSource.source_id.isnot(None),
+        )
+        .order_by(MeetingContextSource.priority.asc(), MeetingContextSource.created_at.asc())
+    )).scalars().all()
+    prev_cards = await get_summary_cards(db, list(src_ids))
+    # только доступные пользователю прошлые встречи
+    previous_context = []
+    for pid in src_ids:
+        if pid in prev_cards and await user_can_access_meeting(db, user.id, pid):
+            previous_context.append(prev_cards[pid])
+
     from ..schemas.finalization import (
         ProtocolDecisionOut, ProtocolActionItemOut, ProtocolRiskOut, ProtocolOpenQuestionOut,
     )
@@ -237,4 +257,5 @@ async def mobile_meeting_detail(
         action_items=actions_out,
         risks=risks_out,
         open_questions=questions_out,
+        previous_context=previous_context,
     )

@@ -156,6 +156,21 @@ export function MobileMeetingDetailPage({ meetingId }: Props) {
         </div>
       )}
 
+      {/* Этап 8: прошлые встречи как контекст (read-only) */}
+      {m.previous_context && m.previous_context.length > 0 && (
+        <div style={styles.card}>
+          <div style={styles.cardLabel}>КОНТЕКСТ ИЗ ПРОШЛЫХ ВСТРЕЧ</div>
+          {m.previous_context.map((p) => (
+            <div key={p.meeting_id} style={styles.partRow}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.title || `Встреча #${p.meeting_id}`}
+                {p.micro_summary ? ` — ${p.micro_summary}` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Действия */}
       <div style={styles.actions}>
         <button style={styles.primaryBtn} onClick={() => navigate(`/recorder/${m.id}`)}>

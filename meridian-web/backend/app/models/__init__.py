@@ -28,6 +28,7 @@ from .knowledge import (
     LearningCandidate, GlossaryTerm, TriggerPhrase,
     NegotiationPlaybook, CounterpartyTrait, ForbiddenPhrase,
 )
+from .context_source import MeetingContextSource
 
 __all__ = [
     "User",
@@ -62,4 +63,5 @@ __all__ = [
     "NegotiationPlaybook",
     "CounterpartyTrait",
     "ForbiddenPhrase",
+    "MeetingContextSource",
 ]

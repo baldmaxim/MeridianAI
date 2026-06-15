@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
 import { ProtocolSection } from '../components/protocol/ProtocolSection';
 import { LearningCandidates } from '../components/learning/LearningCandidates';
+import { PreviousMeetingsContext } from '../components/context/PreviousMeetingsContext';
 import { getMeetingDetail, updateMeetingTitle, deleteMeeting, continueMeeting } from '../api/history';
 import type { MeetingDetail, MeetingSuggestionRecord, TranscriptSegmentRecord } from '../types';
 
@@ -149,6 +150,13 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue }: Props) {
 
       {/* Этап 5: протокол встречи */}
       <ProtocolSection meetingId={meetingId} />
+
+      {/* Этап 8: использованные как контекст прошлые встречи */}
+      <PreviousMeetingsContext
+        meetingId={meetingId}
+        currentCustomerId={meeting.customer_id}
+        currentObjectId={meeting.object_id}
+      />
 
       {/* Этап 7: кандидаты в базу знаний по этой встрече */}
       <div style={{ ...styles.section, padding: '12px 16px' }}>

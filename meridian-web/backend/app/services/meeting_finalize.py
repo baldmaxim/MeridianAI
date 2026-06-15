@@ -222,6 +222,9 @@ async def handle_meeting_finalize(payload: dict) -> None:
         async with async_session() as db:
             meeting = await db.get(MeetingSession, meeting_id)
             meeting_block, transcript_text, documents_block, doc_names = await _gather_inputs(db, meeting)
+            # Этап 8: компактные итоги выбранных прошлых встреч (контекст, НЕ решения текущей)
+            from .previous_meeting_context import build_previous_context_block
+            previous_block = await build_previous_context_block(db, meeting_id)
 
         # пустой транскрипт → минимальный partial (без LLM)
         if not transcript_text.strip():
@@ -247,7 +250,8 @@ async def handle_meeting_finalize(payload: dict) -> None:
         client = LLMClient(api_key=key, model=settings.finalization_model, temperature=0.2,
                            max_tokens=6000, timeout=settings.meeting_finalization_timeout_seconds)
         client.set_system_prompt(SYSTEM_PROMPT)
-        user_prompt = build_user_prompt(meeting_block, transcript_text, documents_block)
+        user_prompt = build_user_prompt(meeting_block, transcript_text, documents_block,
+                                        previous_meetings_block=previous_block)
 
         raw = None
         for attempt in range(max(1, settings.meeting_finalization_retry_attempts)):

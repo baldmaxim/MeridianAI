@@ -33,10 +33,19 @@ _SCHEMA_HINT = """Схема ответа (верни ровно её, на ру
 }"""
 
 
-def build_user_prompt(meeting_block: str, transcript_text: str, documents_block: str) -> str:
+def build_user_prompt(meeting_block: str, transcript_text: str, documents_block: str,
+                      previous_meetings_block: str = "") -> str:
     parts = ["===== КОНТЕКСТ ВСТРЕЧИ =====", meeting_block]
     if documents_block:
         parts += ["", "===== ДОКУМЕНТЫ ВСТРЕЧИ =====", documents_block]
+    if previous_meetings_block:
+        parts += [
+            "",
+            "===== " + previous_meetings_block,
+            "",
+            "ВАЖНО: предыдущие встречи — это ТОЛЬКО справочный контекст. Не считай их решения/задачи "
+            "решениями текущей встречи, если они не подтверждены в транскрипте текущей встречи ниже.",
+        ]
     parts += [
         "",
         "===== ТРАНСКРИПТ =====",

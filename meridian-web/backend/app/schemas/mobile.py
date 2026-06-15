@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from .document import MeetingDocumentItem
+from .context_source import PreviousMeetingSummaryCard
 from .finalization import (
     ProtocolDecisionOut,
     ProtocolActionItemOut,
@@ -81,3 +82,5 @@ class MobileMeetingDetail(BaseModel):
     action_items: list[ProtocolActionItemOut] = []
     risks: list[ProtocolRiskOut] = []
     open_questions: list[ProtocolOpenQuestionOut] = []
+    # Этап 8: выбранные прошлые встречи как контекст (read-only)
+    previous_context: list[PreviousMeetingSummaryCard] = []

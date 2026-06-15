@@ -175,6 +175,9 @@ class SessionManager:
         # Этап 7: провайдер утверждённой базы знаний, async(meeting_id, query)->str
         self._knowledge_provider: Optional[Callable] = None
 
+        # Этап 8: провайдер итогов выбранных прошлых встреч, async(meeting_id, query)->str
+        self._previous_meetings_provider: Optional[Callable] = None
+
     def touch(self):
         """Update last activity timestamp."""
         self.last_activity = time.time()
@@ -197,6 +200,19 @@ class SessionManager:
             return ""
         try:
             return await self._knowledge_provider(self.db_session_id, query_text or "")
+        except Exception:
+            return ""
+
+    def set_previous_meetings_provider(self, provider: Callable):
+        """Этап 8: провайдер компактных итогов выбранных прошлых встреч."""
+        self._previous_meetings_provider = provider
+
+    async def _previous_meetings_block(self, query_text: str = "") -> str:
+        """Блок «ПРЕДЫДУЩИЕ ВСТРЕЧИ…» для подсказок (или '')."""
+        if not self._previous_meetings_provider or not self.db_session_id:
+            return ""
+        try:
+            return await self._previous_meetings_provider(self.db_session_id, query_text or "")
         except Exception:
             return ""
 
@@ -604,9 +620,11 @@ class SessionManager:
         if settings.suggestion_structured_enabled:
             mcb = self._meeting_context_block(ctx)
             kb = await self._knowledge_block(context)
+            pmb = await self._previous_meetings_block(context)
             prompt = build_manual_cards_prompt(
                 self._role_name(), mcb, context, ctx.get("document_context", ""),
-                settings.suggestion_max_cards_manual, knowledge_context=kb)
+                settings.suggestion_max_cards_manual, knowledge_context=kb,
+                previous_meetings_context=pmb)
             raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=1400)
             await self._emit_suggestion_cards(raw, "manual", doc_context_text=ctx.get("document_context", ""))
         else:
@@ -646,11 +664,13 @@ class SessionManager:
         ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
 
         # Этап 6: структурированный strengthen-промпт (7 секций, пометки источника)
-        # Этап 7: + утверждённая база знаний
+        # Этап 7: + утверждённая база знаний; Этап 8: + итоги прошлых встреч
         kb = await self._knowledge_block(context)
+        pmb = await self._previous_meetings_block(context)
         prompt = build_strengthen_prompt(
             self._role_name(), self._meeting_context_block(ctx), context,
             ctx.get("document_context", ""), knowledge_context=kb,
+            previous_meetings_context=pmb,
         )
 
         logger.info(f"[Strengthen] docs={len(self.document_loader.documents)}, "
@@ -903,8 +923,10 @@ class SessionManager:
                 await self._send_structured_suggestion(hint, is_auto=True)
             return
         kb = await self._knowledge_block(recent or keyword)
+        pmb = await self._previous_meetings_block(recent or keyword)
         prompt = build_auto_cards_prompt(self._role_name(), keyword, recent, doc_context,
-                                         settings.suggestion_max_cards_auto, knowledge_context=kb)
+                                         settings.suggestion_max_cards_auto, knowledge_context=kb,
+                                         previous_meetings_context=pmb)
         raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
         await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_context)
 

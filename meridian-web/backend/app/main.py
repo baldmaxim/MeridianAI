@@ -36,6 +36,7 @@ from .api.departments import router as departments_router
 from .api.mobile import router as mobile_router
 from .api.learning import router as learning_router
 from .api.knowledge import router as knowledge_router
+from .api.context_sources import router as context_sources_router
 from .ws.handler import router as ws_router
 
 settings = get_settings()
@@ -224,6 +225,7 @@ app.include_router(departments_router, prefix="/api/departments", tags=["departm
 app.include_router(mobile_router, prefix="/api/mobile", tags=["mobile"])
 app.include_router(learning_router, prefix="/api", tags=["learning"])
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])
+app.include_router(context_sources_router, prefix="/api/meetings", tags=["context-sources"])
 app.include_router(ws_router)
 
 

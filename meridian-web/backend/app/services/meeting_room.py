@@ -38,6 +38,7 @@ from .local_storage import save_meeting_to_local
 from .access import can_record_meeting, current_user_meeting_role
 from .document_context import build_meeting_doc_context
 from .knowledge_context import build_meeting_knowledge_context
+from .previous_meeting_context import get_previous_meeting_context_for_prompt
 
 logger = logging.getLogger("meridian.room")
 
@@ -157,6 +158,8 @@ class MeetingRoom:
         room.session.set_doc_context_provider(build_meeting_doc_context)
         # Этап 7: утверждённая база знаний в контекст LLM-подсказок
         room.session.set_knowledge_provider(build_meeting_knowledge_context)
+        # Этап 8: итоги выбранных прошлых встреч в контекст LLM-подсказок
+        room.session.set_previous_meetings_provider(get_previous_meeting_context_for_prompt)
         logger.info(f"[room {meeting_id}] created (owner={owner}, status={status})")
         return room
 

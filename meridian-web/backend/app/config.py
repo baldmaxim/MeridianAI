@@ -135,6 +135,13 @@ class Settings(BaseSettings):
     def learning_model(self) -> str:
         return self.learning_extraction_model or "google/gemini-3-flash-preview"
 
+    # Предыдущие встречи как контекст (Этап 8) — только компактные итоги, не транскрипты
+    previous_meetings_context_enabled: bool = Field(default=True, alias="PREVIOUS_MEETINGS_CONTEXT_ENABLED")
+    previous_meetings_context_max_meetings: int = Field(default=5, alias="PREVIOUS_MEETINGS_CONTEXT_MAX_MEETINGS")
+    previous_meetings_context_max_chars: int = Field(default=20000, alias="PREVIOUS_MEETINGS_CONTEXT_MAX_CHARS")
+    previous_meetings_context_per_meeting_max_chars: int = Field(default=4000, alias="PREVIOUS_MEETINGS_CONTEXT_PER_MEETING_MAX_CHARS")
+    previous_meetings_candidates_limit: int = Field(default=20, alias="PREVIOUS_MEETINGS_CANDIDATES_LIMIT")
+
     # Session idle TTL in seconds (cleanup abandoned sessions)
     session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")
 
