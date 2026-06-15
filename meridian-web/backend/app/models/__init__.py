@@ -29,6 +29,7 @@ from .knowledge import (
     NegotiationPlaybook, CounterpartyTrait, ForbiddenPhrase,
 )
 from .context_source import MeetingContextSource
+from .ai_settings import AISettingsProfile
 
 __all__ = [
     "User",
@@ -64,4 +65,5 @@ __all__ = [
     "CounterpartyTrait",
     "ForbiddenPhrase",
     "MeetingContextSource",
+    "AISettingsProfile",
 ]

@@ -8,13 +8,14 @@ import { MeetingDetailPage } from './pages/MeetingDetailPage';
 import { BatchPage } from './pages/BatchPage';
 import { DirectoryPage } from './pages/DirectoryPage';
 import { KnowledgePage } from './pages/KnowledgePage';
+import { AISettingsPage } from './pages/AISettingsPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RecorderPage } from './pages/RecorderPage';
 import { MobileMeetingsPage } from './pages/mobile/MobileMeetingsPage';
 import { MobileMeetingDetailPage } from './pages/mobile/MobileMeetingDetailPage';
 import { usePathname, parseRoute } from './lib/navigation';
 
-type Page = 'meeting' | 'admin' | 'history' | 'history-detail' | 'batch' | 'directory' | 'knowledge';
+type Page = 'meeting' | 'admin' | 'history' | 'history-detail' | 'batch' | 'directory' | 'knowledge' | 'ai-settings';
 
 function App() {
   const { user, loading, login, register, logout } = useAuth();
@@ -56,6 +57,8 @@ function App() {
         return <DirectoryPage onBack={() => setCurrentPage('meeting')} />;
       case 'knowledge':
         return <KnowledgePage onBack={() => setCurrentPage('meeting')} />;
+      case 'ai-settings':
+        return <AISettingsPage onBack={() => setCurrentPage('meeting')} />;
       case 'admin':
         return <AdminPage onBack={() => setCurrentPage('meeting')} />;
       case 'history':
@@ -96,6 +99,8 @@ function App() {
       showDirectory={currentPage === 'directory'}
       onShowKnowledge={() => setCurrentPage(currentPage === 'knowledge' ? 'meeting' : 'knowledge')}
       showKnowledge={currentPage === 'knowledge'}
+      onShowAISettings={() => setCurrentPage(currentPage === 'ai-settings' ? 'meeting' : 'ai-settings')}
+      showAISettings={currentPage === 'ai-settings'}
     >
       {renderPage()}
     </AppLayout>

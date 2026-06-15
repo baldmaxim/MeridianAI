@@ -7,6 +7,7 @@ import { listObjects } from '../../api/objects';
 import { createMeeting, updateMeeting } from '../../api/meetings';
 import { apiErrorMessage } from '../../lib/apiError';
 import { PreviousMeetingsContext } from './PreviousMeetingsContext';
+import { MeetingAISettingsBlock } from './MeetingAISettings';
 
 interface Props {
   onContextChange: (topic: string, notes: string, negotiationType: string, meetingRole: string, opponentWeaknesses: string) => void;
@@ -155,6 +156,9 @@ export function MeetingContext({ onContextChange }: Props) {
       {dirInfo && <div style={{ ...styles.dirHint, color: theme.accent.green }}>{dirInfo}</div>}
       {dirError && <div style={{ ...styles.dirHint, color: theme.accent.red }}>{dirError}</div>}
     </div>
+
+    {/* Этап 9: AI-настройки встречи */}
+    {draftMeetingId && <MeetingAISettingsBlock meetingId={draftMeetingId} />}
 
     {/* Этап 8: предыдущие встречи как контекст (нужна подготовленная draft-встреча) */}
     {draftMeetingId ? (

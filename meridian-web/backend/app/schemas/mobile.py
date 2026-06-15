@@ -84,3 +84,5 @@ class MobileMeetingDetail(BaseModel):
     open_questions: list[ProtocolOpenQuestionOut] = []
     # Этап 8: выбранные прошлые встречи как контекст (read-only)
     previous_context: list[PreviousMeetingSummaryCard] = []
+    # Этап 9: краткое резюме AI-настроек (read-only)
+    ai_settings_summary: dict | None = None

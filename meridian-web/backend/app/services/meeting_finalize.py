@@ -30,11 +30,15 @@ logger = logging.getLogger("meridian.finalize")
 
 async def request_finalization(db: AsyncSession, meeting_id: int) -> bool:
     """Поставить встречу в очередь финализации. Коммитит ВЫЗЫВАЮЩИЙ. Возвращает, поставлено ли."""
-    settings = get_settings()
-    if not settings.meeting_finalization_enabled:
-        return False
     meeting = await db.get(MeetingSession, meeting_id)
     if not meeting:
+        return False
+    # Этап 9: финализация может быть отключена в AI-настройках встречи
+    from .ai_settings import resolve_for_meeting
+    resolved = await resolve_for_meeting(db, meeting_id)
+    if not resolved.get("finalization_enabled", True):
+        meeting.finalization_status = "disabled"
+        meeting.finalization_error = None
         return False
     meeting.finalization_status = "queued"
     meeting.finalization_error = None
@@ -220,6 +224,17 @@ async def handle_meeting_finalize(payload: dict) -> None:
 
     try:
         async with async_session() as db:
+            # Этап 9: resolved AI-настройки встречи (модель/режим/тогглы)
+            from .ai_settings import resolve_for_meeting
+            resolved = await resolve_for_meeting(db, meeting_id)
+            if not resolved.get("finalization_enabled", True):
+                meeting = await db.get(MeetingSession, meeting_id)
+                if meeting:
+                    meeting.finalization_status = "disabled"
+                    meeting.finalization_error = None
+                    await db.commit()
+                logger.info("finalize: meeting %s skipped (disabled in settings)", meeting_id)
+                return
             meeting = await db.get(MeetingSession, meeting_id)
             meeting_block, transcript_text, documents_block, doc_names = await _gather_inputs(db, meeting)
             # Этап 8: компактные итоги выбранных прошлых встреч (контекст, НЕ решения текущей)
@@ -247,15 +262,18 @@ async def handle_meeting_finalize(payload: dict) -> None:
             await _set_error(meeting_id, "LLM недоступна: не настроен ключ OpenRouter")
             return
 
-        client = LLMClient(api_key=key, model=settings.finalization_model, temperature=0.2,
-                           max_tokens=6000, timeout=settings.meeting_finalization_timeout_seconds)
+        from .ai_settings import mode_tokens
+        fin_model = resolved.get("finalization_model") or settings.finalization_model
+        fin_tokens = mode_tokens(resolved.get("mode", "balanced"), "finalization")
+        client = LLMClient(api_key=key, model=fin_model, temperature=0.2,
+                           max_tokens=fin_tokens, timeout=settings.meeting_finalization_timeout_seconds)
         client.set_system_prompt(SYSTEM_PROMPT)
         user_prompt = build_user_prompt(meeting_block, transcript_text, documents_block,
                                         previous_meetings_block=previous_block)
 
         raw = None
         for attempt in range(max(1, settings.meeting_finalization_retry_attempts)):
-            raw = await client.get_suggestion_async(user_prompt, max_tokens=6000)
+            raw = await client.get_suggestion_async(user_prompt, max_tokens=fin_tokens)
             if raw:
                 break
         if not raw:
@@ -265,7 +283,7 @@ async def handle_meeting_finalize(payload: dict) -> None:
         data = _parse_json_lenient(raw)
         if data is None:
             # одна попытка ремонта
-            repaired = await client.get_suggestion_async(build_repair_prompt(raw), max_tokens=6000)
+            repaired = await client.get_suggestion_async(build_repair_prompt(raw), max_tokens=fin_tokens)
             data = _parse_json_lenient(repaired)
         if data is None:
             await _set_error(meeting_id, "LLM вернула невалидный JSON")

@@ -218,6 +218,17 @@ async def mobile_meeting_detail(
         if pid in prev_cards and await user_can_access_meeting(db, user.id, pid):
             previous_context.append(prev_cards[pid])
 
+    # Этап 9: краткое резюме AI-настроек (read-only)
+    from ..services.ai_settings import resolve_for_meeting
+    _ai = await resolve_for_meeting(db, meeting_id)
+    ai_settings_summary = {
+        "mode": _ai.get("mode"),
+        "auto_suggestions_enabled": _ai.get("auto_suggestions_enabled"),
+        "document_context_enabled": _ai.get("document_context_enabled"),
+        "knowledge_context_enabled": _ai.get("knowledge_context_enabled"),
+        "previous_meetings_context_enabled": _ai.get("previous_meetings_context_enabled"),
+    }
+
     from ..schemas.finalization import (
         ProtocolDecisionOut, ProtocolActionItemOut, ProtocolRiskOut, ProtocolOpenQuestionOut,
     )
@@ -258,4 +269,5 @@ async def mobile_meeting_detail(
         risks=risks_out,
         open_questions=questions_out,
         previous_context=previous_context,
+        ai_settings_summary=ai_settings_summary,
     )

@@ -61,6 +61,12 @@ class MeetingSession(Base):
     learning_status: Mapped[str] = mapped_column(String(20), default="not_started")
     learning_error: Mapped[str | None] = mapped_column(Text)
 
+    # Этап 9: AI-настройки встречи (профиль + замороженный снапшот на время live)
+    ai_settings_profile_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("ai_settings_profiles.id", ondelete="SET NULL")
+    )
+    ai_settings_snapshot_json: Mapped[str | None] = mapped_column(Text)
+
 
 class TranscriptSegmentRecord(Base):
     """Persisted transcript segment. Written on session end or periodic flush."""

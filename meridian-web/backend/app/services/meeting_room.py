@@ -39,6 +39,7 @@ from .access import can_record_meeting, current_user_meeting_role
 from .document_context import build_meeting_doc_context
 from .knowledge_context import build_meeting_knowledge_context
 from .previous_meeting_context import get_previous_meeting_context_for_prompt
+from .ai_settings import snapshot_for_meeting
 
 logger = logging.getLogger("meridian.room")
 
@@ -140,6 +141,20 @@ class MeetingRoom:
         # конфигурация движка по настройкам владельца встречи
         room.settings = await load_user_settings(owner)
         room.api_keys = await load_api_keys()
+
+        # Этап 9: заморозить AI-настройки встречи (snapshot) и применить модель/STT/тогглы
+        ai_resolved: dict = {}
+        try:
+            async with async_session() as db:
+                ai_resolved = await snapshot_for_meeting(db, meeting_id)
+                await db.commit()
+        except Exception as e:
+            logger.warning(f"[room {meeting_id}] AI settings snapshot failed: {e}")
+        if ai_resolved.get("live_suggestion_model"):
+            room.settings["llm_model"] = ai_resolved["live_suggestion_model"]
+        if ai_resolved.get("stt_provider"):
+            room.settings["stt_provider"] = ai_resolved["stt_provider"]
+
         openrouter_key = room.api_keys.get("openrouter", "")
         if openrouter_key:
             room.session.configure_llm(
@@ -147,6 +162,7 @@ class MeetingRoom:
                 model=room.settings["llm_model"],
                 temperature=room.settings["temperature"],
             )
+        room.session.set_ai_settings(ai_resolved or None)
         role_data = await load_default_role(owner)
         if role_data:
             room.session.set_role(role_data)

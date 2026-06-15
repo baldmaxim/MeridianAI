@@ -29,11 +29,15 @@ logger = logging.getLogger("meridian.learning")
 
 
 async def request_learning_extraction(db: AsyncSession, meeting_id: int) -> bool:
-    settings = get_settings()
-    if not settings.learning_extraction_enabled:
-        return False
     meeting = await db.get(MeetingSession, meeting_id)
     if not meeting:
+        return False
+    # Этап 9: извлечение знаний может быть отключено в AI-настройках встречи
+    from .ai_settings import resolve_for_meeting
+    resolved = await resolve_for_meeting(db, meeting_id)
+    if not resolved.get("learning_extraction_enabled", True):
+        meeting.learning_status = "disabled"
+        meeting.learning_error = None
         return False
     meeting.learning_status = "queued"
     meeting.learning_error = None
@@ -203,7 +207,13 @@ async def handle_learning_extract(payload: dict) -> None:
             await _set_status(meeting_id, "error", "LLM недоступна: нет ключа OpenRouter")
             return
 
-        client = LLMClient(api_key=key, model=settings.learning_model, temperature=0.2,
+        # Этап 9: модель извлечения из AI-настроек встречи (fallback на config)
+        from .ai_settings import resolve_for_meeting
+        async with async_session() as _db:
+            _resolved = await resolve_for_meeting(_db, meeting_id)
+        learn_model = _resolved.get("learning_model") or settings.learning_model
+
+        client = LLMClient(api_key=key, model=learn_model, temperature=0.2,
                            max_tokens=4000, timeout=settings.learning_extraction_timeout_seconds)
         client.set_system_prompt(SYSTEM_PROMPT)
         prompt = build_user_prompt(meeting_block, protocol_block, transcript, existing,

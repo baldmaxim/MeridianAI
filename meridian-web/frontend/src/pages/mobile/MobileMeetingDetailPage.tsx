@@ -156,6 +156,30 @@ export function MobileMeetingDetailPage({ meetingId }: Props) {
         </div>
       )}
 
+      {/* Этап 9: AI-настройки (read-only) */}
+      {m.ai_settings_summary && (
+        <div style={styles.card}>
+          <div style={styles.cardLabel}>AI-НАСТРОЙКИ</div>
+          <div style={styles.partRow}>
+            <span>Режим</span>
+            <span style={styles.partRole}>{String(m.ai_settings_summary.mode ?? '—')}</span>
+          </div>
+          <div style={styles.partRow}>
+            <span>Авто-подсказки</span>
+            <span style={styles.partRole}>{m.ai_settings_summary.auto_suggestions_enabled ? 'вкл' : 'выкл'}</span>
+          </div>
+          <div style={styles.partRow}>
+            <span>Документы / База знаний / Прошлые</span>
+            <span style={styles.partRole}>
+              {[m.ai_settings_summary.document_context_enabled,
+                m.ai_settings_summary.knowledge_context_enabled,
+                m.ai_settings_summary.previous_meetings_context_enabled]
+                .map((v) => (v ? '✓' : '✕')).join(' ')}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Этап 8: прошлые встречи как контекст (read-only) */}
       {m.previous_context && m.previous_context.length > 0 && (
         <div style={styles.card}>

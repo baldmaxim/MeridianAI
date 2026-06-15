@@ -17,6 +17,8 @@ interface Props {
   showDirectory?: boolean;
   onShowKnowledge?: () => void;
   showKnowledge?: boolean;
+  onShowAISettings?: () => void;
+  showAISettings?: boolean;
 }
 
 /* Inline SVG compass mark from branding/meridian-logos.html */
@@ -67,7 +69,7 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge }: Props) {
+export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
 
@@ -118,6 +120,15 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
               style={showKnowledge ? styles.adminBtnActive : styles.adminBtn}
             >
               База знаний
+            </button>
+          )}
+          {onShowAISettings && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowAISettings}
+              style={showAISettings ? styles.adminBtnActive : styles.adminBtn}
+            >
+              AI-профили
             </button>
           )}
           {onShowBatch && (

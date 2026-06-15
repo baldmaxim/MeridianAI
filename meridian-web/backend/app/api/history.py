@@ -188,6 +188,10 @@ async def create_meeting(
         db, user, data.customer_id, data.object_id
     )
 
+    # Этап 9: новая встреча получает default AI-профиль пользователя
+    from ..services.ai_settings import get_or_create_default_profile
+    default_profile = await get_or_create_default_profile(db, user.id)
+
     meeting = MeetingSession(
         user_id=user.id,
         created_by_user_id=user.id,
@@ -201,6 +205,7 @@ async def create_meeting(
         negotiation_type=data.negotiation_type,
         meeting_role=data.meeting_role,
         opponent_weaknesses=data.opponent_weaknesses,
+        ai_settings_profile_id=default_profile.id,
     )
     db.add(meeting)
     await db.flush()

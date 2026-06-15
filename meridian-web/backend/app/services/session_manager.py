@@ -32,6 +32,7 @@ from ..core.llm.suggestion_prompts import (
 from ..core.transcription.turn_assembler import TurnAssembler
 from .audio_recorder import AudioRecorder
 from .suggestion_parser import parse_suggestion_response, apply_safety_checks, fallback_response
+from .ai_settings import mode_tokens as _mode_tokens
 
 logger = logging.getLogger("meridian.session")
 
@@ -178,6 +179,12 @@ class SessionManager:
         # Этап 8: провайдер итогов выбранных прошлых встреч, async(meeting_id, query)->str
         self._previous_meetings_provider: Optional[Callable] = None
 
+        # Этап 9: resolved AI-настройки встречи (None → fallback на глобальный config)
+        self.ai_settings: Optional[dict] = None
+        self._llm_api_key: Optional[str] = None
+        self._llm_temperature: float = 0.7
+        self._model_clients: Dict[str, LLMClient] = {}
+
     def touch(self):
         """Update last activity timestamp."""
         self.last_activity = time.time()
@@ -196,6 +203,8 @@ class SessionManager:
 
     async def _knowledge_block(self, query_text: str = "") -> str:
         """Блок утверждённой базы знаний для подсказок (или '')."""
+        if not self._ai("knowledge_context_enabled", True):
+            return ""  # Этап 9: база знаний выключена в настройках
         if not self._knowledge_provider or not self.db_session_id:
             return ""
         try:
@@ -209,6 +218,8 @@ class SessionManager:
 
     async def _previous_meetings_block(self, query_text: str = "") -> str:
         """Блок «ПРЕДЫДУЩИЕ ВСТРЕЧИ…» для подсказок (или '')."""
+        if not self._ai("previous_meetings_context_enabled", True):
+            return ""  # Этап 9: контекст прошлых встреч выключен в настройках
         if not self._previous_meetings_provider or not self.db_session_id:
             return ""
         try:
@@ -218,6 +229,8 @@ class SessionManager:
 
     async def _augment_doc_context(self, base: str, query_text: str) -> str:
         """Дополнить doc-контекст (из in-memory loader) фрагментами документов встречи из БД."""
+        if not self._ai("document_context_enabled", True):
+            return base  # Этап 9: документы выключены в настройках
         if not self._doc_context_provider or not self.db_session_id:
             return base
         try:
@@ -230,12 +243,51 @@ class SessionManager:
 
     def configure_llm(self, api_key: str, model: str, temperature: float):
         """Configure LLM client with API key from database."""
+        self._llm_api_key = api_key
+        self._llm_temperature = temperature
         self.llm_client = LLMClient(
             api_key=api_key, model=model, temperature=temperature
         )
+        self._model_clients = {model: self.llm_client}
         # Apply role system prompt if role was set before LLM
         if self.role_data and self.llm_client:
             self.llm_client.set_system_prompt(self.prompt_builder.system_prompt)
+
+    # ---------------------------------------------------------------
+    # Этап 9: resolved AI-настройки
+    # ---------------------------------------------------------------
+
+    def set_ai_settings(self, resolved: dict | None):
+        """Применить resolved-настройки встречи (snapshot). Безопасно во время live."""
+        if not resolved:
+            return
+        self.ai_settings = resolved
+        live_model = resolved.get("live_suggestion_model")
+        if live_model and self.llm_client and getattr(self.llm_client, "model", None) != live_model:
+            # пересоздать основной клиент под новую live-модель, сохранив system prompt
+            self.configure_llm(self._llm_api_key or "", live_model, self._llm_temperature)
+
+    def _ai(self, key: str, default):
+        if self.ai_settings is not None and self.ai_settings.get(key) is not None:
+            return self.ai_settings.get(key)
+        return default
+
+    def _mode(self) -> str:
+        return self._ai("mode", "balanced")
+
+    def _client_for_model(self, model: str | None) -> LLMClient:
+        """LLM-клиент для конкретной модели (кэш). Fallback — основной клиент."""
+        if not model or not self._llm_api_key:
+            return self.llm_client
+        if getattr(self.llm_client, "model", None) == model:
+            return self.llm_client
+        client = self._model_clients.get(model)
+        if client is None:
+            client = LLMClient(api_key=self._llm_api_key, model=model, temperature=self._llm_temperature)
+            if self.role_data:
+                client.set_system_prompt(self.prompt_builder.system_prompt)
+            self._model_clients[model] = client
+        return client
 
     def set_role(self, role_data: dict):
         """Set negotiation role — rebuilds prompts and system prompt."""
@@ -491,11 +543,19 @@ class SessionManager:
             self._hint_debounce_task.cancel()
         self._hint_debounce_task = asyncio.create_task(self._debounced_hint_check())
 
+    def _auto_interval(self) -> float:
+        """Этап 9: минимальный интервал между авто-подсказками."""
+        return float(self._ai("auto_suggestion_min_interval_seconds", HINT_COOLDOWN_SEC))
+
     async def _debounced_hint_check(self):
         """Wait for pause, then check buffered segments for events/keywords."""
         await asyncio.sleep(HINT_DEBOUNCE_SEC)
 
         if not self._hint_buffer or not self.llm_client:
+            return
+        # Этап 9: авто-подсказки можно отключить (manual продолжает работать)
+        if not self._ai("auto_suggestions_enabled", True):
+            self._hint_buffer.clear()
             return
         if len(self._committed_segments) < MIN_SEGMENTS_FOR_HINT:
             return
@@ -514,7 +574,7 @@ class SessionManager:
         for ev in events:
             cooldown_key = f"event:{ev.event_type}"
             last = self._auto_trigger_cooldown.get(cooldown_key, 0)
-            if now - last < HINT_COOLDOWN_SEC:
+            if now - last < self._auto_interval():
                 continue
             self._auto_trigger_cooldown[cooldown_key] = now
 
@@ -529,7 +589,7 @@ class SessionManager:
         triggered_keyword = None
         for kw in keywords:
             last_trigger = self._auto_trigger_cooldown.get(kw, 0)
-            if now - last_trigger >= HINT_COOLDOWN_SEC:
+            if now - last_trigger >= self._auto_interval():
                 triggered_keyword = kw
                 self._auto_trigger_cooldown[kw] = now
                 break
@@ -548,6 +608,9 @@ class SessionManager:
         """Legacy auto-trigger check for Deepgram/Gemini (event-first, keyword fallback)."""
         if not self.llm_client:
             return
+        # Этап 9: авто-подсказки можно отключить (manual продолжает работать)
+        if not self._ai("auto_suggestions_enabled", True):
+            return
 
         now = time.time()
         ctx = self._ctx_builder.build_reactive(text)
@@ -559,7 +622,7 @@ class SessionManager:
         for ev in events:
             cooldown_key = f"event:{ev.event_type}"
             last = self._auto_trigger_cooldown.get(cooldown_key, 0)
-            if now - last < HINT_COOLDOWN_SEC:
+            if now - last < self._auto_interval():
                 continue
             self._auto_trigger_cooldown[cooldown_key] = now
 
@@ -573,7 +636,7 @@ class SessionManager:
 
         for keyword in keywords:
             last_trigger = self._auto_trigger_cooldown.get(keyword, 0)
-            if now - last_trigger < HINT_COOLDOWN_SEC:
+            if now - last_trigger < self._auto_interval():
                 continue
 
             self._auto_trigger_cooldown[keyword] = now
@@ -617,15 +680,15 @@ class SessionManager:
         ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
 
         settings = get_settings()
-        if settings.suggestion_structured_enabled:
+        if self._ai("suggestion_structured_enabled", settings.suggestion_structured_enabled):
             mcb = self._meeting_context_block(ctx)
             kb = await self._knowledge_block(context)
             pmb = await self._previous_meetings_block(context)
+            max_cards = self._ai("max_manual_cards", settings.suggestion_max_cards_manual)
             prompt = build_manual_cards_prompt(
                 self._role_name(), mcb, context, ctx.get("document_context", ""),
-                settings.suggestion_max_cards_manual, knowledge_context=kb,
-                previous_meetings_context=pmb)
-            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=1400)
+                max_cards, knowledge_context=kb, previous_meetings_context=pmb)
+            raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "manual"))
             await self._emit_suggestion_cards(raw, "manual", doc_context_text=ctx.get("document_context", ""))
         else:
             prompt = self.prompt_builder.build_tactical_hints_prompt(recent_dialog=context, **ctx)
@@ -678,9 +741,11 @@ class SessionManager:
                      f"type='{self.negotiation_type}', prompt_len={len(prompt)}")
         logger.debug(f"[Strengthen] PROMPT:\n{prompt}")
 
+        # Этап 9: отдельная модель для усиления + max_tokens по режиму
+        strengthen_client = self._client_for_model(self._ai("strengthen_model", None))
         full_text_parts: list[str] = []
-        async for chunk_text in self.llm_client.get_suggestion_streaming_async(
-            prompt, max_tokens=1500
+        async for chunk_text in strengthen_client.get_suggestion_streaming_async(
+            prompt, max_tokens=_mode_tokens(self._mode(), "strengthen")
         ):
             full_text_parts.append(chunk_text)
             await self._send_json({"type": "suggestion_chunk", "text": chunk_text})
@@ -914,7 +979,8 @@ class SessionManager:
     async def _auto_suggestion(self, keyword: str, recent: str, doc_context: str):
         """Авто-подсказка карточками (legacy single-hint при выключенном structured)."""
         settings = get_settings()
-        if not settings.suggestion_structured_enabled:
+        structured = self._ai("suggestion_structured_enabled", settings.suggestion_structured_enabled)
+        if not structured:
             prompt = self.prompt_builder.build_auto_suggestion_structured_prompt(
                 keyword=keyword, recent_dialog=recent, document_context=doc_context)
             raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=200)
@@ -924,10 +990,11 @@ class SessionManager:
             return
         kb = await self._knowledge_block(recent or keyword)
         pmb = await self._previous_meetings_block(recent or keyword)
+        max_cards = self._ai("max_auto_cards", settings.suggestion_max_cards_auto)
         prompt = build_auto_cards_prompt(self._role_name(), keyword, recent, doc_context,
-                                         settings.suggestion_max_cards_auto, knowledge_context=kb,
+                                         max_cards, knowledge_context=kb,
                                          previous_meetings_context=pmb)
-        raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
+        raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "auto"))
         await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_context)
 
     async def _emit_suggestion_cards(self, raw, source_mode: str, trigger=None, doc_context_text=""):
