@@ -10,7 +10,6 @@ import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
 import { ConversationTreePanel } from '../components/meeting/ConversationTreePanel';
 import { DictaphoneView } from '../components/meeting/DictaphoneView';
-import { ModeSwitch } from '../components/meeting/ModeSwitch';
 import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
 import { MeetingDocuments } from '../components/context/MeetingDocuments';
@@ -206,13 +205,11 @@ export function MeetingPage() {
     sendJSON({ type: 'change_role', role_id: roleId });
   }, [sendJSON]);
 
-  // Простой режим — чистый диктофон поверх той же сессии
+  // Простой режим (вид «Пользователь») — чистый диктофон поверх той же сессии.
+  // Переключение режима — единым слайдером роли «Админ ⟷ Пользователь» в шапке.
   if (store.uiMode === 'simple') {
     return (
       <div style={styles.container}>
-        <div style={styles.simpleBar}>
-          <ModeSwitch />
-        </div>
         <DictaphoneView
           level={level}
           isListening={store.isListening}
@@ -241,8 +238,6 @@ export function MeetingPage() {
             {tab}
           </button>
         ))}
-        <div style={{ flex: 1 }} />
-        <ModeSwitch />
       </div>
 
       {/* Tab content */}

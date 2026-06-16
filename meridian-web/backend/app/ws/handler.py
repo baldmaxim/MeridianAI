@@ -123,10 +123,12 @@ async def meeting_room_ws(
     await serve_meeting_connection(websocket, user, meeting_id, device_role)
 
 
-async def _resolve_user_active_meeting(user_id: int) -> int:
-    """Найти самую свежую активную встречу пользователя или создать новый draft.
+async def _resolve_user_active_meeting(user_id: int) -> int | None:
+    """Найти самую свежую активную встречу пользователя.
 
-    Сохраняет старое поведение /ws/meeting (без customer_id/object_id).
+    ВАЖНО: НЕ создаёт встречу как побочный эффект подключения. Встреча создаётся
+    только явным действием через REST POST /meetings. Возвращает None, если у
+    пользователя нет активной встречи.
     """
     async with async_session() as db:
         meeting = (
@@ -137,23 +139,16 @@ async def _resolve_user_active_meeting(user_id: int) -> int:
                 .limit(1)
             )
         ).scalar_one_or_none()
-        if meeting:
-            return meeting.id
-        meeting = MeetingSession(
-            user_id=user_id,
-            created_by_user_id=user_id,
-            is_active=True,
-            status="active",
-        )
-        db.add(meeting)
-        await db.commit()
-        await db.refresh(meeting)
-        return meeting.id
+        return meeting.id if meeting else None
 
 
 @router.websocket("/ws/meeting")
 async def meeting_websocket_legacy(websocket: WebSocket, token: str = Query(...)):
-    """DEPRECATED: старый endpoint. Резолвит/создаёт встречу и подключает к MeetingRoom."""
+    """DEPRECATED: старый endpoint. Подхватывает активную встречу пользователя.
+
+    Не создаёт встречу: если активной нет — закрывает соединение. Это закрывает
+    «аналогичную ситуацию», когда сам факт подключения плодил пустые встречи.
+    """
     user = await authenticate_ws(token)
     if not user:
         await websocket.close(code=4001, reason="Authentication failed")
@@ -164,4 +159,7 @@ async def meeting_websocket_legacy(websocket: WebSocket, token: str = Query(...)
         f"user={user.id}"
     )
     meeting_id = await _resolve_user_active_meeting(user.id)
+    if meeting_id is None:
+        await websocket.close(code=4404, reason="No active meeting")
+        return
     await serve_meeting_connection(websocket, user, meeting_id, "desktop")

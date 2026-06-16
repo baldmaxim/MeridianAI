@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { MeetingPage } from './pages/MeetingPage';
@@ -32,6 +32,12 @@ function App() {
   const [viewAsUser, setViewAsUser] = useState(false);
   const pathname = usePathname();
   const route = parseRoute(pathname);
+
+  // Единый слайдер роли управляет и видом встречи: Админ → полный, Пользователь → простой.
+  useEffect(() => {
+    const eff = user?.role === 'admin' && !viewAsUser;
+    useMeetingStore.getState().setUiMode(eff ? 'full' : 'simple');
+  }, [user, viewAsUser]);
 
   if (loading) {
     return (
