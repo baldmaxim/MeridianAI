@@ -5,9 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.dependencies import get_current_user
+from ..services.page_access import require_page
 from ..database import get_db
 from ..models.user import User
 from ..models.directory import Department, UserDepartment
+
+# Мутации справочника отделов — только при доступе к странице "Отделы" (§12).
+_require_dir = Depends(require_page("dir-departments"))
 from ..schemas.directory import (
     DepartmentCreate,
     DepartmentUpdate,
@@ -27,7 +31,7 @@ async def list_departments(
     return result.scalars().all()
 
 
-@router.post("", response_model=DepartmentResponse)
+@router.post("", response_model=DepartmentResponse, dependencies=[_require_dir])
 async def create_department(
     data: DepartmentCreate,
     user: User = Depends(get_current_user),
@@ -52,7 +56,7 @@ async def get_department(
     return dept
 
 
-@router.put("/{department_id}", response_model=DepartmentResponse)
+@router.put("/{department_id}", response_model=DepartmentResponse, dependencies=[_require_dir])
 async def update_department(
     department_id: int,
     data: DepartmentUpdate,
@@ -69,7 +73,7 @@ async def update_department(
     return dept
 
 
-@router.delete("/{department_id}")
+@router.delete("/{department_id}", dependencies=[_require_dir])
 async def delete_department(
     department_id: int,
     user: User = Depends(get_current_user),
@@ -113,7 +117,7 @@ async def list_department_users(
     ]
 
 
-@router.post("/{department_id}/users/{user_id}", response_model=DepartmentUserResponse)
+@router.post("/{department_id}/users/{user_id}", response_model=DepartmentUserResponse, dependencies=[_require_dir])
 async def add_department_user(
     department_id: int,
     user_id: int,
@@ -149,7 +153,7 @@ async def add_department_user(
     )
 
 
-@router.delete("/{department_id}/users/{user_id}")
+@router.delete("/{department_id}/users/{user_id}", dependencies=[_require_dir])
 async def remove_department_user(
     department_id: int,
     user_id: int,

@@ -12,6 +12,8 @@ from ..models.settings import UserSettings
 from ..schemas.auth import RegisterRequest, LoginRequest, TokenResponse, UserResponse
 from ..ratelimit import limiter
 from ..services.audit import audit, hmac_email, client_ip
+from ..services.page_access import get_allowed_pages
+from ..core.pages import PAGE_KEYS
 from .service import hash_password, verify_password, create_access_token
 from .dependencies import get_current_user
 
@@ -101,7 +103,16 @@ async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user: User = Depends(get_current_user)):
-    """Get current user profile."""
+async def get_me(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current user profile + доступные страницы (page-access)."""
     logger.debug(f"Get me: user_id={user.id}")
-    return user
+    allowed = await get_allowed_pages(db, user.role)
+    resp = UserResponse.model_validate(user)
+    resp.allowed_pages = [k for k in PAGE_KEYS if k in allowed]
+    if user.role == "admin":
+        user_allowed = await get_allowed_pages(db, "user")
+        resp.user_role_pages = [k for k in PAGE_KEYS if k in user_allowed]
+    return resp

@@ -35,6 +35,7 @@ export function MeetingContext({ onContextChange }: Props) {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [objects, setObjects] = useState<ProjectObject[]>([]);
+  const [customerName, setCustomerName] = useState('');
   const [dirError, setDirError] = useState('');
   const [dirInfo, setDirInfo] = useState('');
 
@@ -48,34 +49,51 @@ export function MeetingContext({ onContextChange }: Props) {
     listObjects(selectedCustomerId).then(setObjects).catch(() => setObjects([]));
   }, [selectedCustomerId]);
 
-  /** Сохранить выбор в draft-встрече (POST либо PATCH). WS подхватит активную. */
-  async function persistDraft(customerId: number | null, objectId: number | null) {
+  // при возврате к контексту/выборе объекта — подставить имя выбранного заказчика в combobox
+  useEffect(() => {
+    if (selectedCustomerId == null || !customers.length) return;
+    const c = customers.find((c) => c.id === selectedCustomerId);
+    if (c) setCustomerName((prev) => (prev.trim() ? prev : c.name));
+  }, [selectedCustomerId, customers]);
+
+  /** Сохранить выбор в draft-встрече (POST либо PATCH). Заказчик — по имени (найти-или-создать).
+   *  WS подхватит активную. Возвращённый customer_id синхронизируем со store. */
+  async function persistDraft(custName: string | null, objectId: number | null) {
     setDirError(''); setDirInfo('');
     try {
+      let m;
       if (draftMeetingId) {
-        await updateMeeting(draftMeetingId, { customer_id: customerId, object_id: objectId });
+        m = await updateMeeting(draftMeetingId, { customer_name: custName, object_id: objectId });
       } else {
-        const m = await createMeeting({
-          customer_id: customerId, object_id: objectId,
+        m = await createMeeting({
+          customer_name: custName, object_id: objectId,
           meeting_topic: topic || null, meeting_notes: notes || null,
           negotiation_type: negotiationType || null, meeting_role: meetingRole || null,
           opponent_weaknesses: opponentWeaknesses || null,
         });
         setDraftMeetingId(m.id);
       }
+      if (m) setSelectedCustomerId(m.customer_id);
       setDirInfo('Встреча подготовлена — заказчик и объект привязаны');
     } catch (e) {
       setDirError(apiErrorMessage(e, 'Не удалось привязать объект к встрече'));
     }
   }
 
-  const handleCustomerChange = (value: string) => {
-    const id = value === '' ? null : Number(value);
-    setSelectedCustomerId(id);
-    setSelectedObjectId(null);
+  // ввод/выбор заказчика: имя — для combobox, id (если совпало с существующим) — для фильтра объектов
+  const handleCustomerNameChange = (value: string) => {
+    setCustomerName(value);
     setDirError(''); setDirInfo('');
-    // только заказчик (без объекта) — тоже фиксируем, если уже есть draft
-    if (id != null && draftMeetingId) persistDraft(id, null);
+    const match = customers.find((c) => c.name.trim().toLowerCase() === value.trim().toLowerCase());
+    setSelectedCustomerId(match ? match.id : null);
+    setSelectedObjectId(null); // сменился заказчик — сбрасываем объект
+  };
+
+  // фиксируем заказчика в draft по завершении ввода. Если объект выбран — заказчик уже
+  // привязан через него (handleObjectChange), не трогаем, чтобы не отвязать объект.
+  const handleCustomerBlur = () => {
+    const name = customerName.trim();
+    if (name && selectedObjectId == null) persistDraft(name, null);
   };
 
   const handleObjectChange = (value: string) => {
@@ -83,9 +101,8 @@ export function MeetingContext({ onContextChange }: Props) {
     setSelectedObjectId(id);
     // объект автозадаёт заказчика
     const obj = objects.find((o) => o.id === id);
-    const custId = obj ? obj.customer_id : selectedCustomerId;
-    if (obj) setSelectedCustomerId(obj.customer_id);
-    if (id != null) persistDraft(custId ?? null, id);
+    if (obj) { setSelectedCustomerId(obj.customer_id); setCustomerName(obj.customer_name || ''); }
+    if (id != null) persistDraft(obj?.customer_name ?? (customerName.trim() || null), id);
   };
 
   const send = (t: string, n: string, nt: string, mr: string, ow: string) => {
@@ -128,14 +145,17 @@ export function MeetingContext({ onContextChange }: Props) {
       <div className="context-columns" style={styles.columns}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={styles.label}>Заказчик</label>
-          <select
+          <input
             style={styles.select}
-            value={selectedCustomerId ?? ''}
-            onChange={(e) => handleCustomerChange(e.target.value)}
-          >
-            <option value="">— не выбран —</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+            list="meeting-customers-dl"
+            value={customerName}
+            onChange={(e) => handleCustomerNameChange(e.target.value)}
+            onBlur={handleCustomerBlur}
+            placeholder="выберите или впишите нового"
+          />
+          <datalist id="meeting-customers-dl">
+            {customers.map((c) => <option key={c.id} value={c.name} />)}
+          </datalist>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={styles.label}>Объект</label>
@@ -143,16 +163,13 @@ export function MeetingContext({ onContextChange }: Props) {
             style={styles.select}
             value={selectedObjectId ?? ''}
             onChange={(e) => handleObjectChange(e.target.value)}
-            disabled={selectedCustomerId == null}
+            disabled={!customerName.trim()}
           >
-            <option value="">{selectedCustomerId == null ? 'сначала выберите заказчика' : '— не выбран —'}</option>
+            <option value="">{!customerName.trim() ? 'сначала выберите заказчика' : '— не выбран —'}</option>
             {objects.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         </div>
       </div>
-      {customers.length === 0 && (
-        <div style={styles.dirHint}>Справочник заказчиков пуст — заполните его в разделе «Справочники».</div>
-      )}
       {dirInfo && <div style={{ ...styles.dirHint, color: theme.accent.green }}>{dirInfo}</div>}
       {dirError && <div style={{ ...styles.dirHint, color: theme.accent.red }}>{dirError}</div>}
     </div>

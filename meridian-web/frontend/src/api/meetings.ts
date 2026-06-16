@@ -21,6 +21,7 @@ export function getDownloadUrl(id: number): string {
 export interface MeetingDraftInput {
   title?: string | null;
   customer_id?: number | null;
+  customer_name?: string | null;
   object_id?: number | null;
   meeting_topic?: string | null;
   meeting_notes?: string | null;

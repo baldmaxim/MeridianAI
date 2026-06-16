@@ -1,10 +1,11 @@
 """ProjectObjects directory API + object access grants (Этап 1 MVP)."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.dependencies import get_current_user
+from ..services.page_access import require_page
 from ..database import get_db
 from ..models.user import User
 from ..models.directory import Customer, ProjectObject, Department, ObjectAccessGrant
@@ -17,6 +18,35 @@ from ..schemas.directory import (
 )
 
 router = APIRouter()
+
+# Управление доступом к объекту — это операция справочника "Объекты" (§12).
+# Базовый CRUD объектов остаётся общим (нужен странице «Проекты»).
+_require_dir_objects = Depends(require_page("dir-objects"))
+
+
+async def resolve_or_create_customer(
+    db: AsyncSession, owner_user_id: int, name: str | None
+) -> Customer:
+    """Найти заказчика по имени (в рамках фирмы) или создать нового.
+
+    Заказчики больше не ведутся отдельным справочником — создаются на лету при
+    добавлении объекта/встречи. Поиск company-wide (как list_customers), регистр игнорируем.
+    """
+    clean = (name or "").strip()
+    if not clean:
+        raise HTTPException(422, "Укажите заказчика")
+    existing = (
+        await db.execute(
+            select(Customer).where(func.lower(Customer.name) == clean.lower())
+        )
+    ).scalars().first()
+    if existing:
+        return existing
+    customer = Customer(owner_user_id=owner_user_id, name=clean)
+    db.add(customer)
+    await db.flush()
+    await db.refresh(customer)
+    return customer
 
 
 def _obj_response(obj: ProjectObject, customer_name: str | None = None) -> ProjectObjectResponse:
@@ -48,10 +78,16 @@ async def create_object(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    customer = await db.get(Customer, data.customer_id)
-    if not customer:
-        raise HTTPException(422, "Заказчик не найден")
-    obj = ProjectObject(owner_user_id=user.id, **data.model_dump())
+    customer = await resolve_or_create_customer(db, user.id, data.customer_name)
+    obj = ProjectObject(
+        owner_user_id=user.id,
+        customer_id=customer.id,
+        name=data.name,
+        address=data.address,
+        description=data.description,
+        notes=data.notes,
+        is_active=data.is_active,
+    )
     db.add(obj)
     await db.flush()
     await db.refresh(obj)
@@ -82,10 +118,9 @@ async def update_object(
     if not obj:
         raise HTTPException(404, "Объект не найден")
     updates = data.model_dump(exclude_unset=True)
-    if "customer_id" in updates and updates["customer_id"] is not None:
-        customer = await db.get(Customer, updates["customer_id"])
-        if not customer:
-            raise HTTPException(422, "Заказчик не найден")
+    if "customer_name" in updates:
+        customer = await resolve_or_create_customer(db, user.id, updates.pop("customer_name"))
+        obj.customer_id = customer.id
     for key, value in updates.items():
         setattr(obj, key, value)
     await db.flush()
@@ -124,7 +159,7 @@ async def _grant_response(db: AsyncSession, grant: ObjectAccessGrant) -> ObjectA
     return resp
 
 
-@router.get("/{object_id}/access", response_model=list[ObjectAccessGrantResponse])
+@router.get("/{object_id}/access", response_model=list[ObjectAccessGrantResponse], dependencies=[_require_dir_objects])
 async def list_object_access(
     object_id: int,
     user: User = Depends(get_current_user),
@@ -141,7 +176,7 @@ async def list_object_access(
     return [await _grant_response(db, g) for g in result.scalars().all()]
 
 
-@router.post("/{object_id}/access", response_model=ObjectAccessGrantResponse)
+@router.post("/{object_id}/access", response_model=ObjectAccessGrantResponse, dependencies=[_require_dir_objects])
 async def create_object_access(
     object_id: int,
     data: ObjectAccessGrantCreate,
@@ -181,7 +216,7 @@ async def create_object_access(
     return await _grant_response(db, grant)
 
 
-@router.delete("/{object_id}/access/{grant_id}")
+@router.delete("/{object_id}/access/{grant_id}", dependencies=[_require_dir_objects])
 async def delete_object_access(
     object_id: int,
     grant_id: int,

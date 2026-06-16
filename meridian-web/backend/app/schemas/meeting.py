@@ -133,6 +133,7 @@ class MeetingBatchDelete(BaseModel):
 class MeetingCreate(BaseModel):
     title: str | None = None
     customer_id: int | None = None
+    customer_name: str | None = None
     object_id: int | None = None
     meeting_topic: str | None = None
     meeting_notes: str | None = None
@@ -144,6 +145,7 @@ class MeetingCreate(BaseModel):
 class MeetingUpdate(BaseModel):
     title: str | None = None
     customer_id: int | None = None
+    customer_name: str | None = None
     object_id: int | None = None
     status: str | None = None
     meeting_topic: str | None = None

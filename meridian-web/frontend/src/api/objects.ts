@@ -2,7 +2,7 @@ import api from './client';
 import type { ProjectObject, ObjectAccessGrant, GranteeType, AccessLevel } from '../types';
 
 export interface ProjectObjectInput {
-  customer_id: number;
+  customer_name: string;
   name: string;
   address?: string | null;
   description?: string | null;

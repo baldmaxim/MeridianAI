@@ -38,7 +38,7 @@ async def test_create_object(db):
     owner = await _mk_user(db, "owner-obj@test.local")
     c = await create_customer(CustomerCreate(name="Заказчик-1"), user=owner, db=db)
     o = await create_object(
-        ProjectObjectCreate(customer_id=c.id, name="Объект-1"), user=owner, db=db
+        ProjectObjectCreate(customer_name=c.name, name="Объект-1"), user=owner, db=db
     )
     assert o.id is not None
     assert o.customer_id == c.id
@@ -55,7 +55,7 @@ async def test_create_department(db):
 async def test_assign_object_to_department(db):
     owner = await _mk_user(db, "owner-grant@test.local")
     c = await create_customer(CustomerCreate(name="З-Грант"), user=owner, db=db)
-    o = await create_object(ProjectObjectCreate(customer_id=c.id, name="О-Грант"), user=owner, db=db)
+    o = await create_object(ProjectObjectCreate(customer_name=c.name, name="О-Грант"), user=owner, db=db)
     d = await create_department(DepartmentCreate(name="Д-Грант"), user=owner, db=db)
     g = await create_object_access(
         o.id,
@@ -74,7 +74,7 @@ async def test_access_object_via_department(db):
     stranger = await _mk_user(db, "stranger-acc@test.local")
 
     c = await create_customer(CustomerCreate(name="З-Acc"), user=owner, db=db)
-    o = await create_object(ProjectObjectCreate(customer_id=c.id, name="О-Acc"), user=owner, db=db)
+    o = await create_object(ProjectObjectCreate(customer_name=c.name, name="О-Acc"), user=owner, db=db)
     d = await create_department(DepartmentCreate(name="Д-Acc"), user=owner, db=db)
     await create_object_access(
         o.id, ObjectAccessGrantCreate(grantee_type="department", grantee_department_id=d.id), user=owner, db=db
@@ -93,7 +93,7 @@ async def test_access_meeting_via_object(db):
     stranger = await _mk_user(db, "stranger-mtg@test.local")
 
     c = await create_customer(CustomerCreate(name="З-Mtg"), user=owner, db=db)
-    o = await create_object(ProjectObjectCreate(customer_id=c.id, name="О-Mtg"), user=owner, db=db)
+    o = await create_object(ProjectObjectCreate(customer_name=c.name, name="О-Mtg"), user=owner, db=db)
     d = await create_department(DepartmentCreate(name="Д-Mtg"), user=owner, db=db)
     await create_object_access(
         o.id, ObjectAccessGrantCreate(grantee_type="department", grantee_department_id=d.id), user=owner, db=db

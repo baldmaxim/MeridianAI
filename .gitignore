@@ -73,3 +73,5 @@ meridian-web/frontend/dist/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+keys.env

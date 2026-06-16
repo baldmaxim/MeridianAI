@@ -14,6 +14,7 @@ from ..models.user import User
 from ..models.meeting import MeetingSession
 from ..models.ai_settings import AISettingsProfile
 from ..auth.dependencies import get_current_user
+from ..services.page_access import require_page
 from ..services.access import user_can_access_meeting, can_record_meeting
 from ..services.meeting_room import room_registry
 from ..services import ai_settings as ais
@@ -26,6 +27,10 @@ logger = logging.getLogger("meridian.ai_settings")
 
 router = APIRouter()          # /api/ai-settings
 meeting_router = APIRouter()  # /api/meetings
+
+# Управление профилями AI — страница "AI-профили" (§12). Чтение профилей/опций
+# остаётся общим: нужно при выборе профиля в окне встречи (MeetingAISettings).
+_require_ai = Depends(require_page("ai-settings"))
 
 
 # --- профили ---
@@ -62,7 +67,7 @@ async def list_profiles(user: User = Depends(get_current_user), db: AsyncSession
     return await ais.list_profiles(db, user.id)
 
 
-@router.post("/profiles", response_model=AISettingsProfileOut)
+@router.post("/profiles", response_model=AISettingsProfileOut, dependencies=[_require_ai])
 async def create_profile(data: AISettingsProfileCreate, user: User = Depends(get_current_user),
                          db: AsyncSession = Depends(get_db)):
     profile = AISettingsProfile(owner_user_id=user.id, name=data.name, profile_type="user",
@@ -83,7 +88,7 @@ async def get_profile(profile_id: int, user: User = Depends(get_current_user),
     return p
 
 
-@router.put("/profiles/{profile_id}", response_model=AISettingsProfileOut)
+@router.put("/profiles/{profile_id}", response_model=AISettingsProfileOut, dependencies=[_require_ai])
 async def update_profile(profile_id: int, data: AISettingsProfileUpdate,
                          user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     p = await db.get(AISettingsProfile, profile_id)
@@ -100,7 +105,7 @@ async def update_profile(profile_id: int, data: AISettingsProfileUpdate,
     return p
 
 
-@router.delete("/profiles/{profile_id}")
+@router.delete("/profiles/{profile_id}", dependencies=[_require_ai])
 async def delete_profile(profile_id: int, user: User = Depends(get_current_user),
                          db: AsyncSession = Depends(get_db)):
     p = await db.get(AISettingsProfile, profile_id)
@@ -113,7 +118,7 @@ async def delete_profile(profile_id: int, user: User = Depends(get_current_user)
     return {"ok": True}
 
 
-@router.post("/profiles/{profile_id}/make-default", response_model=AISettingsProfileOut)
+@router.post("/profiles/{profile_id}/make-default", response_model=AISettingsProfileOut, dependencies=[_require_ai])
 async def make_default_profile(profile_id: int, user: User = Depends(get_current_user),
                                db: AsyncSession = Depends(get_db)):
     p = await db.get(AISettingsProfile, profile_id)

@@ -9,12 +9,18 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.dependencies import get_current_user
+from ..services.page_access import require_page
 from ..database import get_db
 from ..models.user import User
 from ..models.directory import Customer, ProjectObject
 from ..schemas.directory import CustomerCreate, CustomerUpdate, CustomerResponse
 
 router = APIRouter()
+
+# Чтение заказчиков общее (нужно combobox объекта, фильтру истории, контексту встречи).
+# Отдельного справочника "Заказчики" больше нет — заказчик создаётся при добавлении объекта;
+# редкие прямые мутации заказчика гейтятся доступом к справочнику "Объекты" (§12).
+_require_dir = Depends(require_page("dir-objects"))
 
 
 @router.get("", response_model=list[CustomerResponse])
@@ -26,7 +32,7 @@ async def list_customers(
     return result.scalars().all()
 
 
-@router.post("", response_model=CustomerResponse)
+@router.post("", response_model=CustomerResponse, dependencies=[_require_dir])
 async def create_customer(
     data: CustomerCreate,
     user: User = Depends(get_current_user),
@@ -51,7 +57,7 @@ async def get_customer(
     return customer
 
 
-@router.put("/{customer_id}", response_model=CustomerResponse)
+@router.put("/{customer_id}", response_model=CustomerResponse, dependencies=[_require_dir])
 async def update_customer(
     customer_id: int,
     data: CustomerUpdate,
@@ -68,7 +74,7 @@ async def update_customer(
     return customer
 
 
-@router.delete("/{customer_id}")
+@router.delete("/{customer_id}", dependencies=[_require_dir])
 async def delete_customer(
     customer_id: int,
     user: User = Depends(get_current_user),

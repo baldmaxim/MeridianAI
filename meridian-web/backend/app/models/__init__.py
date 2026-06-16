@@ -31,6 +31,7 @@ from .knowledge import (
 from .context_source import MeetingContextSource
 from .ai_settings import AISettingsProfile
 from .meeting_conversation import MeetingConversationTopic, MeetingSpeakerRole
+from .role_page_access import RolePageAccess
 
 __all__ = [
     "User",
@@ -69,4 +70,5 @@ __all__ = [
     "AISettingsProfile",
     "MeetingConversationTopic",
     "MeetingSpeakerRole",
+    "RolePageAccess",
 ]

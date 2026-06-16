@@ -6,6 +6,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { MeetingDetailPage } from './pages/MeetingDetailPage';
 import { BatchPage } from './pages/BatchPage';
 import { DirectoryPage } from './pages/DirectoryPage';
+import type { DirSection } from './pages/DirectoryPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { AISettingsPage } from './pages/AISettingsPage';
 import { ObjectsPage } from './pages/ObjectsPage';
@@ -20,10 +21,18 @@ import { useMeetingStore } from './store/meetingStore';
 import { createMeeting } from './api/meetings';
 import type { ProjectObject } from './types';
 
-type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch' | 'directory' | 'knowledge' | 'ai-settings' | 'settings';
+type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
+  | 'directory' | 'dir-objects' | 'dir-departments' | 'knowledge' | 'ai-settings' | 'settings';
 
-// Разделы только для админа (скрыты у обычного пользователя и в режиме «смотреть как пользователь»).
-const ADMIN_PAGES: Page[] = ['settings', 'directory', 'knowledge', 'ai-settings'];
+// Под-потоки, всегда доступные авторизованному (не входят в матрицу доступа).
+const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail'];
+
+// Подстраницы справочника ↔ ключи каталога page-access.
+const DIR_PAGE_BY_SECTION: Record<DirSection, Page> = {
+  objects: 'dir-objects',
+  departments: 'dir-departments',
+};
+const DIR_SECTIONS: DirSection[] = ['objects', 'departments'];
 
 function App() {
   const { user, loading, login, register, logout } = useAuth();
@@ -69,6 +78,17 @@ function App() {
   const isAdmin = user.role === 'admin';
   const effectiveAdmin = isAdmin && !viewAsUser;
 
+  // Активный набор доступных страниц (page-access): реальный пользователь → его роль;
+  // админ в режиме «смотреть как пользователь» → набор роли user.
+  const activePages = new Set<string>(
+    isAdmin
+      ? (viewAsUser ? (user.user_role_pages ?? []) : (user.allowed_pages ?? []))
+      : (user.allowed_pages ?? [])
+  );
+  const canAccess = (key: string) => activePages.has(key);
+  const dirSections = DIR_SECTIONS.filter((s) => canAccess(DIR_PAGE_BY_SECTION[s]));
+  const canDirectory = dirSections.length > 0;
+
   const openObject = (id: number) => { setSelectedObjectId(id); setCurrentPage('object-detail'); };
 
   // Открыть существующую встречу — переиспользуем read-only детальную страницу (с «Продолжить»).
@@ -98,7 +118,15 @@ function App() {
   const onToggleViewAs = () => {
     const next = !viewAsUser;
     setViewAsUser(next);
-    if (next && ADMIN_PAGES.includes(currentPage)) setCurrentPage('objects');
+    if (next) {
+      // Уходим со страницы, недоступной роли user, чтобы превью было консистентным.
+      const userPages = new Set<string>(user.user_role_pages ?? []);
+      const reachable = ALWAYS_PAGES.includes(currentPage)
+        || (currentPage === 'directory'
+          ? DIR_SECTIONS.some((s) => userPages.has(DIR_PAGE_BY_SECTION[s]))
+          : userPages.has(currentPage));
+      if (!reachable) setCurrentPage('objects');
+    }
   };
 
   const objectsPage = (
@@ -106,8 +134,12 @@ function App() {
   );
 
   const renderPage = () => {
-    // Защита: админ-страница недоступна без прав — отдаём список объектов.
-    if (ADMIN_PAGES.includes(currentPage) && !effectiveAdmin) return objectsPage;
+    // Гард доступа по матрице. Реальный админ всегда видит settings (анти-локаут).
+    if (!ALWAYS_PAGES.includes(currentPage)) {
+      const hardAllow = effectiveAdmin && currentPage === 'settings';
+      const ok = currentPage === 'directory' ? canDirectory : canAccess(currentPage);
+      if (!ok && !hardAllow) return objectsPage;
+    }
     switch (currentPage) {
       case 'objects':
         return objectsPage;
@@ -127,7 +159,29 @@ function App() {
       case 'batch':
         return <BatchPage onBack={() => setCurrentPage('objects')} />;
       case 'directory':
-        return <DirectoryPage onBack={() => setCurrentPage('objects')} />;
+        return (
+          <DirectoryPage
+            onBack={() => setCurrentPage('objects')}
+            onOpenSection={(s) => setCurrentPage(DIR_PAGE_BY_SECTION[s])}
+            accessible={dirSections}
+          />
+        );
+      case 'dir-objects':
+        return (
+          <DirectoryPage
+            section="objects"
+            onBack={() => setCurrentPage('objects')}
+            onBackToHub={() => setCurrentPage('directory')}
+          />
+        );
+      case 'dir-departments':
+        return (
+          <DirectoryPage
+            section="departments"
+            onBack={() => setCurrentPage('objects')}
+            onBackToHub={() => setCurrentPage('directory')}
+          />
+        );
       case 'knowledge':
         return <KnowledgePage onBack={() => setCurrentPage('objects')} />;
       case 'ai-settings':
@@ -163,15 +217,15 @@ function App() {
       onLogout={logout}
       onShowObjects={() => setCurrentPage('objects')}
       showObjects={currentPage === 'objects' || currentPage === 'object-detail'}
-      onShowSettings={effectiveAdmin ? () => setCurrentPage(currentPage === 'settings' ? 'objects' : 'settings') : undefined}
+      onShowSettings={canAccess('settings') ? () => setCurrentPage(currentPage === 'settings' ? 'objects' : 'settings') : undefined}
       showSettings={currentPage === 'settings'}
-      onShowBatch={() => setCurrentPage(currentPage === 'batch' ? 'objects' : 'batch')}
+      onShowBatch={canAccess('batch') ? () => setCurrentPage(currentPage === 'batch' ? 'objects' : 'batch') : undefined}
       showBatch={currentPage === 'batch'}
-      onShowDirectory={effectiveAdmin ? () => setCurrentPage(currentPage === 'directory' ? 'objects' : 'directory') : undefined}
-      showDirectory={currentPage === 'directory'}
-      onShowKnowledge={effectiveAdmin ? () => setCurrentPage(currentPage === 'knowledge' ? 'objects' : 'knowledge') : undefined}
+      onShowDirectory={canDirectory ? () => setCurrentPage(currentPage === 'directory' ? 'objects' : 'directory') : undefined}
+      showDirectory={currentPage === 'directory' || currentPage === 'dir-objects' || currentPage === 'dir-departments'}
+      onShowKnowledge={canAccess('knowledge') ? () => setCurrentPage(currentPage === 'knowledge' ? 'objects' : 'knowledge') : undefined}
       showKnowledge={currentPage === 'knowledge'}
-      onShowAISettings={effectiveAdmin ? () => setCurrentPage(currentPage === 'ai-settings' ? 'objects' : 'ai-settings') : undefined}
+      onShowAISettings={canAccess('ai-settings') ? () => setCurrentPage(currentPage === 'ai-settings' ? 'objects' : 'ai-settings') : undefined}
       showAISettings={currentPage === 'ai-settings'}
       canSwitchRole={isAdmin}
       viewAsUser={viewAsUser}

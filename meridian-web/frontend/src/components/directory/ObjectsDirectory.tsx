@@ -20,7 +20,7 @@ export function ObjectsDirectory() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ProjectObject | null>(null);
   const [name, setName] = useState('');
-  const [customerId, setCustomerId] = useState<number | ''>('');
+  const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
 
@@ -42,21 +42,21 @@ export function ObjectsDirectory() {
 
   function startCreate() {
     setEditing(null);
-    setName(''); setCustomerId(customers[0]?.id ?? ''); setAddress(''); setDescription('');
+    setName(''); setCustomerName(''); setAddress(''); setDescription('');
     setShowForm(true);
   }
 
   function startEdit(o: ProjectObject) {
     setEditing(o);
-    setName(o.name); setCustomerId(o.customer_id); setAddress(o.address || ''); setDescription(o.description || '');
+    setName(o.name); setCustomerName(o.customer_name || ''); setAddress(o.address || ''); setDescription(o.description || '');
     setShowForm(true);
   }
 
   async function save() {
     setError('');
     if (!name.trim()) { setError('Укажите название объекта'); return; }
-    if (customerId === '') { setError('Выберите заказчика'); return; }
-    const payload = { name: name.trim(), customer_id: Number(customerId), address: address.trim() || null, description: description.trim() || null };
+    if (!customerName.trim()) { setError('Укажите заказчика'); return; }
+    const payload = { name: name.trim(), customer_name: customerName.trim(), address: address.trim() || null, description: description.trim() || null };
     try {
       if (editing) await updateObject(editing.id, payload);
       else await createObject(payload);
@@ -79,9 +79,8 @@ export function ObjectsDirectory() {
       <div style={s.toolbar}>
         <div style={s.header}><span style={s.dot} /><span style={s.title}>Объекты</span></div>
         <span style={{ flex: 1 }} />
-        <button style={s.btn} onClick={startCreate} disabled={customers.length === 0}>+ Объект</button>
+        <button style={s.btn} onClick={startCreate}>+ Объект</button>
       </div>
-      {customers.length === 0 && <div style={s.empty}>Сначала создайте заказчика — объект привязывается к нему.</div>}
       {error && <div style={s.error}>{error}</div>}
 
       {showForm && (
@@ -89,10 +88,16 @@ export function ObjectsDirectory() {
           <label style={s.label}>Название *</label>
           <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="ЖК «Рассвет», корпус 2" />
           <label style={s.label}>Заказчик *</label>
-          <select style={s.select} value={customerId} onChange={(e) => setCustomerId(e.target.value === '' ? '' : Number(e.target.value))}>
-            <option value="">— выберите —</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <input
+            style={s.input}
+            list="dir-object-customers-dl"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="ООО «Стройзаказ» — выберите или впишите нового"
+          />
+          <datalist id="dir-object-customers-dl">
+            {customers.map((c) => <option key={c.id} value={c.name} />)}
+          </datalist>
           <label style={s.label}>Адрес</label>
           <input style={s.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="необязательно" />
           <label style={s.label}>Описание</label>
@@ -104,7 +109,7 @@ export function ObjectsDirectory() {
         </div>
       )}
 
-      {items.length === 0 && customers.length > 0 && <div style={s.empty}>Объектов пока нет</div>}
+      {items.length === 0 && <div style={s.empty}>Объектов пока нет</div>}
       <div style={s.list}>
         {items.map((o) => (
           <div key={o.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>

@@ -1,5 +1,6 @@
 import { ApiKeyManager } from '../components/admin/ApiKeyManager';
 import { UserManager } from '../components/admin/UserManager';
+import { PageAccessMatrix } from '../components/admin/PageAccessMatrix';
 import { theme } from '../styles/theme';
 
 function StatCard({ value, label, change, changeColor }: {
@@ -69,6 +70,11 @@ export function AdminPage({ onBack, embedded }: Props) {
         <div className="admin-section" style={styles.section}>
           <UserManager />
         </div>
+      </div>
+
+      {/* Page access matrix (доступ к страницам по ролям) */}
+      <div className="admin-section" style={styles.section}>
+        <PageAccessMatrix />
       </div>
     </div>
   );

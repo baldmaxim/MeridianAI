@@ -37,7 +37,7 @@ class CustomerResponse(BaseModel):
 
 
 class ProjectObjectCreate(BaseModel):
-    customer_id: int
+    customer_name: str
     name: str
     address: str | None = None
     description: str | None = None
@@ -46,7 +46,7 @@ class ProjectObjectCreate(BaseModel):
 
 
 class ProjectObjectUpdate(BaseModel):
-    customer_id: int | None = None
+    customer_name: str | None = None
     name: str | None = None
     address: str | None = None
     description: str | None = None

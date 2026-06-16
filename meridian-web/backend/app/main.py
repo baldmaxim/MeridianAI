@@ -40,6 +40,7 @@ from .api.context_sources import router as context_sources_router
 from .api.conversation_tree import router as conversation_tree_router
 from .api.speaker_roles import router as speaker_roles_router
 from .api.ai_settings import router as ai_settings_router, meeting_router as ai_settings_meeting_router
+from .api.role_page_access import router as page_access_router
 from .api.health import router as health_api_router
 from .ws.handler import router as ws_router
 
@@ -227,6 +228,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(oidc_router, prefix="/api/auth", tags=["auth-oidc"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+app.include_router(page_access_router, prefix="/api/admin/page-access", tags=["page-access"])
 app.include_router(providers_router, prefix="/api/settings/providers", tags=["settings"])
 app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
 app.include_router(documents_router, prefix="/api/documents", tags=["documents"])
@@ -234,6 +236,9 @@ app.include_router(meetings_router, prefix="/api/transcriptions", tags=["meeting
 app.include_router(roles_router, prefix="/api/roles", tags=["roles"])
 app.include_router(history_router, prefix="/api/meetings", tags=["meetings-history"])
 app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
+# §12: page-access enforcement применяется per-endpoint в самих роутерах (require_page),
+# только на МУТАЦИИ — GET-списки справочников нужны общим потокам (модалка объекта,
+# фильтр истории, AI-настройки встречи), поэтому остаются открытыми.
 app.include_router(customers_router, prefix="/api/customers", tags=["customers"])
 app.include_router(objects_router, prefix="/api/objects", tags=["objects"])
 app.include_router(departments_router, prefix="/api/departments", tags=["departments"])

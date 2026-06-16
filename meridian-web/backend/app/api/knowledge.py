@@ -19,10 +19,14 @@ from ..schemas.learning import (
     GlossaryTermOut, TriggerPhraseOut, NegotiationPlaybookOut, CounterpartyTraitOut, ForbiddenPhraseOut,
 )
 from ..auth.dependencies import get_current_user
+from ..services.page_access import require_page
 
 logger = logging.getLogger("meridian.knowledge")
 
 router = APIRouter()
+
+# Архивация элемента — управление базой знаний (§12); чтение остаётся общим.
+_require_knowledge = Depends(require_page("knowledge"))
 
 _KINDS = {
     "terms": GlossaryTerm,
@@ -79,7 +83,7 @@ async def list_forbidden(status: str | None = Query("approved"), customer_id: in
     return await _list(ForbiddenPhrase, db, user, status, customer_id, object_id)
 
 
-@router.post("/{kind}/{item_id}/archive")
+@router.post("/{kind}/{item_id}/archive", dependencies=[_require_knowledge])
 async def archive_item(kind: str, item_id: int, db: AsyncSession = Depends(get_db),
                        user: User = Depends(get_current_user)):
     model = _KINDS.get(kind)

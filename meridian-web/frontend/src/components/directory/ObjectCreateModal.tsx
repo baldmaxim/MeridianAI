@@ -11,31 +11,32 @@ interface Props {
   onCreated: () => void;
 }
 
-/** Минимальная модалка создания объекта (для всех ролей). Заказчик — только выбор из списка. */
+/** Минимальная модалка создания объекта (для всех ролей).
+ *  Заказчик — текстовое поле с подсказками из уже созданных (combobox): можно выбрать
+ *  существующего или вписать нового — он создастся вместе с объектом. */
 export function ObjectCreateModal({ onClose, onCreated }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [name, setName] = useState('');
-  const [customerId, setCustomerId] = useState<number | ''>('');
+  const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    listCustomers()
-      .then((cs) => { setCustomers(cs); setCustomerId(cs[0]?.id ?? ''); })
-      .catch((e) => setError(apiErrorMessage(e, 'Не удалось загрузить заказчиков')));
+    // список — только источник подсказок; пустой список не мешает создавать объект
+    listCustomers().then(setCustomers).catch(() => { /* справочник может быть пуст */ });
   }, []);
 
   async function save() {
     setError('');
     if (!name.trim()) { setError('Укажите название объекта'); return; }
-    if (customerId === '') { setError('Выберите заказчика'); return; }
+    if (!customerName.trim()) { setError('Укажите заказчика'); return; }
     setSaving(true);
     try {
       await createObject({
         name: name.trim(),
-        customer_id: Number(customerId),
+        customer_name: customerName.trim(),
         address: address.trim() || null,
         description: description.trim() || null,
       });
@@ -55,27 +56,29 @@ export function ObjectCreateModal({ onClose, onCreated }: Props) {
           <button style={styles.close} onClick={onClose}>×</button>
         </div>
 
-        {customers.length === 0 ? (
-          <div style={s.empty}>Заказчиков пока нет. Обратитесь к администратору для создания заказчика.</div>
-        ) : (
-          <div style={s.formCard}>
-            <label style={s.label}>Название *</label>
-            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="ЖК «Рассвет», корпус 2" autoFocus />
-            <label style={s.label}>Заказчик *</label>
-            <select style={s.select} value={customerId} onChange={(e) => setCustomerId(e.target.value === '' ? '' : Number(e.target.value))}>
-              <option value="">— выберите —</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <label style={s.label}>Адрес</label>
-            <input style={s.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="необязательно" />
-            <label style={s.label}>Описание</label>
-            <input style={s.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="необязательно" />
-            <div style={s.formRow}>
-              <button style={s.btn} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
-              <button style={s.btnGhost} onClick={onClose}>Отмена</button>
-            </div>
+        <div style={s.formCard}>
+          <label style={s.label}>Название *</label>
+          <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="ЖК «Рассвет», корпус 2" autoFocus />
+          <label style={s.label}>Заказчик *</label>
+          <input
+            style={s.input}
+            list="object-customers-dl"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="ООО «Стройзаказ» — выберите или впишите нового"
+          />
+          <datalist id="object-customers-dl">
+            {customers.map((c) => <option key={c.id} value={c.name} />)}
+          </datalist>
+          <label style={s.label}>Адрес</label>
+          <input style={s.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="необязательно" />
+          <label style={s.label}>Описание</label>
+          <input style={s.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="необязательно" />
+          <div style={s.formRow}>
+            <button style={s.btn} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
+            <button style={s.btnGhost} onClick={onClose}>Отмена</button>
           </div>
-        )}
+        </div>
 
         {error && <div style={s.error}>{error}</div>}
       </div>

@@ -25,5 +25,9 @@ class UserResponse(BaseModel):
     role: str
     display_name: str | None
     is_active: bool
+    # Доступные роли страницы (ключи каталога) — заполняется в /auth/me.
+    allowed_pages: list[str] = []
+    # Набор роли "user" — для превью режима «смотреть как пользователь» (только admin).
+    user_role_pages: list[str] | None = None
 
     model_config = {"from_attributes": True}

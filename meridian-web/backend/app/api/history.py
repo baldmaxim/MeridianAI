@@ -36,6 +36,7 @@ from ..services.access import (
     user_can_access_document,
     can_record_meeting,
 )
+from ..api.objects import resolve_or_create_customer
 from ..services.meeting_room import room_registry, compute_live_state
 from ..services.meeting_finalize import request_finalization
 from ..schemas.document import MeetingDocumentItem, MeetingDocumentPatch
@@ -57,9 +58,13 @@ router = APIRouter()
 
 
 async def _resolve_customer_object(
-    db: AsyncSession, user: User, customer_id: int | None, object_id: int | None
+    db: AsyncSession, user: User, customer_id: int | None, object_id: int | None,
+    customer_name: str | None = None,
 ) -> tuple[int | None, int | None]:
-    """Проверяет связку customer/object и доступ пользователя. Возвращает (customer_id, object_id)."""
+    """Проверяет связку customer/object и доступ пользователя. Возвращает (customer_id, object_id).
+
+    Приоритет резолва заказчика: объект → customer_id → customer_name (найти-или-создать).
+    """
     if object_id is not None:
         obj = await db.get(ProjectObject, object_id)
         if obj is None:
@@ -73,6 +78,9 @@ async def _resolve_customer_object(
     elif customer_id is not None:
         if await db.get(Customer, customer_id) is None:
             raise HTTPException(422, "Заказчик не найден")
+    elif customer_name and customer_name.strip():
+        customer = await resolve_or_create_customer(db, user.id, customer_name)
+        customer_id = customer.id
     return customer_id, object_id
 
 
@@ -185,7 +193,7 @@ async def create_meeting(
     WS при подключении подхватит самую свежую активную встречу (без изменений в WS).
     """
     customer_id, object_id = await _resolve_customer_object(
-        db, user, data.customer_id, data.object_id
+        db, user, data.customer_id, data.object_id, data.customer_name
     )
 
     # Этап 9: новая встреча получает default AI-профиль пользователя
@@ -232,16 +240,24 @@ async def update_meeting(
 
     updates = data.model_dump(exclude_unset=True)
     # привязка заказчик/объект проверяется только если что-то из них меняется
-    if "customer_id" in updates or "object_id" in updates:
-        new_customer = updates.get("customer_id", meeting.customer_id)
+    if "customer_id" in updates or "object_id" in updates or "customer_name" in updates:
         new_object = updates.get("object_id", meeting.object_id)
+        cust_name = updates.get("customer_name")
+        # приоритет: явный customer_id → текстовый customer_name → текущий заказчик встречи
+        if "customer_id" in updates:
+            new_customer = updates["customer_id"]
+        elif cust_name and cust_name.strip():
+            new_customer = None  # пусть резолвится из customer_name (найти-или-создать)
+        else:
+            new_customer = meeting.customer_id
         new_customer, new_object = await _resolve_customer_object(
-            db, user, new_customer, new_object
+            db, user, new_customer, new_object, cust_name
         )
         meeting.customer_id = new_customer
         meeting.object_id = new_object
         updates.pop("customer_id", None)
         updates.pop("object_id", None)
+        updates.pop("customer_name", None)
 
     for key, value in updates.items():
         setattr(meeting, key, value)
