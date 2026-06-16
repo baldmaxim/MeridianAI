@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { theme } from '../../styles/theme';
 import { MobileLayout } from '../../components/mobile/MobileLayout';
 import { getMobileMeeting, getLiveState } from '../../api/mobile';
+import { finalizeMeeting } from '../../api/finalization';
 import { navigate } from '../../lib/navigation';
 import { apiErrorMessage } from '../../lib/apiError';
 import type { MobileMeetingDetail, LiveState } from '../../types';
@@ -14,6 +15,21 @@ export function MobileMeetingDetailPage({ meetingId }: Props) {
   const [m, setM] = useState<MobileMeetingDetail | null>(null);
   const [live, setLive] = useState<LiveState | null>(null);
   const [error, setError] = useState('');
+  const [finalizing, setFinalizing] = useState(false);
+
+  async function handleFinalize() {
+    if (finalizing) return;
+    setFinalizing(true);
+    try {
+      await finalizeMeeting(meetingId);
+      const d = await getMobileMeeting(meetingId);
+      setM(d); setLive(d.live_state);
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Не удалось завершить встречу'));
+    } finally {
+      setFinalizing(false);
+    }
+  }
 
   useEffect(() => {
     getMobileMeeting(meetingId)
@@ -200,6 +216,11 @@ export function MobileMeetingDetailPage({ meetingId }: Props) {
         <button style={styles.primaryBtn} onClick={() => navigate(`/recorder/${m.id}`)}>
           {canRecord ? '🎙 Открыть диктофон' : '👁 Подключиться к просмотру'}
         </button>
+        {canRecord && m.status === 'active' && (
+          <button style={styles.finalizeBtn} onClick={handleFinalize} disabled={finalizing}>
+            {finalizing ? 'Завершение…' : '✓ Завершить встречу'}
+          </button>
+        )}
         {!canRecord && (
           <div style={styles.permNote}>
             У вас есть доступ к просмотру встречи, но нет права запускать запись.
@@ -235,6 +256,10 @@ const styles: Record<string, React.CSSProperties> = {
   primaryBtn: {
     padding: '14px', background: theme.accent.amber, border: 'none', borderRadius: 10,
     color: '#080A0F', fontSize: 15, fontWeight: 700, fontFamily: theme.font.body, cursor: 'pointer',
+  },
+  finalizeBtn: {
+    padding: '14px', background: 'transparent', border: `1px solid ${theme.accent.green}`, borderRadius: 10,
+    color: theme.accent.green, fontSize: 15, fontWeight: 700, fontFamily: theme.font.body, cursor: 'pointer',
   },
   permNote: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted, textAlign: 'center' as const, lineHeight: 1.5 },
   muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 13, padding: '12px 0' },

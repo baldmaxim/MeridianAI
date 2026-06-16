@@ -97,10 +97,15 @@ async def list_meetings(
     object_id: int | None = Query(None),
     status: str | None = Query(None),
     q: str | None = Query(None),
+    include_active: bool = Query(False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List finished meetings the user has access to (created/participant/object grant)."""
+    """List meetings the user has access to (created/participant/object grant).
+
+    По умолчанию — только завершённые (is_active == False). include_active=True
+    добавляет незавершённые черновики (чтобы запись с телефона не «терялась» на ПК).
+    """
     seg_count = (
         select(func.count(TranscriptSegmentRecord.id))
         .where(TranscriptSegmentRecord.session_id == MeetingSession.id)
@@ -136,12 +141,13 @@ async def list_meetings(
         .outerjoin(Customer, Customer.id == MeetingSession.customer_id)
         .outerjoin(ProjectObject, ProjectObject.id == MeetingSession.object_id)
         .where(
-            MeetingSession.is_active == False,
             accessible_meeting_filter(user.id),
         )
         .order_by(MeetingSession.started_at.desc())
     )
 
+    if not include_active:
+        stmt = stmt.where(MeetingSession.is_active == False)
     if customer_id is not None:
         stmt = stmt.where(MeetingSession.customer_id == customer_id)
     if object_id is not None:

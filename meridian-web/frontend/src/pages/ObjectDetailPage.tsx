@@ -29,7 +29,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onNewMeeting
     (async () => {
       setLoading(true); setError('');
       try {
-        const [obj, ms] = await Promise.all([getObject(objectId), listMeetings({ object_id: objectId })]);
+        const [obj, ms] = await Promise.all([getObject(objectId), listMeetings({ object_id: objectId, include_active: true })]);
         if (cancelled) return;
         setObject(obj);
         setMeetings(ms);

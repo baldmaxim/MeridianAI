@@ -6,14 +6,16 @@ export interface MeetingFilters {
   object_id?: number;
   status?: string;
   q?: string;
+  include_active?: boolean;
 }
 
 export async function listMeetings(filters?: MeetingFilters): Promise<MeetingListItem[]> {
-  const params: Record<string, string | number> = {};
+  const params: Record<string, string | number | boolean> = {};
   if (filters?.customer_id != null) params.customer_id = filters.customer_id;
   if (filters?.object_id != null) params.object_id = filters.object_id;
   if (filters?.status) params.status = filters.status;
   if (filters?.q) params.q = filters.q;
+  if (filters?.include_active) params.include_active = true;
   const { data } = await api.get<MeetingListItem[]>('/meetings', { params });
   return data;
 }

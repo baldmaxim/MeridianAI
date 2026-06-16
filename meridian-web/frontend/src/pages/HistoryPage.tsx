@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
 import { listMeetings, batchDeleteMeetings } from '../api/history';
-import { retryFinalization } from '../api/finalization';
+import { retryFinalization, finalizeMeeting } from '../api/finalization';
 import { listCustomers } from '../api/customers';
 import { listObjects } from '../api/objects';
 import type { MeetingListItem, Customer, ProjectObject, FinalizationStatus } from '../types';
@@ -59,6 +59,10 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [confirmBatch, setConfirmBatch] = useState(false);
+  const [finalizingId, setFinalizingId] = useState<number | null>(null);
+
+  // Завершённые (по умолчанию) | Черновики (active) | Все
+  const [view, setView] = useState<'finished' | 'drafts' | 'all'>('finished');
 
   // Этап 1 MVP: фильтры по заказчику/объекту + поиск
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -81,7 +85,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
   useEffect(() => {
     loadMeetings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCustomerId, filterObjectId]);
+  }, [filterCustomerId, filterObjectId, view]);
 
   async function loadMeetings() {
     try {
@@ -90,12 +94,25 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
         customer_id: filterCustomerId === '' ? undefined : filterCustomerId,
         object_id: filterObjectId === '' ? undefined : filterObjectId,
         q: search.trim() || undefined,
+        include_active: view !== 'finished',
+        status: view === 'drafts' ? 'active' : undefined,
       });
       setMeetings(data);
     } catch {
       setError('Ошибка загрузки истории');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleFinalize(id: number) {
+    if (finalizingId != null) return;
+    setFinalizingId(id);
+    try {
+      await finalizeMeeting(id);
+      await loadMeetings();
+    } catch { /* ignore */ } finally {
+      setFinalizingId(null);
     }
   }
 
@@ -182,6 +199,19 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
         )}
       </div>
 
+      {/* Вид: завершённые / черновики / все */}
+      <div style={styles.viewTabs}>
+        {([['finished', 'Завершённые'], ['drafts', 'Черновики'], ['all', 'Все']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setView(key)}
+            style={view === key ? styles.viewTabActive : styles.viewTab}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Фильтры (Этап 1 MVP) */}
       <div style={styles.filters}>
         <select
@@ -217,8 +247,12 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
       {!loading && !error && meetings.length === 0 && (
         <div style={styles.emptyCard}>
           <div style={styles.emptyIcon}>&#9711;</div>
-          <div style={styles.emptyText}>Нет завершенных встреч</div>
-          <div style={styles.emptyHint}>Встречи появятся здесь после завершения сессии</div>
+          <div style={styles.emptyText}>
+            {view === 'drafts' ? 'Нет черновиков' : view === 'all' ? 'Нет встреч' : 'Нет завершённых встреч'}
+          </div>
+          <div style={styles.emptyHint}>
+            {view === 'finished' ? 'Встречи появятся здесь после завершения сессии' : 'Незавершённые встречи (запись с телефона/ПК) показываются здесь'}
+          </div>
         </div>
       )}
 
@@ -311,6 +345,16 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                   </span>
                 </div>
               </button>
+              {m.status === 'active' && (
+                <button
+                  style={styles.finalizeSide}
+                  onClick={() => handleFinalize(m.id)}
+                  disabled={finalizingId === m.id}
+                  title="Завершить встречу"
+                >
+                  {finalizingId === m.id ? '…' : '✓'}
+                </button>
+              )}
               {m.finalization_status === 'error' && (
                 <button style={styles.retrySide} onClick={() => handleRetry(m.id)} title="Повторить формирование протокола">↻</button>
               )}
@@ -582,6 +626,45 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.accent.red,
     cursor: 'pointer',
     fontSize: 16,
+  },
+  finalizeSide: {
+    flexShrink: 0,
+    width: 40,
+    background: theme.bg.card,
+    border: `1px solid ${theme.accent.green}`,
+    borderLeft: 'none',
+    borderRadius: '0 10px 10px 0',
+    color: theme.accent.green,
+    cursor: 'pointer',
+    fontSize: 16,
+  },
+  viewTabs: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+  },
+  viewTab: {
+    padding: '6px 14px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 20,
+    color: theme.text.secondary,
+    cursor: 'pointer',
+    fontSize: 11,
+    fontFamily: theme.font.mono,
+    letterSpacing: '0.04em',
+  },
+  viewTabActive: {
+    padding: '6px 14px',
+    background: theme.accent.amberGlow,
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 20,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontSize: 11,
+    fontFamily: theme.font.mono,
+    fontWeight: 600,
+    letterSpacing: '0.04em',
   },
   filters: {
     display: 'flex',
