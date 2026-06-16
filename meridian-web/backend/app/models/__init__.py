@@ -30,6 +30,7 @@ from .knowledge import (
 )
 from .context_source import MeetingContextSource
 from .ai_settings import AISettingsProfile
+from .meeting_conversation import MeetingConversationTopic
 
 __all__ = [
     "User",
@@ -66,4 +67,5 @@ __all__ = [
     "ForbiddenPhrase",
     "MeetingContextSource",
     "AISettingsProfile",
+    "MeetingConversationTopic",
 ]

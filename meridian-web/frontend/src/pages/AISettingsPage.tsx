@@ -22,6 +22,7 @@ const TOGGLES: { key: keyof AISettingsProfileInput; label: string }[] = [
   { key: 'suggestion_structured_enabled', label: 'Структурированные подсказки' },
   { key: 'finalization_enabled', label: 'Финализация (протокол)' },
   { key: 'learning_extraction_enabled', label: 'Авто-обучение базы знаний' },
+  { key: 'conversation_tree_enabled', label: 'Дерево общения (live)' },
 ];
 
 const MODEL_FIELDS: { key: keyof AISettingsProfileInput; label: string }[] = [
@@ -48,6 +49,7 @@ function blankDraft(): AISettingsProfileInput {
     auto_suggestions_enabled: true, document_context_enabled: true, knowledge_context_enabled: true,
     previous_meetings_context_enabled: true, suggestion_structured_enabled: true,
     finalization_enabled: true, learning_extraction_enabled: true,
+    conversation_tree_enabled: true,
   };
 }
 

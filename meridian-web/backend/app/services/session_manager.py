@@ -170,6 +170,10 @@ class SessionManager:
         # WebSocket send callback
         self._ws_send: Optional[Callable] = None
 
+        # Conversation Tree: хук на committed-сегмент (fn(segment, role) -> awaitable).
+        # Ставит MeetingRoom (есть доступ к БД). Fire-and-forget, не блокирует STT.
+        self._committed_hook: Optional[Callable] = None
+
         # Этап 4: провайдер контекста документов встречи (DB-backed), async(meeting_id, query)->str
         self._doc_context_provider: Optional[Callable] = None
 
@@ -192,6 +196,22 @@ class SessionManager:
     def set_ws_send(self, send_func: Callable):
         """Set WebSocket send function for pushing messages to client."""
         self._ws_send = send_func
+
+    def set_committed_hook(self, hook: Callable):
+        """Conversation Tree: колбэк на committed-сегмент, async(segment, role)."""
+        self._committed_hook = hook
+
+    def _fire_committed_hook(self, segment) -> None:
+        """Fire-and-forget вызов committed-хука. Ошибки не должны ломать пайплайн."""
+        if not self._committed_hook:
+            return
+        speaker = (getattr(segment, "speaker_label", None) or getattr(segment, "speaker_id", None)
+                   or getattr(segment, "speaker", None) or "")
+        role = self.speaker_roles.get(speaker)
+        try:
+            asyncio.create_task(self._committed_hook(segment, role))
+        except Exception:
+            pass
 
     def set_doc_context_provider(self, provider: Callable):
         """Этап 4: провайдер релевантных фрагментов документов встречи из БД."""
@@ -484,6 +504,9 @@ class SessionManager:
         # Schedule debounced AI hint check
         self._schedule_hint_check(segment)
 
+        # Conversation Tree: обновить дерево общения (fire-and-forget)
+        self._fire_committed_hook(segment)
+
     def _on_stt_error(self, error_type: str, error_msg: str):
         """Handle STT error events."""
         if self._ws_send:
@@ -531,6 +554,9 @@ class SessionManager:
 
                 # Check auto-triggers for final segments
                 asyncio.create_task(self._check_legacy_auto_triggers(segment.text))
+
+                # Conversation Tree: обновить дерево общения (fire-and-forget)
+                self._fire_committed_hook(segment)
 
     # ---------------------------------------------------------------
     # AI Hint System (debounced)

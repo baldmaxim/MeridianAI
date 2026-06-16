@@ -11,6 +11,8 @@ import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
+import { ConversationTreePanel } from '../components/meeting/ConversationTreePanel';
+import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
 import { MeetingDocuments } from '../components/context/MeetingDocuments';
 import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
@@ -124,6 +126,15 @@ export function MeetingPage() {
     tick();
     const t = setInterval(tick, 4000);
     return () => clearInterval(t);
+  }, [store.currentMeetingId]);
+
+  // Conversation Tree: начальная загрузка дерева при открытии встречи
+  useEffect(() => {
+    if (store.currentMeetingId == null) return;
+    getConversationTree(store.currentMeetingId)
+      .then((tree) => store.setConversationTree(tree.topics, tree.tree_version))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentMeetingId]);
 
   // Перезагружать провайдеров при переключении на вкладку настроек
@@ -316,6 +327,10 @@ export function MeetingPage() {
                 </div>
                 <ChatDisplay onSetSpeakerRole={(name, side) => sendJSON({ type: 'set_speaker_role', name, side } as any)} />
                 <MeetingStats onSaveToHistory={() => sendJSON({ type: 'save_to_history' })} />
+              </div>
+              {/* Third column: дерево общения (скрывается на узких экранах через CSS) */}
+              <div className="meeting-tree-panel" style={styles.treePanel}>
+                <ConversationTreePanel meetingId={store.currentMeetingId} />
               </div>
             </div>
           </div>
@@ -618,6 +633,7 @@ const styles: Record<string, React.CSSProperties> = {
   meetingLayout: { display: 'flex', gap: 16, flex: 1, minHeight: 0 },
   leftPanel: { flex: 3, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 },
   rightPanel: { width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0 },
+  treePanel: { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 },
 
   /* Контекст встречи */
   contextPanel: { display: 'flex', flexDirection: 'column', gap: 20 },

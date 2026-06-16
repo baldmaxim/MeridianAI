@@ -34,10 +34,19 @@ _SCHEMA_HINT = """Схема ответа (верни ровно её, на ру
 
 
 def build_user_prompt(meeting_block: str, transcript_text: str, documents_block: str,
-                      previous_meetings_block: str = "") -> str:
+                      previous_meetings_block: str = "", conversation_tree_block: str = "") -> str:
     parts = ["===== КОНТЕКСТ ВСТРЕЧИ =====", meeting_block]
     if documents_block:
         parts += ["", "===== ДОКУМЕНТЫ ВСТРЕЧИ =====", documents_block]
+    if conversation_tree_block:
+        parts += [
+            "",
+            "===== ПОЗИЦИИ СТОРОН ПО КЛЮЧЕВЫМ ТЕМАМ =====",
+            conversation_tree_block,
+            "",
+            "ВАЖНО: карта позиций — вспомогательная структура для группировки протокола по темам. "
+            "Не считай её самостоятельным доказательством: решения/факты подтверждай цитатами из транскрипта ниже.",
+        ]
     if previous_meetings_block:
         parts += [
             "",

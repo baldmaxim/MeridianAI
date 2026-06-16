@@ -160,6 +160,45 @@ export interface TurnWire {
   segment_count: number;
 }
 
+// --- Conversation Tree (дерево общения встречи) ---
+export type ConversationTopicStatus = 'new' | 'updated' | 'resolved' | 'disputed' | 'needs_follow_up';
+
+export interface ConversationTopicRef {
+  segment_id: string;
+  speaker: string;
+  timecode: string;
+  text: string;
+}
+
+export interface ConversationTopic {
+  id: number;
+  meeting_id: number;
+  title: string;
+  normalized_key: string;
+  status: ConversationTopicStatus;
+  our_summary: string | null;
+  opponent_summary: string | null;
+  our_last_text: string | null;
+  opponent_last_text: string | null;
+  our_refs: ConversationTopicRef[];
+  opponent_refs: ConversationTopicRef[];
+  last_updated_at: string;
+  created_at: string;
+}
+
+export interface ConversationTree {
+  meeting_id: number;
+  tree_version: number;
+  topics: ConversationTopic[];
+}
+
+export interface ConversationTopicUpdateInput {
+  title?: string;
+  status?: ConversationTopicStatus;
+  our_summary?: string;
+  opponent_summary?: string;
+}
+
 // WebSocket message types
 export type WSMessageFromServer =
   | { type: 'transcript'; speaker: string; text: string; timestamp: string; is_partial: boolean }
@@ -196,6 +235,8 @@ export type WSMessageFromServer =
   | { type: 'meeting_context_sources_updated'; meeting_id: number }
   // --- Этап 9: AI-настройки встречи обновлены ---
   | { type: 'ai_settings_updated'; meeting_id: number; settings_summary: Record<string, unknown> }
+  // --- Conversation Tree: обновление темы дерева общения ---
+  | { type: 'conversation_tree_updated'; meeting_id: number; topic: ConversationTopic; tree_version: number }
   | { type: 'error'; message: string }
   | { type: 'status'; message: string };
 
@@ -783,6 +824,7 @@ export interface AISettingsProfile {
   suggestion_structured_enabled: boolean;
   finalization_enabled: boolean;
   learning_extraction_enabled: boolean;
+  conversation_tree_enabled: boolean;
   max_auto_cards: number;
   max_manual_cards: number;
   auto_suggestion_min_interval_seconds: number;
@@ -817,6 +859,7 @@ export interface AISettingsResolved {
   previous_meetings_context_enabled: boolean;
   finalization_enabled: boolean;
   learning_extraction_enabled: boolean;
+  conversation_tree_enabled: boolean;
   max_auto_cards: number;
   max_manual_cards: number;
   auto_suggestion_min_interval_seconds: number;
@@ -840,7 +883,7 @@ export type MeetingAISettingsPatch = Partial<Pick<AISettingsResolved,
   'mode' | 'stt_provider' | 'stt_model' | 'llm_provider' | 'live_suggestion_model' | 'strengthen_model' |
   'finalization_model' | 'learning_model' | 'auto_suggestions_enabled' | 'suggestion_structured_enabled' |
   'document_context_enabled' | 'knowledge_context_enabled' | 'previous_meetings_context_enabled' |
-  'finalization_enabled' | 'learning_extraction_enabled' | 'max_auto_cards' | 'max_manual_cards' |
+  'finalization_enabled' | 'learning_extraction_enabled' | 'conversation_tree_enabled' | 'max_auto_cards' | 'max_manual_cards' |
   'auto_suggestion_min_interval_seconds' | 'document_context_max_chunks' | 'document_context_max_chars' |
   'previous_context_max_meetings' | 'previous_context_max_chars' | 'knowledge_context_max_items'>>;
 

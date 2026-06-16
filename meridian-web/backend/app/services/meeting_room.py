@@ -92,6 +92,9 @@ class MeetingRoom:
         # STT/LLM-движок этой встречи; вывод → broadcast
         self.session = SessionManager(owner_user_id or 0)
         self.session.db_session_id = meeting_id
+        # Conversation Tree (дерево общения)
+        self._tree_enabled = True
+        self._tree_version = 0
 
     # --- создание/конфигурация ---
 
@@ -176,6 +179,9 @@ class MeetingRoom:
         room.session.set_knowledge_provider(build_meeting_knowledge_context)
         # Этап 8: итоги выбранных прошлых встреч в контекст LLM-подсказок
         room.session.set_previous_meetings_provider(get_previous_meeting_context_for_prompt)
+        # Conversation Tree: обновление дерева общения по committed-сегментам
+        room._tree_enabled = bool(ai_resolved.get("conversation_tree_enabled", True))
+        room.session.set_committed_hook(room._on_committed_for_tree)
         logger.info(f"[room {meeting_id}] created (owner={owner}, status={status})")
         return room
 
@@ -528,6 +534,42 @@ class MeetingRoom:
 
         # снять комнату с реестра (новые подключения создадут свежую при необходимости)
         room_registry.remove(self.meeting_id)
+
+    async def _on_committed_for_tree(self, segment, role: str | None) -> None:
+        """Conversation Tree: upsert темы по committed-сегменту + broadcast обновления.
+
+        Fire-and-forget из SessionManager. Любая ошибка не должна ломать комнату/STT.
+        """
+        if not self._tree_enabled:
+            return
+        try:
+            from .conversation_tree import ConversationTreeService
+
+            segment_id = (getattr(segment, "segment_id", None)
+                          or f"legacy_{uuid.uuid4().hex[:12]}")
+            speaker = (getattr(segment, "speaker_label", None) or getattr(segment, "speaker_id", None)
+                       or getattr(segment, "speaker", None) or "")
+            text = getattr(segment, "text", "") or ""
+            start = getattr(segment, "start_time", 0) or 0
+            timecode = f"{int(start)//60:02d}:{int(start)%60:02d}"
+
+            async with async_session() as db:
+                topic_out = await ConversationTreeService().update_from_transcript_segment(
+                    db, self.meeting_id, segment_id=segment_id, speaker=speaker,
+                    role=role, text=text, timecode=timecode,
+                )
+                await db.commit()
+            if topic_out is None:
+                return
+            self._tree_version += 1
+            await self.broadcast({
+                "type": "conversation_tree_updated",
+                "meeting_id": self.meeting_id,
+                "topic": topic_out.model_dump(mode="json"),
+                "tree_version": self._tree_version,
+            })
+        except Exception as e:
+            logger.error(f"[room {self.meeting_id}] conversation tree update failed: {e}")
 
     async def _persist_segments(self, close: bool, title_override: str | None = None) -> None:
         """Сохранить committed-сегменты этой встречи (skip duplicates). При close — закрыть встречу."""

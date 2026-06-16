@@ -44,6 +44,7 @@ class AISettingsProfile(Base):
     suggestion_structured_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     finalization_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     learning_extraction_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    conversation_tree_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # лимиты
     max_auto_cards: Mapped[int] = mapped_column(Integer, default=2)

@@ -161,6 +161,22 @@ async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str
     return meeting_block, transcript_text, documents_block.strip(), list(doc_names)
 
 
+async def build_conversation_tree_block(db: AsyncSession, meeting_id: int) -> str:
+    """Компактная карта позиций сторон по темам для контекста финализации (без сырых refs)."""
+    from .conversation_tree import ConversationTreeService
+    tree = await ConversationTreeService().get_tree(db, meeting_id)
+    if not tree.topics:
+        return ""
+    lines = []
+    for t in tree.topics:
+        lines.append(f"• {t.title} [{t.status}]")
+        if t.our_summary:
+            lines.append(f"    Мы: {t.our_summary}")
+        if t.opponent_summary:
+            lines.append(f"    Заказчик/оппонент: {t.opponent_summary}")
+    return "\n".join(lines)
+
+
 # --- сохранение ---
 
 def _evidence_json(ev_list) -> str:
@@ -240,6 +256,10 @@ async def handle_meeting_finalize(payload: dict) -> None:
             # Этап 8: компактные итоги выбранных прошлых встреч (контекст, НЕ решения текущей)
             from .previous_meeting_context import build_previous_context_block
             previous_block = await build_previous_context_block(db, meeting_id)
+            # Дерево общения: карта позиций сторон по темам (если включено и непусто)
+            conversation_tree_block = ""
+            if resolved.get("conversation_tree_enabled", True):
+                conversation_tree_block = await build_conversation_tree_block(db, meeting_id)
 
         # пустой транскрипт → минимальный partial (без LLM)
         if not transcript_text.strip():
@@ -269,7 +289,8 @@ async def handle_meeting_finalize(payload: dict) -> None:
                            max_tokens=fin_tokens, timeout=settings.meeting_finalization_timeout_seconds)
         client.set_system_prompt(SYSTEM_PROMPT)
         user_prompt = build_user_prompt(meeting_block, transcript_text, documents_block,
-                                        previous_meetings_block=previous_block)
+                                        previous_meetings_block=previous_block,
+                                        conversation_tree_block=conversation_tree_block)
 
         raw = None
         for attempt in range(max(1, settings.meeting_finalization_retry_attempts)):

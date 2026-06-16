@@ -305,6 +305,10 @@ export function useWebSocket() {
         s.resetTurns();
         break;
 
+      case 'conversation_tree_updated':
+        s.upsertConversationTopic(data.topic, data.tree_version);
+        break;
+
       case 'error':
         s.setError(data.message);
         break;

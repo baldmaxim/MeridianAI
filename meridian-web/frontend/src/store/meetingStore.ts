@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire } from '../types';
+import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic } from '../types';
 
 interface MeetingStats {
   positionStrength: number;
@@ -88,6 +88,16 @@ interface MeetingState {
   // Speaker roles
   speakerRoles: Record<string, string>;
   setSpeakerRoles: (roles: Record<string, string>) => void;
+
+  // Conversation Tree (дерево общения)
+  conversationTree: ConversationTopic[];
+  treeVersion: number;
+  treeCollapsed: Record<number, boolean>;  // topicId -> refs свёрнуты
+  treePanelOpen: boolean;
+  setConversationTree: (topics: ConversationTopic[], version: number) => void;
+  upsertConversationTopic: (topic: ConversationTopic, version: number) => void;
+  toggleTopicExpanded: (topicId: number) => void;
+  setTreePanelOpen: (v: boolean) => void;
 
   // Active role
   activeRoleName: string | null;
@@ -256,6 +266,23 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   speakerRoles: {},
   setSpeakerRoles: (roles) => set({ speakerRoles: roles }),
 
+  conversationTree: [],
+  treeVersion: 0,
+  treeCollapsed: {},
+  treePanelOpen: true,
+  setConversationTree: (topics, version) => set({ conversationTree: topics, treeVersion: version }),
+  upsertConversationTopic: (topic, version) =>
+    set((s) => {
+      const idx = s.conversationTree.findIndex((t) => t.id === topic.id);
+      const next = idx >= 0
+        ? s.conversationTree.map((t) => (t.id === topic.id ? topic : t))
+        : [...s.conversationTree, topic];
+      return { conversationTree: next, treeVersion: Math.max(s.treeVersion, version) };
+    }),
+  toggleTopicExpanded: (topicId) =>
+    set((s) => ({ treeCollapsed: { ...s.treeCollapsed, [topicId]: !s.treeCollapsed[topicId] } })),
+  setTreePanelOpen: (v) => set({ treePanelOpen: v }),
+
   activeRoleName: null,
   setActiveRoleName: (name) => set({ activeRoleName: name }),
 
@@ -301,6 +328,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,
     recordPermissionDenied: false, phoneRecording: false,
+    conversationTree: [], treeVersion: 0, treeCollapsed: {},
     meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
   }),
 
@@ -346,5 +374,8 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       recording: false,
       recordPermissionDenied: false,
       phoneRecording: false,
+      conversationTree: [],
+      treeVersion: 0,
+      treeCollapsed: {},
     }),
 }));

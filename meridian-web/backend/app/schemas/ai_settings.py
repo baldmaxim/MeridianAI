@@ -27,6 +27,7 @@ class AISettingsProfileOut(BaseModel):
     suggestion_structured_enabled: bool
     finalization_enabled: bool
     learning_extraction_enabled: bool
+    conversation_tree_enabled: bool
     max_auto_cards: int
     max_manual_cards: int
     auto_suggestion_min_interval_seconds: int
@@ -60,6 +61,7 @@ class AISettingsProfileCreate(BaseModel):
     suggestion_structured_enabled: bool | None = None
     finalization_enabled: bool | None = None
     learning_extraction_enabled: bool | None = None
+    conversation_tree_enabled: bool | None = None
     max_auto_cards: int | None = None
     max_manual_cards: int | None = None
     auto_suggestion_min_interval_seconds: int | None = None
@@ -90,6 +92,7 @@ class AISettingsResolved(BaseModel):
     previous_meetings_context_enabled: bool = True
     finalization_enabled: bool = True
     learning_extraction_enabled: bool = True
+    conversation_tree_enabled: bool = True
     max_auto_cards: int = 2
     max_manual_cards: int = 5
     auto_suggestion_min_interval_seconds: int = 20
@@ -125,6 +128,7 @@ class MeetingAISettingsPatch(BaseModel):
     previous_meetings_context_enabled: bool | None = None
     finalization_enabled: bool | None = None
     learning_extraction_enabled: bool | None = None
+    conversation_tree_enabled: bool | None = None
     max_auto_cards: int | None = None
     max_manual_cards: int | None = None
     auto_suggestion_min_interval_seconds: int | None = None
