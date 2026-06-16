@@ -27,9 +27,22 @@ $DC pull api frontend
 echo "== миграции (из образа) =="
 $DC run --rm migrate
 
-echo "== рестарт сервисов (без сборки) =="
-$DC up -d --force-recreate api worker frontend edge
-$DC ps --format 'table {{.Name}}\t{{.Status}}'
+echo "== рестарт app-сервисов (edge НЕ пересоздаём: он переразрешает api/frontend по DNS, TTL 10s) =="
+$DC up -d --no-recreate edge          # гарантируем, что edge поднят; existing-контейнер не трогаем
+$DC up -d api worker frontend         # пересоздаются только при смене образа (TAG) или env/конфига
 
+echo "== ждём готовности api (до 60с) — чтобы не закрыть деплой на окне прогрева =="
+ready=""
+for i in $(seq 1 30); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' https://meridian.fvds.ru/health/ready || true)
+  if [ "$code" = "200" ]; then ready=1; break; fi
+  sleep 2
+done
+
+echo "== reload edge (применить возможные изменения edge-nginx.conf + свежий DNS, без обрыва соединений) =="
+$DC exec -T edge nginx -t && $DC exec -T edge nginx -s reload || echo "(edge reload пропущен — проверьте конфиг)"
+
+$DC ps --format 'table {{.Name}}\t{{.Status}}'
 echo "== health =="
 echo "live=$(curl -s -o /dev/null -w '%{http_code}' https://meridian.fvds.ru/health/live) ready=$(curl -s -o /dev/null -w '%{http_code}' https://meridian.fvds.ru/health/ready)"
+[ -n "$ready" ] || echo "ВНИМАНИЕ: api не отдал ready=200 за 60с — смотрите: $DC logs --tail=50 api"
