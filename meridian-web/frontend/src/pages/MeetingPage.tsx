@@ -4,14 +4,13 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings, updateSettings as apiUpdateSettings, getActiveProviders } from '../api/settings';
 import { createMeeting } from '../api/meetings';
-import { getLiveState } from '../api/mobile';
-import { QRCodeSVG } from 'qrcode.react';
-import type { LiveState } from '../types';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
 import { ConversationTreePanel } from '../components/meeting/ConversationTreePanel';
+import { DictaphoneView } from '../components/meeting/DictaphoneView';
+import { ModeSwitch } from '../components/meeting/ModeSwitch';
 import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
 import { MeetingDocuments } from '../components/context/MeetingDocuments';
@@ -72,8 +71,9 @@ export function MeetingPage() {
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
+  const [level, setLevel] = useState(0);
   const { connect, disconnect, sendJSON, sendBinary } = useWebSocket();
-  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendBinary);
+  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendBinary, setLevel);
   const store = useMeetingStore();
 
   // Этап 2/3: обеспечить meeting_id (draft) и подключиться как desktop.
@@ -116,17 +116,6 @@ export function MeetingPage() {
     return () => { disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Этап 3: лёгкий поллинг live-состояния для блока «Телефон-диктофон»
-  const [liveState, setLiveState] = useState<LiveState | null>(null);
-  useEffect(() => {
-    if (store.currentMeetingId == null) return;
-    const id = store.currentMeetingId;
-    const tick = () => getLiveState(id).then(setLiveState).catch(() => {});
-    tick();
-    const t = setInterval(tick, 4000);
-    return () => clearInterval(t);
-  }, [store.currentMeetingId]);
 
   // Conversation Tree: начальная загрузка дерева при открытии встречи
   useEffect(() => {
@@ -263,6 +252,24 @@ export function MeetingPage() {
     }
   }, [settings, sendJSON, applyingSettings, showToast]);
 
+  // Простой режим — чистый диктофон поверх той же сессии
+  if (store.uiMode === 'simple') {
+    return (
+      <div style={styles.container}>
+        <div style={styles.simpleBar}>
+          <ModeSwitch />
+        </div>
+        <DictaphoneView
+          level={level}
+          isListening={store.isListening}
+          isConnected={store.isConnected}
+          onStart={handleStartListening}
+          onStop={handleStopListening}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       {/* Tab bar */}
@@ -280,6 +287,8 @@ export function MeetingPage() {
             {tab}
           </button>
         ))}
+        <div style={{ flex: 1 }} />
+        <ModeSwitch />
       </div>
 
       {/* Tab content */}
@@ -352,53 +361,6 @@ export function MeetingPage() {
                     {store.recording ? (store.deviceRole || 'устройство') : 'none'}
                   </b>
                 </span>
-              </div>
-            )}
-
-            {/* Этап 3: Телефон как диктофон */}
-            {store.currentMeetingId != null && (
-              <div style={styles.contextCard}>
-                <div style={styles.sectionHeader}>
-                  <span style={styles.dot} />
-                  <span style={styles.sectionTitle}>Телефон как диктофон</span>
-                </div>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ background: '#0D1018', padding: 8, borderRadius: 8, border: `1px solid ${theme.border.default}`, lineHeight: 0 }}>
-                    <QRCodeSVG
-                      value={`${window.location.origin}/recorder/${store.currentMeetingId}`}
-                      size={120}
-                      bgColor="#0D1018"
-                      fgColor="#EDF2FF"
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 200 }}>
-                    <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, wordBreak: 'break-all' }}>
-                      {`${window.location.origin}/recorder/${store.currentMeetingId}`}
-                    </div>
-                    <button
-                      style={styles.copyBtn}
-                      onClick={() => {
-                        const url = `${window.location.origin}/recorder/${store.currentMeetingId}`;
-                        navigator.clipboard?.writeText(url)
-                          .then(() => showToast('Ссылка скопирована', 'success'))
-                          .catch(() => showToast('Не удалось скопировать', 'error'));
-                      }}
-                    >
-                      Скопировать ссылку
-                    </button>
-                    <span style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted }}>
-                      отсканируйте QR телефоном (после входа) — откроется диктофон
-                    </span>
-                  </div>
-                </div>
-                <div style={styles.phoneStatus}>
-                  <span><Dot2 on={!!liveState?.desktop_connected} /> desktop</span>
-                  <span><Dot2 on={!!liveState?.phone_connected} /> phone</span>
-                  <span><Dot2 on={!!liveState?.phone_recording} color={theme.accent.red} /> phone recording</span>
-                  <span style={{ color: theme.text.muted }}>
-                    источник: {liveState?.active_audio_source ? (liveState?.phone_recording ? 'телефон' : 'desktop') : 'нет'}
-                  </span>
-                </div>
               </div>
             )}
 
@@ -592,15 +554,6 @@ export function MeetingPage() {
   );
 }
 
-function Dot2({ on, color }: { on: boolean; color?: string }) {
-  return (
-    <span style={{
-      width: 7, height: 7, borderRadius: '50%', display: 'inline-block', marginRight: 5,
-      background: on ? (color || theme.accent.green) : theme.text.muted, flexShrink: 0,
-    }} />
-  );
-}
-
 function PlaceholderSection({ title, text }: { title: string; text: string }) {
   return (
     <div style={styles.placeholderCard}>
@@ -616,9 +569,14 @@ function PlaceholderSection({ title, text }: { title: string; text: string }) {
 const styles: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' },
   tabs: {
-    display: 'flex', gap: 0,
+    display: 'flex', gap: 0, alignItems: 'center',
     borderBottom: `1px solid ${theme.border.default}`,
     padding: '0 24px', background: theme.bg.secondary, flexShrink: 0,
+  },
+  simpleBar: {
+    display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+    padding: '8px 16px', borderBottom: `1px solid ${theme.border.default}`,
+    background: theme.bg.secondary, flexShrink: 0,
   },
   tab: {
     padding: '10px 16px', background: 'transparent', border: 'none',
@@ -645,15 +603,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   roomStatusItem: { display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.04em' },
   roomDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
-  copyBtn: {
-    padding: '8px 14px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
-    borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 11,
-    fontFamily: theme.font.mono, fontWeight: 500,
-  },
-  phoneStatus: {
-    display: 'flex', gap: 14, flexWrap: 'wrap' as const, alignItems: 'center',
-    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, marginTop: 2,
-  },
   newMeetingBtn: {
     padding: '12px 22px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
     borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 13,

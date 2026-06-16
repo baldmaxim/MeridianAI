@@ -100,6 +100,10 @@ interface MeetingState {
   toggleTopicExpanded: (topicId: number) => void;
   setTreePanelOpen: (v: boolean) => void;
 
+  // UI режим экрана встречи: 'simple' — диктофон, 'full' — детальный
+  uiMode: 'simple' | 'full';
+  setUiMode: (m: 'simple' | 'full') => void;
+
   // Active role
   activeRoleName: string | null;
   setActiveRoleName: (name: string | null) => void;
@@ -144,6 +148,11 @@ interface MeetingState {
 }
 
 let messageCounter = 0;
+
+const initialUiMode: 'simple' | 'full' =
+  (typeof localStorage !== 'undefined' && localStorage.getItem('meridian_ui_mode') === 'simple')
+    ? 'simple'
+    : 'full';
 
 export const useMeetingStore = create<MeetingState>((set) => ({
   isConnected: false,
@@ -289,6 +298,12 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   toggleTopicExpanded: (topicId) =>
     set((s) => ({ treeCollapsed: { ...s.treeCollapsed, [topicId]: !s.treeCollapsed[topicId] } })),
   setTreePanelOpen: (v) => set({ treePanelOpen: v }),
+
+  uiMode: initialUiMode,
+  setUiMode: (m) => {
+    try { localStorage.setItem('meridian_ui_mode', m); } catch { /* ignore */ }
+    set({ uiMode: m });
+  },
 
   activeRoleName: null,
   setActiveRoleName: (name) => set({ activeRoleName: name }),
