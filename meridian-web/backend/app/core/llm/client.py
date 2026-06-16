@@ -4,6 +4,15 @@ from typing import Optional, Callable, AsyncGenerator
 
 from openai import OpenAI, AsyncOpenAI
 
+# OpenRouter app-identification headers. MUST be ASCII-safe: HTTP header values
+# are encoded as latin-1/ASCII, so a non-ASCII char (e.g. em-dash U+2014) raises
+# at request time and silently breaks EVERY LLM call. Keep values ASCII-only.
+# (Bug A — use ASCII hyphen "-", never "—".)
+OPENROUTER_APP_HEADERS = {
+    "HTTP-Referer": "https://github.com/meridian",
+    "X-Title": "Meridian - AI Negotiation Helper",
+}
+
 
 class LLMClient:
     """OpenRouter API client (OpenAI-compatible)."""
@@ -17,10 +26,7 @@ class LLMClient:
         self.max_tokens = max_tokens
         self.timeout = timeout
 
-        headers = {
-            "HTTP-Referer": "https://github.com/meridian",
-            "X-Title": "Meridian — AI Negotiation Helper"
-        }
+        headers = dict(OPENROUTER_APP_HEADERS)
 
         self.client = OpenAI(
             api_key=api_key, base_url=base_url, default_headers=headers

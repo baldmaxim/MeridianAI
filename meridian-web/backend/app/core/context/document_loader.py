@@ -234,18 +234,25 @@ class DocumentLoader:
             chars_per_doc = max_chars // len(self.documents)
             doc_parts = []
             for doc in self.documents:
+                content = doc.content or ""
+                if not content.strip():
+                    # Bug B: S3-документы (DocumentRecord/DocumentChunk) не имеют inline
+                    # content — их текст подаётся отдельным DocumentChunk-провайдером.
+                    # Пропускаем, чтобы не падать на len(None).
+                    continue
                 label = DOC_TYPE_LABELS.get(doc.doc_type, doc.doc_type)
                 ext = Path(doc.filename).suffix.lower()
                 count_label = f"{doc.page_count} стр." if ext == ".pdf" else ""
                 meta = f" ({count_label})" if count_label else ""
                 header = f"--- {label}: {doc.filename}{meta} ---"
-                if len(doc.content) <= chars_per_doc:
-                    doc_parts.append(f"{header}\n{doc.content}")
+                if len(content) <= chars_per_doc:
+                    doc_parts.append(f"{header}\n{content}")
                 else:
                     half = chars_per_doc // 2
-                    truncated = doc.content[:half] + "\n[...]\n" + doc.content[-half:]
+                    truncated = content[:half] + "\n[...]\n" + content[-half:]
                     doc_parts.append(f"{header}\n{truncated}")
-            parts.append("ДОКУМЕНТЫ ВСТРЕЧИ:\n" + "\n\n".join(doc_parts))
+            if doc_parts:
+                parts.append("ДОКУМЕНТЫ ВСТРЕЧИ:\n" + "\n\n".join(doc_parts))
         return "\n\n".join(parts)
 
     def get_document_context(self, max_chars: int = 3000) -> str:
@@ -255,6 +262,9 @@ class DocumentLoader:
         chars_per_doc = max_chars // len(self.documents)
         doc_parts = []
         for doc in self.documents:
+            content = doc.content or ""
+            if not content.strip():
+                continue  # Bug B: S3-документы без inline-content — пропускаем (см. выше)
             label = DOC_TYPE_LABELS.get(doc.doc_type, doc.doc_type)
             ext = Path(doc.filename).suffix.lower()
             if ext == ".xlsx":
@@ -265,12 +275,14 @@ class DocumentLoader:
                 count_label = f"{doc.page_count} стр."
             meta = f" ({count_label})" if count_label else ""
             header = f"--- {label}: {doc.filename}{meta} ---"
-            if len(doc.content) <= chars_per_doc:
-                doc_parts.append(f"{header}\n{doc.content}")
+            if len(content) <= chars_per_doc:
+                doc_parts.append(f"{header}\n{content}")
             else:
                 half = chars_per_doc // 2
-                truncated = doc.content[:half] + "\n[...]\n" + doc.content[-half:]
+                truncated = content[:half] + "\n[...]\n" + content[-half:]
                 doc_parts.append(f"{header}\n{truncated}")
+        if not doc_parts:
+            return ""
         return "ДОКУМЕНТЫ ВСТРЕЧИ:\n" + "\n\n".join(doc_parts)
 
     def has_context(self) -> bool:

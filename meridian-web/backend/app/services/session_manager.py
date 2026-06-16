@@ -22,7 +22,7 @@ from ..core.llm.prompt_context_builder import PromptContextBuilder
 from ..core.llm.prompts import PromptBuilder
 from ..core.transcription.models import (
     TranscriptSegment, CommittedSegment, PartialTranscript,
-    UNKNOWN_SPEAKER,
+    UNKNOWN_SPEAKER, SegmentOrigin,
 )
 from ..core.context.event_detector import EventDetector
 from ..core.context.meeting_memory import MeetingMemory
@@ -518,6 +518,24 @@ class SessionManager:
     # Legacy callback (Deepgram / Gemini backward compat)
     # ---------------------------------------------------------------
 
+    def _legacy_to_committed(self, segment: TranscriptSegment) -> CommittedSegment:
+        """Bug C: convert a legacy (Deepgram/Gemini) FINAL segment into a CommittedSegment.
+
+        Deepgram/Gemini не дают word-level данных, поэтому words=[]; текст и тайминги
+        берём как есть. Нужно, чтобы _persist_segments видел сегменты legacy-движков
+        (иначе finalize считает транскрипт пустым).
+        """
+        speaker = segment.speaker or UNKNOWN_SPEAKER
+        return CommittedSegment(
+            text=segment.text,
+            start_time=segment.start_time,
+            end_time=segment.end_time,
+            wall_clock=segment.timestamp,
+            speaker_id=speaker,
+            speaker_label=segment.speaker or None,
+            origin=SegmentOrigin.LIVE_COMMITTED,
+        )
+
     def _on_legacy_transcript(self, segment: TranscriptSegment, is_partial: bool):
         """Legacy callback from Deepgram/Gemini services."""
         if not is_partial:
@@ -528,6 +546,12 @@ class SessionManager:
                 segment.speaker = self.current_speaker
 
             self.context_analyzer.add_segment(segment)
+
+            # Bug C: финальные legacy-сегменты должны попадать в committed-store,
+            # иначе finalize/_persist_segments видят пустой транскрипт. Партиалы
+            # (is_partial=True) сюда не доходят → дублей нет. Не зависит от _ws_send.
+            if segment.text and segment.text.strip():
+                self._committed_segments.append(self._legacy_to_committed(segment))
 
             # Also write to audio recorder if not ElevenLabs
             # (ElevenLabs writes in streaming_service._send_audio_loop)

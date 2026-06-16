@@ -166,7 +166,14 @@ async def list_profiles(db: AsyncSession, user_id: int) -> list[AISettingsProfil
 
 
 async def make_default(db: AsyncSession, profile: AISettingsProfile) -> None:
-    """Сделать профиль default, снять флаг с остальных профилей владельца."""
+    """Сделать профиль default, снять флаг с остальных профилей владельца.
+
+    Bug D: partial-unique uq_ai_profile_default(owner) WHERE is_default запрещает
+    два дефолта одновременно. Если выставлять новый default И снимать старый в одном
+    flush, порядок UPDATE'ов в батче (по PK) может временно дать два is_default=true
+    (детерминированно падает, когда id целевого профиля < id текущего default).
+    Поэтому: сначала снимаем флаг со всех прочих → flush → затем ставим целевой.
+    """
     others = (await db.execute(
         select(AISettingsProfile).where(
             AISettingsProfile.owner_user_id == profile.owner_user_id,
@@ -174,8 +181,10 @@ async def make_default(db: AsyncSession, profile: AISettingsProfile) -> None:
             AISettingsProfile.id != profile.id,
         )
     )).scalars().all()
-    for o in others:
-        o.is_default = False
+    if others:
+        for o in others:
+            o.is_default = False
+        await db.flush()  # снять старый default ДО установки нового
     profile.is_default = True
     await db.flush()
 

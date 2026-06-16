@@ -131,6 +131,13 @@ class MeetingRoom:
                         )
                     ).scalars().all()
                     for d in docs:
+                        # Bug B: S3-документы (новый flow) не имеют inline content —
+                        # их текст подаётся через DocumentChunk-провайдер
+                        # (build_meeting_doc_context). В legacy in-memory loader кладём
+                        # только документы с реальным inline-текстом, чтобы не падать
+                        # на len(None) при сборке промпта.
+                        if not (d.content and d.content.strip()):
+                            continue
                         s.document_loader.documents.append(
                             MeetingDocument(
                                 filename=d.filename,
