@@ -12,6 +12,11 @@ html, body, #root {
   color: #EDF2FF;
 }
 
+/* Страховка от горизонтального скролла на узких экранах */
+#root {
+  overflow-x: hidden;
+}
+
 /* Scrollbar — MERIDIAN style */
 ::-webkit-scrollbar {
   width: 4px;
@@ -424,10 +429,21 @@ button:disabled {
   .header-right {
     gap: 4px !important;
   }
-  .header-desktop-btn {
-    padding: 4px 8px !important;
-    font-size: 9px !important;
-    border-radius: 4px !important;
+  /* На мобильном десктоп-навигация и слайдер роли уходят в гамбургер-меню */
+  .header-desktop-btn,
+  .header-roleswitch {
+    display: none !important;
+  }
+  .header-burger {
+    display: flex !important;
+  }
+
+  /* ── Главная (объекты) ── */
+  .objects-page {
+    padding: 16px 14px !important;
+  }
+  .objects-search {
+    width: 100% !important;
   }
 
   /* ── Auth form ── */
@@ -632,6 +648,9 @@ button:disabled {
   }
   .header-inner {
     padding: 0 10px !important;
+  }
+  .objects-page {
+    padding: 12px 10px !important;
   }
   .admin-container {
     padding: 12px 10px 80px !important;

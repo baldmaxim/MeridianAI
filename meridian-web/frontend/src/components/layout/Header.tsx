@@ -75,6 +75,18 @@ function SessionTimer() {
 export function Header({ userName, onLogout, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navItems = ([
+    onShowObjects && { label: 'Проекты', onClick: onShowObjects, active: showObjects },
+    onShowDirectory && { label: 'Справочники', onClick: onShowDirectory, active: showDirectory },
+    onShowKnowledge && { label: 'База знаний', onClick: onShowKnowledge, active: showKnowledge },
+    onShowAISettings && { label: 'AI-профили', onClick: onShowAISettings, active: showAISettings },
+    onShowBatch && { label: 'Оффлайн распознавание', onClick: onShowBatch, active: showBatch },
+    onShowSettings && { label: '⚙ Настройки', onClick: onShowSettings, active: showSettings },
+  ].filter(Boolean)) as { label: string; onClick: () => void; active?: boolean }[];
+
+  const handleNav = (fn: () => void) => { setMenuOpen(false); fn(); };
 
   return (
     <>
@@ -111,68 +123,56 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowDirec
               {(userName[0] || 'U').toUpperCase()}
             </div>
           )}
-          {onShowObjects && (
+          {navItems.map((it) => (
             <button
+              key={it.label}
               className="header-desktop-btn"
-              onClick={onShowObjects}
-              style={showObjects ? styles.adminBtnActive : styles.adminBtn}
+              onClick={it.onClick}
+              style={it.active ? styles.adminBtnActive : styles.adminBtn}
             >
-              Проекты
+              {it.label}
             </button>
-          )}
-          {onShowDirectory && (
-            <button
-              className="header-desktop-btn"
-              onClick={onShowDirectory}
-              style={showDirectory ? styles.adminBtnActive : styles.adminBtn}
-            >
-              Справочники
-            </button>
-          )}
-          {onShowKnowledge && (
-            <button
-              className="header-desktop-btn"
-              onClick={onShowKnowledge}
-              style={showKnowledge ? styles.adminBtnActive : styles.adminBtn}
-            >
-              База знаний
-            </button>
-          )}
-          {onShowAISettings && (
-            <button
-              className="header-desktop-btn"
-              onClick={onShowAISettings}
-              style={showAISettings ? styles.adminBtnActive : styles.adminBtn}
-            >
-              AI-профили
-            </button>
-          )}
-          {onShowBatch && (
-            <button
-              className="header-desktop-btn"
-              onClick={onShowBatch}
-              style={showBatch ? styles.adminBtnActive : styles.adminBtn}
-            >
-              Оффлайн распознавание
-            </button>
-          )}
-          {onShowSettings && (
-            <button
-              className="header-desktop-btn"
-              onClick={onShowSettings}
-              style={showSettings ? styles.adminBtnActive : styles.adminBtn}
-            >
-              ⚙ Настройки
-            </button>
-          )}
+          ))}
           {canSwitchRole && onToggleViewAs && (
-            <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
+            <span className="header-roleswitch">
+              <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
+            </span>
           )}
           <button className="header-desktop-btn" onClick={onLogout} style={styles.logout}>
             Выход
           </button>
+          <button
+            className="header-burger"
+            style={styles.burger}
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Меню"
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
         </div>
       </header>
+
+      {menuOpen && (
+        <div className="header-menu" style={styles.menu}>
+          {navItems.map((it) => (
+            <button
+              key={it.label}
+              onClick={() => handleNav(it.onClick)}
+              style={it.active ? styles.menuItemActive : styles.menuItem}
+            >
+              {it.label}
+            </button>
+          ))}
+          {canSwitchRole && onToggleViewAs && (
+            <div style={styles.menuRole}>
+              <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
+            </div>
+          )}
+          <button onClick={() => handleNav(onLogout)} style={styles.menuItem}>
+            Выход
+          </button>
+        </div>
+      )}
       {(activeRoleName || meetingName) && (
         <div className="mobile-role-strip" style={styles.mobileRoleStrip}>
           {meetingName && (
@@ -352,6 +352,66 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden' as const,
     textOverflow: 'ellipsis' as const,
     maxWidth: 140,
+  },
+  burger: {
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 34,
+    height: 34,
+    background: 'transparent',
+    border: `1px solid ${theme.border.amber}`,
+    borderRadius: 6,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontSize: 16,
+    lineHeight: 1,
+    flexShrink: 0,
+  },
+  menu: {
+    position: 'fixed',
+    top: 44,
+    left: 0,
+    right: 0,
+    zIndex: 200,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    padding: 10,
+    background: theme.bg.secondary,
+    borderBottom: `1px solid ${theme.border.default}`,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  },
+  menuItem: {
+    width: '100%',
+    textAlign: 'left' as const,
+    padding: '11px 14px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 6,
+    color: theme.text.primary,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontFamily: theme.font.mono,
+    letterSpacing: '0.04em',
+  },
+  menuItemActive: {
+    width: '100%',
+    textAlign: 'left' as const,
+    padding: '11px 14px',
+    background: theme.accent.amberGlow,
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 6,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontFamily: theme.font.mono,
+    letterSpacing: '0.04em',
+  },
+  menuRole: {
+    display: 'flex',
+    justifyContent: 'center',
+    padding: '8px 0',
   },
   mobileRoleStrip: {
     display: 'none',

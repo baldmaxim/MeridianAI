@@ -53,31 +53,34 @@ export function ObjectsPage({ onOpenObject }: Props) {
     : objects;
 
   return (
-    <div style={styles.container}>
+    <div className="objects-page" style={styles.container}>
       <div style={styles.topBar}>
         <span style={styles.title}>ОБЪЕКТЫ</span>
+        <button style={styles.addBtn} onClick={() => setShowCreate(true)}>+ Объект</button>
+      </div>
+
+      {objects.length > 0 && (
         <input
+          className="objects-search"
           style={styles.search}
           placeholder="Поиск по объекту / заказчику…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button style={styles.addBtn} onClick={() => setShowCreate(true)}>+ Объект</button>
-      </div>
+      )}
 
       {loading && <div style={styles.muted}>Загрузка…</div>}
       {error && <div style={styles.error}>{error}</div>}
       {!loading && !error && objects.length === 0 && (
         <div style={styles.empty}>
           <div style={styles.emptyText}>Объектов пока нет</div>
-          <button style={styles.addBtn} onClick={() => setShowCreate(true)}>+ Создать объект</button>
         </div>
       )}
       {!loading && !error && objects.length > 0 && filtered.length === 0 && (
         <div style={styles.muted}>Ничего не найдено</div>
       )}
 
-      <div style={styles.grid}>
+      <div className="objects-grid" style={styles.grid}>
         {filtered.map((o) => {
           const count = counts[o.id] || 0;
           return (
@@ -108,13 +111,13 @@ export function ObjectsPage({ onOpenObject }: Props) {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'auto', padding: '20px 24px', gap: 16 },
-  topBar: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const },
+  topBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' as const },
   title: {
     fontFamily: theme.font.heading, fontWeight: 800, fontSize: 18,
     letterSpacing: '0.06em', color: theme.text.primary,
   },
   search: {
-    flex: 1, minWidth: 200, padding: '9px 14px', background: theme.bg.input,
+    width: '100%', padding: '9px 14px', background: theme.bg.input,
     border: `1px solid ${theme.border.default}`, borderRadius: 8,
     color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none',
   },
