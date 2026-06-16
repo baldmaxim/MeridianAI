@@ -22,12 +22,11 @@ flock -n 9 || { echo "другой деплой уже идёт — выход";
 log "2/6 pull images (${TAG})"
 docker compose pull api frontend
 
-log "3/6 migrations (one-shot, migration user)"
-docker compose up -d postgres
+log "3/6 migrations (one-shot, против Yandex Managed PG)"
 docker compose run --rm migrate
 
-log "4/6 start api + postgres + backup"
-docker compose up -d postgres backup api
+log "4/6 start api + worker"
+docker compose up -d api worker
 
 log "5/6 health gate (/health/ready)"
 ok=0

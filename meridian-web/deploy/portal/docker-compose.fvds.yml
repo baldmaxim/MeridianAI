@@ -1,44 +1,23 @@
 # FVDS-вариант portal-compose: сборка образов НА СЕРВЕРЕ (нет registry — отступление от §19,
 # зафиксировано в CLAUDE.md). Edge-nginx публикуется на 127.0.0.1:8080 — host-nginx сайт
-# `meridian` проксирует сюда без изменений. postgres наружу НЕ публикуется.
+# `meridian` проксирует сюда без изменений.
+#
+# БД: только Yandex Managed PostgreSQL. Локального postgres-контейнера НЕТ —
+# DATABASE_URL берётся из meridian.env (единый источник правды, §18).
 #
 # Запуск (из корня клона репо, /opt/portals/meridian):
 #   docker compose -p meridian -f meridian-web/deploy/portal/docker-compose.fvds.yml build
-#   docker compose -p meridian -f ... up -d postgres
 #   docker compose -p meridian -f ... run --rm migrate
-#   docker compose -p meridian -f ... up -d api frontend edge
+#   docker compose -p meridian -f ... up -d api worker frontend edge
 
 name: meridian
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: meridian
-      POSTGRES_USER: meridian
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ../../backend/db/init:/docker-entrypoint-initdb.d:ro
-    networks: [internal]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U meridian -d meridian"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   migrate:
     build: ../../backend
     image: ${API_IMAGE:-meridian-api:local}
     env_file: [./meridian.env]
-    environment:
-      DATABASE_URL: postgresql+asyncpg://meridian_migration:${MIGRATION_DB_PASSWORD}@postgres:5432/meridian
-      MIGRATION_DATABASE_URL: postgresql+asyncpg://meridian_migration:${MIGRATION_DB_PASSWORD}@postgres:5432/meridian
     command: ["python", "-m", "alembic", "upgrade", "head"]
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks: [internal]
     profiles: ["tools"]
 
@@ -47,12 +26,8 @@ services:
     image: ${API_IMAGE:-meridian-api:local}
     env_file: [./meridian.env]
     environment:
-      DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
       DEV_MODE: "false"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks: [internal]
     restart: unless-stopped
 
@@ -61,12 +36,8 @@ services:
     image: ${API_IMAGE:-meridian-api:local}
     env_file: [./meridian.env]
     environment:
-      DATABASE_URL: postgresql+asyncpg://meridian_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/meridian
       DEV_MODE: "false"
     command: ["python", "-m", "app.worker"]
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks: [internal]
     restart: unless-stopped
 
@@ -89,6 +60,3 @@ services:
 networks:
   internal:
     driver: bridge
-
-volumes:
-  pg_data:
