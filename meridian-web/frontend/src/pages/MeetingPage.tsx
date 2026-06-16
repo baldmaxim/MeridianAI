@@ -132,7 +132,7 @@ export function MeetingPage() {
   useEffect(() => {
     if (store.currentMeetingId == null) return;
     getConversationTree(store.currentMeetingId)
-      .then((tree) => store.setConversationTree(tree.topics, tree.tree_version))
+      .then((tree) => store.setConversationTree(tree.topics, tree.tree_version, tree.unassigned_speakers))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentMeetingId]);

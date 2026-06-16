@@ -141,6 +141,13 @@ class MeetingRoom:
                             )
                         )
 
+                # Conversation Tree: загрузить persisted-роли спикеров (source of truth)
+                try:
+                    from .speaker_roles import get_roles_map
+                    s.speaker_roles = await get_roles_map(db, meeting_id)
+                except Exception as e:
+                    logger.warning(f"[room {meeting_id}] load speaker roles failed: {e}")
+
         # конфигурация движка по настройкам владельца встречи
         room.settings = await load_user_settings(owner)
         room.api_keys = await load_api_keys()
@@ -239,6 +246,12 @@ class MeetingRoom:
             "recording": self.session.is_listening,
             "active_audio_source": self.active_audio_source,
         })
+        # текущие роли спикеров (восстановление после refresh)
+        if self.session.speaker_roles:
+            await conn.send_json({
+                "type": "speaker_roles_updated",
+                "roles": self.session.speaker_roles,
+            })
         # остальным — device_joined
         await self.broadcast(
             {
@@ -395,6 +408,8 @@ class MeetingRoom:
             side = message.get("side", "")
             if name:
                 self.session.set_speaker_role(name, side)
+                conn = self.connections.get(connection_id)
+                await self._persist_speaker_role(name, side, conn.user_id if conn else None)
                 await self.broadcast({
                     "type": "speaker_roles_updated",
                     "roles": self.session.speaker_roles,
@@ -534,6 +549,17 @@ class MeetingRoom:
 
         # снять комнату с реестра (новые подключения создадут свежую при необходимости)
         room_registry.remove(self.meeting_id)
+
+    async def _persist_speaker_role(self, speaker_label: str, side: str, user_id: int | None) -> None:
+        """Сохранить роль спикера в БД (source of truth). Ошибка не ломает live-сессию."""
+        try:
+            from .speaker_roles import upsert_role
+            async with async_session() as db:
+                await upsert_role(db, self.meeting_id, speaker_label,
+                                  side=side, assigned_by_user_id=user_id)
+                await db.commit()
+        except Exception as e:
+            logger.error(f"[room {self.meeting_id}] persist speaker role failed: {e}")
 
     async def _on_committed_for_tree(self, segment, role: str | None) -> None:
         """Conversation Tree: upsert темы по committed-сегменту + broadcast обновления.

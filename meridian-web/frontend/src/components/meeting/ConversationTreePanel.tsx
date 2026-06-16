@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
-import { updateConversationTopic, refineConversationTree } from '../../api/conversationTree';
+import { updateConversationTopic, refineConversationTree, rebuildConversationTree, getConversationTree } from '../../api/conversationTree';
+import { putSpeakerRole } from '../../api/speakerRoles';
 import { theme } from '../../styles/theme';
-import type { ConversationTopic, ConversationTopicStatus, ConversationTopicUpdateInput } from '../../types';
+import type { ConversationTopic, ConversationTopicStatus, ConversationTopicUpdateInput, SpeakerSide } from '../../types';
+
+const SIDE_CHOICES: { side: SpeakerSide; label: string }[] = [
+  { side: 'self', label: 'Мы' },
+  { side: 'opponent', label: 'Заказчик' },
+  { side: 'third_party', label: 'Третья сторона' },
+];
 
 const STATUS_META: Record<ConversationTopicStatus, { label: string; color: string }> = {
   new: { label: 'НОВАЯ', color: theme.accent.green },
@@ -129,6 +136,79 @@ function TopicCard({ topic, meetingId, canEdit }: { topic: ConversationTopic; me
   );
 }
 
+function UnassignedBlock({ meetingId, canEdit }: { meetingId: number; canEdit: boolean }) {
+  const treeUnassigned = useMeetingStore((s) => s.treeUnassigned);
+  const turns = useMeetingStore((s) => s.turns);
+  const speakerRoles = useMeetingStore((s) => s.speakerRoles);
+  const setSpeakerRoles = useMeetingStore((s) => s.setSpeakerRoles);
+  const setTree = useMeetingStore((s) => s.setConversationTree);
+  const treeVersion = useMeetingStore((s) => s.treeVersion);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [canRebuild, setCanRebuild] = useState(false);
+
+  // объединяем persisted-неназначенных и live-спикеров из turns без стороны
+  const liveSpeakers = Array.from(new Set(turns.map((t) => t.speaker).filter(Boolean)));
+  const names = Array.from(new Set([...treeUnassigned, ...liveSpeakers]))
+    .filter((n) => !speakerRoles[n]);
+
+  if (!canEdit || names.length === 0) {
+    return canRebuild && canEdit ? (
+      <RebuildButton meetingId={meetingId} onDone={() => setCanRebuild(false)} />
+    ) : null;
+  }
+
+  const assign = async (name: string, side: SpeakerSide) => {
+    setBusy(name);
+    try {
+      await putSpeakerRole(meetingId, name, { side });
+      setSpeakerRoles({ ...speakerRoles, [name]: side });
+      setCanRebuild(true);
+      // обновим список неназначенных
+      const tree = await getConversationTree(meetingId);
+      setTree(tree.topics, Math.max(treeVersion, tree.tree_version), tree.unassigned_speakers);
+    } catch { /* нет прав / ошибка — игнор */ }
+    finally { setBusy(null); }
+  };
+
+  return (
+    <div style={styles.unassigned}>
+      <div style={styles.unassignedTitle}>Не назначены стороны для спикеров:</div>
+      {names.map((name) => (
+        <div key={name} style={styles.unassignedRow}>
+          <span style={styles.unassignedName}>{name}</span>
+          <div style={styles.sideBtns}>
+            {SIDE_CHOICES.map((c) => (
+              <button key={c.side} style={styles.sideBtn} disabled={busy === name}
+                      onClick={() => assign(name, c.side)}>{c.label}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {canRebuild && <RebuildButton meetingId={meetingId} onDone={() => setCanRebuild(false)} />}
+    </div>
+  );
+}
+
+function RebuildButton({ meetingId, onDone }: { meetingId: number; onDone: () => void }) {
+  const setTree = useMeetingStore((s) => s.setConversationTree);
+  const treeVersion = useMeetingStore((s) => s.treeVersion);
+  const [busy, setBusy] = useState(false);
+  const rebuild = async () => {
+    setBusy(true);
+    try {
+      const tree = await rebuildConversationTree(meetingId);
+      setTree(tree.topics, Math.max(treeVersion + 1, tree.tree_version), tree.unassigned_speakers);
+      onDone();
+    } catch { /* игнор */ }
+    finally { setBusy(false); }
+  };
+  return (
+    <button style={styles.rebuildBtn} disabled={busy} onClick={rebuild}>
+      {busy ? 'Пересборка…' : '↻ Пересобрать дерево'}
+    </button>
+  );
+}
+
 export function ConversationTreePanel({ meetingId }: { meetingId: number | null }) {
   const topics = useMeetingStore((s) => s.conversationTree);
   const open = useMeetingStore((s) => s.treePanelOpen);
@@ -147,7 +227,7 @@ export function ConversationTreePanel({ meetingId }: { meetingId: number | null 
     setRefining(true);
     try {
       const tree = await refineConversationTree(meetingId);
-      setTree(tree.topics, Math.max(treeVersion, tree.tree_version));
+      setTree(tree.topics, Math.max(treeVersion, tree.tree_version), tree.unassigned_speakers);
     } catch { /* троттлинг/нет ключа — игнор */ }
     finally { setRefining(false); }
   };
@@ -169,9 +249,11 @@ export function ConversationTreePanel({ meetingId }: { meetingId: number | null 
 
       {open && (
         <div style={styles.body}>
+          {meetingId != null && <UnassignedBlock meetingId={meetingId} canEdit={canEdit} />}
           {ordered.length === 0 ? (
             <div style={styles.empty}>
-              Темы появятся по ходу разговора. Назначьте стороны спикерам (Мы / Заказчик) в транскрипции.
+              Дерево общения появится после назначения сторон спикерам: кто относится к нашей
+              стороне, а кто к Заказчику. Назначить можно выше или кликом по имени спикера в транскрипции.
             </div>
           ) : (
             ordered.map((t) => (
@@ -193,6 +275,13 @@ const styles: Record<string, React.CSSProperties> = {
   refineBtn: { marginLeft: 'auto', background: theme.accent.amberGlow, color: theme.accent.amber, border: `1px solid ${theme.border.amber}`, borderRadius: 6, fontSize: 11, padding: '3px 8px', cursor: 'pointer', fontFamily: theme.font.mono },
   body: { flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 },
   empty: { color: theme.text.muted, fontSize: 12, lineHeight: 1.5, padding: '12px 8px', fontFamily: theme.font.body },
+  unassigned: { background: theme.bg.elevated, border: `1px solid ${theme.border.amber}`, borderRadius: 9, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 },
+  unassignedTitle: { fontFamily: theme.font.mono, fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: theme.accent.amber },
+  unassignedRow: { display: 'flex', flexDirection: 'column', gap: 5 },
+  unassignedName: { fontSize: 12, color: theme.text.primary, fontWeight: 600, wordBreak: 'break-word' },
+  sideBtns: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  sideBtn: { background: theme.bg.input, color: theme.text.secondary, border: `1px solid ${theme.border.default}`, borderRadius: 6, padding: '3px 9px', fontSize: 11, cursor: 'pointer', fontFamily: theme.font.body },
+  rebuildBtn: { background: theme.accent.amberGlow, color: theme.accent.amber, border: `1px solid ${theme.border.amber}`, borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: theme.font.mono, marginTop: 4 },
   card: { background: theme.bg.card, border: '1px solid', borderRadius: 9, padding: 10, transition: 'border-color .3s, box-shadow .3s' },
   cardHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
   title: { fontFamily: theme.font.body, fontWeight: 600, fontSize: 13, color: theme.text.primary, lineHeight: 1.3 },

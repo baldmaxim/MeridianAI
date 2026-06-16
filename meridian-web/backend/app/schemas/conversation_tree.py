@@ -57,3 +57,5 @@ class ConversationTreeOut(BaseModel):
     meeting_id: int
     tree_version: int
     topics: list[ConversationTopicOut]
+    # спикеры из транскрипта без назначенной стороны (для подсказки на фронте)
+    unassigned_speakers: list[str] = []

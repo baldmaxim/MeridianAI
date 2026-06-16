@@ -92,9 +92,10 @@ interface MeetingState {
   // Conversation Tree (дерево общения)
   conversationTree: ConversationTopic[];
   treeVersion: number;
+  treeUnassigned: string[];  // спикеры из транскрипта без назначенной стороны
   treeCollapsed: Record<number, boolean>;  // topicId -> refs свёрнуты
   treePanelOpen: boolean;
-  setConversationTree: (topics: ConversationTopic[], version: number) => void;
+  setConversationTree: (topics: ConversationTopic[], version: number, unassigned?: string[]) => void;
   upsertConversationTopic: (topic: ConversationTopic, version: number) => void;
   toggleTopicExpanded: (topicId: number) => void;
   setTreePanelOpen: (v: boolean) => void;
@@ -268,9 +269,15 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   conversationTree: [],
   treeVersion: 0,
+  treeUnassigned: [],
   treeCollapsed: {},
   treePanelOpen: true,
-  setConversationTree: (topics, version) => set({ conversationTree: topics, treeVersion: version }),
+  setConversationTree: (topics, version, unassigned) =>
+    set((s) => ({
+      conversationTree: topics,
+      treeVersion: version,
+      treeUnassigned: unassigned ?? s.treeUnassigned,
+    })),
   upsertConversationTopic: (topic, version) =>
     set((s) => {
       const idx = s.conversationTree.findIndex((t) => t.id === topic.id);
@@ -328,7 +335,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,
     recordPermissionDenied: false, phoneRecording: false,
-    conversationTree: [], treeVersion: 0, treeCollapsed: {},
+    conversationTree: [], treeVersion: 0, treeUnassigned: [], treeCollapsed: {},
     meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
   }),
 
@@ -376,6 +383,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       phoneRecording: false,
       conversationTree: [],
       treeVersion: 0,
+      treeUnassigned: [],
       treeCollapsed: {},
     }),
 }));

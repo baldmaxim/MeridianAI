@@ -190,6 +190,18 @@ export interface ConversationTree {
   meeting_id: number;
   tree_version: number;
   topics: ConversationTopic[];
+  unassigned_speakers: string[];
+}
+
+export interface SpeakerRoleOut {
+  id: number;
+  meeting_id: number;
+  speaker_label: string;
+  side: SpeakerSide;
+  display_name: string | null;
+  assigned_by_user_id: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ConversationTopicUpdateInput {

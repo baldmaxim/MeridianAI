@@ -100,11 +100,12 @@ async def rebuild_conversation_tree(meeting_id: int, user: User = Depends(get_cu
                                     db: AsyncSession = Depends(get_db)):
     await _require_access(db, user.id, meeting_id)
     await _require_edit(db, user.id, meeting_id)
-    # роли спикеров берём из live-комнаты, если она есть (иначе дерево будет пустым)
-    roles: dict[str, str] = {}
+    # persisted-роли (source of truth) + перекрытие live-комнатой, если она открыта
+    from ..services.speaker_roles import get_roles_map
+    roles = await get_roles_map(db, meeting_id)
     room = room_registry.get_room(meeting_id)
     if room:
-        roles = dict(room.session.speaker_roles)
+        roles.update(room.session.speaker_roles)
     tree = await _service.rebuild_from_segments(db, meeting_id, speaker_roles=roles)
     await db.commit()
     return tree

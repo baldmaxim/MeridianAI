@@ -194,7 +194,27 @@ class ConversationTreeService:
         )).scalars().all()
         topics = [self.topic_to_out(t) for t in rows]
         version = sum(len(t.our_refs) + len(t.opponent_refs) for t in topics) + len(topics)
-        return ConversationTreeOut(meeting_id=meeting_id, tree_version=version, topics=topics)
+        unassigned = await self._unassigned_speakers(db, meeting_id)
+        return ConversationTreeOut(meeting_id=meeting_id, tree_version=version,
+                                   topics=topics, unassigned_speakers=unassigned)
+
+    @staticmethod
+    async def _unassigned_speakers(db: AsyncSession, meeting_id: int) -> list[str]:
+        """Спикеры из persisted-транскрипта без назначенной стороны."""
+        from .speaker_roles import get_roles_map
+        rows = (await db.execute(
+            select(TranscriptSegmentRecord.speaker_label, TranscriptSegmentRecord.speaker_id)
+            .where(TranscriptSegmentRecord.session_id == meeting_id)
+        )).all()
+        speakers: list[str] = []
+        seen = set()
+        for label, spk_id in rows:
+            name = label or spk_id
+            if name and name not in seen:
+                seen.add(name)
+                speakers.append(name)
+        roles = await get_roles_map(db, meeting_id)
+        return [s for s in speakers if s not in roles]
 
     # ---------- ручное редактирование ----------
 
@@ -257,8 +277,11 @@ class ConversationTreeService:
     ) -> ConversationTreeOut:
         """Удалить дерево и пересобрать из persisted TranscriptSegmentRecord.
 
-        Роли спикеров не персистятся — передаются явно (speaker_roles). Без ролей дерево пустое.
+        Роли спикеров берутся из БД (source of truth); можно переопределить аргументом.
         """
+        if speaker_roles is None:
+            from .speaker_roles import get_roles_map
+            speaker_roles = await get_roles_map(db, meeting_id)
         speaker_roles = speaker_roles or {}
         await db.execute(delete(MeetingConversationTopic).where(
             MeetingConversationTopic.meeting_id == meeting_id))

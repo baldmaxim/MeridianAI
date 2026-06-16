@@ -200,6 +200,8 @@ async def test_job_truncates_large_transcript(sqlite_sm, monkeypatch):
             captured["prompt"] = prompt
             return json.dumps(FAKE_RESULT, ensure_ascii=False)
     _patch_llm(monkeypatch, CapLLM)
+    # лимит транскрипта задаём в тесте (не зависим от env): ~28k символов > 4000 → обрезка
+    monkeypatch.setattr(mf.get_settings(), "meeting_finalization_max_transcript_chars", 4000)
 
     sm = sqlite_sm
     async with sm() as db:
