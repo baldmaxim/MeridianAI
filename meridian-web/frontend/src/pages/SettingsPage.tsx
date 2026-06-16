@@ -38,10 +38,11 @@ const SETTINGS_SECTIONS = [
 ] as const;
 
 interface Props {
-  onBack: () => void;
+  onBack?: () => void;
+  embedded?: boolean;
 }
 
-export function SettingsPage({ onBack }: Props) {
+export function SettingsPage({ onBack, embedded }: Props) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [section, setSection] = useState('stt');
   const [activeServices, setActiveServices] = useState<string[]>();
@@ -76,11 +77,13 @@ export function SettingsPage({ onBack }: Props) {
   }, [settings, applying, setCustomSuggestionTypes, showToast]);
 
   return (
-    <div style={styles.container}>
-      <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn}>&larr; Назад</button>
-        <span style={styles.topTitle}>НАСТРОЙКИ</span>
-      </div>
+    <div style={embedded ? styles.containerEmbedded : styles.container}>
+      {!embedded && (
+        <div style={styles.topBar}>
+          <button onClick={onBack} style={styles.backBtn}>&larr; Назад</button>
+          <span style={styles.topTitle}>НАСТРОЙКИ</span>
+        </div>
+      )}
 
       {!settings ? (
         <div style={styles.loading}>Загрузка...</div>
@@ -190,6 +193,7 @@ function PlaceholderSection({ title, text }: { title: string; text: string }) {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'auto', padding: '20px 24px' },
+  containerEmbedded: { display: 'flex', flexDirection: 'column' },
   topBar: {
     display: 'flex', alignItems: 'center', gap: 16,
     paddingBottom: 12, marginBottom: 20,

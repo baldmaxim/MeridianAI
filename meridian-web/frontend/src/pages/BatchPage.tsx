@@ -55,7 +55,7 @@ export function BatchPage({ onBack }: Props) {
       <div className="batch-left" style={styles.left}>
         <div style={styles.topBar}>
           <button onClick={onBack} style={styles.backBtn}>{'\u2190'} Назад</button>
-          <h2 style={styles.title}>Протоколы</h2>
+          <h2 style={styles.title}>Оффлайн распознавание</h2>
         </div>
         <BatchUpload onUpload={handleUpload} uploading={uploading} />
         <div style={{ marginTop: 16, flex: 1, overflowY: 'auto' }}>

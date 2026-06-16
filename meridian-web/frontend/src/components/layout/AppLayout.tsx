@@ -7,12 +7,7 @@ import { useAppUpdate } from '../../hooks/useAppUpdate';
 interface Props {
   children: ReactNode;
   userName?: string;
-  userRole?: string;
   onLogout: () => void;
-  showAdmin?: boolean;
-  onToggleAdmin?: () => void;
-  onShowHistory?: () => void;
-  showHistory?: boolean;
   onShowBatch?: () => void;
   showBatch?: boolean;
   onShowDirectory?: () => void;
@@ -30,11 +25,11 @@ interface Props {
   onToggleViewAs?: () => void;
 }
 
-export function AppLayout({ children, userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
+export function AppLayout({ children, userName, onLogout, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
   const updateAvailable = useAppUpdate();
   return (
     <div style={styles.container}>
-      <Header userName={userName} userRole={userRole} onLogout={onLogout} showAdmin={showAdmin} onToggleAdmin={onToggleAdmin} onShowHistory={onShowHistory} showHistory={showHistory} onShowBatch={onShowBatch} showBatch={showBatch} onShowDirectory={onShowDirectory} showDirectory={showDirectory} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} onShowAISettings={onShowAISettings} showAISettings={showAISettings} onShowObjects={onShowObjects} showObjects={showObjects} onShowSettings={onShowSettings} showSettings={showSettings} canSwitchRole={canSwitchRole} viewAsUser={viewAsUser} onToggleViewAs={onToggleViewAs} />
+      <Header userName={userName} onLogout={onLogout} onShowBatch={onShowBatch} showBatch={showBatch} onShowDirectory={onShowDirectory} showDirectory={showDirectory} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} onShowAISettings={onShowAISettings} showAISettings={showAISettings} onShowObjects={onShowObjects} showObjects={showObjects} onShowSettings={onShowSettings} showSettings={showSettings} canSwitchRole={canSwitchRole} viewAsUser={viewAsUser} onToggleViewAs={onToggleViewAs} />
       <AppUpdateBanner updateAvailable={updateAvailable} />
       <main style={styles.main}>{children}</main>
     </div>

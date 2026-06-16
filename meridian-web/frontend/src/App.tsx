@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { MeetingPage } from './pages/MeetingPage';
-import { AdminPage } from './pages/AdminPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { MeetingDetailPage } from './pages/MeetingDetailPage';
 import { BatchPage } from './pages/BatchPage';
@@ -11,7 +10,7 @@ import { KnowledgePage } from './pages/KnowledgePage';
 import { AISettingsPage } from './pages/AISettingsPage';
 import { ObjectsPage } from './pages/ObjectsPage';
 import { ObjectDetailPage } from './pages/ObjectDetailPage';
-import { SettingsPage } from './pages/SettingsPage';
+import { SettingsHubPage } from './pages/SettingsHubPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RecorderPage } from './pages/RecorderPage';
 import { MobileMeetingsPage } from './pages/mobile/MobileMeetingsPage';
@@ -21,7 +20,10 @@ import { useMeetingStore } from './store/meetingStore';
 import { createMeeting } from './api/meetings';
 import type { ProjectObject } from './types';
 
-type Page = 'objects' | 'object-detail' | 'meeting' | 'admin' | 'history' | 'history-detail' | 'batch' | 'directory' | 'knowledge' | 'ai-settings' | 'settings';
+type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch' | 'directory' | 'knowledge' | 'ai-settings' | 'settings';
+
+// Разделы только для админа (скрыты у обычного пользователя и в режиме «смотреть как пользователь»).
+const ADMIN_PAGES: Page[] = ['settings', 'directory', 'knowledge', 'ai-settings'];
 
 function App() {
   const { user, loading, login, register, logout } = useAuth();
@@ -96,14 +98,16 @@ function App() {
   const onToggleViewAs = () => {
     const next = !viewAsUser;
     setViewAsUser(next);
-    if (next && currentPage === 'admin') setCurrentPage('objects');
+    if (next && ADMIN_PAGES.includes(currentPage)) setCurrentPage('objects');
   };
 
   const objectsPage = (
-    <ObjectsPage onOpenObject={openObject} onGoDirectory={() => setCurrentPage('directory')} />
+    <ObjectsPage onOpenObject={openObject} />
   );
 
   const renderPage = () => {
+    // Защита: админ-страница недоступна без прав — отдаём список объектов.
+    if (ADMIN_PAGES.includes(currentPage) && !effectiveAdmin) return objectsPage;
     switch (currentPage) {
       case 'objects':
         return objectsPage;
@@ -117,7 +121,7 @@ function App() {
           />
         );
       case 'settings':
-        return <SettingsPage onBack={() => setCurrentPage('objects')} />;
+        return <SettingsHubPage onBack={() => setCurrentPage('objects')} />;
       case 'meeting':
         return <MeetingPage />;
       case 'batch':
@@ -128,8 +132,6 @@ function App() {
         return <KnowledgePage onBack={() => setCurrentPage('objects')} />;
       case 'ai-settings':
         return <AISettingsPage onBack={() => setCurrentPage('objects')} />;
-      case 'admin':
-        return <AdminPage onBack={() => setCurrentPage('objects')} />;
       case 'history':
         return (
           <HistoryPage
@@ -158,23 +160,18 @@ function App() {
   return (
     <AppLayout
       userName={user.display_name || user.email}
-      userRole={effectiveAdmin ? 'admin' : 'user'}
       onLogout={logout}
       onShowObjects={() => setCurrentPage('objects')}
       showObjects={currentPage === 'objects' || currentPage === 'object-detail'}
-      onShowSettings={() => setCurrentPage(currentPage === 'settings' ? 'objects' : 'settings')}
+      onShowSettings={effectiveAdmin ? () => setCurrentPage(currentPage === 'settings' ? 'objects' : 'settings') : undefined}
       showSettings={currentPage === 'settings'}
-      showAdmin={currentPage === 'admin'}
-      onToggleAdmin={effectiveAdmin ? () => setCurrentPage(currentPage === 'admin' ? 'objects' : 'admin') : undefined}
-      onShowHistory={() => setCurrentPage(currentPage === 'history' || currentPage === 'history-detail' ? 'objects' : 'history')}
-      showHistory={currentPage === 'history' || currentPage === 'history-detail'}
       onShowBatch={() => setCurrentPage(currentPage === 'batch' ? 'objects' : 'batch')}
       showBatch={currentPage === 'batch'}
-      onShowDirectory={() => setCurrentPage(currentPage === 'directory' ? 'objects' : 'directory')}
+      onShowDirectory={effectiveAdmin ? () => setCurrentPage(currentPage === 'directory' ? 'objects' : 'directory') : undefined}
       showDirectory={currentPage === 'directory'}
-      onShowKnowledge={() => setCurrentPage(currentPage === 'knowledge' ? 'objects' : 'knowledge')}
+      onShowKnowledge={effectiveAdmin ? () => setCurrentPage(currentPage === 'knowledge' ? 'objects' : 'knowledge') : undefined}
       showKnowledge={currentPage === 'knowledge'}
-      onShowAISettings={() => setCurrentPage(currentPage === 'ai-settings' ? 'objects' : 'ai-settings')}
+      onShowAISettings={effectiveAdmin ? () => setCurrentPage(currentPage === 'ai-settings' ? 'objects' : 'ai-settings') : undefined}
       showAISettings={currentPage === 'ai-settings'}
       canSwitchRole={isAdmin}
       viewAsUser={viewAsUser}

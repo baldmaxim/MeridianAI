@@ -111,10 +111,12 @@ button:disabled {
   .admin-columns {
     grid-template-columns: 1fr !important;
   }
-  .settings-layout {
+  .settings-layout,
+  .settings-shell-layout {
     flex-direction: column !important;
   }
-  .settings-layout nav {
+  .settings-layout nav,
+  .settings-shell-layout nav {
     flex-direction: row !important;
     overflow-x: auto;
     min-width: unset !important;
@@ -483,16 +485,19 @@ button:disabled {
   }
 
   /* ── Settings ── */
-  .settings-layout {
+  .settings-layout,
+  .settings-shell-layout {
     flex-direction: column !important;
   }
-  .settings-layout nav {
+  .settings-layout nav,
+  .settings-shell-layout nav {
     flex-direction: row !important;
     flex-wrap: wrap !important;
     min-width: unset !important;
     gap: 4px !important;
   }
-  .settings-layout nav button {
+  .settings-layout nav button,
+  .settings-shell-layout nav button {
     padding: 8px 12px !important;
     font-size: 11px !important;
     white-space: nowrap;
@@ -570,7 +575,8 @@ button:disabled {
   }
 
   /* Settings nav buttons bigger */
-  .settings-layout nav button {
+  .settings-layout nav button,
+  .settings-shell-layout nav button {
     padding: 10px 14px !important;
     font-size: 13px !important;
   }

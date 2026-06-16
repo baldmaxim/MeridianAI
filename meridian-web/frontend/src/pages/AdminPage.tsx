@@ -20,20 +20,23 @@ function StatCard({ value, label, change, changeColor }: {
 
 interface Props {
   onBack?: () => void;
+  embedded?: boolean;
 }
 
-export function AdminPage({ onBack }: Props) {
+export function AdminPage({ onBack, embedded }: Props) {
   return (
-    <div className="admin-container" style={styles.container}>
+    <div className="admin-container" style={embedded ? styles.containerEmbedded : styles.container}>
       {/* Top bar with back + title */}
-      <div className="admin-topbar" style={styles.topBar}>
-        {onBack && (
-          <button onClick={onBack} style={styles.backBtn}>
-            &larr; К переговорам
-          </button>
-        )}
-        <span style={styles.topTitle}>ПАНЕЛЬ АДМИНИСТРАТОРА</span>
-      </div>
+      {!embedded && (
+        <div className="admin-topbar" style={styles.topBar}>
+          {onBack && (
+            <button onClick={onBack} style={styles.backBtn}>
+              &larr; К переговорам
+            </button>
+          )}
+          <span style={styles.topTitle}>ПАНЕЛЬ АДМИНИСТРАТОРА</span>
+        </div>
+      )}
 
       {/* Header */}
       <div>
@@ -109,6 +112,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 24,
     overflow: 'auto',
     flex: 1,
+  },
+  containerEmbedded: {
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 24,
   },
   title: {
     margin: 0,

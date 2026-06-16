@@ -6,12 +6,7 @@ import { RoleSwitch } from './RoleSwitch';
 
 interface Props {
   userName?: string;
-  userRole?: string;
   onLogout: () => void;
-  showAdmin?: boolean;
-  onToggleAdmin?: () => void;
-  onShowHistory?: () => void;
-  showHistory?: boolean;
   onShowBatch?: () => void;
   showBatch?: boolean;
   onShowDirectory?: () => void;
@@ -77,7 +72,7 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
+export function Header({ userName, onLogout, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
 
@@ -158,16 +153,7 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
               onClick={onShowBatch}
               style={showBatch ? styles.adminBtnActive : styles.adminBtn}
             >
-              Протоколы
-            </button>
-          )}
-          {onShowHistory && (
-            <button
-              className="header-desktop-btn"
-              onClick={onShowHistory}
-              style={showHistory ? styles.adminBtnActive : styles.adminBtn}
-            >
-              История
+              Оффлайн распознавание
             </button>
           )}
           {onShowSettings && (
@@ -177,15 +163,6 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
               style={showSettings ? styles.adminBtnActive : styles.adminBtn}
             >
               ⚙ Настройки
-            </button>
-          )}
-          {userRole === 'admin' && onToggleAdmin && (
-            <button
-              className="header-desktop-btn"
-              onClick={onToggleAdmin}
-              style={showAdmin ? styles.adminBtnActive : styles.adminBtn}
-            >
-              Админ
             </button>
           )}
           {canSwitchRole && onToggleViewAs && (
