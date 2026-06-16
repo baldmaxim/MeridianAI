@@ -60,7 +60,6 @@ export function LoginPage({ onLogin, onRegister }: Props) {
         <div style={styles.brandText}>
           MERIDI<span style={{ color: theme.accent.amber }}>AN</span>
         </div>
-        <div style={styles.brandSub}>AI Тактик</div>
       </div>
       {mode === 'login' ? (
         <LoginForm

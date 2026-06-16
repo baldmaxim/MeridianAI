@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useMeetingStore } from '../store/meetingStore';
-import { getSettings, updateSettings as apiUpdateSettings, getActiveProviders } from '../api/settings';
+import { getSettings } from '../api/settings';
 import { createMeeting } from '../api/meetings';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
@@ -17,52 +17,16 @@ import { MeetingDocuments } from '../components/context/MeetingDocuments';
 import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
 import { MeetingContext } from '../components/context/MeetingContext';
 import { RolesTab } from '../components/context/RolesTab';
-import { STTSettings } from '../components/settings/STTSettings';
-import { LLMSettings } from '../components/settings/LLMSettings';
-import { HintsSettings } from '../components/settings/HintsSettings';
-import { StorageSettings } from '../components/settings/StorageSettings';
 import { theme } from '../styles/theme';
-import type { UserSettings, SuggestionTypeConfig, TriggerKeywordConfig } from '../types';
+import type { UserSettings } from '../types';
 
-const DEFAULT_SUGGESTION_TYPES: SuggestionTypeConfig[] = [
-  { key: 'priority', badge: '\u2726 \u041F\u0420\u0418\u041E\u0420\u0418\u0422\u0415\u0422', color: '#F5A623', metaLabel: '\u041A\u043E\u043D\u0442\u0435\u043A\u0441\u0442', actionLabel: '\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C', llm_description: '\u0433\u043B\u0430\u0432\u043D\u0430\u044F \u0440\u0435\u043A\u043E\u043C\u0435\u043D\u0434\u0430\u0446\u0438\u044F: \u0447\u0442\u043E \u0441\u043A\u0430\u0437\u0430\u0442\u044C/\u0441\u0434\u0435\u043B\u0430\u0442\u044C \u041F\u0420\u042F\u041C\u041E \u0421\u0415\u0419\u0427\u0410\u0421. \u0423\u0447\u0438\u0442\u044B\u0432\u0430\u0439 \u0444\u0430\u0437\u0443 \u043F\u0435\u0440\u0435\u0433\u043E\u0432\u043E\u0440\u043E\u0432.', enabled: true },
-  { key: 'counter', badge: '\u21C4 \u041A\u041E\u041D\u0422\u0420\u0410\u0420\u0413\u0423\u041C\u0415\u041D\u0422', color: '#5B9CF6', metaLabel: '\u0422\u0440\u0438\u0433\u0433\u0435\u0440', actionLabel: '\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C', secondaryAction: '\u041F\u043E\u0434\u0440\u043E\u0431\u043D\u0435\u0435', llm_description: '\u043A\u043E\u043D\u0442\u0440\u0430\u0440\u0433\u0443\u043C\u0435\u043D\u0442 \u043D\u0430 \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0435 \u0443\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u0435 \u043E\u043F\u043F\u043E\u043D\u0435\u043D\u0442\u0430. \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439: \u043F\u0435\u0440\u0435\u0444\u043E\u0440\u043C\u0443\u043B\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435, \u0432\u043E\u043F\u0440\u043E\u0441-\u043B\u043E\u0432\u0443\u0448\u043A\u0443 \u0438\u043B\u0438 \u00AB\u0443\u0441\u043B\u043E\u0432\u043D\u0443\u044E \u0443\u0441\u0442\u0443\u043F\u043A\u0443\u00BB.', enabled: true },
-  { key: 'question', badge: '? \u0412\u041E\u041F\u0420\u041E\u0421-\u0417\u0410\u0426\u0415\u041F', color: '#2EE59D', metaLabel: '\u041C\u0435\u0442\u043E\u0434', actionLabel: '\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C', llm_description: '\u0432\u043E\u043F\u0440\u043E\u0441 \u0434\u043B\u044F \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u0430 \u0438\u043D\u0438\u0446\u0438\u0430\u0442\u0438\u0432\u044B. \u041F\u0440\u0438\u043C\u0435\u043D\u044F\u0439: \u00AB\u043A\u0430\u043B\u0438\u0431\u0440\u043E\u0432\u043E\u0447\u043D\u044B\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B\u00BB, \u0432\u043E\u043F\u0440\u043E\u0441\u044B-\u044F\u043A\u043E\u0440\u044F, \u0438\u043B\u0438 \u0437\u0435\u0440\u043A\u0430\u043B\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435.', enabled: true },
-  { key: 'risk', badge: '\u26A0 \u0420\u0418\u0421\u041A', color: '#FF4B6E', metaLabel: '\u041F\u0430\u0442\u0442\u0435\u0440\u043D', actionLabel: '\u041F\u0440\u0438\u043D\u044F\u043B \u043A \u0441\u0432\u0435\u0434\u0435\u043D\u0438\u044E', llm_description: '\u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435: \u0447\u0442\u043E \u043E\u043F\u043F\u043E\u043D\u0435\u043D\u0442 \u043F\u044B\u0442\u0430\u0435\u0442\u0441\u044F \u043F\u0440\u043E\u0442\u0430\u0449\u0438\u0442\u044C, \u043A\u0430\u043A\u0443\u044E \u043B\u043E\u0432\u0443\u0448\u043A\u0443 \u0440\u0430\u0441\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442, \u043A\u0430\u043A\u043E\u0439 \u043F\u0443\u043D\u043A\u0442 \u043D\u0443\u0436\u043D\u043E \u0437\u0430\u0444\u0438\u043A\u0441\u0438\u0440\u043E\u0432\u0430\u0442\u044C.', enabled: true },
-];
-
-const DEFAULT_TRIGGER_KEYWORDS: TriggerKeywordConfig[] = [
-  { keyword: '\u0446\u0435\u043D\u0430', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u0432\u043E\u0437\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u043F\u043E \u0446\u0435\u043D\u0435...', enabled: true },
-  { keyword: '\u0441\u0440\u043E\u043A', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u043E\u0431\u0441\u0443\u0436\u0434\u0435\u043D\u0438\u0435 \u0441\u0440\u043E\u043A\u043E\u0432...', enabled: true },
-  { keyword: '\u0433\u0430\u0440\u0430\u043D\u0442\u0438\u044F', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u0432\u043E\u043F\u0440\u043E\u0441 \u0433\u0430\u0440\u0430\u043D\u0442\u0438\u0439...', enabled: true },
-  { keyword: '\u0448\u0442\u0440\u0430\u0444', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u0432\u043E\u043F\u0440\u043E\u0441 \u0448\u0442\u0440\u0430\u0444\u043D\u044B\u0445 \u0441\u0430\u043D\u043A\u0446\u0438\u0439...', enabled: true },
-  { keyword: '\u0434\u043E\u0433\u043E\u0432\u043E\u0440', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u043E\u0431\u0441\u0443\u0436\u0434\u0435\u043D\u0438\u0435 \u0434\u043E\u0433\u043E\u0432\u043E\u0440\u0430...', enabled: true },
-  { keyword: '\u043E\u0431\u0441\u0443\u0436\u0434\u0430\u0435\u043C', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u0442\u0435\u043A\u0443\u0449\u0443\u044E \u0442\u0435\u043C\u0443...', enabled: true },
-  { keyword: '\u0432\u0430\u0448\u0435 \u043C\u043D\u0435\u043D\u0438\u0435', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u0437\u0430\u043F\u0440\u043E\u0441 \u043C\u043D\u0435\u043D\u0438\u044F...', enabled: true },
-  { keyword: '\u0441\u043C\u0435\u0442\u0430', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u043E\u0431\u0441\u0443\u0436\u0434\u0435\u043D\u0438\u0435 \u0441\u043C\u0435\u0442\u044B...', enabled: true },
-  { keyword: '\u0430\u0432\u0430\u043D\u0441', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u0432\u043E\u043F\u0440\u043E\u0441 \u0430\u0432\u0430\u043D\u0441\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F...', enabled: true },
-  { keyword: '\u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u044B', status_message: '\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u044E \u043E\u0431\u0441\u0443\u0436\u0434\u0435\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u043E\u0432...', enabled: true },
-];
-
-const TABS = ['Переговоры', 'Контекст встречи', 'Настройки'] as const;
-
-const SETTINGS_SECTIONS = [
-  { id: 'stt', icon: '\u{1F399}', label: 'Распознавание речи' },
-  { id: 'llm', icon: '\u{1F916}', label: 'Языковая модель' },
-  { id: 'hints', icon: '\u26A1', label: 'Подсказки' },
-  { id: 'roles', icon: '\u{1F465}', label: 'Роли' },
-  { id: 'storage', icon: '\u{1F4C1}', label: 'Хранилище' },
-  { id: 'notifications', icon: '\u{1F514}', label: 'Уведомления' },
-  { id: 'locale', icon: '\u{1F310}', label: 'Язык и регион' },
-] as const;
+const TABS = ['Переговоры', 'Контекст встречи'] as const;
 
 export function MeetingPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [settingsSection, setSettingsSection] = useState('stt');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeServices, setActiveServices] = useState<string[]>();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -76,15 +40,18 @@ export function MeetingPage() {
   const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendBinary, setLevel);
   const store = useMeetingStore();
 
-  // Этап 2/3: обеспечить meeting_id (draft) и подключиться как desktop.
-  // forceNew=true — начать НОВУЮ встречу без reload (Этап 3, замечание о finalize).
-  const startSession = useCallback(async (forceNew = false) => {
+  // Встреча (строка в БД) создаётся ТОЛЬКО вручную: старт записи / «Новая встреча» /
+  // выбор заказчика. Открытие или reload портала НИЧЕГО не создаёт.
+  // startSession: вернуть существующий draft либо создать новый, затем подключиться.
+  // forceNew=true — начать НОВУЮ встречу без reload.
+  const startSession = useCallback(async (forceNew = false): Promise<number | null> => {
     if (forceNew) {
       disconnect();
       useMeetingStore.getState().newMeetingSession();
     }
     const st = useMeetingStore.getState();
-    let id = st.draftMeetingId ?? st.meetingSavedId ?? null;
+    let id = st.currentMeetingId ?? st.draftMeetingId ?? st.meetingSavedId ?? null;
+    const alreadyConnected = id != null && st.isConnected && !forceNew;
     if (id == null) {
       try {
         const m = await createMeeting({
@@ -97,22 +64,41 @@ export function MeetingPage() {
           opponent_weaknesses: st.opponentWeaknesses || null,
         });
         id = m.id;
-        st.setDraftMeetingId(m.id);
+        useMeetingStore.getState().setDraftMeetingId(m.id);
       } catch {
-        // draft не создан — подключимся через legacy endpoint
+        return null;
       }
     }
-    if (id != null) st.setCurrentMeetingId(id);
-    connect(id != null ? { meetingId: id, deviceRole: 'desktop' } : undefined);
+    useMeetingStore.getState().setCurrentMeetingId(id);
+    // connect всегда с конкретным meetingId — bare /ws/meeting не используем.
+    if (!alreadyConnected) connect({ meetingId: id, deviceRole: 'desktop' });
+    return id;
   }, [connect, disconnect]);
 
+  // Дождаться открытия WS, чтобы отправить start_audio сразу после создания встречи.
+  const waitForConnected = useCallback((timeoutMs = 5000): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (useMeetingStore.getState().isConnected) { resolve(true); return; }
+      const start = Date.now();
+      const iv = setInterval(() => {
+        if (useMeetingStore.getState().isConnected) { clearInterval(iv); resolve(true); }
+        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+      }, 100);
+    });
+  }, []);
+
   useEffect(() => {
-    startSession(false);
+    // НЕ создаём встречу при заходе. Переподключаемся, только если она уже есть в сторе.
+    const st = useMeetingStore.getState();
+    const existing = st.currentMeetingId ?? st.draftMeetingId ?? null;
+    if (existing != null) {
+      st.setCurrentMeetingId(existing);
+      connect({ meetingId: existing, deviceRole: 'desktop' });
+    }
     getSettings().then((s) => {
       setSettings(s);
       store.setCustomSuggestionTypes(s.custom_suggestion_types);
     }).catch(() => {});
-    getActiveProviders().then(setActiveServices).catch(() => {});
     return () => { disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,13 +112,6 @@ export function MeetingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentMeetingId]);
 
-  // Перезагружать провайдеров при переключении на вкладку настроек
-  useEffect(() => {
-    if (activeTab === 2) {
-      getActiveProviders().then(setActiveServices).catch(() => {});
-    }
-  }, [activeTab]);
-
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (store.isListening || store.messages.length > 0) {
@@ -143,6 +122,40 @@ export function MeetingPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [store.isListening, store.messages.length]);
 
+  const handleStartListening = useCallback(async () => {
+    // Этап 3: если активный источник аудио — другое устройство (телефон), не стартуем
+    let st = useMeetingStore.getState();
+    if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
+      store.setError('Источник аудио занят (идёт запись с телефона)');
+      return;
+    }
+    // Встреча создаётся вручную при первом старте записи (не при заходе на портал).
+    if (st.currentMeetingId == null || !st.isConnected) {
+      const id = await startSession(false);
+      if (id == null) { store.setError('Не удалось создать встречу'); return; }
+      const ok = await waitForConnected();
+      if (!ok) { store.setError('Не удалось подключиться к встрече'); return; }
+      st = useMeetingStore.getState();
+      if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
+        store.setError('Источник аудио занят (идёт запись с телефона)');
+        return;
+      }
+    }
+    try {
+      await startAudio();
+      sendJSON({ type: 'start_audio' });
+      store.setListening(true);
+    } catch {
+      store.setError('Не удалось получить доступ к микрофону');
+    }
+  }, [startAudio, sendJSON, startSession, waitForConnected, store]);
+
+  const handleStopListening = useCallback(() => {
+    stopAudio();
+    sendJSON({ type: 'stop_audio' });
+    store.setListening(false);
+  }, [stopAudio, sendJSON, store]);
+
   // Hotkeys: Space — toggle listening, H — suggestion, S — strengthen
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -152,19 +165,9 @@ export function MeetingPage() {
       if (e.code === 'Space') {
         e.preventDefault();
         if (store.isListening) {
-          stopAudio();
-          sendJSON({ type: 'stop_audio' });
-          store.setListening(false);
-        } else if (store.isConnected) {
-          const st = useMeetingStore.getState();
-          if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-            store.setError('Источник аудио занят (идёт запись с телефона)');
-          } else {
-            startAudio().then(() => {
-              sendJSON({ type: 'start_audio' });
-              store.setListening(true);
-            }).catch(() => store.setError('Не удалось получить доступ к микрофону'));
-          }
+          handleStopListening();
+        } else {
+          handleStartListening();
         }
       } else if (e.code === 'KeyH' && !e.ctrlKey && !e.metaKey) {
         if (store.isConnected && !store.suggestionLoading) {
@@ -178,29 +181,7 @@ export function MeetingPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [store.isListening, store.isConnected, store.suggestionLoading, store.strengthenLoading, startAudio, stopAudio, sendJSON]);
-
-  const handleStartListening = useCallback(async () => {
-    // Этап 3: если активный источник аудио — другое устройство (телефон), не стартуем
-    const st = useMeetingStore.getState();
-    if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-      store.setError('Источник аудио занят (идёт запись с телефона)');
-      return;
-    }
-    try {
-      await startAudio();
-      sendJSON({ type: 'start_audio' });
-      store.setListening(true);
-    } catch {
-      store.setError('Не удалось получить доступ к микрофону');
-    }
-  }, [startAudio, sendJSON]);
-
-  const handleStopListening = useCallback(() => {
-    stopAudio();
-    sendJSON({ type: 'stop_audio' });
-    store.setListening(false);
-  }, [stopAudio, sendJSON]);
+  }, [store.isListening, store.isConnected, store.suggestionLoading, store.strengthenLoading, handleStartListening, handleStopListening, sendJSON]);
 
   const handleContextChange = useCallback((topic: string, notes: string, negotiationType: string, meetingRole: string, opponentWeaknesses: string) => {
     sendJSON({ type: 'update_meeting_context', title: store.meetingName || undefined, topic, notes, negotiation_type: negotiationType, meeting_role: meetingRole, opponent_weaknesses: opponentWeaknesses });
@@ -224,33 +205,6 @@ export function MeetingPage() {
   const handleRoleSelect = useCallback((roleId: number) => {
     sendJSON({ type: 'change_role', role_id: roleId });
   }, [sendJSON]);
-
-  const [applyingSettings, setApplyingSettings] = useState(false);
-
-  const handleApplySettings = useCallback(async () => {
-    if (!settings || applyingSettings) return;
-    setApplyingSettings(true);
-    try {
-      await apiUpdateSettings(settings);
-      sendJSON({
-        type: 'change_settings',
-        stt_provider: settings.stt_provider,
-        llm_model: settings.llm_model,
-        temperature: settings.temperature,
-        diarization: settings.diarization,
-        silence_filter: settings.silence_filter,
-        custom_suggestion_types: settings.custom_suggestion_types,
-        custom_trigger_keywords: settings.custom_trigger_keywords,
-      } as any);
-      // Update store so SuggestionPanel uses new types
-      store.setCustomSuggestionTypes(settings.custom_suggestion_types);
-      showToast('Настройки успешно применены', 'success');
-    } catch {
-      showToast('Ошибка сохранения настроек', 'error');
-    } finally {
-      setApplyingSettings(false);
-    }
-  }, [settings, sendJSON, applyingSettings, showToast]);
 
   // Простой режим — чистый диктофон поверх той же сессии
   if (store.uiMode === 'simple') {
@@ -389,6 +343,15 @@ export function MeetingPage() {
             {/* Контекст */}
             <MeetingContext onContextChange={handleContextChange} />
 
+            {/* Активная роль (live, через WS change_role) */}
+            <div style={styles.contextCard}>
+              <div style={styles.sectionHeader}>
+                <span style={styles.dot} />
+                <span style={styles.sectionTitle}>Активная роль (для подсказок)</span>
+              </div>
+              <RolesTab onRoleSelect={handleRoleSelect} />
+            </div>
+
             {/* Сохранить встречу / Новая встреча */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
@@ -413,81 +376,6 @@ export function MeetingPage() {
 
             {/* Этап 5: итоги встречи / протокол */}
             <FinalizationPanel meetingId={store.currentMeetingId} />
-          </div>
-        )}
-
-        {/* Настройки */}
-        {activeTab === 2 && settings && (
-          <div className="settings-layout mobile-content-pad" style={styles.settingsLayout}>
-            <nav style={styles.settingsNav}>
-              {SETTINGS_SECTIONS.map((sec) => (
-                <button
-                  key={sec.id}
-                  onClick={() => setSettingsSection(sec.id)}
-                  style={settingsSection === sec.id ? styles.navActive : styles.navItem}
-                >
-                  <span style={{ fontSize: 14 }}>{sec.icon}</span> {sec.label}
-                </button>
-              ))}
-            </nav>
-            <div style={styles.settingsContent}>
-              {settingsSection === 'stt' && (
-                <STTSettings
-                  value={settings.stt_provider}
-                  onChange={(v) => setSettings({ ...settings, stt_provider: v })}
-                  useStreaming={settings.use_streaming}
-                  onStreamingChange={(v) => setSettings({ ...settings, use_streaming: v })}
-                  diarization={settings.diarization}
-                  onDiarizationChange={(v) => setSettings({ ...settings, diarization: v })}
-                  silenceFilter={settings.silence_filter}
-                  onSilenceFilterChange={(v) => setSettings({ ...settings, silence_filter: v })}
-                  activeServices={activeServices}
-                />
-              )}
-              {settingsSection === 'llm' && (
-                <LLMSettings
-                  model={settings.llm_model}
-                  temperature={settings.temperature}
-                  onModelChange={(m) => setSettings({ ...settings, llm_model: m })}
-                  onTemperatureChange={(t) => setSettings({ ...settings, temperature: t })}
-                  activeServices={activeServices}
-                />
-              )}
-              {settingsSection === 'hints' && (
-                <HintsSettings
-                  suggestionTypes={settings.custom_suggestion_types || DEFAULT_SUGGESTION_TYPES}
-                  triggerKeywords={settings.custom_trigger_keywords || DEFAULT_TRIGGER_KEYWORDS}
-                  onSuggestionTypesChange={(types) => setSettings({ ...settings, custom_suggestion_types: types })}
-                  onTriggerKeywordsChange={(keywords) => setSettings({ ...settings, custom_trigger_keywords: keywords })}
-                />
-              )}
-              {settingsSection === 'roles' && (
-                <RolesTab onRoleSelect={handleRoleSelect} />
-              )}
-              {settingsSection === 'storage' && (
-                <StorageSettings
-                  localPath={settings.local_storage_path || ''}
-                  onChange={(path) => setSettings({ ...settings, local_storage_path: path })}
-                />
-              )}
-              {settingsSection === 'notifications' && (
-                <PlaceholderSection title="Уведомления" text="Звуковые уведомления, push-нотификации, уровни важности. Раздел в разработке." />
-              )}
-              {settingsSection === 'locale' && (
-                <PlaceholderSection title="Язык и регион" text="Язык интерфейса, формат даты и валюты. Раздел в разработке." />
-              )}
-              <button
-                onClick={handleApplySettings}
-                disabled={applyingSettings}
-                style={{
-                  ...styles.applyBtn,
-                  opacity: applyingSettings ? 0.6 : 1,
-                  cursor: applyingSettings ? 'wait' : 'pointer',
-                }}
-              >
-                {applyingSettings ? 'Сохранение...' : 'Применить настройки'}
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -538,30 +426,18 @@ export function MeetingPage() {
 
       {/* Mobile bottom nav */}
       <nav className={`mobile-nav${drawerOpen ? ' nav-hidden' : ''}`}>
-        {(['Сессия', 'Контекст', 'Настройки'] as const).map((label, i) => (
+        {(['Сессия', 'Контекст'] as const).map((label, i) => (
           <button
             key={label}
             className={`mobile-nav-item${activeTab === i ? ' active' : ''}`}
             onClick={() => setActiveTab(i)}
           >
-            <span className="nav-ico">{['◎', '📄', '⚙'][i]}</span>
+            <span className="nav-ico">{['◎', '📄'][i]}</span>
             <span className="nav-lbl">{label}</span>
             {activeTab === i && <span className="nav-dot" />}
           </button>
         ))}
       </nav>
-    </div>
-  );
-}
-
-function PlaceholderSection({ title, text }: { title: string; text: string }) {
-  return (
-    <div style={styles.placeholderCard}>
-      <div style={styles.sectionHeader}>
-        <span style={styles.dot} />
-        <span style={styles.sectionTitle}>{title}</span>
-      </div>
-      <div style={styles.placeholderText}>{text}</div>
     </div>
   );
 }
@@ -647,40 +523,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11,
     letterSpacing: '0.14em', textTransform: 'uppercase' as const,
     color: theme.text.primary, flex: 1,
-  },
-  sectionMeta: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
-
-  /* Настройки */
-  settingsLayout: { display: 'flex', gap: 24 },
-  settingsNav: {
-    display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, flexShrink: 0,
-  },
-  navActive: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 16px', background: theme.accent.amber, color: '#080A0F',
-    border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600,
-    fontFamily: theme.font.body, cursor: 'pointer', textAlign: 'left' as const,
-  },
-  navItem: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 16px', background: 'transparent', color: theme.text.secondary,
-    border: 'none', borderRadius: 8, fontSize: 12,
-    fontFamily: theme.font.body, cursor: 'pointer', textAlign: 'left' as const,
-  },
-  settingsContent: { flex: 1, display: 'flex', flexDirection: 'column', gap: 20 },
-  placeholderCard: {
-    background: theme.bg.card, border: `1px solid ${theme.border.default}`,
-    borderRadius: 12, padding: 24,
-    display: 'flex', flexDirection: 'column', gap: 12,
-  },
-  placeholderText: {
-    color: theme.text.muted, fontSize: 13, fontFamily: theme.font.body, lineHeight: 1.6,
-  },
-  applyBtn: {
-    marginTop: 8, padding: '9px 22px', background: theme.accent.amber,
-    border: 'none', borderRadius: 7, color: '#080A0F', cursor: 'pointer',
-    fontSize: 12, fontWeight: 600, fontFamily: theme.font.body, alignSelf: 'flex-start',
-    transition: 'opacity 0.2s',
   },
   toast: {
     position: 'fixed' as const, bottom: 24, right: 24, zIndex: 9999,

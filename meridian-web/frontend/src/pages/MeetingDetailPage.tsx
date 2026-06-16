@@ -10,6 +10,7 @@ interface Props {
   meetingId: number;
   onBack: () => void;
   onContinue: () => void;
+  backLabel?: string;
 }
 
 const NEGOTIATION_TYPE_LABELS: Record<string, string> = {
@@ -43,7 +44,7 @@ function getSpeakerColor(speaker: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export function MeetingDetailPage({ meetingId, onBack, onContinue }: Props) {
+export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = 'К истории' }: Props) {
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -102,7 +103,7 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue }: Props) {
     <div className="detail-container" style={styles.container}>
       {/* Top bar */}
       <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn}>&larr; К истории</button>
+        <button onClick={onBack} style={styles.backBtn}>&larr; {backLabel}</button>
         <span style={styles.topTitle}>ДЕТАЛИ ВСТРЕЧИ</span>
         <button onClick={handleContinue} style={styles.continueBtn}>
           Продолжить

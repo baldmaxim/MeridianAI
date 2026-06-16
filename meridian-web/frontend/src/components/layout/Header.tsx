@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { RoleSwitch } from './RoleSwitch';
 
 
 interface Props {
@@ -19,6 +20,13 @@ interface Props {
   showKnowledge?: boolean;
   onShowAISettings?: () => void;
   showAISettings?: boolean;
+  onShowObjects?: () => void;
+  showObjects?: boolean;
+  onShowSettings?: () => void;
+  showSettings?: boolean;
+  canSwitchRole?: boolean;
+  viewAsUser?: boolean;
+  onToggleViewAs?: () => void;
 }
 
 /* Inline SVG compass mark from branding/meridian-logos.html */
@@ -69,20 +77,24 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings }: Props) {
+export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin, onShowHistory, showHistory, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
 
   return (
     <>
       <header className="header-inner" style={styles.header}>
-        <div className="header-logo" style={styles.logo}>
+        <div
+          className="header-logo"
+          style={{ ...styles.logo, cursor: onShowObjects ? 'pointer' : 'default' }}
+          onClick={onShowObjects}
+          title={onShowObjects ? 'К объектам' : undefined}
+        >
           <LogoMark />
           <div>
             <div className="header-logo-text" style={styles.logoText}>
               MERIDI<span style={{ color: theme.accent.amber }}>AN</span>
             </div>
-            <div className="header-logo-sub" style={styles.logoSub}>AI Тактик</div>
           </div>
         </div>
 
@@ -103,6 +115,15 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
             <div className="header-avatar" style={styles.avatar}>
               {(userName[0] || 'U').toUpperCase()}
             </div>
+          )}
+          {onShowObjects && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowObjects}
+              style={showObjects ? styles.adminBtnActive : styles.adminBtn}
+            >
+              Проекты
+            </button>
           )}
           {onShowDirectory && (
             <button
@@ -149,6 +170,15 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
               История
             </button>
           )}
+          {onShowSettings && (
+            <button
+              className="header-desktop-btn"
+              onClick={onShowSettings}
+              style={showSettings ? styles.adminBtnActive : styles.adminBtn}
+            >
+              ⚙ Настройки
+            </button>
+          )}
           {userRole === 'admin' && onToggleAdmin && (
             <button
               className="header-desktop-btn"
@@ -157,6 +187,9 @@ export function Header({ userName, userRole, onLogout, showAdmin, onToggleAdmin,
             >
               Админ
             </button>
+          )}
+          {canSwitchRole && onToggleViewAs && (
+            <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
           )}
           <button className="header-desktop-btn" onClick={onLogout} style={styles.logout}>
             Выход

@@ -369,3 +369,16 @@
   .t-success-check { animation: none !important; opacity: 1; }
   .t-success-check svg path { animation: none !important; stroke-dashoffset: 0 !important; }
 }
+
+/* --- App update banner slide-down ---------------------------------------- */
+@keyframes t-update-slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.t-update-banner {
+  animation: t-update-slide-down 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-update-banner { animation: none !important; }
+}

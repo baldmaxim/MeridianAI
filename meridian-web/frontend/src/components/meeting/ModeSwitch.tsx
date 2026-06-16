@@ -1,7 +1,11 @@
 import { theme } from '../../styles/theme';
 import { useMeetingStore } from '../../store/meetingStore';
 
-/** Слайдер «Простой ⟷ Полный» режим экрана встречи. */
+/**
+ * Слайдер «Простой ⟷ Полный» — уровень детализации экрана встречи.
+ * Семантика: «Простой» = упрощённый вид (как у обычного пользователя),
+ * «Полный» = детальный вид (как у админа). Это НЕ «мобильный» режим.
+ */
 export function ModeSwitch() {
   const uiMode = useMeetingStore((s) => s.uiMode);
   const setUiMode = useMeetingStore((s) => s.setUiMode);
