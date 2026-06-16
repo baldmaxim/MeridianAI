@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     session_idle_ttl: int = Field(default=3600, alias="SESSION_IDLE_TTL")
 
     # --- Этап 10: production hardening ---
-    app_version: str = Field(default="0.10.0", alias="APP_VERSION")
+    app_version: str = Field(default="0.11.0", alias="APP_VERSION")
 
     # Jobs/worker (§16)
     job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
