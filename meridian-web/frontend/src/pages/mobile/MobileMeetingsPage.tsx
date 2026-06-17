@@ -138,7 +138,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.text.primary, cursor: 'pointer', fontFamily: theme.font.body,
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 },
-  cardTitle: { fontFamily: theme.font.heading, fontWeight: 700, fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cardTitle: { fontFamily: theme.font.body, fontWeight: 700, fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cardDate: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, flexShrink: 0 },
   cardMeta: { display: 'flex', gap: 12, flexWrap: 'wrap' as const, fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary },
   cardSummary: { fontSize: 12, color: theme.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const },

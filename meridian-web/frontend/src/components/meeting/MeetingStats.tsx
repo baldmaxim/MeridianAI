@@ -187,7 +187,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 10px',
   },
   value: {
-    fontFamily: theme.font.heading,
+    fontFamily: theme.font.body,
     fontSize: 18,
     fontWeight: 700,
     lineHeight: 1,

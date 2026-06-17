@@ -241,7 +241,7 @@ function Dot({ on, color }: { on: boolean; color?: string }) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  title: { margin: '4px 0 8px', fontFamily: theme.font.heading, fontWeight: 800, fontSize: 20, color: theme.text.primary },
+  title: { margin: '4px 0 8px', fontFamily: theme.font.body, fontWeight: 700, fontSize: 20, color: theme.text.primary },
   meta: { display: 'flex', gap: 12, flexWrap: 'wrap' as const, alignItems: 'center', fontFamily: theme.font.mono, fontSize: 12, color: theme.text.secondary, marginBottom: 14 },
   badge: { padding: '2px 8px', background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`, borderRadius: 4, fontSize: 9, color: theme.text.muted, textTransform: 'uppercase' as const },
   card: { background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 },

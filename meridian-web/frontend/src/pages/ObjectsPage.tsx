@@ -133,7 +133,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.text.primary, cursor: 'pointer', fontFamily: theme.font.body,
   },
   cardName: {
-    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 15,
+    fontFamily: theme.font.body, fontWeight: 700, fontSize: 15,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   cardMeta: {

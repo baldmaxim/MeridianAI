@@ -117,7 +117,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em', flexShrink: 0,
   },
   topTitle: {
-    fontFamily: theme.font.heading, fontSize: 15, fontWeight: 800,
+    fontFamily: theme.font.body, fontSize: 15, fontWeight: 700,
     letterSpacing: '0.04em', color: theme.text.primary, flex: 1,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
@@ -148,7 +148,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 },
   cardTitle: {
-    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 14, flex: 1, minWidth: 0,
+    fontFamily: theme.font.body, fontWeight: 700, fontSize: 14, flex: 1, minWidth: 0,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   cardDate: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, flexShrink: 0 },

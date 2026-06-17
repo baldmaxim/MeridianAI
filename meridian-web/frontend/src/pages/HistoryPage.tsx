@@ -570,7 +570,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   cardTitle: {
-    fontFamily: theme.font.heading,
+    fontFamily: theme.font.body,
     fontWeight: 700,
     fontSize: 15,
     color: theme.text.primary,
