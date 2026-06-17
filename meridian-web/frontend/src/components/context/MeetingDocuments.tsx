@@ -3,36 +3,33 @@ import { theme } from '../../styles/theme';
 import { uploadDocumentPresigned, listDocumentRecords } from '../../api/documents';
 import { listMeetingDocuments, attachMeetingDocument, patchMeetingDocument, detachMeetingDocument } from '../../api/meetingDocuments';
 import { apiErrorMessage } from '../../lib/apiError';
-import type { MeetingDocument, DocumentRecord, DocumentStatus } from '../../types';
+import type { MeetingDocument, DocumentRecord } from '../../types';
+import { ContextSourceCard } from './ContextSourceCard';
+import { documentToContextSourceViewModel, type ContextSourceSectionSummary } from './contextSourceModel';
 
 interface Props {
   meetingId: number | null;
   customerId?: number | null;
   objectId?: number | null;
+  onSummaryChange?: (summary: ContextSourceSectionSummary) => void;
 }
 
-const STATUS_LABELS: Record<DocumentStatus, string> = {
-  pending: 'ожидание',
-  uploaded: 'загружен',
-  processing: 'обработка…',
-  ready: 'готов',
-  error: 'ошибка',
-};
+const ALLOWED_EXT = ['.pdf', '.docx', '.xlsx', '.txt', '.md', '.csv'];
 
-function statusColor(s: DocumentStatus): string {
-  if (s === 'ready') return theme.accent.green;
-  if (s === 'error') return theme.accent.red;
-  if (s === 'processing') return theme.accent.amber;
-  return theme.text.muted;
+function isAllowedFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return ALLOWED_EXT.some((ext) => lower.endsWith(ext));
 }
 
-export function MeetingDocuments({ meetingId, customerId, objectId }: Props) {
+export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryChange }: Props) {
   const [docs, setDocs] = useState<MeetingDocument[]>([]);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [existing, setExisting] = useState<DocumentRecord[]>([]);
   const [pickId, setPickId] = useState<number | ''>('');
+  const [dragOver, setDragOver] = useState(false);
+  const [batch, setBatch] = useState<{ idx: number; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -45,6 +42,21 @@ export function MeetingDocuments({ meetingId, customerId, objectId }: Props) {
   }, [meetingId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Сводка для корзины контекста. Колбэк в ref → effect зависит только от docs,
+  // что исключает render-loop, даже если родитель передаёт нестабильный колбэк.
+  const onSummaryChangeRef = useRef(onSummaryChange);
+  onSummaryChangeRef.current = onSummaryChange;
+  useEffect(() => {
+    if (!onSummaryChangeRef.current) return;
+    onSummaryChangeRef.current({
+      total: docs.length,
+      included: docs.filter((d) => d.included).length,
+      ready: docs.filter((d) => d.status === 'ready').length,
+      processing: docs.filter((d) => d.status !== 'ready' && d.status !== 'error').length,
+      errors: docs.filter((d) => d.status === 'error').length,
+    });
+  }, [docs]);
 
   // поллинг, пока есть документы в обработке
   useEffect(() => {
@@ -75,6 +87,31 @@ export function MeetingDocuments({ meetingId, customerId, objectId }: Props) {
     } finally {
       setUploading(false); setProgress(0);
     }
+  }
+
+  // Последовательная загрузка пачки файлов (кнопка с multiple + drag-and-drop).
+  async function uploadMany(files: File[]) {
+    if (meetingId == null) { setError('Сначала создаётся встреча'); return; }
+    const ok = files.filter((f) => isAllowedFile(f.name));
+    const bad = files.filter((f) => !isAllowedFile(f.name));
+    if (ok.length === 0) {
+      if (bad.length) setError(`Неподдерживаемый формат: ${bad.map((f) => f.name).join(', ')}`);
+      return;
+    }
+    setBatch({ idx: 0, total: ok.length });
+    for (let i = 0; i < ok.length; i++) {
+      setBatch({ idx: i + 1, total: ok.length });
+      await onFile(ok[i]);
+    }
+    setBatch(null);
+    if (bad.length) setError((prev) => prev || `Не загружены (формат): ${bad.map((f) => f.name).join(', ')}`);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) uploadMany(files);
   }
 
   async function attachExisting() {
@@ -118,23 +155,40 @@ export function MeetingDocuments({ meetingId, customerId, objectId }: Props) {
 
       {error && <div style={styles.error}>{error}</div>}
 
-      {/* Загрузка */}
-      <div style={styles.uploadRow}>
+      {/* Загрузка: кнопка + drag-and-drop */}
+      <div
+        style={{ ...styles.dropZone, ...(dragOver ? styles.dropZoneActive : {}) }}
+        onDragOver={(e) => { e.preventDefault(); if (meetingId != null && !uploading) setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+      >
         <input
           ref={fileRef}
           type="file"
+          multiple
           accept=".pdf,.docx,.xlsx,.txt,.md,.csv"
           style={{ display: 'none' }}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+          onChange={(e) => { const f = e.target.files; if (f && f.length) uploadMany(Array.from(f)); }}
         />
-        <button
-          style={styles.uploadBtn}
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading || meetingId == null}
-        >
-          {uploading ? `Загрузка… ${Math.round(progress * 100)}%` : '+ Загрузить документ'}
-        </button>
-        <span style={styles.hint}>PDF, DOCX, XLSX, TXT, MD, CSV</span>
+        <div style={styles.dropText}>
+          {batch
+            ? `Загрузка ${batch.idx}/${batch.total}… ${Math.round(progress * 100)}%`
+            : uploading
+              ? `Загрузка… ${Math.round(progress * 100)}%`
+              : meetingId == null
+                ? 'Сначала создаётся встреча'
+                : 'Перетащите файлы сюда'}
+        </div>
+        <div style={styles.uploadRow}>
+          <button
+            style={styles.uploadBtn}
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading || meetingId == null}
+          >
+            + Загрузить документ
+          </button>
+          <span style={styles.hint}>PDF, DOCX, XLSX, TXT, MD, CSV</span>
+        </div>
       </div>
 
       {/* Выбрать существующий */}
@@ -152,24 +206,12 @@ export function MeetingDocuments({ meetingId, customerId, objectId }: Props) {
       {docs.length === 0 && <div style={styles.empty}>Документы не прикреплены</div>}
       <div style={styles.list}>
         {docs.map((d) => (
-          <div key={d.id} style={{ ...styles.item, opacity: d.included ? 1 : 0.5 }}>
-            <div style={styles.itemMain}>
-              <div style={styles.itemName}>{d.original_name}</div>
-              <div style={styles.itemMeta}>
-                <span style={{ color: statusColor(d.status) }}>● {STATUS_LABELS[d.status]}</span>
-                {d.status === 'ready' && <span> · {d.chunks_count} фрагм.</span>}
-                {d.status === 'error' && d.processing_error && <span style={{ color: theme.accent.red }}> · {d.processing_error}</span>}
-              </div>
-            </div>
-            <button
-              style={d.included ? styles.toggleOn : styles.toggleOff}
-              onClick={() => toggleIncluded(d)}
-              title={d.included ? 'В контексте — выключить' : 'Включить в контекст'}
-            >
-              {d.included ? 'в контексте' : 'выкл'}
-            </button>
-            <button style={styles.detachBtn} onClick={() => detach(d)}>✕</button>
-          </div>
+          <ContextSourceCard
+            key={d.id}
+            source={documentToContextSourceViewModel(d)}
+            onToggleIncluded={() => toggleIncluded(d)}
+            onRemove={() => detach(d)}
+          />
         ))}
       </div>
     </div>
@@ -182,7 +224,17 @@ const styles: Record<string, React.CSSProperties> = {
   dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
   title: { fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary },
   refreshBtn: { width: 28, height: 24, background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.secondary, cursor: 'pointer', fontSize: 13 },
-  uploadRow: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' as const },
+  dropZone: {
+    display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center',
+    padding: '18px 16px', borderRadius: 10,
+    border: `1.5px dashed ${theme.border.default}`, background: theme.bg.tertiary,
+    transition: 'border-color 0.18s, background 0.18s', textAlign: 'center' as const,
+  },
+  dropZoneActive: {
+    borderColor: theme.accent.amber, background: theme.accent.amberGlow,
+  },
+  dropText: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, letterSpacing: '0.04em' },
+  uploadRow: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' as const, justifyContent: 'center' },
   uploadBtn: { padding: '10px 16px', background: theme.accent.amber, border: 'none', borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: theme.font.body },
   hint: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
   pickRow: { display: 'flex', gap: 8 },

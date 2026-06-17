@@ -14,9 +14,11 @@ import { DictaphoneView } from '../components/meeting/DictaphoneView';
 import { ModeSwitch } from '../components/meeting/ModeSwitch';
 import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
-import { MeetingDocuments } from '../components/context/MeetingDocuments';
+import { CollapsibleSection } from '../components/common/CollapsibleSection';
+import { ContextBasket } from '../components/context/ContextBasket';
 import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
 import { MeetingContext } from '../components/context/MeetingContext';
+import { MeetingAISettingsBlock } from '../components/context/MeetingAISettings';
 import { RolesTab } from '../components/context/RolesTab';
 import { theme } from '../styles/theme';
 import { paths } from '../lib/navigation';
@@ -204,13 +206,20 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   // Дебаунс отправки контекста: локальный стор обновляется мгновенно (поле/шапка
   // реагируют сразу), а update_meeting_context уходит на сервер с задержкой —
   // вместе с guard contextEditedAt это гасит self-echo (символы не пропадают).
-  const handleContextChange = useCallback((topic: string, notes: string, negotiationType: string, meetingRole: string, opponentWeaknesses: string) => {
+  // Единый отправитель контекста: читает ВСЕ поля из стора в момент отправки.
+  // Поля раскиданы по разным карточкам — кортеж собрать неоткуда, поэтому источник
+  // истины один (стор). markContextEdited + debounce 350ms гасят self-echo.
+  const pushContext = useCallback(() => {
     useMeetingStore.getState().markContextEdited();
     if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
     ctxSendTimer.current = setTimeout(() => {
-      sendJSON({ type: 'update_meeting_context', title: useMeetingStore.getState().meetingName || undefined, topic, notes, negotiation_type: negotiationType, meeting_role: meetingRole, opponent_weaknesses: opponentWeaknesses });
+      const st = useMeetingStore.getState();
+      sendJSON({ type: 'update_meeting_context', title: st.meetingName || undefined, topic: st.meetingTopic, notes: st.meetingNotes, negotiation_type: st.negotiationType, meeting_role: st.meetingRole, opponent_weaknesses: st.opponentWeaknesses });
     }, 350);
   }, [sendJSON]);
+
+  const handleTopicChange = useCallback((v: string) => { useMeetingStore.getState().setMeetingTopic(v); pushContext(); }, [pushContext]);
+  const handleWeaknessesChange = useCallback((v: string) => { useMeetingStore.getState().setOpponentWeaknesses(v); pushContext(); }, [pushContext]);
 
   const handleMeetingNameChange = useCallback((name: string) => {
     const s = useMeetingStore.getState();
@@ -403,78 +412,132 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         )}
 
         {/* Контекст встречи */}
-        {activeTab === 1 && (
+        {activeTab === 1 && (() => {
+          const ctxMeetingId = store.currentMeetingId ?? store.draftMeetingId ?? null;
+          return (
           <div className="mobile-content-pad" style={styles.contextPanel}>
-            {/* Этап 2: статус live-комнаты */}
-            {store.currentMeetingId != null && (
-              <div style={styles.roomStatus}>
-                <span style={styles.roomStatusItem}>Meeting ID: <b style={{ color: theme.text.primary }}>{store.currentMeetingId}</b></span>
-                <span style={styles.roomStatusItem}>
-                  <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
-                  {store.roomConnected ? 'Room connected' : 'Room offline'}
-                </span>
-                <span style={styles.roomStatusItem}>
-                  Active audio: <b style={{ color: store.recording ? theme.accent.green : theme.text.muted }}>
-                    {store.recording ? (store.deviceRole || 'устройство') : 'none'}
-                  </b>
-                </span>
-              </div>
-            )}
-
-            {/* Название встречи */}
+            {/* A. Компактная карточка «Встреча» */}
             <div style={styles.contextCard}>
               <div style={styles.sectionHeader}>
                 <span style={styles.dot} />
-                <span style={styles.sectionTitle}>Название встречи</span>
+                <span style={styles.sectionTitle}>Встреча</span>
+                {store.currentMeetingId != null && (
+                  <span style={styles.roomBadge}>
+                    <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
+                    {store.roomConnected ? (store.recording ? 'REC' : 'online') : 'offline'}
+                  </span>
+                )}
               </div>
-              <input
-                type="text"
-                placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
-                value={store.meetingName}
-                onChange={(e) => handleMeetingNameChange(e.target.value)}
-                style={styles.contextInput}
-              />
+
+              <div className="context-columns" style={styles.meetingGrid}>
+                <div style={styles.meetingField}>
+                  <label style={styles.miniLabel}>Название встречи</label>
+                  <input
+                    type="text"
+                    placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
+                    value={store.meetingName}
+                    onChange={(e) => handleMeetingNameChange(e.target.value)}
+                    style={styles.contextInput}
+                  />
+                </div>
+                <div style={styles.meetingField}>
+                  <label style={styles.miniLabel}>Тема / цель встречи</label>
+                  <input
+                    type="text"
+                    placeholder="Финальные условия контракта — ЖК Рассвет"
+                    value={store.meetingTopic}
+                    onChange={(e) => handleTopicChange(e.target.value)}
+                    style={styles.contextInput}
+                  />
+                </div>
+              </div>
+
+              {(store.selectedCustomerName || store.selectedObjectName) && (
+                <div style={styles.refRow}>
+                  {store.selectedCustomerName && (
+                    <span style={styles.refChip}><span style={styles.refChipLabel}>Заказчик</span>{store.selectedCustomerName}</span>
+                  )}
+                  {store.selectedObjectName && (
+                    <span style={styles.refChip}><span style={styles.refChipLabel}>Объект</span>{store.selectedObjectName}</span>
+                  )}
+                </div>
+              )}
+
+              {store.currentMeetingId != null && (
+                <div style={styles.roomStatus}>
+                  <span style={styles.roomStatusItem}>Meeting ID: <b style={{ color: theme.text.primary }}>{store.currentMeetingId}</b></span>
+                  <span style={styles.roomStatusItem}>
+                    <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
+                    {store.roomConnected ? 'Room connected' : 'Room offline'}
+                  </span>
+                  <span style={styles.roomStatusItem}>
+                    Active audio: <b style={{ color: store.recording ? theme.accent.green : theme.text.muted }}>
+                      {store.recording ? (store.deviceRole || 'устройство') : 'none'}
+                    </b>
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Документы встречи (Этап 4: S3 + извлечение текста + контекст LLM) */}
-            <MeetingDocuments
-              meetingId={store.currentMeetingId}
+            {/* B. Корзина контекста — «что попадёт в подсказки» */}
+            <ContextBasket
+              meetingId={ctxMeetingId}
               customerId={store.selectedCustomerId}
               objectId={store.selectedObjectId}
             />
 
-            {/* Контекст */}
-            <MeetingContext onContextChange={handleContextChange} />
+            {/* C. Краткие настройки */}
+            <CollapsibleSection title="Краткие настройки" defaultOpen>
+              <MeetingContext pushContext={pushContext} />
+            </CollapsibleSection>
 
-            {/* Активная роль (live, через WS change_role) */}
-            <div style={styles.contextCard}>
-              <div style={styles.sectionHeader}>
-                <span style={styles.dot} />
-                <span style={styles.sectionTitle}>Активная роль (для подсказок)</span>
+            {/* D. Расширенные настройки */}
+            <CollapsibleSection title="Расширенные настройки">
+              {/* AI-настройки встречи */}
+              {ctxMeetingId != null && <MeetingAISettingsBlock meetingId={ctxMeetingId} />}
+
+              {/* Слабые стороны оппонента */}
+              <CollapsibleSection title="Слабые стороны оппонента">
+                <textarea
+                  placeholder={"Известные проблемы, сорванные сроки, рыночная позиция..."}
+                  value={store.opponentWeaknesses}
+                  onChange={(e) => handleWeaknessesChange(e.target.value)}
+                  rows={3}
+                  style={styles.weakTextarea}
+                />
+              </CollapsibleSection>
+
+              {/* Активная роль (live, через WS change_role) */}
+              <div style={styles.contextCard}>
+                <div style={styles.sectionHeader}>
+                  <span style={styles.dot} />
+                  <span style={styles.sectionTitle}>Активная роль (для подсказок)</span>
+                </div>
+                <RolesTab onRoleSelect={handleRoleSelect} />
               </div>
-              <RolesTab onRoleSelect={handleRoleSelect} />
-            </div>
 
-            {/* Сохранить встречу */}
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button
-                className="save-meeting-btn"
-                onClick={handleSaveMeeting}
-                disabled={savingMeeting}
-                style={{
-                  ...styles.saveMeetingBtn,
-                  opacity: savingMeeting ? 0.6 : 1,
-                  cursor: savingMeeting ? 'wait' : 'pointer',
-                }}
-              >
-                {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
-              </button>
-            </div>
+              {/* Сохранить встречу */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  className="save-meeting-btn"
+                  onClick={handleSaveMeeting}
+                  disabled={savingMeeting}
+                  style={{
+                    ...styles.saveMeetingBtn,
+                    opacity: savingMeeting ? 0.6 : 1,
+                    cursor: savingMeeting ? 'wait' : 'pointer',
+                  }}
+                >
+                  {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
+                </button>
+              </div>
 
-            {/* Этап 5: итоги встречи / протокол */}
-            <FinalizationPanel meetingId={store.currentMeetingId} />
+              {/* Этап 5: итоги встречи / протокол */}
+              <FinalizationPanel meetingId={store.currentMeetingId} />
+            </CollapsibleSection>
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Drawer toggle (mobile only) */}
@@ -586,6 +649,35 @@ const styles: Record<string, React.CSSProperties> = {
   },
   roomStatusItem: { display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.04em' },
   roomDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
+  roomBadge: {
+    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+    padding: '3px 10px', borderRadius: 20, background: theme.bg.tertiary,
+    border: `1px solid ${theme.border.default}`, fontFamily: theme.font.mono,
+    fontSize: 10, letterSpacing: '0.06em', color: theme.text.secondary,
+    textTransform: 'uppercase' as const,
+  },
+  meetingGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
+  meetingField: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
+  miniLabel: {
+    fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber,
+    letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+  },
+  refRow: { display: 'flex', gap: 10, flexWrap: 'wrap' as const },
+  refChip: {
+    display: 'inline-flex', alignItems: 'baseline', gap: 8,
+    padding: '6px 12px', borderRadius: 8, background: theme.bg.tertiary,
+    border: `1px solid ${theme.border.default}`, fontFamily: theme.font.body,
+    fontSize: 13, fontWeight: 600, color: theme.text.primary, minWidth: 0,
+  },
+  refChipLabel: {
+    fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em',
+    textTransform: 'uppercase' as const, color: theme.text.muted,
+  },
+  weakTextarea: {
+    padding: '10px 14px', background: theme.bg.input, border: `1px solid ${theme.border.default}`,
+    borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body,
+    outline: 'none', resize: 'vertical' as const, width: '100%', boxSizing: 'border-box' as const,
+  },
   contextInput: {
     padding: '10px 14px',
     background: theme.bg.input,

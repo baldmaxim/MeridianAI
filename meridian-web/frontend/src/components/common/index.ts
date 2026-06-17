@@ -12,3 +12,4 @@ export { CardResize } from './CardResize';
 export { PopNumber } from './PopNumber';
 export { TextSwap } from './TextSwap';
 export { SuccessCheck } from './SuccessCheck';
+export { CollapsibleSection } from './CollapsibleSection';
