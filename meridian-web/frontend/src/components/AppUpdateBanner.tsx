@@ -7,9 +7,10 @@ interface Props {
 }
 
 /**
- * Слайд-баннер под шапкой: появляется, когда задеплоена новая версия
- * фронтенда, а вкладка всё ещё на старом бандле. «Обновить» делает hard
- * reload; при активной записи (isListening) сначала спрашивает подтверждение.
+ * Плавающий тост поверх интерфейса: появляется по центру сверху, когда
+ * задеплоена новая версия фронтенда, а вкладка всё ещё на старом бандле.
+ * «Обновить» делает hard reload; при активной записи (isListening) сначала
+ * спрашивает подтверждение.
  */
 export function AppUpdateBanner({ updateAvailable }: Props) {
   const isListening = useMeetingStore((s) => s.isListening);
@@ -31,13 +32,13 @@ export function AppUpdateBanner({ updateAvailable }: Props) {
 
   return (
     <div className="t-update-banner" style={styles.bar}>
-      <span style={styles.text}>
-        <span style={styles.icon}>⬇</span>
-        Доступно обновление приложения
+      <span style={styles.icon}>⬇</span>
+      <div style={styles.body}>
+        <span style={styles.title}>Доступно обновление приложения</span>
         {isListening && (
-          <span style={styles.warn}>— идёт запись, обновление прервёт сессию</span>
+          <span style={styles.warn}>идёт запись — обновление прервёт сессию</span>
         )}
-      </span>
+      </div>
       <div style={styles.actions}>
         <button onClick={handleUpdate} style={styles.update}>
           Обновить
@@ -52,27 +53,40 @@ export function AppUpdateBanner({ updateAvailable }: Props) {
 
 const styles: Record<string, React.CSSProperties> = {
   bar: {
+    position: 'fixed',
+    top: 16,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 1000,
+    width: 'max-content',
+    maxWidth: 'min(440px, calc(100vw - 24px))',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
-    padding: '8px 24px',
-    flexShrink: 0,
-    background: theme.bg.secondary,
-    borderBottom: `1px solid ${theme.border.amber}`,
+    padding: '12px 16px',
+    background: theme.bg.elevated,
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 10,
+    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 4px rgba(245,166,35,0.08)',
     fontFamily: theme.font.body,
     fontSize: 12,
-    color: theme.text.secondary,
+    color: theme.text.primary,
   },
-  text: {
+  body: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'column',
+    gap: 2,
     minWidth: 0,
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: theme.text.primary,
   },
   icon: {
     color: theme.accent.amber,
-    fontSize: 13,
+    fontSize: 16,
+    flexShrink: 0,
   },
   warn: {
     color: theme.accent.amber,
