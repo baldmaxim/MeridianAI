@@ -214,6 +214,22 @@ Breakpoints:
 
 ---
 
+## Анимации (стандарт — transitions.dev)
+
+Единственный стандарт анимаций. Это **не npm-пакет**, а copy-paste CSS-переходы. Источник — скил `.agents/skills/transitions-dev/` (12 переходов, verbatim). В проекте:
+
+- CSS: `frontend/src/styles/transitions.css` (классы `t-*`, токены в `:root`, у каждого `prefers-reduced-motion`-guard). Подключается в `main.tsx` после `index.css`.
+- React-примитивы: `frontend/src/components/common/` — `Modal`, `Dropdown`, `IconSwap`, `NotificationBadge`, `PageTransition`, `AvatarGroup`, `CardResize`, `PopNumber`, `TextSwap`, `SuccessCheck`. Хуки: `useExitTransition`, `useOpenClose`, `useErrorShake`.
+- Каталог «что для чего» + примеры: `frontend/src/components/common/README.md`.
+
+Правила для новых разработок:
+- Любую новую анимируемую поверхность делать через примитивы из `components/common/` или классы `t-*`. Не вводить framer-motion и др. motion-библиотеки.
+- Не использовать `transition: all`; сохранять `prefers-reduced-motion`; тюнинг только через токены `:root`.
+- Новый переход из каталога — копировать из скила **verbatim** (не переписывать селекторы).
+- Скил триггерится на «добавь переход», «анимируй дропдаун», «success animation»; команды `transitions reveal/review/apply`.
+
+---
+
 ## MVP
 
 - Всегда делай минимально работающую версию

@@ -99,12 +99,11 @@ export function ObjectsPage({ onOpenObject }: Props) {
         })}
       </div>
 
-      {showCreate && (
-        <ObjectCreateModal
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); load(); }}
-        />
-      )}
+      <ObjectCreateModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={() => { setShowCreate(false); load(); }}
+      />
     </div>
   );
 }
@@ -122,9 +121,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none',
   },
   addBtn: {
-    padding: '9px 16px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
-    borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.mono, fontWeight: 600, whiteSpace: 'nowrap',
+    padding: '9px 16px', background: theme.accent.amber, border: 'none',
+    borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 12,
+    fontFamily: theme.font.mono, fontWeight: 700, whiteSpace: 'nowrap',
   },
   grid: { display: 'flex', flexWrap: 'wrap' as const, gap: 12, alignContent: 'flex-start' },
   card: {

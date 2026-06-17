@@ -5,14 +5,13 @@ import { MeetingPage } from './pages/MeetingPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { MeetingDetailPage } from './pages/MeetingDetailPage';
 import { BatchPage } from './pages/BatchPage';
-import { DirectoryPage } from './pages/DirectoryPage';
-import type { DirSection } from './pages/DirectoryPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { AISettingsPage } from './pages/AISettingsPage';
 import { ObjectsPage } from './pages/ObjectsPage';
 import { ObjectDetailPage } from './pages/ObjectDetailPage';
 import { SettingsHubPage } from './pages/SettingsHubPage';
 import { AppLayout } from './components/layout/AppLayout';
+import { PageTransition } from './components/common/PageTransition';
 import { RecorderPage } from './pages/RecorderPage';
 import { MobileMeetingsPage } from './pages/mobile/MobileMeetingsPage';
 import { MobileMeetingDetailPage } from './pages/mobile/MobileMeetingDetailPage';
@@ -22,21 +21,10 @@ import { createMeeting } from './api/meetings';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
-  | 'directory' | 'dir-objects' | 'dir-departments' | 'knowledge' | 'ai-settings' | 'settings';
+  | 'knowledge' | 'ai-settings' | 'settings';
 
 // Под-потоки, всегда доступные авторизованному (не входят в матрицу доступа).
 const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail'];
-
-// Подстраницы справочника ↔ ключи каталога page-access.
-const DIR_PAGE_BY_SECTION: Record<DirSection, Page> = {
-  objects: 'dir-objects',
-  departments: 'dir-departments',
-};
-const DIR_PATH_BY_SECTION: Record<DirSection, string> = {
-  objects: paths.dirObjects,
-  departments: paths.dirDepartments,
-};
-const DIR_SECTIONS: DirSection[] = ['objects', 'departments'];
 
 // Маршрут (URL) → внутренняя страница + выбранные сущности.
 function pageFromRoute(route: ReturnType<typeof parseRoute>): {
@@ -61,12 +49,6 @@ function pageFromRoute(route: ReturnType<typeof parseRoute>): {
       };
     case 'batch':
       return { page: 'batch', objectId: null, meetingId: null, detailReturn: 'history' };
-    case 'directory':
-      return { page: 'directory', objectId: null, meetingId: null, detailReturn: 'history' };
-    case 'dir-objects':
-      return { page: 'dir-objects', objectId: null, meetingId: null, detailReturn: 'history' };
-    case 'dir-departments':
-      return { page: 'dir-departments', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'knowledge':
       return { page: 'knowledge', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'ai-settings':
@@ -133,8 +115,6 @@ function App() {
       : (user.allowed_pages ?? [])
   );
   const canAccess = (key: string) => activePages.has(key);
-  const dirSections = DIR_SECTIONS.filter((s) => canAccess(DIR_PAGE_BY_SECTION[s]));
-  const canDirectory = dirSections.length > 0;
 
   const openObject = (id: number) => navigate(paths.objectDetail(id));
 
@@ -161,10 +141,7 @@ function App() {
     if (next) {
       // Уходим со страницы, недоступной роли user, чтобы превью было консистентным.
       const userPages = new Set<string>(user.user_role_pages ?? []);
-      const reachable = ALWAYS_PAGES.includes(currentPage)
-        || (currentPage === 'directory'
-          ? DIR_SECTIONS.some((s) => userPages.has(DIR_PAGE_BY_SECTION[s]))
-          : userPages.has(currentPage));
+      const reachable = ALWAYS_PAGES.includes(currentPage) || userPages.has(currentPage);
       if (!reachable) navigate(paths.objects);
     }
   };
@@ -177,8 +154,7 @@ function App() {
     // Гард доступа по матрице. Реальный админ всегда видит settings (анти-локаут).
     if (!ALWAYS_PAGES.includes(currentPage)) {
       const hardAllow = effectiveAdmin && currentPage === 'settings';
-      const ok = currentPage === 'directory' ? canDirectory : canAccess(currentPage);
-      if (!ok && !hardAllow) return objectsPage;
+      if (!canAccess(currentPage) && !hardAllow) return objectsPage;
     }
     switch (currentPage) {
       case 'objects':
@@ -198,30 +174,6 @@ function App() {
         return <MeetingPage />;
       case 'batch':
         return <BatchPage onBack={() => navigate(paths.objects)} />;
-      case 'directory':
-        return (
-          <DirectoryPage
-            onBack={() => navigate(paths.objects)}
-            onOpenSection={(s) => navigate(DIR_PATH_BY_SECTION[s])}
-            accessible={dirSections}
-          />
-        );
-      case 'dir-objects':
-        return (
-          <DirectoryPage
-            section="objects"
-            onBack={() => navigate(paths.objects)}
-            onBackToHub={() => navigate(paths.directory)}
-          />
-        );
-      case 'dir-departments':
-        return (
-          <DirectoryPage
-            section="departments"
-            onBack={() => navigate(paths.objects)}
-            onBackToHub={() => navigate(paths.directory)}
-          />
-        );
       case 'knowledge':
         return <KnowledgePage onBack={() => navigate(paths.objects)} />;
       case 'ai-settings':
@@ -259,8 +211,6 @@ function App() {
       showSettings={currentPage === 'settings'}
       onShowBatch={canAccess('batch') ? () => navigate(currentPage === 'batch' ? paths.objects : paths.batch) : undefined}
       showBatch={currentPage === 'batch'}
-      onShowDirectory={canDirectory ? () => navigate(currentPage === 'directory' ? paths.objects : paths.directory) : undefined}
-      showDirectory={currentPage === 'directory' || currentPage === 'dir-objects' || currentPage === 'dir-departments'}
       onShowKnowledge={canAccess('knowledge') ? () => navigate(currentPage === 'knowledge' ? paths.objects : paths.knowledge) : undefined}
       showKnowledge={currentPage === 'knowledge'}
       onShowAISettings={canAccess('ai-settings') ? () => navigate(currentPage === 'ai-settings' ? paths.objects : paths.aiSettings) : undefined}
@@ -269,7 +219,12 @@ function App() {
       viewAsUser={viewAsUser}
       onToggleViewAs={onToggleViewAs}
     >
-      {renderPage()}
+      <PageTransition
+        routeKey={`${currentPage}:${selectedObjectId ?? ''}:${selectedMeetingId ?? ''}`}
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+      >
+        {renderPage()}
+      </PageTransition>
     </AppLayout>
   );
 }

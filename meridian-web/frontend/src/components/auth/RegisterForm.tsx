@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { theme } from '../../styles/theme';
+import { useErrorShake } from '../../hooks/useErrorShake';
 
 interface Props {
-  onRegister: (email: string, password: string, displayName?: string) => Promise<void>;
+  onRegister: (email: string, password: string, displayName?: string, department?: string) => Promise<void>;
   onSwitchToLogin: () => void;
   error?: string;
 }
@@ -11,20 +12,28 @@ export function RegisterForm({ onRegister, onSwitchToLogin, error }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [department, setDepartment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [shakeKey, setShakeKey] = useState(0);
+  const formRef = useErrorShake<HTMLFormElement>(shakeKey);
+
+  // error-shake (transitions.dev 12): новая ошибка → перезапуск шейка.
+  useEffect(() => {
+    if (error) setShakeKey((k) => k + 1);
+  }, [error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onRegister(email, password, displayName || undefined);
+      await onRegister(email, password, displayName || undefined, department.trim());
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="auth-form" style={styles.form}>
+    <form ref={formRef} onSubmit={handleSubmit} className="auth-form t-input" style={styles.form}>
       <h2 style={styles.title}>Регистрация</h2>
       {error && <div style={styles.error}>{error}</div>}
       <input
@@ -32,6 +41,14 @@ export function RegisterForm({ onRegister, onSwitchToLogin, error }: Props) {
         placeholder="Имя (необязательно)"
         value={displayName}
         onChange={(e) => setDisplayName(e.target.value)}
+        style={styles.input}
+      />
+      <input
+        type="text"
+        placeholder="Отдел"
+        value={department}
+        onChange={(e) => setDepartment(e.target.value)}
+        required
         style={styles.input}
       />
       <input

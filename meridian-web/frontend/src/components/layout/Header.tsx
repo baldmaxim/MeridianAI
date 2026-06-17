@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import { RoleSwitch } from './RoleSwitch';
+import { useOpenClose } from '../../hooks/useOpenClose';
+import { IconSwap } from '../common/IconSwap';
 
 
 interface Props {
@@ -9,8 +11,6 @@ interface Props {
   onLogout: () => void;
   onShowBatch?: () => void;
   showBatch?: boolean;
-  onShowDirectory?: () => void;
-  showDirectory?: boolean;
   onShowKnowledge?: () => void;
   showKnowledge?: boolean;
   onShowAISettings?: () => void;
@@ -72,14 +72,14 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, onLogout, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
+export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
   const activeRoleName = useMeetingStore((s) => s.activeRoleName);
   const meetingName = useMeetingStore((s) => s.meetingName);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menu = useOpenClose(menuOpen, { closeVar: '--dropdown-close-dur', fallbackMs: 150 });
 
   const navItems = ([
     onShowObjects && { label: 'Проекты', onClick: onShowObjects, active: showObjects },
-    onShowDirectory && { label: 'Справочники', onClick: onShowDirectory, active: showDirectory },
     onShowKnowledge && { label: 'База знаний', onClick: onShowKnowledge, active: showKnowledge },
     onShowAISettings && { label: 'AI-профили', onClick: onShowAISettings, active: showAISettings },
     onShowBatch && { label: 'Оффлайн распознавание', onClick: onShowBatch, active: showBatch },
@@ -147,13 +147,13 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowDirec
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Меню"
           >
-            {menuOpen ? '✕' : '☰'}
+            <IconSwap state={menuOpen ? 'b' : 'a'} a="☰" b="✕" />
           </button>
         </div>
       </header>
 
-      {menuOpen && (
-        <div className="header-menu" style={styles.menu}>
+      {menu.mounted && (
+        <div className={`header-menu t-dropdown ${menu.cls}`.trim()} data-origin="top-right" style={styles.menu}>
           {navItems.map((it) => (
             <button
               key={it.label}

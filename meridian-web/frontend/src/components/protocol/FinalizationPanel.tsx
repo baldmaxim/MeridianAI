@@ -7,6 +7,7 @@ import {
 import { apiErrorMessage } from '../../lib/apiError';
 import { ProtocolView } from './ProtocolView';
 import { LearningCandidates } from '../learning/LearningCandidates';
+import { SuccessCheck } from '../common/SuccessCheck';
 import { useMeetingStore } from '../../store/meetingStore';
 import type { FinalizationStatus, MeetingProtocol } from '../../types';
 
@@ -162,7 +163,12 @@ export function FinalizationPanel({ meetingId }: Props) {
           <label style={styles.lbl}>Протокол (markdown)</label>
           <textarea style={styles.textarea} rows={8} value={markdown} onChange={(e) => setMarkdown(e.target.value)} />
           <div style={styles.actions}>
-            <button style={styles.primaryBtn} onClick={saveEdits} disabled={busy}>{saved ? 'Сохранено ✓' : 'Сохранить правки'}</button>
+            <button style={styles.primaryBtn} onClick={saveEdits} disabled={busy}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <SuccessCheck show={saved} size={14} color="#080A0F" />
+                {saved ? 'Сохранено' : 'Сохранить правки'}
+              </span>
+            </button>
             <button style={styles.retryBtn} onClick={doRetry} disabled={busy}>Сформировать заново</button>
           </div>
 

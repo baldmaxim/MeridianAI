@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { theme } from '../../styles/theme';
 import type { SuggestionTypeConfig, TriggerKeywordConfig } from '../../types';
+import { IconSwap } from '../common/IconSwap';
 
 interface Props {
   suggestionTypes: SuggestionTypeConfig[];
@@ -116,7 +117,7 @@ export function HintsSettings({ suggestionTypes, triggerKeywords, onSuggestionTy
                     onClick={() => setExpandedType(expanded ? null : t.key)}
                     title="Подробнее"
                   >
-                    {expanded ? '▲' : '▼'}
+                    <IconSwap state={expanded ? 'b' : 'a'} a="▼" b="▲" />
                   </button>
                   <button
                     style={styles.deleteBtn}
