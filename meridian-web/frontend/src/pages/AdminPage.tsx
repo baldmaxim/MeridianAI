@@ -1,7 +1,17 @@
+import { useState } from 'react';
 import { ApiKeyManager } from '../components/admin/ApiKeyManager';
 import { UserManager } from '../components/admin/UserManager';
 import { PageAccessMatrix } from '../components/admin/PageAccessMatrix';
 import { theme } from '../styles/theme';
+
+type AdminTab = 'stats' | 'keys' | 'users' | 'access';
+
+const TABS: { key: AdminTab; label: string }[] = [
+  { key: 'stats', label: 'Статистика' },
+  { key: 'keys', label: 'API-ключи' },
+  { key: 'users', label: 'Пользователи' },
+  { key: 'access', label: 'Доступ' },
+];
 
 function StatCard({ value, label, change, changeColor }: {
   value: string; label: string; change?: string; changeColor?: string;
@@ -25,6 +35,8 @@ interface Props {
 }
 
 export function AdminPage({ onBack, embedded }: Props) {
+  const [tab, setTab] = useState<AdminTab>('stats');
+
   return (
     <div className="admin-container" style={embedded ? styles.containerEmbedded : styles.container}>
       {/* Top bar with back + title */}
@@ -47,35 +59,53 @@ export function AdminPage({ onBack, embedded }: Props) {
         <div style={styles.subtitle}>MERIDIAN v2.1 · Управление системой</div>
       </div>
 
-      {/* Stats */}
-      <div className="admin-stats" style={styles.statsSection}>
-        <div style={styles.sectionHeader}>
-          <span style={styles.dot} />
-          <span style={styles.sectionTitle}>Статистика системы</span>
-          <span style={styles.sectionMeta}>Обновлено 2 мин назад</span>
-        </div>
-        <div className="stats-grid" style={styles.statsGrid}>
-          <StatCard value="—" label="Сессий за месяц" />
-          <StatCard value="—" label="Подсказок выдано" />
-          <StatCard value="—" label="Аптайм сервиса" />
-          <StatCard value="—" label="Активных юзеров" />
-        </div>
+      {/* Tabs */}
+      <div className="admin-tabs" style={styles.tabs}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{ ...styles.tab, ...(tab === t.key ? styles.tabActive : {}) }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Two-column: API Keys + Users */}
-      <div className="admin-columns" style={styles.columns}>
+      {/* Tab content */}
+      {tab === 'stats' && (
+        <div className="admin-stats" style={styles.statsSection}>
+          <div style={styles.sectionHeader}>
+            <span style={styles.dot} />
+            <span style={styles.sectionTitle}>Статистика системы</span>
+            <span style={styles.sectionMeta}>Обновлено 2 мин назад</span>
+          </div>
+          <div className="stats-grid" style={styles.statsGrid}>
+            <StatCard value="—" label="Сессий за месяц" />
+            <StatCard value="—" label="Подсказок выдано" />
+            <StatCard value="—" label="Аптайм сервиса" />
+            <StatCard value="—" label="Активных юзеров" />
+          </div>
+        </div>
+      )}
+
+      {tab === 'keys' && (
         <div className="admin-section" style={styles.section}>
           <ApiKeyManager />
         </div>
+      )}
+
+      {tab === 'users' && (
         <div className="admin-section" style={styles.section}>
           <UserManager />
         </div>
-      </div>
+      )}
 
-      {/* Page access matrix (доступ к страницам по ролям) */}
-      <div className="admin-section" style={styles.section}>
-        <PageAccessMatrix />
-      </div>
+      {tab === 'access' && (
+        <div className="admin-section" style={styles.section}>
+          <PageAccessMatrix />
+        </div>
+      )}
     </div>
   );
 }
@@ -200,10 +230,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     marginTop: 4,
   },
-  columns: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 20,
+  tabs: {
+    display: 'flex',
+    gap: 6,
+    flexWrap: 'wrap' as const,
+    borderBottom: `1px solid ${theme.border.default}`,
+    paddingBottom: 0,
+  },
+  tab: {
+    padding: '8px 16px',
+    background: 'transparent',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    color: theme.text.muted,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: theme.font.mono,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+  },
+  tabActive: {
+    color: theme.accent.amber,
+    borderBottom: `2px solid ${theme.accent.amber}`,
   },
   section: {
     background: theme.bg.card,

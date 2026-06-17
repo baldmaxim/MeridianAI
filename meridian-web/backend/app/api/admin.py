@@ -9,12 +9,13 @@ from ..models.user import User
 from ..models.api_key import ApiKey
 from ..models.job import Job
 from ..models.audit import AuditLog
-from ..schemas.auth import UserResponse
+from ..schemas.auth import UserResponse, AdminUserUpdate
 from ..schemas.settings import ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate
 from ..auth.dependencies import require_admin
+from ..auth.service import hash_password
 from ..services.encryption import encrypt_api_key, decrypt_api_key, mask_api_key
 from ..services.jobs import retry_dead
-from ..services.audit import audit, client_ip
+from ..services.audit import audit, client_ip, hmac_email
 
 router = APIRouter()
 
@@ -27,7 +28,9 @@ async def list_users(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    result = await db.execute(
+        select(User).order_by(User.department.asc().nulls_last(), User.created_at.desc())
+    )
     return result.scalars().all()
 
 
@@ -35,8 +38,7 @@ async def list_users(
 async def update_user(
     request: Request,
     user_id: int,
-    is_active: bool | None = None,
-    role: str | None = None,
+    data: AdminUserUpdate,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -45,16 +47,60 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    is_self = user_id == admin.id
     ip = client_ip(request)
-    if role is not None and role != user.role:
+
+    if data.display_name is not None and data.display_name != user.display_name:
+        new_name = data.display_name.strip() or None
+        await audit("user_name_changed", actor_user_id=admin.id, ip=ip,
+                    target_user_id=user_id)
+        user.display_name = new_name
+
+    if data.role is not None and data.role != user.role:
+        if data.role not in {"admin", "user"}:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        if is_self and data.role != "admin":
+            raise HTTPException(status_code=400, detail="Нельзя снять роль admin с самого себя")
         await audit("user_role_changed", actor_user_id=admin.id, ip=ip,
-                    target_user_id=user_id, old=user.role, new=role)
-        user.role = role
-    if is_active is not None and is_active != user.is_active:
+                    target_user_id=user_id, old=user.role, new=data.role)
+        user.role = data.role
+
+    if data.is_active is not None and data.is_active != user.is_active:
+        if is_self and not data.is_active:
+            raise HTTPException(status_code=400, detail="Нельзя деактивировать самого себя")
         await audit("user_active_changed", actor_user_id=admin.id, ip=ip,
-                    target_user_id=user_id, new=is_active)
-        user.is_active = is_active
+                    target_user_id=user_id, new=data.is_active)
+        user.is_active = data.is_active
+
+    if data.password is not None:
+        if not data.password.strip():
+            raise HTTPException(status_code=400, detail="Пароль не может быть пустым")
+        await audit("user_password_reset", actor_user_id=admin.id, ip=ip,
+                    target_user_id=user_id)
+        user.password_hash = hash_password(data.password)
+
     return user
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    request: Request,
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await audit("user_deleted", actor_user_id=admin.id, ip=client_ip(request),
+                target_user_id=user_id, email_hmac=hmac_email(user.email))
+    await db.delete(user)
+    return {"ok": True}
 
 
 # --- API Keys ---

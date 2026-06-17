@@ -7,11 +7,21 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     display_name: str | None = None
+    department: str | None = None
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class AdminUserUpdate(BaseModel):
+    """Частичное обновление пользователя админом. Все поля опциональны."""
+
+    display_name: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
+    password: str | None = None
 
 
 class TokenResponse(BaseModel):
@@ -24,6 +34,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     display_name: str | None
+    department: str | None = None
     is_active: bool
     # Доступные роли страницы (ключи каталога) — заполняется в /auth/me.
     allowed_pages: list[str] = []
