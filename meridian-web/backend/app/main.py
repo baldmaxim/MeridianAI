@@ -38,8 +38,11 @@ from .api.knowledge import router as knowledge_router
 from .api.context_sources import router as context_sources_router
 from .api.conversation_tree import router as conversation_tree_router
 from .api.speaker_roles import router as speaker_roles_router
+from .api.speaker_corrections import router as speaker_corrections_router
 from .api.ai_settings import router as ai_settings_router, meeting_router as ai_settings_meeting_router
 from .api.role_page_access import router as page_access_router
+from .api.rag import router as rag_router
+from .api.context_preview import router as context_preview_router
 from .api.health import router as health_api_router
 from .ws.handler import router as ws_router
 
@@ -244,8 +247,11 @@ app.include_router(mobile_router, prefix="/api/mobile", tags=["mobile"])
 app.include_router(learning_router, prefix="/api", tags=["learning"])
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])
 app.include_router(context_sources_router, prefix="/api/meetings", tags=["context-sources"])
+app.include_router(rag_router, prefix="/api", tags=["rag"])
+app.include_router(context_preview_router, prefix="/api", tags=["context-preview"])
 app.include_router(conversation_tree_router, prefix="/api/meetings", tags=["conversation-tree"])
 app.include_router(speaker_roles_router, prefix="/api/meetings", tags=["speaker-roles"])
+app.include_router(speaker_corrections_router, prefix="/api/meetings", tags=["speaker-corrections"])
 app.include_router(ai_settings_router, prefix="/api/ai-settings", tags=["ai-settings"])
 app.include_router(ai_settings_meeting_router, prefix="/api/meetings", tags=["ai-settings"])
 app.include_router(health_api_router, prefix="/api/health", tags=["health"])

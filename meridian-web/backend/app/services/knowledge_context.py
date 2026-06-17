@@ -99,16 +99,26 @@ def format_knowledge_block(items: dict) -> str:
     return block[:MAX_BLOCK_CHARS]
 
 
+async def build_meeting_knowledge_context_from_db(
+    db: AsyncSession, meeting_id: int, max_chars: int | None = None,
+) -> str:
+    """Блок утверждённой базы знаний на ПЕРЕДАННОЙ сессии (для Context Pack/preview)."""
+    meeting = await db.get(MeetingSession, meeting_id)
+    if not meeting:
+        return ""
+    owner_id = meeting.created_by_user_id or meeting.user_id
+    items = await get_relevant_knowledge(db, owner_id, meeting.customer_id, meeting.object_id)
+    block = format_knowledge_block(items)
+    if max_chars and len(block) > max_chars:
+        block = block[:max_chars]
+    return block
+
+
 async def build_meeting_knowledge_context(meeting_id: int, query_text: str = "") -> str:
     """Провайдер для SessionManager: блок утверждённой базы знаний (или '')."""
     try:
         async with async_session() as db:
-            meeting = await db.get(MeetingSession, meeting_id)
-            if not meeting:
-                return ""
-            owner_id = meeting.created_by_user_id or meeting.user_id
-            items = await get_relevant_knowledge(db, owner_id, meeting.customer_id, meeting.object_id)
-        return format_knowledge_block(items)
+            return await build_meeting_knowledge_context_from_db(db, meeting_id)
     except Exception as e:
         logger.error("knowledge context build failed for meeting %s: %s", meeting_id, e)
         return ""

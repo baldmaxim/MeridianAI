@@ -19,7 +19,9 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from ..config import get_settings
 from ..database import async_session
+from .observer_diarization import ObserverDiarization
 from ..models.meeting import (
     MeetingSession,
     TranscriptSegmentRecord,
@@ -39,12 +41,13 @@ from .access import can_record_meeting, current_user_meeting_role
 from .document_context import build_meeting_doc_context
 from .knowledge_context import build_meeting_knowledge_context
 from .previous_meeting_context import get_previous_meeting_context_for_prompt
+from .rag_context import build_meeting_rag_context
 from .ai_settings import snapshot_for_meeting
 
 logger = logging.getLogger("meridian.room")
 
-VALID_DEVICE_ROLES = ("desktop", "phone", "viewer", "participant")
-# роли, которым в Этапе 2 разрешено быть источником аудио
+VALID_DEVICE_ROLES = ("desktop", "phone", "viewer", "participant", "observer")
+# роли, которым в Этапе 2 разрешено быть источником аудио (observer — никогда)
 AUDIO_CAPABLE_ROLES = ("desktop", "phone")
 
 
@@ -95,6 +98,8 @@ class MeetingRoom:
         # Conversation Tree (дерево общения)
         self._tree_enabled = True
         self._tree_version = 0
+        # Этап 9: observer-диаризация (метрики уровня звука вторых устройств)
+        self.observer = ObserverDiarization(get_settings())
 
     # --- создание/конфигурация ---
 
@@ -155,6 +160,13 @@ class MeetingRoom:
                 except Exception as e:
                     logger.warning(f"[room {meeting_id}] load speaker roles failed: {e}")
 
+                # Этап 8: загрузить segment-level коррекции диаризации в live-кэш
+                try:
+                    from .speaker_corrections import get_segment_corrections_cache
+                    s.set_speaker_segment_corrections(await get_segment_corrections_cache(db, meeting_id))
+                except Exception as e:
+                    logger.warning(f"[room {meeting_id}] load speaker corrections failed: {e}")
+
         # конфигурация движка по настройкам владельца встречи
         room.settings = await load_user_settings(owner)
         room.api_keys = await load_api_keys()
@@ -193,9 +205,11 @@ class MeetingRoom:
         room.session.set_knowledge_provider(build_meeting_knowledge_context)
         # Этап 8: итоги выбранных прошлых встреч в контекст LLM-подсказок
         room.session.set_previous_meetings_provider(get_previous_meeting_context_for_prompt)
+        # Этап 5 (RAG): фрагменты подключённых RAG-папок в контекст LLM-подсказок
+        room.session.set_rag_context_provider(build_meeting_rag_context)
         # Conversation Tree: обновление дерева общения по committed-сегментам
         room._tree_enabled = bool(ai_resolved.get("conversation_tree_enabled", True))
-        room.session.set_committed_hook(room._on_committed_for_tree)
+        room.session.set_committed_hook(room._on_committed_segment)
         logger.info(f"[room {meeting_id}] created (owner={owner}, status={status})")
         return room
 
@@ -230,6 +244,9 @@ class MeetingRoom:
 
     async def add_connection(self, conn: MeetingConnection) -> None:
         self.connections[conn.connection_id] = conn
+        # Этап 9: observer-устройство регистрируется в буфере метрик (raw audio не шлёт)
+        if conn.device_role == "observer":
+            self.observer.register_device(conn.connection_id, conn.user_id, conn.device_role)
         # подключившемуся — room_joined + восстановленный контекст + статус записи
         await conn.send_json({
             "type": "room_joined",
@@ -274,6 +291,7 @@ class MeetingRoom:
         conn = self.connections.pop(connection_id, None)
         if not conn:
             return
+        self.observer.remove_device(connection_id)  # Этап 9: чистим метрики observer
         if self.active_audio_source == connection_id:
             # источник аудио отключился — НЕ финализируем встречу, только чистим источник
             was_phone = conn.device_role == "phone"
@@ -430,6 +448,21 @@ class MeetingRoom:
             await self.send_to_connection(connection_id, {
                 "type": "status", "message": "Настройки обновлены",
             })
+        elif t == "audio_level":
+            # Этап 9: observer-метрики уровня звука (НЕ raw audio). Только от observer-устройств.
+            if conn and conn.device_role == "observer":
+                try:
+                    self.observer.add_metric(
+                        connection_id,
+                        rms=message.get("rms", 0.0), peak=message.get("peak"),
+                        vad=bool(message.get("vad", False)), seq=message.get("seq"),
+                        client_ts_ms=message.get("client_ts_ms"), server_ts=datetime.utcnow(),
+                    )
+                except Exception:
+                    pass
+        elif t == "observer_side":
+            if conn and conn.device_role == "observer":
+                self.observer.set_side_hint(connection_id, message.get("side"))
         elif t in ("finalize_meeting", "save_to_history"):
             await self.finalize_meeting(connection_id, message.get("meeting_name"))
         else:
@@ -567,6 +600,37 @@ class MeetingRoom:
                 await db.commit()
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] persist speaker role failed: {e}")
+
+    async def _on_committed_segment(self, segment, role: str | None) -> None:
+        """Единый committed-хук: observer-подсказка (независимо) + дерево общения."""
+        try:
+            await self._broadcast_observer_hint(segment)
+        except Exception as e:
+            logger.debug(f"[room {self.meeting_id}] observer hint failed: {e}")
+        await self._on_committed_for_tree(segment, role)
+
+    async def _broadcast_observer_hint(self, segment) -> None:
+        """Сравнить уровни observer-устройств вокруг реплики и broadcast `segment_side_hint`."""
+        if not self.observer.enabled:
+            return
+        seg_key = getattr(segment, "segment_id", None)
+        center = getattr(segment, "wall_clock", None)
+        if not seg_key or center is None:
+            return
+        hint = self.observer.compute_segment_hint(seg_key, center)
+        if hint is None:
+            return
+        await self.broadcast({
+            "type": "segment_side_hint",
+            "meeting_id": self.meeting_id,
+            "segment_key": hint.segment_key,
+            "side": hint.side,
+            "confidence": hint.confidence,
+            "reason": hint.reason,
+            "device_count": hint.device_count,
+            "window_ms": hint.window_ms,
+            "auto_apply": self.observer.auto_apply,
+        })
 
     async def _on_committed_for_tree(self, segment, role: str | None) -> None:
         """Conversation Tree: upsert темы по committed-сегменту + broadcast обновления.

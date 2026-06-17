@@ -89,6 +89,35 @@ class Settings(BaseSettings):
     document_chunk_overlap_chars: int = Field(default=1000, alias="DOCUMENT_CHUNK_OVERLAP_CHARS")
     document_context_max_chunks: int = Field(default=6, alias="DOCUMENT_CONTEXT_MAX_CHUNKS")
     document_context_max_chars: int = Field(default=14000, alias="DOCUMENT_CONTEXT_MAX_CHARS")
+    # RAG-папки в контекст подсказок (Этап 5). v1 — лексический retrieval поверх DocumentChunk.
+    rag_context_enabled: bool = Field(default=True, alias="RAG_CONTEXT_ENABLED")
+    rag_context_max_chunks: int = Field(default=8, alias="RAG_CONTEXT_MAX_CHUNKS")
+    rag_context_max_chars: int = Field(default=12000, alias="RAG_CONTEXT_MAX_CHARS")
+
+    # Context Pack (Этап 6): верхний уровень бюджета сборки prompt. Per-mode общий лимит
+    # и per-block лимиты. Старые provider-лимиты (DOCUMENT_CONTEXT_*) остаются внутренними.
+    context_pack_auto_max_chars: int = Field(default=22000, alias="CONTEXT_PACK_AUTO_MAX_CHARS")
+    context_pack_manual_max_chars: int = Field(default=48000, alias="CONTEXT_PACK_MANUAL_MAX_CHARS")
+    context_pack_strengthen_max_chars: int = Field(default=72000, alias="CONTEXT_PACK_STRENGTHEN_MAX_CHARS")
+    context_pack_meeting_context_max_chars: int = Field(default=4000, alias="CONTEXT_PACK_MEETING_CONTEXT_MAX_CHARS")
+    context_pack_recent_dialog_max_chars: int = Field(default=16000, alias="CONTEXT_PACK_RECENT_DIALOG_MAX_CHARS")
+    context_pack_full_transcript_max_chars: int = Field(default=36000, alias="CONTEXT_PACK_FULL_TRANSCRIPT_MAX_CHARS")
+    context_pack_document_max_chars: int = Field(default=16000, alias="CONTEXT_PACK_DOCUMENT_MAX_CHARS")
+    context_pack_rag_max_chars: int = Field(default=14000, alias="CONTEXT_PACK_RAG_MAX_CHARS")
+    context_pack_knowledge_max_chars: int = Field(default=8000, alias="CONTEXT_PACK_KNOWLEDGE_MAX_CHARS")
+    context_pack_previous_max_chars: int = Field(default=16000, alias="CONTEXT_PACK_PREVIOUS_MAX_CHARS")
+    context_pack_trace_enabled: bool = Field(default=True, alias="CONTEXT_PACK_TRACE_ENABLED")
+
+    # Observer-диаризация (Этап 9): второй телефон шлёт только числовые метрики уровня звука
+    # (RMS/peak/VAD), НЕ raw audio. Backend сравнивает уровни вокруг committed-реплики и
+    # выдаёт подсказку «вероятно Мы/Не мы». Auto-apply по умолчанию ВЫКЛЮЧЕН.
+    observer_diarization_enabled: bool = Field(default=True, alias="OBSERVER_DIARIZATION_ENABLED")
+    observer_diarization_auto_apply: bool = Field(default=False, alias="OBSERVER_DIARIZATION_AUTO_APPLY")
+    observer_diarization_window_ms: int = Field(default=1800, alias="OBSERVER_DIARIZATION_WINDOW_MS")
+    observer_diarization_min_rms: float = Field(default=0.025, alias="OBSERVER_DIARIZATION_MIN_RMS")
+    observer_diarization_ratio: float = Field(default=1.35, alias="OBSERVER_DIARIZATION_RATIO")
+    observer_diarization_min_confidence: float = Field(default=0.65, alias="OBSERVER_DIARIZATION_MIN_CONFIDENCE")
+    observer_diarization_max_metrics_per_device: int = Field(default=600, alias="OBSERVER_DIARIZATION_MAX_METRICS_PER_DEVICE")
     document_max_extract_chars: int = Field(default=3_000_000, alias="DOCUMENT_MAX_EXTRACT_CHARS")
     s3_document_prefix: str = Field(default="documents", alias="S3_DOCUMENT_PREFIX")
     s3_extracted_text_prefix: str = Field(default="documents_extracted", alias="S3_EXTRACTED_TEXT_PREFIX")
@@ -182,6 +211,13 @@ class Settings(BaseSettings):
             "finalization_enabled": self.meeting_finalization_enabled,
             "learning_extraction_enabled": self.learning_extraction_enabled,
             "previous_meetings_context_enabled": self.previous_meetings_context_enabled,
+            "rag_context_enabled": self.rag_context_enabled,
+            "context_pack_trace_enabled": self.context_pack_trace_enabled,
+            "observer_diarization_enabled": self.observer_diarization_enabled,
+            "observer_diarization_auto_apply": self.observer_diarization_auto_apply,
+            "context_pack_auto_max_chars": self.context_pack_auto_max_chars,
+            "context_pack_manual_max_chars": self.context_pack_manual_max_chars,
+            "context_pack_strengthen_max_chars": self.context_pack_strengthen_max_chars,
             "document_max_upload_mb": self.document_max_upload_mb,
             "audio_max_upload_mb": self.audio_max_upload_mb,
             "job_max_attempts": self.job_max_attempts,

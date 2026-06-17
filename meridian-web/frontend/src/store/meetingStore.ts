@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic } from '../types';
+import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic, SpeakerSegmentCorrection, SegmentSideHint } from '../types';
 
 interface MeetingStats {
   positionStrength: number;
@@ -92,6 +92,15 @@ interface MeetingState {
   // Speaker roles
   speakerRoles: Record<string, string>;
   setSpeakerRoles: (roles: Record<string, string>) => void;
+
+  // Этап 8: segment-level коррекции диаризации (по segment_key)
+  speakerCorrections: Record<string, SpeakerSegmentCorrection>;
+  setSpeakerCorrections: (corrections: Record<string, SpeakerSegmentCorrection>) => void;
+
+  // Этап 9: observer-подсказки стороны реплики (эфемерные)
+  segmentHints: Record<string, SegmentSideHint>;
+  addSegmentHint: (hint: SegmentSideHint) => void;
+  dismissSegmentHint: (segmentKey: string) => void;
 
   // Conversation Tree (дерево общения)
   conversationTree: ConversationTopic[];
@@ -291,6 +300,17 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   speakerRoles: {},
   setSpeakerRoles: (roles) => set({ speakerRoles: roles }),
+  speakerCorrections: {},
+  setSpeakerCorrections: (corrections) => set({ speakerCorrections: corrections }),
+  segmentHints: {},
+  addSegmentHint: (hint) =>
+    set((s) => ({ segmentHints: { ...s.segmentHints, [hint.segment_key]: hint } })),
+  dismissSegmentHint: (segmentKey) =>
+    set((s) => {
+      const next = { ...s.segmentHints };
+      delete next[segmentKey];
+      return { segmentHints: next };
+    }),
 
   conversationTree: [],
   treeVersion: 0,
@@ -402,6 +422,8 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       isListening: false,
       lastSuggestionTime: null,
       speakerRoles: {},
+      speakerCorrections: {},
+      segmentHints: {},
       activeRoleName: null,
       meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
       selectedCustomerId: null,

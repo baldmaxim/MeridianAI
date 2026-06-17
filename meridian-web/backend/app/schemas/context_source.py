@@ -4,7 +4,14 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-SOURCE_TYPES = {"previous_meeting", "document", "manual", "customer_profile", "object_profile"}
+SOURCE_TYPES = {
+    "previous_meeting",
+    "document",
+    "manual",
+    "customer_profile",
+    "object_profile",
+    "rag_folder",
+}
 
 
 class PreviousMeetingSummaryCard(BaseModel):

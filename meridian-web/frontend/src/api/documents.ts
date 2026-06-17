@@ -1,9 +1,36 @@
 import api from './client';
 import type { DocumentInfo, DocumentRecord, DocumentUploadSession } from '../types';
 
-/** Прямой PUT в S3 по presigned URL (без auth, с прогрессом) — как в batch.ts. */
-function putToS3(url: string, file: File, onProgress?: (frac: number) => void): Promise<void> {
+export interface DocumentUploadOpts {
+  customer_id?: number | null;
+  object_id?: number | null;
+}
+
+/** Шаг 1: создать upload-session (presigned URL) для документа. */
+export async function createDocumentUploadSession(
+  file: File,
+  opts: DocumentUploadOpts = {},
+  signal?: AbortSignal,
+): Promise<DocumentUploadSession> {
+  const { data } = await api.post<DocumentUploadSession>('/documents/upload-session', {
+    filename: file.name,
+    content_type: file.type || null,
+    size_bytes: file.size,
+    customer_id: opts.customer_id ?? null,
+    object_id: opts.object_id ?? null,
+  }, { signal });
+  return data;
+}
+
+/** Шаг 2: прямой PUT в S3 по presigned URL (без auth, с прогрессом и поддержкой abort). */
+export function putFileToPresignedUrl(
+  url: string,
+  file: File,
+  onProgress?: (frac: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new Error('Загрузка отменена')); return; }
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
     xhr.upload.onprogress = (e) => {
@@ -14,13 +41,19 @@ function putToS3(url: string, file: File, onProgress?: (frac: number) => void): 
         ? resolve()
         : reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
     xhr.onerror = () => reject(new Error('Сбой сети при загрузке'));
+    xhr.onabort = () => reject(new Error('Загрузка отменена'));
+    if (signal) {
+      const onAbort = () => xhr.abort();
+      signal.addEventListener('abort', onAbort, { once: true });
+      xhr.addEventListener('loadend', () => signal.removeEventListener('abort', onAbort), { once: true });
+    }
     xhr.send(file);
   });
 }
 
-export interface DocumentUploadOpts {
-  customer_id?: number | null;
-  object_id?: number | null;
+/** Шаг 3: подтвердить загрузку → backend запускает job обработки. */
+export async function confirmDocumentUpload(documentId: number, signal?: AbortSignal): Promise<void> {
+  await api.post(`/documents/${documentId}/confirm-upload`, undefined, { signal });
 }
 
 /** Новый основной путь (Этап 4): presigned S3 upload → confirm → job обработки. */
@@ -29,15 +62,9 @@ export async function uploadDocumentPresigned(
   opts: DocumentUploadOpts = {},
   onProgress?: (frac: number) => void,
 ): Promise<{ document_id: number }> {
-  const { data: session } = await api.post<DocumentUploadSession>('/documents/upload-session', {
-    filename: file.name,
-    content_type: file.type || null,
-    size_bytes: file.size,
-    customer_id: opts.customer_id ?? null,
-    object_id: opts.object_id ?? null,
-  });
-  await putToS3(session.upload_url, file, onProgress);
-  await api.post(`/documents/${session.document_id}/confirm-upload`);
+  const session = await createDocumentUploadSession(file, opts);
+  await putFileToPresignedUrl(session.upload_url, file, onProgress);
+  await confirmDocumentUpload(session.document_id);
   return { document_id: session.document_id };
 }
 

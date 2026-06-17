@@ -17,9 +17,10 @@ class PromptContextBuilder:
     strategic — strengthen: full memory context + docs + meeting meta
     """
 
+    # Диаризация v1 — две стороны: «Мы» / «Не мы». ally/third_party — legacy fallback.
     _ROLE_LABELS = {
-        "self": "МЫ", "opponent": "ОППОНЕНТ",
-        "ally": "СОЮЗНИК", "third_party": "ТРЕТЬЯ СТОРОНА",
+        "self": "МЫ", "opponent": "НЕ МЫ",
+        "ally": "МЫ", "third_party": "НЕ МЫ",
     }
     _SPEAKER_RE = re.compile(r"^\[[\d:]+\]\s+(.+?):\s", re.MULTILINE)
 

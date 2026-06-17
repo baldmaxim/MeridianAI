@@ -3,12 +3,12 @@ import { useMeetingStore } from '../../store/meetingStore';
 import { updateConversationTopic, refineConversationTree, rebuildConversationTree, getConversationTree } from '../../api/conversationTree';
 import { putSpeakerRole } from '../../api/speakerRoles';
 import { theme } from '../../styles/theme';
-import type { ConversationTopic, ConversationTopicStatus, ConversationTopicUpdateInput, SpeakerSide } from '../../types';
+import type { ConversationTopic, ConversationTopicStatus, ConversationTopicUpdateInput, PublicSpeakerSide } from '../../types';
+import { toPublicSpeakerSide } from '../../lib/speakerSides';
 
-const SIDE_CHOICES: { side: SpeakerSide; label: string }[] = [
+const SIDE_CHOICES: { side: PublicSpeakerSide; label: string }[] = [
   { side: 'self', label: 'Мы' },
-  { side: 'opponent', label: 'Заказчик' },
-  { side: 'third_party', label: 'Третья сторона' },
+  { side: 'opponent', label: 'Не мы' },
 ];
 
 const STATUS_META: Record<ConversationTopicStatus, { label: string; color: string }> = {
@@ -86,14 +86,14 @@ function TopicCard({ topic, meetingId, canEdit }: { topic: ConversationTopic; me
           )}
         </div>
         <div style={styles.col}>
-          <div style={{ ...styles.colLabel, color: theme.accent.blue }}>ЗАКАЗЧИК</div>
+          <div style={{ ...styles.colLabel, color: theme.accent.blue }}>НЕ МЫ</div>
           {editing ? (
             <textarea style={styles.textarea} value={draft.opponent_summary ?? ''}
                       onChange={(e) => setDraft((d) => ({ ...d, opponent_summary: e.target.value }))} />
           ) : topic.opponent_summary ? (
             <div style={styles.summary}>{topic.opponent_summary}</div>
           ) : (
-            <div style={styles.placeholder}>Ответ пока не зафиксирован</div>
+            <div style={styles.placeholder}>Позиция другой стороны пока не зафиксирована</div>
           )}
         </div>
       </div>
@@ -149,7 +149,7 @@ function UnassignedBlock({ meetingId, canEdit }: { meetingId: number; canEdit: b
   // объединяем persisted-неназначенных и live-спикеров из turns без стороны
   const liveSpeakers = Array.from(new Set(turns.map((t) => t.speaker).filter(Boolean)));
   const names = Array.from(new Set([...treeUnassigned, ...liveSpeakers]))
-    .filter((n) => !speakerRoles[n]);
+    .filter((n) => toPublicSpeakerSide(speakerRoles[n]) === '');  // legacy ally/third_party = назначено
 
   if (!canEdit || names.length === 0) {
     return canRebuild && canEdit ? (
@@ -157,7 +157,7 @@ function UnassignedBlock({ meetingId, canEdit }: { meetingId: number; canEdit: b
     ) : null;
   }
 
-  const assign = async (name: string, side: SpeakerSide) => {
+  const assign = async (name: string, side: PublicSpeakerSide) => {
     setBusy(name);
     try {
       await putSpeakerRole(meetingId, name, { side });
@@ -172,7 +172,8 @@ function UnassignedBlock({ meetingId, canEdit }: { meetingId: number; canEdit: b
 
   return (
     <div style={styles.unassigned}>
-      <div style={styles.unassignedTitle}>Не назначены стороны для спикеров:</div>
+      <div style={styles.unassignedTitle}>Не назначены стороны для спикеров</div>
+      <div style={styles.unassignedHint}>Выберите, кто относится к нам, а кто к другой стороне.</div>
       {names.map((name) => (
         <div key={name} style={styles.unassignedRow}>
           <span style={styles.unassignedName}>{name}</span>
@@ -253,7 +254,7 @@ export function ConversationTreePanel({ meetingId }: { meetingId: number | null 
           {ordered.length === 0 ? (
             <div style={styles.empty}>
               Дерево общения появится после назначения сторон спикерам: кто относится к нашей
-              стороне, а кто к Заказчику. Назначить можно выше или кликом по имени спикера в транскрипции.
+              стороне, а кто к другой. Назначить можно выше или кликом по имени спикера в транскрипции.
             </div>
           ) : (
             ordered.map((t) => (
@@ -277,6 +278,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: { color: theme.text.muted, fontSize: 12, lineHeight: 1.5, padding: '12px 8px', fontFamily: theme.font.body },
   unassigned: { background: theme.bg.elevated, border: `1px solid ${theme.border.amber}`, borderRadius: 9, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 },
   unassignedTitle: { fontFamily: theme.font.mono, fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: theme.accent.amber },
+  unassignedHint: { fontFamily: theme.font.mono, fontSize: 9, color: theme.text.muted, lineHeight: 1.4 },
   unassignedRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   unassignedName: { fontSize: 12, color: theme.text.primary, fontWeight: 600, wordBreak: 'break-word' },
   sideBtns: { display: 'flex', gap: 6, flexWrap: 'wrap' },

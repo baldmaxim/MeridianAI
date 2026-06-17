@@ -1,44 +1,68 @@
 """Сервис persisted-ролей спикеров встречи (source of truth для дерева общения).
 
-Словарь сторон — live (self/opponent/ally/third_party). Нормализуем синонимы из API:
-our→self, customer/client→opponent, unknown/'' → очистка (удаление строки).
+Диаризация v1 — две публичные стороны: «Мы» = self, «Не мы» = opponent.
+Persisted-модель исторически может содержать ally/third_party (старые записи); новые
+назначения сохраняются ТОЛЬКО как self/opponent. Чтение канонизирует legacy наружу:
+ally→self, third_party→opponent. unknown/'' → очистка (удаление строки).
 """
 
 import logging
 
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.meeting_conversation import MeetingSpeakerRole, SPEAKER_SIDES
+from ..models.meeting_conversation import MeetingSpeakerRole
 
 logger = logging.getLogger("meridian.speaker_roles")
 
-# нормализация входных значений стороны к live-словарю; None → очистить
+# Публичные стороны v1 (две). Сохраняем только их.
+PUBLIC_SPEAKER_SIDES = ("self", "opponent")
+
+# Алиасы входных значений → публичная сторона. Всё неизвестное → None (очистка).
 _SIDE_ALIASES = {
-    "self": "self", "our": "self", "us": "self", "we": "self",
+    "self": "self", "our": "self", "ours": "self", "us": "self", "we": "self", "me": "self",
+    "ally": "self",  # legacy → наша сторона
     "opponent": "opponent", "customer": "opponent", "client": "opponent",
-    "ally": "ally",
-    "third_party": "third_party", "third": "third_party",
+    "them": "opponent", "they": "opponent", "other": "opponent",
+    "not_us": "opponent", "not-we": "opponent", "not_we": "opponent",
+    "third_party": "opponent", "third": "opponent",  # legacy → не мы
 }
 
 
-def normalize_side(side: str | None) -> str | None:
-    """Вернуть валидную live-сторону или None (очистить роль)."""
+def to_public_side(side: str | None) -> str | None:
+    """Свести любое значение/alias/legacy к публичной стороне (self|opponent) или None."""
     if not side:
         return None
     s = str(side).strip().lower()
-    if s in ("unknown", "none", "clear", ""):
+    if s in ("", "unknown", "none", "clear"):
         return None
-    return _SIDE_ALIASES.get(s, s if s in SPEAKER_SIDES else None)
+    return _SIDE_ALIASES.get(s)
+
+
+def normalize_side(side: str | None) -> str | None:
+    """Валидная публичная сторона (self|opponent) или None (очистить роль).
+
+    Новые записи сохраняются только как self/opponent; ally→self, third_party→opponent.
+    """
+    return to_public_side(side)
 
 
 async def get_roles_map(db: AsyncSession, meeting_id: int) -> dict[str, str]:
-    """{speaker_label: side} — для загрузки в MeetingRoom и rebuild дерева."""
+    """{speaker_label: public_side} — для MeetingRoom и rebuild дерева.
+
+    Канонизирует legacy-значения из БД (ally→self, third_party→opponent). Битые/None
+    стороны пропускаются.
+    """
     rows = (await db.execute(
         select(MeetingSpeakerRole.speaker_label, MeetingSpeakerRole.side)
         .where(MeetingSpeakerRole.meeting_id == meeting_id)
     )).all()
-    return {label: side for label, side in rows}
+    out: dict[str, str] = {}
+    for label, side in rows:
+        public = to_public_side(side)
+        if public:
+            out[label] = public
+    return out
 
 
 async def list_roles(db: AsyncSession, meeting_id: int) -> list[MeetingSpeakerRole]:

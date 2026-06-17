@@ -4,12 +4,22 @@ import { CollapsibleSection } from '../common/CollapsibleSection';
 import { MeetingDocuments } from './MeetingDocuments';
 import { PreviousMeetingsContext } from './PreviousMeetingsContext';
 import { ContextSourceCard } from './ContextSourceCard';
-import { ragPlaceholderToContextSourceViewModel, type ContextSourceSectionSummary } from './contextSourceModel';
+import { RagFolderPickerModal } from './RagFolderPickerModal';
+import { ContextPreviewModal } from './ContextPreviewModal';
+import {
+  ragPlaceholderToContextSourceViewModel,
+  ragAttachedFolderToContextSourceViewModel,
+  type ContextSourceSectionSummary,
+} from './contextSourceModel';
+import { useRagContextFolders } from '../../hooks/useRagContextFolders';
+import type { RagContextAdapter } from './ragContextTypes';
 
 interface Props {
   meetingId: number | null;
   customerId?: number | null;
   objectId?: number | null;
+  ensureMeetingId?: () => Promise<number | null>;
+  ragAdapter?: RagContextAdapter;
 }
 
 function chip(label: string, s: ContextSourceSectionSummary | null): string {
@@ -19,10 +29,27 @@ function chip(label: string, s: ContextSourceSectionSummary | null): string {
 
 // Корзина контекста: единая визуальная зона «что попадёт в подсказки».
 // Объединяет источники контекста встречи (документы, прошлые встречи, RAG).
-export function ContextBasket({ meetingId, customerId, objectId }: Props) {
+export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId, ragAdapter }: Props) {
   const [docSummary, setDocSummary] = useState<ContextSourceSectionSummary | null>(null);
   const [prevSummary, setPrevSummary] = useState<ContextSourceSectionSummary | null>(null);
-  const rag = ragPlaceholderToContextSourceViewModel();
+  const [uploadActive, setUploadActive] = useState(0);
+  const [ragPickerOpen, setRagPickerOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // TODO: connect real RAG adapter; source_type='rag_folder'
+  const ragPlaceholder = ragPlaceholderToContextSourceViewModel();
+  const rag = useRagContextFolders({
+    meetingId,
+    customerId,
+    objectId,
+    adapter: ragAdapter,
+    ensureMeetingId,
+    open: ragPickerOpen,
+  });
+
+  const ragTotal = rag.attachedFolders.length;
+  const ragIncluded = rag.attachedFolders.filter((x) => x.included).length;
+  const ragChip = rag.enabled ? `RAG: ${ragIncluded}/${ragTotal}` : 'RAG: скоро';
 
   return (
     <div style={styles.wrap}>
@@ -30,12 +57,17 @@ export function ContextBasket({ meetingId, customerId, objectId }: Props) {
         <div style={styles.titleRow}>
           <span style={styles.dot} />
           <span style={styles.title}>Что попадёт в подсказки</span>
+          <span style={{ flex: 1 }} />
+          <button type="button" style={styles.previewBtn} onClick={() => setPreviewOpen(true)}>
+            Предпросмотр контекста
+          </button>
         </div>
         <div style={styles.subtitle}>Добавьте документы, прошлые встречи или RAG-папки</div>
         <div style={styles.chips}>
           <span style={styles.chipItem}>{chip('Файлы', docSummary)}</span>
+          {uploadActive > 0 && <span style={styles.chipActive}>Загрузка: {uploadActive}</span>}
           <span style={styles.chipItem}>{chip('Прошлые встречи', prevSummary)}</span>
-          <span style={styles.chipItem}>RAG: скоро</span>
+          <span style={styles.chipItem}>{ragChip}</span>
         </div>
       </div>
 
@@ -44,7 +76,9 @@ export function ContextBasket({ meetingId, customerId, objectId }: Props) {
           meetingId={meetingId}
           customerId={customerId}
           objectId={objectId}
+          ensureMeetingId={ensureMeetingId}
           onSummaryChange={setDocSummary}
+          onUploadActivityChange={setUploadActive}
         />
       </CollapsibleSection>
 
@@ -64,12 +98,53 @@ export function ContextBasket({ meetingId, customerId, objectId }: Props) {
       </CollapsibleSection>
 
       <CollapsibleSection title="RAG-папки">
-        {/* TODO: connect RAG folder picker; source_type='rag_folder' */}
-        <ContextSourceCard
-          source={rag}
-          primaryActionLabel="Добавить папку"
-        />
+        <div style={styles.ragSection}>
+          {rag.attachedFolders.length === 0 ? (
+            <ContextSourceCard source={ragPlaceholder} />
+          ) : (
+            rag.attachedFolders.map((s) => (
+              <ContextSourceCard
+                key={s.sourceId}
+                source={ragAttachedFolderToContextSourceViewModel(s)}
+                onToggleIncluded={() => rag.toggleIncluded(s.sourceId, !s.included)}
+                onPriorityChange={(p) => rag.updatePriority(s.sourceId, p)}
+                onRemove={() => rag.detachFolder(s.sourceId)}
+              />
+            ))
+          )}
+          <div style={styles.ragActions}>
+            <button type="button" style={styles.ragPickBtn} onClick={() => setRagPickerOpen(true)}>
+              Выбрать папку
+            </button>
+            {!rag.enabled && <span style={styles.ragNote}>Backend RAG ещё не подключён</span>}
+          </div>
+        </div>
       </CollapsibleSection>
+
+      <ContextPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        meetingId={meetingId}
+      />
+
+      <RagFolderPickerModal
+        open={ragPickerOpen}
+        onClose={() => setRagPickerOpen(false)}
+        enabled={rag.enabled}
+        disabledReason={rag.disabledReason}
+        folders={rag.folders}
+        attachedFolders={rag.attachedFolders}
+        loading={rag.loading}
+        refreshing={rag.refreshing}
+        error={rag.error}
+        query={rag.query}
+        onQueryChange={rag.setQuery}
+        onRefresh={rag.refresh}
+        onAttachFolder={rag.attachFolder}
+        onDetachFolder={rag.detachFolder}
+        onToggleIncluded={rag.toggleIncluded}
+        onPriorityChange={rag.updatePriority}
+      />
     </div>
   );
 }
@@ -78,6 +153,11 @@ const styles: Record<string, React.CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 14 },
   head: { display: 'flex', flexDirection: 'column', gap: 6 },
   titleRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  previewBtn: {
+    padding: '5px 12px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
+    borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 10,
+    fontFamily: theme.font.mono, letterSpacing: '0.03em', flexShrink: 0,
+  },
   dot: { width: 7, height: 7, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
   title: {
     fontFamily: theme.font.heading, fontWeight: 700, fontSize: 13,
@@ -90,5 +170,18 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${theme.border.default}`, fontFamily: theme.font.mono,
     fontSize: 10, letterSpacing: '0.04em', color: theme.text.secondary, whiteSpace: 'nowrap' as const,
   },
+  chipActive: {
+    padding: '4px 10px', borderRadius: 20, background: theme.accent.amberGlow,
+    border: `1px solid ${theme.border.amber}`, fontFamily: theme.font.mono,
+    fontSize: 10, letterSpacing: '0.04em', color: theme.accent.amber, whiteSpace: 'nowrap' as const,
+  },
   hint: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted, letterSpacing: '0.04em' },
+  ragSection: { display: 'flex', flexDirection: 'column', gap: 10 },
+  ragActions: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const },
+  ragPickBtn: {
+    padding: '9px 16px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
+    borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
+    fontFamily: theme.font.body, fontWeight: 600,
+  },
+  ragNote: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, letterSpacing: '0.04em' },
 };

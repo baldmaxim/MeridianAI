@@ -22,9 +22,9 @@ class MeetingContextSource(Base):
     meeting_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("meeting_sessions.id", ondelete="CASCADE")
     )
-    # previous_meeting | document | manual | customer_profile | object_profile
+    # previous_meeting | document | manual | customer_profile | object_profile | rag_folder
     source_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    # для previous_meeting → meeting_sessions.id; для manual — NULL
+    # previous_meeting → meeting_sessions.id; rag_folder → rag_folders.id; manual → NULL
     source_id: Mapped[int | None] = mapped_column(Integer)
     included: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=100)

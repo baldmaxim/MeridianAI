@@ -6,6 +6,8 @@ import { getSettings } from '../api/settings';
 import { createMeeting } from '../api/meetings';
 import { getMeetingDetail } from '../api/history';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
+import { SpeakerSideAssignmentPanel } from '../components/meeting/SpeakerSideAssignmentPanel';
+import { ObserverPanel } from '../components/meeting/ObserverPanel';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
@@ -16,10 +18,16 @@ import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
 import { CollapsibleSection } from '../components/common/CollapsibleSection';
 import { ContextBasket } from '../components/context/ContextBasket';
+import { ragContextApiAdapter } from '../api/ragContextAdapter';
 import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
 import { MeetingContext } from '../components/context/MeetingContext';
 import { MeetingAISettingsBlock } from '../components/context/MeetingAISettings';
 import { RolesTab } from '../components/context/RolesTab';
+import { getSpeakerRoles, putSpeakerRole } from '../api/speakerRoles';
+import { listSpeakerCorrections, putSpeakerCorrection, deleteSpeakerCorrection } from '../api/speakerCorrections';
+import { toPublicSpeakerSide, nextPublicSpeakerSide, type PublicSpeakerSide } from '../lib/speakerSides';
+import { segmentOverrideSide } from '../lib/segmentCorrections';
+import type { SpeakerSegmentCorrection } from '../types';
 import { theme } from '../styles/theme';
 import { paths } from '../lib/navigation';
 import type { UserSettings } from '../types';
@@ -122,6 +130,100 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     return () => { disconnect(); if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Этап 7: подтянуть persisted-стороны спикеров при открытии встречи (до live broadcast)
+  useEffect(() => {
+    const mid = store.currentMeetingId;
+    if (mid == null) return;
+    getSpeakerRoles(mid)
+      .then((rows) => {
+        const map: Record<string, PublicSpeakerSide> = {};
+        for (const r of rows) {
+          const side = toPublicSpeakerSide(r.side);
+          if (side) map[r.speaker_label] = side;
+        }
+        useMeetingStore.getState().setSpeakerRoles(map);
+      })
+      .catch(() => {});  // тихо игнорируем — роли подтянутся по WS
+    // Этап 8: persisted segment-level коррекции
+    listSpeakerCorrections(mid)
+      .then((rows) => {
+        const map: Record<string, SpeakerSegmentCorrection> = {};
+        for (const r of rows) map[r.segment_key] = r;
+        useMeetingStore.getState().setSpeakerCorrections(map);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.currentMeetingId]);
+
+  // Этап 8.1: исправить ОДНУ реплику (side и/или corrected_speaker_label). Merge с существующей
+  // коррекцией, оптимистично + REST. Пустой результат → delete. Встречу НЕ создаёт.
+  const handleSetSegmentCorrection = useCallback(async (
+    segmentKey: string,
+    originalSpeaker: string,
+    patch: { side?: PublicSpeakerSide | ''; correctedSpeakerLabel?: string | null },
+  ) => {
+    const st = useMeetingStore.getState();
+    const mid = st.currentMeetingId;
+    if (mid == null || !segmentKey) return;
+    const existing = st.speakerCorrections[segmentKey];
+    const side: PublicSpeakerSide | '' = patch.side !== undefined
+      ? patch.side
+      : (toPublicSpeakerSide(existing?.side));
+    const correctedLabel: string | null = patch.correctedSpeakerLabel !== undefined
+      ? (patch.correctedSpeakerLabel || null)
+      : (existing?.corrected_speaker_label ?? null);
+    const prev = st.speakerCorrections;
+    try {
+      if (!side && !correctedLabel) {
+        await deleteSpeakerCorrection(mid, segmentKey);
+        const map = { ...prev };
+        delete map[segmentKey];
+        useMeetingStore.getState().setSpeakerCorrections(map);
+      } else {
+        const rows = await putSpeakerCorrection(mid, segmentKey, {
+          side: side || '', corrected_speaker_label: correctedLabel,
+          original_speaker_label: originalSpeaker,
+        });
+        const map: Record<string, SpeakerSegmentCorrection> = {};
+        for (const r of rows) map[r.segment_key] = r;
+        useMeetingStore.getState().setSpeakerCorrections(map);
+      }
+    } catch {
+      useMeetingStore.getState().setError('Не удалось сохранить исправление реплики');
+    }
+  }, []);
+
+  // Клик по бейджу реплики циклит сторону, сохраняя corrected_speaker_label.
+  const handleCorrectSegment = useCallback((segmentKey: string, originalSpeaker: string) => {
+    const current = segmentOverrideSide(useMeetingStore.getState().speakerCorrections, segmentKey);
+    handleSetSegmentCorrection(segmentKey, originalSpeaker, { side: nextPublicSpeakerSide(current) });
+  }, [handleSetSegmentCorrection]);
+
+  // Единый сеттер стороны спикера: optimistic + WS (или REST fallback). Встречу НЕ создаёт.
+  const handleSetSpeakerSide = useCallback(async (name: string, side: PublicSpeakerSide | '' | null) => {
+    const label = name.trim();
+    if (!label) return;
+    const normalized = toPublicSpeakerSide(side);
+    const st = useMeetingStore.getState();
+    const prev = st.speakerRoles;
+    const next: Record<string, string> = { ...prev };
+    if (normalized) next[label] = normalized;
+    else delete next[label];
+    st.setSpeakerRoles(next);
+
+    if (st.isConnected) {
+      sendJSON({ type: 'set_speaker_role', name: label, side: normalized || '' });
+    } else if (st.currentMeetingId != null) {
+      try {
+        await putSpeakerRole(st.currentMeetingId, label, { side: normalized || '' });
+      } catch {
+        useMeetingStore.getState().setSpeakerRoles(prev);  // откат optimistic
+        useMeetingStore.getState().setError('Не удалось сохранить сторону спикера');
+      }
+    }
+    // нет соединения и нет встречи → только локальный optimistic (встречу не создаём)
+  }, [sendJSON]);
 
   // Conversation Tree: начальная загрузка дерева при открытии встречи
   useEffect(() => {
@@ -400,7 +502,17 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                   </div>
                   <button className="sheet-close" onClick={() => setDrawerOpen(false)}>&times;</button>
                 </div>
-                <ChatDisplay onSetSpeakerRole={(name, side) => sendJSON({ type: 'set_speaker_role', name, side } as any)} />
+                <SpeakerSideAssignmentPanel
+                  meetingId={store.currentMeetingId}
+                  canEdit={store.canSendAudio}
+                  compact
+                  onSetSpeakerSide={handleSetSpeakerSide}
+                />
+                <ChatDisplay
+                  onSetSpeakerRole={handleSetSpeakerSide}
+                  onCorrectSegment={handleCorrectSegment}
+                  onSetSegmentCorrection={handleSetSegmentCorrection}
+                />
                 <MeetingStats onSaveToHistory={() => sendJSON({ type: 'save_to_history' })} />
               </div>
               {/* Third column: дерево общения (скрывается на узких экранах через CSS) */}
@@ -484,6 +596,12 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               meetingId={ctxMeetingId}
               customerId={store.selectedCustomerId}
               objectId={store.selectedObjectId}
+              ensureMeetingId={async () => {
+                const st = useMeetingStore.getState();
+                if (st.currentMeetingId != null) return st.currentMeetingId;
+                return await startSession(false);
+              }}
+              ragAdapter={ragContextApiAdapter}
             />
 
             {/* C. Краткие настройки */}
@@ -531,6 +649,11 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                   {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
                 </button>
               </div>
+
+              {/* Этап 9: режим наблюдателя (второй телефон) */}
+              <CollapsibleSection title="Наблюдатель (второй телефон)">
+                <ObserverPanel meetingId={store.currentMeetingId} />
+              </CollapsibleSection>
 
               {/* Этап 5: итоги встречи / протокол */}
               <FinalizationPanel meetingId={store.currentMeetingId} />

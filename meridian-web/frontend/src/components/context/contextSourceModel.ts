@@ -2,6 +2,7 @@ import type {
   MeetingDocument, MeetingContextSource, PreviousMeetingCandidate,
   DocumentStatus, PreviousMeetingSummaryCard,
 } from '../../types';
+import type { RagFolderViewModel, RagAttachedFolderViewModel, RagFolderStatus } from './ragContextTypes';
 
 // ── UI-only модель источников контекста ───────────────────────────────────────
 // Эти типы НЕ совпадают с backend ContextSourceType. RAG-папки здесь существуют
@@ -139,12 +140,66 @@ export function previousMeetingCandidateToContextSourceViewModel(candidate: Prev
   };
 }
 
+function ragUiStatus(s: RagFolderStatus): ContextSourceUiStatus {
+  if (s === 'ready') return 'ready';
+  if (s === 'indexing') return 'processing';
+  if (s === 'error') return 'error';
+  return 'disabled';
+}
+
+function ragFolderMeta(f: {
+  documentsCount?: number; chunksCount?: number; updatedAt?: string;
+}): string | undefined {
+  const counts: string[] = [];
+  if (f.documentsCount != null) counts.push(`${f.documentsCount} документов`);
+  if (f.chunksCount != null) counts.push(`${f.chunksCount} чанков`);
+  return joinMeta(counts.join(' · '), f.updatedAt ? `обновлено ${f.updatedAt}` : undefined);
+}
+
+export function ragFolderToContextSourceViewModel(
+  folder: RagFolderViewModel,
+  selected?: boolean,
+): ContextSourceViewModel {
+  const status = ragUiStatus(folder.status);
+  const disabled = !!folder.disabled || status === 'disabled';
+  return {
+    id: `rag-${folder.id}`,
+    kind: 'rag_folder',
+    title: folder.title,
+    subtitle: folder.path?.length ? folder.path.join(' / ') : folder.description,
+    meta: ragFolderMeta(folder),
+    included: !!selected,
+    status,
+    statusLabel: folder.statusLabel ?? (status === 'ready' ? undefined : UI_STATUS_LABELS[status]),
+    disabled,
+  };
+}
+
+export function ragAttachedFolderToContextSourceViewModel(
+  source: RagAttachedFolderViewModel,
+): ContextSourceViewModel {
+  const status = ragUiStatus(source.status);
+  const disabled = !!source.disabled || status === 'disabled';
+  return {
+    id: `rag-src-${source.sourceId}`,
+    kind: 'rag_folder',
+    title: source.title,
+    subtitle: source.path?.length ? source.path.join(' / ') : source.description,
+    meta: ragFolderMeta(source),
+    included: !!source.included,
+    status,
+    statusLabel: source.statusLabel ?? (status === 'ready' ? undefined : UI_STATUS_LABELS[status]),
+    priority: source.priority,
+    disabled,
+  };
+}
+
 export function ragPlaceholderToContextSourceViewModel(): ContextSourceViewModel {
   return {
     id: 'rag-placeholder',
     kind: 'rag_folder',
     title: 'RAG-папки',
-    subtitle: 'Скоро: перетащите папку из базы знаний/RAG в контекст встречи',
+    subtitle: 'Выберите папку из базы знаний, чтобы добавить её в контекст встречи',
     included: false,
     status: 'disabled',
     statusLabel: 'скоро',

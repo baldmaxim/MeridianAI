@@ -29,6 +29,7 @@ from ..core.context.meeting_memory import MeetingMemory
 from ..core.llm.suggestion_prompts import (
     build_auto_cards_prompt, build_manual_cards_prompt, build_strengthen_prompt,
 )
+from .context_pack import assemble_live_context_pack
 from ..core.transcription.turn_assembler import TurnAssembler
 from .audio_recorder import AudioRecorder
 from .suggestion_parser import parse_suggestion_response, apply_safety_checks, fallback_response
@@ -44,12 +45,13 @@ HINT_DEBOUNCE_SEC = 3.0
 HINT_COOLDOWN_SEC = 30.0
 MIN_SEGMENTS_FOR_HINT = 2
 
-# Speaker side labels for prompt annotation
+# Speaker side labels for prompt annotation. Диаризация v1 — две стороны: «Мы»/«Не мы».
+# ally/third_party — legacy fallback (старые записи) → сводятся к тем же двум сторонам.
 ROLE_LABELS = {
     "self": "МЫ",
-    "opponent": "ОППОНЕНТ",
-    "ally": "СОЮЗНИК",
-    "third_party": "ТРЕТЬЯ СТОРОНА",
+    "opponent": "НЕ МЫ",
+    "ally": "МЫ",            # legacy fallback
+    "third_party": "НЕ МЫ",  # legacy fallback
 }
 
 # Keyword → analysis status message (defaults)
@@ -141,6 +143,8 @@ class SessionManager:
         self.speaker_mapping: Dict[str, str] = {}
         self.current_speaker: Optional[str] = None
         self.speaker_roles: Dict[str, str] = {}  # display_name → side
+        # Этап 8: segment-level коррекции диаризации (segment_id → {side, corrected_speaker_label})
+        self.speaker_segment_corrections: Dict[str, dict] = {}
 
         # Stored API keys for batch finalization
         self._elevenlabs_key: Optional[str] = None
@@ -183,6 +187,9 @@ class SessionManager:
         # Этап 8: провайдер итогов выбранных прошлых встреч, async(meeting_id, query)->str
         self._previous_meetings_provider: Optional[Callable] = None
 
+        # Этап 5 (RAG): провайдер фрагментов подключённых RAG-папок, async(meeting_id, query)->str
+        self._rag_context_provider: Optional[Callable] = None
+
         # Этап 9: resolved AI-настройки встречи (None → fallback на глобальный config)
         self.ai_settings: Optional[dict] = None
         self._llm_api_key: Optional[str] = None
@@ -201,13 +208,36 @@ class SessionManager:
         """Conversation Tree: колбэк на committed-сегмент, async(segment, role)."""
         self._committed_hook = hook
 
+    def set_speaker_segment_corrections(self, corrections: Dict[str, dict]) -> None:
+        """Заменить in-memory кэш segment-level коррекций (segment_id → {side, corrected_speaker_label})."""
+        self.speaker_segment_corrections = corrections or {}
+
+    def _resolve_segment(self, segment) -> tuple[str, str | None]:
+        """(effective_speaker_label, side) реплики с учётом segment-level коррекций.
+
+        Приоритет стороны: коррекция реплики → роль corrected_label → роль original_label.
+        """
+        from .speaker_roles import to_public_side  # локальный импорт: избегаем цикла
+        original = (getattr(segment, "speaker_label", None) or getattr(segment, "speaker_id", None)
+                    or getattr(segment, "speaker", None) or "")
+        seg_key = getattr(segment, "segment_id", None) or ""
+        corr = self.speaker_segment_corrections.get(seg_key) if seg_key else None
+        corrected_label = (corr or {}).get("corrected_speaker_label")
+        effective = corrected_label or original
+        side = None
+        if corr and corr.get("side"):
+            side = to_public_side(corr.get("side"))
+        if side is None and corrected_label:
+            side = to_public_side(self.speaker_roles.get(corrected_label))
+        if side is None and original:
+            side = to_public_side(self.speaker_roles.get(original))
+        return effective, side
+
     def _fire_committed_hook(self, segment) -> None:
         """Fire-and-forget вызов committed-хука. Ошибки не должны ломать пайплайн."""
         if not self._committed_hook:
             return
-        speaker = (getattr(segment, "speaker_label", None) or getattr(segment, "speaker_id", None)
-                   or getattr(segment, "speaker", None) or "")
-        role = self.speaker_roles.get(speaker)
+        _speaker, role = self._resolve_segment(segment)  # segment-level коррекция стороны
         try:
             asyncio.create_task(self._committed_hook(segment, role))
         except Exception:
@@ -247,8 +277,32 @@ class SessionManager:
         except Exception:
             return ""
 
+    def set_rag_context_provider(self, provider: Callable):
+        """Этап 5: провайдер фрагментов подключённых RAG-папок встречи."""
+        self._rag_context_provider = provider
+
+    async def _rag_context_block(self, query_text: str = "") -> str:
+        """Блок «Релевантные фрагменты RAG-папок» (или '').
+
+        Этап 6: отдельный блок ContextPack (больше НЕ внутри document slot).
+        v1 зависит от document_context_enabled + глобального rag_context_enabled.
+        """
+        if not getattr(get_settings(), "rag_context_enabled", True):
+            return ""  # RAG выключен глобально в конфиге
+        if not self._ai("document_context_enabled", True):
+            return ""  # документы (и RAG как их часть v1) выключены в настройках
+        if not self._rag_context_provider or not self.db_session_id:
+            return ""
+        try:
+            return await self._rag_context_provider(self.db_session_id, query_text or "")
+        except Exception:
+            return ""
+
     async def _augment_doc_context(self, base: str, query_text: str) -> str:
-        """Дополнить doc-контекст (из in-memory loader) фрагментами документов встречи из БД."""
+        """Документы встречи из БД (in-memory loader base + DB-провайдер).
+
+        Этап 6: отвечает ТОЛЬКО за документы; RAG — отдельный блок ContextPack.
+        """
         if not self._ai("document_context_enabled", True):
             return base  # Этап 9: документы выключены в настройках
         if not self._doc_context_provider or not self.db_session_id:
@@ -260,6 +314,42 @@ class SessionManager:
         if db_block and base:
             return f"{base}\n\n{db_block}"
         return db_block or base
+
+    def _trace_pack(self, pack, mode: str) -> None:
+        """Короткая телеметрия Context Pack (без полного контента)."""
+        if not get_settings().context_pack_trace_enabled:
+            return
+        summary = [(b.kind, len(b.content), b.enabled, b.truncated) for b in pack.blocks]
+        logger.info(
+            "context_pack mode=%s meeting=%s total_chars=%s blocks=%s truncated=%s",
+            mode, self.db_session_id, pack.total_chars, summary, pack.truncated,
+        )
+
+    async def _build_context_pack_for_prompt(
+        self, *, mode: str, query_text: str, meeting_context_block: str,
+        recent_dialog: str = "", full_transcript: str = "",
+        document_context: str = "", document_already_augmented: bool = False,
+    ):
+        """Единая сборка ContextPack из провайдеров для live-подсказок.
+
+        document_already_augmented=True — base уже прошёл _augment_doc_context (auto-путь),
+        чтобы не augment-ить документы дважды.
+        """
+        db_doc = (document_context if document_already_augmented
+                  else await self._augment_doc_context(document_context, query_text))
+        rag = await self._rag_context_block(query_text)
+        knowledge = await self._knowledge_block(query_text)
+        previous = await self._previous_meetings_block(query_text)
+        pack = assemble_live_context_pack(
+            mode=mode, query_text=query_text,
+            meeting_context_block=meeting_context_block,
+            recent_dialog=recent_dialog, full_transcript=full_transcript,
+            document_context=db_doc, rag_context=rag,
+            knowledge_context=knowledge, previous_meetings_context=previous,
+            ai_settings=self.ai_settings,
+        )
+        self._trace_pack(pack, mode)
+        return pack
 
     def configure_llm(self, api_key: str, model: str, temperature: float):
         """Configure LLM client with API key from database."""
@@ -726,21 +816,26 @@ class SessionManager:
             await self._send_json({"type": "suggestion_loading", "loading": False})
             return
 
-        # Этап 4: добавить релевантные фрагменты документов встречи (из БД)
-        ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
-
         settings = get_settings()
         if self._ai("suggestion_structured_enabled", settings.suggestion_structured_enabled):
-            mcb = self._meeting_context_block(ctx)
-            kb = await self._knowledge_block(context)
-            pmb = await self._previous_meetings_block(context)
+            # Этап 6: единая сборка контекста через ContextPack
+            pack = await self._build_context_pack_for_prompt(
+                mode="manual", query_text=context,
+                meeting_context_block=self._meeting_context_block(ctx),
+                recent_dialog=context, document_context=ctx.get("document_context", ""),
+            )
+            doc_combined = pack.combined_documents_text()
             max_cards = self._ai("max_manual_cards", settings.suggestion_max_cards_manual)
             prompt = build_manual_cards_prompt(
-                self._role_name(), mcb, context, ctx.get("document_context", ""),
-                max_cards, knowledge_context=kb, previous_meetings_context=pmb)
+                self._role_name(), pack.text_for("meeting_context"),
+                pack.text_for("recent_dialog"), doc_combined,
+                max_cards, knowledge_context=pack.text_for("knowledge"),
+                previous_meetings_context=pack.text_for("previous_meeting"))
             raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "manual"))
-            await self._emit_suggestion_cards(raw, "manual", doc_context_text=ctx.get("document_context", ""))
+            await self._emit_suggestion_cards(raw, "manual", doc_context_text=doc_combined)
         else:
+            # Этап 4: добавить релевантные фрагменты документов встречи (из БД)
+            ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
             prompt = self.prompt_builder.build_tactical_hints_prompt(recent_dialog=context, **ctx)
             raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
             if raw:
@@ -773,17 +868,17 @@ class SessionManager:
             await self._send_json({"type": "strengthen_loading", "loading": False})
             return
 
-        # Этап 4: добавить релевантные фрагменты документов встречи (из БД)
-        ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
-
-        # Этап 6: структурированный strengthen-промпт (7 секций, пометки источника)
-        # Этап 7: + утверждённая база знаний; Этап 8: + итоги прошлых встреч
-        kb = await self._knowledge_block(context)
-        pmb = await self._previous_meetings_block(context)
+        # Этап 6: единая сборка контекста через ContextPack (strengthen → полный транскрипт)
+        pack = await self._build_context_pack_for_prompt(
+            mode="strengthen", query_text=context,
+            meeting_context_block=self._meeting_context_block(ctx),
+            full_transcript=context, document_context=ctx.get("document_context", ""),
+        )
         prompt = build_strengthen_prompt(
-            self._role_name(), self._meeting_context_block(ctx), context,
-            ctx.get("document_context", ""), knowledge_context=kb,
-            previous_meetings_context=pmb,
+            self._role_name(), pack.text_for("meeting_context"),
+            pack.text_for("full_transcript"), pack.combined_documents_text(),
+            knowledge_context=pack.text_for("knowledge"),
+            previous_meetings_context=pack.text_for("previous_meeting"),
         )
 
         logger.info(f"[Strengthen] docs={len(self.document_loader.documents)}, "
@@ -878,10 +973,16 @@ class SessionManager:
         self.current_speaker = speaker_name
 
     def set_speaker_role(self, speaker_name: str, side: str):
-        """Assign negotiation side to a speaker display name."""
-        if side in ("self", "opponent", "ally", "third_party"):
-            self.speaker_roles[speaker_name] = side
-        elif side == "":
+        """Assign public negotiation side (self|opponent) to a speaker label.
+
+        Принимает алиасы (we/not_us/ally/third_party/…); в live-map хранятся ТОЛЬКО
+        нормализованные self/opponent. None/unknown/'' → удалить спикера из map.
+        """
+        from .speaker_roles import normalize_side  # локальный импорт: избегаем цикла
+        norm = normalize_side(side)
+        if norm:
+            self.speaker_roles[speaker_name] = norm
+        else:
             self.speaker_roles.pop(speaker_name, None)
 
     def update_meeting_context(self, topic: str, notes: str):
@@ -911,8 +1012,9 @@ class SessionManager:
         lines = []
         for seg in recent:
             ts = seg.wall_clock.strftime("%H:%M:%S")
-            speaker = seg.speaker_label or seg.speaker_id
-            role_tag = ROLE_LABELS.get(self.speaker_roles.get(speaker, ""), "")
+            # Этап 8: сторона/спикер реплики с учётом segment-level коррекций
+            speaker, side = self._resolve_segment(seg)
+            role_tag = ROLE_LABELS.get(side or "", "")
             label = f"{speaker} [{role_tag}]" if role_tag else speaker
             line = f"[{ts}] {label}: {seg.text}"
             if seg.is_low_confidence:
@@ -1038,14 +1140,20 @@ class SessionManager:
                 hint = self._parse_single_hint(raw, keyword)
                 await self._send_structured_suggestion(hint, is_auto=True)
             return
-        kb = await self._knowledge_block(recent or keyword)
-        pmb = await self._previous_meetings_block(recent or keyword)
+        # Этап 6: единая сборка контекста через ContextPack (doc уже augment-нут вызывающим)
+        pack = await self._build_context_pack_for_prompt(
+            mode="auto", query_text=(recent or keyword), meeting_context_block="",
+            recent_dialog=recent, document_context=doc_context,
+            document_already_augmented=True,
+        )
+        doc_combined = pack.combined_documents_text()
         max_cards = self._ai("max_auto_cards", settings.suggestion_max_cards_auto)
-        prompt = build_auto_cards_prompt(self._role_name(), keyword, recent, doc_context,
-                                         max_cards, knowledge_context=kb,
-                                         previous_meetings_context=pmb)
+        prompt = build_auto_cards_prompt(
+            self._role_name(), keyword, pack.text_for("recent_dialog"), doc_combined,
+            max_cards, knowledge_context=pack.text_for("knowledge"),
+            previous_meetings_context=pack.text_for("previous_meeting"))
         raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "auto"))
-        await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_context)
+        await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_combined)
 
     async def _emit_suggestion_cards(self, raw, source_mode: str, trigger=None, doc_context_text=""):
         settings = get_settings()

@@ -1,35 +1,46 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { theme } from '../../styles/theme';
-import { uploadDocumentPresigned, listDocumentRecords } from '../../api/documents';
+import { listDocumentRecords } from '../../api/documents';
 import { listMeetingDocuments, attachMeetingDocument, patchMeetingDocument, detachMeetingDocument } from '../../api/meetingDocuments';
 import { apiErrorMessage } from '../../lib/apiError';
 import type { MeetingDocument, DocumentRecord } from '../../types';
 import { ContextSourceCard } from './ContextSourceCard';
 import { documentToContextSourceViewModel, type ContextSourceSectionSummary } from './contextSourceModel';
+import { useDocumentUploadQueue } from '../../hooks/useDocumentUploadQueue';
+import { DocumentUploadQueue } from './DocumentUploadQueue';
 
 interface Props {
   meetingId: number | null;
   customerId?: number | null;
   objectId?: number | null;
+  ensureMeetingId?: () => Promise<number | null>;
   onSummaryChange?: (summary: ContextSourceSectionSummary) => void;
+  onUploadActivityChange?: (activeCount: number) => void;
 }
 
-const ALLOWED_EXT = ['.pdf', '.docx', '.xlsx', '.txt', '.md', '.csv'];
-
-function isAllowedFile(name: string): boolean {
-  const lower = name.toLowerCase();
-  return ALLOWED_EXT.some((ext) => lower.endsWith(ext));
+// Из drop-события берём только файлы, игнорируя папки (webkitGetAsEntry).
+function extractFiles(dt: DataTransfer): File[] {
+  if (dt.items && dt.items.length) {
+    const out: File[] = [];
+    for (let i = 0; i < dt.items.length; i++) {
+      const item = dt.items[i];
+      if (item.kind !== 'file') continue;
+      const entry = item.webkitGetAsEntry?.();
+      if (entry && entry.isDirectory) continue;
+      const f = item.getAsFile();
+      if (f) out.push(f);
+    }
+    return out;
+  }
+  return Array.from(dt.files);
 }
 
-export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryChange }: Props) {
+export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetingId, onSummaryChange, onUploadActivityChange }: Props) {
   const [docs, setDocs] = useState<MeetingDocument[]>([]);
   const [error, setError] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [existing, setExisting] = useState<DocumentRecord[]>([]);
   const [pickId, setPickId] = useState<number | ''>('');
   const [dragOver, setDragOver] = useState(false);
-  const [batch, setBatch] = useState<{ idx: number; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -43,8 +54,21 @@ export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryCha
 
   useEffect(() => { load(); }, [load]);
 
-  // Сводка для корзины контекста. Колбэк в ref → effect зависит только от docs,
-  // что исключает render-loop, даже если родитель передаёт нестабильный колбэк.
+  // Если ensureMeetingId не передан — fallback: вернуть текущий meetingId либо null.
+  const ensureMeetingIdFn = useCallback(async (): Promise<number | null> => {
+    if (ensureMeetingId) return ensureMeetingId();
+    return meetingId;
+  }, [ensureMeetingId, meetingId]);
+
+  const queue = useDocumentUploadQueue({
+    customerId,
+    objectId,
+    ensureMeetingId: ensureMeetingIdFn,
+    onAttached: load,
+    maxParallel: 1,
+  });
+
+  // Сводка для корзины контекста. Колбэк в ref → effect зависит только от docs.
   const onSummaryChangeRef = useRef(onSummaryChange);
   onSummaryChangeRef.current = onSummaryChange;
   useEffect(() => {
@@ -57,6 +81,11 @@ export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryCha
       errors: docs.filter((d) => d.status === 'error').length,
     });
   }, [docs]);
+
+  // Активность загрузки → корзине (для чипа «Загрузка: N»).
+  const onUploadActivityChangeRef = useRef(onUploadActivityChange);
+  onUploadActivityChangeRef.current = onUploadActivityChange;
+  useEffect(() => { onUploadActivityChangeRef.current?.(queue.activeCount); }, [queue.activeCount]);
 
   // поллинг, пока есть документы в обработке
   useEffect(() => {
@@ -72,71 +101,40 @@ export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryCha
     listDocumentRecords({ object_id: objectId }).then(setExisting).catch(() => setExisting([]));
   }, [objectId, docs]);
 
-  async function onFile(file: File) {
-    if (meetingId == null) { setError('Сначала создаётся встреча'); return; }
-    setError(''); setUploading(true); setProgress(0);
-    try {
-      const { document_id } = await uploadDocumentPresigned(
-        file, { customer_id: customerId ?? null, object_id: objectId ?? null }, setProgress,
-      );
-      await attachMeetingDocument(meetingId, document_id);
-      if (fileRef.current) fileRef.current.value = '';
-      await load();
-    } catch (e) {
-      setError(apiErrorMessage(e, 'Ошибка загрузки документа'));
-    } finally {
-      setUploading(false); setProgress(0);
-    }
-  }
-
-  // Последовательная загрузка пачки файлов (кнопка с multiple + drag-and-drop).
-  async function uploadMany(files: File[]) {
-    if (meetingId == null) { setError('Сначала создаётся встреча'); return; }
-    const ok = files.filter((f) => isAllowedFile(f.name));
-    const bad = files.filter((f) => !isAllowedFile(f.name));
-    if (ok.length === 0) {
-      if (bad.length) setError(`Неподдерживаемый формат: ${bad.map((f) => f.name).join(', ')}`);
-      return;
-    }
-    setBatch({ idx: 0, total: ok.length });
-    for (let i = 0; i < ok.length; i++) {
-      setBatch({ idx: i + 1, total: ok.length });
-      await onFile(ok[i]);
-    }
-    setBatch(null);
-    if (bad.length) setError((prev) => prev || `Не загружены (формат): ${bad.map((f) => f.name).join(', ')}`);
-  }
-
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length) uploadMany(files);
+    const files = extractFiles(e.dataTransfer);
+    if (files.length) { setError(''); queue.addFiles(files); }
   }
 
   async function attachExisting() {
-    if (meetingId == null || pickId === '') return;
+    if (pickId === '') return;
     setError('');
     try {
-      await attachMeetingDocument(meetingId, Number(pickId));
+      const id = await ensureMeetingIdFn();
+      if (id == null) { setError('Не удалось создать встречу'); return; }
+      await attachMeetingDocument(id, Number(pickId));
       setPickId('');
-      await load();
+      setDocs(await listMeetingDocuments(id));
     } catch (e) {
       setError(apiErrorMessage(e, 'Не удалось прикрепить документ'));
     }
   }
 
   async function toggleIncluded(d: MeetingDocument) {
+    if (meetingId == null) return;
     try {
-      await patchMeetingDocument(meetingId!, d.document_id, { included: !d.included });
+      await patchMeetingDocument(meetingId, d.document_id, { included: !d.included });
       await load();
     } catch (e) { setError(apiErrorMessage(e, 'Ошибка')); }
   }
 
   async function detach(d: MeetingDocument) {
+    if (meetingId == null) return;
     if (!confirm(`Открепить «${d.original_name}»?`)) return;
     try {
-      await detachMeetingDocument(meetingId!, d.document_id);
+      await detachMeetingDocument(meetingId, d.document_id);
       await load();
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось открепить')); }
   }
@@ -158,7 +156,7 @@ export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryCha
       {/* Загрузка: кнопка + drag-and-drop */}
       <div
         style={{ ...styles.dropZone, ...(dragOver ? styles.dropZoneActive : {}) }}
-        onDragOver={(e) => { e.preventDefault(); if (meetingId != null && !uploading) setDragOver(true); }}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
       >
@@ -168,28 +166,35 @@ export function MeetingDocuments({ meetingId, customerId, objectId, onSummaryCha
           multiple
           accept=".pdf,.docx,.xlsx,.txt,.md,.csv"
           style={{ display: 'none' }}
-          onChange={(e) => { const f = e.target.files; if (f && f.length) uploadMany(Array.from(f)); }}
+          onChange={(e) => {
+            const f = e.target.files;
+            if (f && f.length) { setError(''); queue.addFiles(Array.from(f)); }
+            if (fileRef.current) fileRef.current.value = '';
+          }}
         />
         <div style={styles.dropText}>
-          {batch
-            ? `Загрузка ${batch.idx}/${batch.total}… ${Math.round(progress * 100)}%`
-            : uploading
-              ? `Загрузка… ${Math.round(progress * 100)}%`
-              : meetingId == null
-                ? 'Сначала создаётся встреча'
-                : 'Перетащите файлы сюда'}
+          {queue.hasActiveUploads
+            ? 'Файлы загружаются — можно продолжать настройку встречи'
+            : dragOver
+              ? 'Отпустите файлы, чтобы добавить в контекст'
+              : 'Перетащите файлы сюда или загрузите кнопкой'}
         </div>
         <div style={styles.uploadRow}>
-          <button
-            style={styles.uploadBtn}
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading || meetingId == null}
-          >
+          <button style={styles.uploadBtn} onClick={() => fileRef.current?.click()}>
             + Загрузить документ
           </button>
           <span style={styles.hint}>PDF, DOCX, XLSX, TXT, MD, CSV</span>
         </div>
       </div>
+
+      {/* Очередь загрузки */}
+      <DocumentUploadQueue
+        items={queue.items}
+        onRetry={queue.retryItem}
+        onCancel={queue.cancelItem}
+        onClearItem={queue.clearItem}
+        onClearFinished={queue.clearFinished}
+      />
 
       {/* Выбрать существующий */}
       {available.length > 0 && (
@@ -242,12 +247,5 @@ const styles: Record<string, React.CSSProperties> = {
   attachBtn: { padding: '9px 14px', background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
   empty: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  item: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`, borderRadius: 8 },
-  itemMain: { flex: 1, minWidth: 0 },
-  itemName: { fontSize: 13, color: theme.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  itemMeta: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, marginTop: 2 },
-  toggleOn: { padding: '5px 10px', background: 'rgba(46,229,157,0.1)', border: '1px solid rgba(46,229,157,0.25)', borderRadius: 6, color: theme.accent.green, cursor: 'pointer', fontSize: 9, fontFamily: theme.font.mono },
-  toggleOff: { padding: '5px 10px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.muted, cursor: 'pointer', fontSize: 9, fontFamily: theme.font.mono },
-  detachBtn: { padding: '5px 9px', background: 'transparent', border: `1px solid ${theme.accent.red}`, borderRadius: 6, color: theme.accent.red, cursor: 'pointer', fontSize: 10, fontFamily: theme.font.mono },
   error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
 };

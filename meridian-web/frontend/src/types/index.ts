@@ -169,8 +169,10 @@ export interface CommittedSegmentWire {
   timestamp: string;
 }
 
-// Speaker negotiation side
+// Speaker negotiation side. SpeakerSide — legacy union (для парсинга старых данных сервера).
+// Диаризация v1 использует две публичные стороны.
 export type SpeakerSide = 'self' | 'opponent' | 'ally' | 'third_party';
+export type PublicSpeakerSide = 'self' | 'opponent';
 
 // Utterance turn (server-assembled from consecutive same-speaker segments)
 export interface TurnWire {
@@ -227,6 +229,32 @@ export interface SpeakerRoleOut {
   updated_at: string;
 }
 
+// Этап 8: segment-level коррекция диаризации (overlay поверх raw STT)
+export interface SpeakerSegmentCorrection {
+  id: number;
+  meeting_id: number;
+  segment_key: string;
+  original_speaker_label: string | null;
+  corrected_speaker_label: string | null;
+  side: string | null;
+  note: string | null;
+  created_by_user_id: number | null;
+  updated_by_user_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Этап 9: observer-подсказка стороны реплики (эфемерная, по уровням звука второго телефона)
+export interface SegmentSideHint {
+  segment_key: string;
+  side: PublicSpeakerSide | null;
+  confidence: number;
+  reason: string;
+  device_count: number;
+  window_ms: number;
+  auto_apply: boolean;
+}
+
 export interface ConversationTopicUpdateInput {
   title?: string;
   status?: ConversationTopicStatus;
@@ -249,6 +277,8 @@ export type WSMessageFromServer =
   | { type: 'meeting_context_updated'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'meeting_saved'; meeting_id: number }
   | { type: 'speaker_roles_updated'; roles: Record<string, SpeakerSide> }
+  | { type: 'speaker_corrections_updated'; meeting_id: number; corrections: SpeakerSegmentCorrection[] }
+  | { type: 'segment_side_hint'; meeting_id: number; segment_key: string; side: PublicSpeakerSide | null; confidence: number; reason: string; device_count: number; window_ms: number; auto_apply: boolean }
   | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number }
   | { type: 'turns_reset' }
   // --- Этап 2: MeetingRoom / multi-device ---
@@ -289,7 +319,9 @@ export type WSMessageToServer =
   | { type: 'update_meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; silence_filter?: boolean }
   | { type: 'save_to_history'; meeting_name?: string }
-  | { type: 'set_speaker_role'; name: string; side: SpeakerSide }
+  | { type: 'set_speaker_role'; name: string; side: PublicSpeakerSide | '' }
+  | { type: 'audio_level'; rms: number; peak?: number; vad?: boolean; seq?: number; client_ts_ms?: number }
+  | { type: 'observer_side'; side: PublicSpeakerSide | '' }
   | { type: 'change_role'; role_id: number };
 
 // --- Справочники (Этап 1 MVP) ---
@@ -771,7 +803,7 @@ export interface PreviousMeetingCandidate extends PreviousMeetingSummaryCard {
 }
 
 export type ContextSourceType =
-  | 'previous_meeting' | 'document' | 'manual' | 'customer_profile' | 'object_profile';
+  | 'previous_meeting' | 'document' | 'manual' | 'customer_profile' | 'object_profile' | 'rag_folder';
 
 export interface MeetingContextSource {
   id: number;

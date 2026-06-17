@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useMeetingStore } from '../store/meetingStore';
-import type { WSMessageFromServer, WSMessageToServer } from '../types';
+import type { WSMessageFromServer, WSMessageToServer, PublicSpeakerSide, SpeakerSegmentCorrection } from '../types';
+import { toPublicSpeakerSide } from '../lib/speakerSides';
 
 function getWsBase() {
   const env = import.meta.env.VITE_WS_URL;
@@ -291,8 +292,27 @@ export function useWebSocket() {
         if (data.status === 'finalized') s.setStatus('Встреча завершена');
         break;
 
-      case 'speaker_roles_updated':
-        s.setSpeakerRoles(data.roles);
+      case 'speaker_roles_updated': {
+        // Нормализуем к двум публичным сторонам (защита от legacy backend rows/клиентов)
+        const normalized: Record<string, PublicSpeakerSide> = {};
+        Object.entries(data.roles || {}).forEach(([speaker, side]) => {
+          const publicSide = toPublicSpeakerSide(side as string);
+          if (publicSide) normalized[speaker] = publicSide;
+        });
+        s.setSpeakerRoles(normalized);
+        break;
+      }
+
+      case 'speaker_corrections_updated': {
+        const map: Record<string, SpeakerSegmentCorrection> = {};
+        (data.corrections || []).forEach((c) => { map[c.segment_key] = c; });
+        s.setSpeakerCorrections(map);
+        break;
+      }
+
+      case 'segment_side_hint':
+        // Этап 9: observer-подсказка стороны реплики (эфемерная, не авто-применяется)
+        s.addSegmentHint(data);
         break;
 
       case 'turn_update':

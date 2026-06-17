@@ -186,3 +186,60 @@ async def test_unassigned_speakers_stats(db):
     tree = await ConversationTreeService().get_tree(db, m.id)
     assert "Заказчик" in tree.unassigned_speakers
     assert "Иван" not in tree.unassigned_speakers
+
+
+# ---------- Этап 7: две публичные стороны «Мы»/«Не мы» ----------
+
+@pytest.mark.parametrize("alias,expected", [
+    ("our", "self"), ("we", "self"), ("us", "self"), ("ally", "self"), ("self", "self"),
+    ("opponent", "opponent"), ("customer", "opponent"), ("client", "opponent"),
+    ("them", "opponent"), ("not_us", "opponent"), ("not-we", "opponent"),
+    ("third_party", "opponent"), ("third", "opponent"),
+    ("unknown", None), ("clear", None), ("", None), (None, None), ("чужое", None),
+])
+def test_to_public_side_aliases(alias, expected):
+    assert srsvc.to_public_side(alias) == expected
+    assert srsvc.normalize_side(alias) == expected
+
+
+async def test_upsert_stores_public_sides(db):
+    owner = await _mk_user(db, "sr9@test.local")
+    m = await _mk_meeting(db, owner)
+    r1 = await srsvc.upsert_role(db, m.id, "A", side="ally")  # legacy → self
+    assert r1.side == "self"
+    r2 = await srsvc.upsert_role(db, m.id, "B", side="third_party")  # legacy → opponent
+    assert r2.side == "opponent"
+
+
+async def test_get_roles_map_canonicalizes_legacy(db):
+    owner = await _mk_user(db, "sr10@test.local")
+    m = await _mk_meeting(db, owner)
+    # вставляем legacy-значения напрямую (минуя upsert-нормализацию)
+    db.add(MeetingSpeakerRole(meeting_id=m.id, speaker_label="L_ally", side="ally"))
+    db.add(MeetingSpeakerRole(meeting_id=m.id, speaker_label="L_third", side="third_party"))
+    await db.flush()
+    got = await srsvc.get_roles_map(db, m.id)
+    assert got == {"L_ally": "self", "L_third": "opponent"}
+
+
+def test_session_manager_set_speaker_role():
+    from app.services.session_manager import SessionManager
+    sm = SessionManager(user_id=1)
+    sm.set_speaker_role("DG_S0", "we")
+    assert sm.speaker_roles["DG_S0"] == "self"
+    sm.set_speaker_role("DG_S1", "not_us")
+    assert sm.speaker_roles["DG_S1"] == "opponent"
+    sm.set_speaker_role("DG_S2", "ally")
+    assert sm.speaker_roles["DG_S2"] == "self"
+    sm.set_speaker_role("DG_S1", "")
+    assert "DG_S1" not in sm.speaker_roles
+
+
+def test_side_from_role_two_sides():
+    s = ConversationTreeService.side_from_role
+    assert s("self") == "our"
+    assert s("ally") == "our"
+    assert s("opponent") == "opponent"
+    assert s("third_party") == "opponent"
+    assert s("unknown") is None
+    assert s(None) is None

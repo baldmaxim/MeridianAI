@@ -75,10 +75,14 @@ class ConversationTreeService:
 
     @staticmethod
     def side_from_role(role: str | None) -> str | None:
-        """our | opponent | None (skip)."""
+        """our | opponent | None (skip).
+
+        UI v1 — две стороны «Мы»/«Не мы». ally исторически = наша сторона (our),
+        third_party исторически = другая сторона (opponent).
+        """
         if role in ("self", "ally"):
             return "our"
-        if role == "opponent":
+        if role in ("opponent", "third_party"):
             return "opponent"
         return None
 
@@ -283,6 +287,9 @@ class ConversationTreeService:
             from .speaker_roles import get_roles_map
             speaker_roles = await get_roles_map(db, meeting_id)
         speaker_roles = speaker_roles or {}
+        # Этап 8: segment-level коррекции диаризации (overlay поверх speaker-роли)
+        from .speaker_corrections import list_segment_corrections, resolve_speaker_for_segment
+        corrections = await list_segment_corrections(db, meeting_id)
         await db.execute(delete(MeetingConversationTopic).where(
             MeetingConversationTopic.meeting_id == meeting_id))
         await db.flush()
@@ -292,8 +299,10 @@ class ConversationTreeService:
             .order_by(TranscriptSegmentRecord.wall_clock.asc())
         )).scalars().all()
         for s in segs:
-            speaker = s.speaker_label or s.speaker_id
-            role = speaker_roles.get(speaker)
+            original = s.speaker_label or s.speaker_id
+            resolved = resolve_speaker_for_segment(s.segment_id, original, corrections, speaker_roles)
+            speaker = resolved.effective_speaker_label or original
+            role = resolved.side  # self|opponent|None (приоритет: коррекция реплики → роль)
             tc = f"{int(s.start_time or 0)//60:02d}:{int(s.start_time or 0)%60:02d}"
             await self.update_from_transcript_segment(
                 db, meeting_id, segment_id=s.segment_id, speaker=speaker,
