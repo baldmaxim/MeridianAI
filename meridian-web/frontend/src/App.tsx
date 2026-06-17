@@ -118,6 +118,8 @@ function App() {
     store.newMeetingSession();
     store.setSelectedCustomerId(obj.customer_id);
     store.setSelectedObjectId(obj.id);
+    store.setSelectedCustomerName(obj.customer_name);
+    store.setSelectedObjectName(obj.name);
     store.setMeetingName('');
     try {
       const m = await createMeeting({ customer_id: obj.customer_id, object_id: obj.id });

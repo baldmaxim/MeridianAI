@@ -109,6 +109,8 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         s2.setDraftMeetingId(existing);
         s2.setSelectedCustomerId(d.customer_id);
         s2.setSelectedObjectId(d.object_id);
+        s2.setSelectedCustomerName(d.customer_name);
+        s2.setSelectedObjectName(d.object_name);
       }).catch(() => {});
     }
     getSettings().then((s) => {
@@ -249,10 +251,33 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   // Общая для обоих режимов — переключатель доступен и в диктофоне, и в полном.
   const topBar = (
     <div style={styles.topBar}>
+      <style>{`
+        @media (max-width: 767px) {
+          .mp-ref-label { display: none !important; }
+          .mp-ref { gap: 10px !important; }
+        }
+      `}</style>
       <button onClick={onBack} style={styles.backBtn} aria-label="Назад" title="В главное меню">
         <span>←</span><span className="mp-btn-label"> Назад</span>
       </button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Заказчик/объект — справочно, read-only (привязка задаётся при создании встречи) */}
+      {(store.selectedCustomerName || store.selectedObjectName) && (
+        <div className="mp-ref" style={styles.refInfo}>
+          {store.selectedCustomerName && (
+            <span style={styles.refItem} title={`Заказчик: ${store.selectedCustomerName}`}>
+              <span className="mp-ref-label" style={styles.refLabel}>Заказчик</span>
+              <span style={styles.refVal}>{store.selectedCustomerName}</span>
+            </span>
+          )}
+          {store.selectedObjectName && (
+            <span style={styles.refItem} title={`Объект: ${store.selectedObjectName}`}>
+              <span className="mp-ref-label" style={styles.refLabel}>Объект</span>
+              <span style={styles.refVal}>{store.selectedObjectName}</span>
+            </span>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <ModeSwitch />
         {store.currentMeetingId != null && (
           <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
@@ -503,7 +528,22 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
     background: 'transparent', border: `1px solid ${theme.accent.amber}`, borderRadius: 6,
     color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em',
+    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em', flexShrink: 0,
+  },
+  refInfo: {
+    display: 'flex', alignItems: 'center', gap: 18, flex: 1, minWidth: 0,
+    overflow: 'hidden', paddingLeft: 4,
+  },
+  refItem: {
+    display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0,
+  },
+  refLabel: {
+    fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em',
+    textTransform: 'uppercase' as const, color: theme.text.muted, flexShrink: 0,
+  },
+  refVal: {
+    fontFamily: theme.font.body, fontSize: 13, fontWeight: 600, color: theme.text.primary,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   linkBtn: {
     display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',

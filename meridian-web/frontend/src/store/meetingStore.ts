@@ -119,9 +119,14 @@ interface MeetingState {
   // Directory selection (Этап 1 MVP): заказчик/объект встречи + draft id
   selectedCustomerId: number | null;
   selectedObjectId: number | null;
+  // Имена для справочного показа в шапке встречи (read-only, не редактируются).
+  selectedCustomerName: string | null;
+  selectedObjectName: string | null;
   draftMeetingId: number | null;
   setSelectedCustomerId: (id: number | null) => void;
   setSelectedObjectId: (id: number | null) => void;
+  setSelectedCustomerName: (n: string | null) => void;
+  setSelectedObjectName: (n: string | null) => void;
   setDraftMeetingId: (id: number | null) => void;
 
   // MeetingRoom / multi-device (Этап 2)
@@ -324,9 +329,13 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   selectedCustomerId: null,
   selectedObjectId: null,
+  selectedCustomerName: null,
+  selectedObjectName: null,
   draftMeetingId: null,
   setSelectedCustomerId: (id) => set({ selectedCustomerId: id }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+  setSelectedCustomerName: (n) => set({ selectedCustomerName: n }),
+  setSelectedObjectName: (n) => set({ selectedObjectName: n }),
   setDraftMeetingId: (id) => set({ draftMeetingId: id }),
 
   currentMeetingId: null,
@@ -397,6 +406,8 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
       selectedCustomerId: null,
       selectedObjectId: null,
+      selectedCustomerName: null,
+      selectedObjectName: null,
       draftMeetingId: null,
       currentMeetingId: null,
       roomConnected: false,
