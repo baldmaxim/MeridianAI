@@ -35,8 +35,8 @@ export function useAuth() {
     return me;
   }, []);
 
-  const register = useCallback(async (email: string, password: string, displayName?: string) => {
-    const res = await apiRegister(email, password, displayName);
+  const register = useCallback(async (email: string, password: string, displayName?: string, department?: string) => {
+    const res = await apiRegister(email, password, displayName, department);
     localStorage.setItem('token', res.access_token);
     const me = await getMe();
     setUser(me);

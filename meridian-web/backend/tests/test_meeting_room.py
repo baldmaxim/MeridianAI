@@ -17,7 +17,6 @@ from app.models.meeting import MeetingSession
 from app.models.directory import (
     Customer,
     ProjectObject,
-    ObjectAccessGrant,
     MeetingParticipant,
 )
 from app.services.access import user_can_access_meeting
@@ -72,27 +71,23 @@ async def test_participant_can_access_room(db):
     assert await user_can_access_meeting(db, member.id, m.id) is True
 
 
-async def test_object_access_can_access_room(db):
+async def test_object_meeting_visible_to_other(db):
     owner = await _mk_user(db, "room-owner3@test.local")
     other = await _mk_user(db, "room-obj@test.local")
     cust = Customer(owner_user_id=owner.id, name="Зак")
     db.add(cust); await db.flush(); await db.refresh(cust)
     obj = ProjectObject(owner_user_id=owner.id, customer_id=cust.id, name="Об")
     db.add(obj); await db.flush(); await db.refresh(obj)
-    db.add(ObjectAccessGrant(
-        object_id=obj.id, grantee_type="user", grantee_user_id=other.id,
-        access_level="view", created_by_user_id=owner.id,
-    ))
     m = await _mk_meeting(db, owner, object_id=obj.id)
     await db.flush()
     assert await user_can_access_meeting(db, other.id, m.id) is True
 
 
-async def test_stranger_cannot_access_room(db):
+async def test_stranger_can_access_room_global(db):
     owner = await _mk_user(db, "room-owner4@test.local")
     stranger = await _mk_user(db, "room-stranger@test.local")
-    m = await _mk_meeting(db, owner)  # без object_id → только создатель/участники
-    assert await user_can_access_meeting(db, stranger.id, m.id) is False
+    m = await _mk_meeting(db, owner)  # общая хронология → видна всем
+    assert await user_can_access_meeting(db, stranger.id, m.id) is True
 
 
 # ---------- 5–8: поведение комнаты (in-memory) ----------

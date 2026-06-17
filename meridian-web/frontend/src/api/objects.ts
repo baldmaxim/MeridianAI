@@ -1,5 +1,5 @@
 import api from './client';
-import type { ProjectObject, ObjectAccessGrant, GranteeType, AccessLevel } from '../types';
+import type { ProjectObject } from '../types';
 
 export interface ProjectObjectInput {
   customer_name: string;
@@ -34,27 +34,4 @@ export async function updateObject(id: number, input: Partial<ProjectObjectInput
 
 export async function deleteObject(id: number): Promise<void> {
   await api.delete(`/objects/${id}`);
-}
-
-// --- Доступ к объекту ---
-
-export interface ObjectAccessInput {
-  grantee_type: GranteeType;
-  grantee_user_id?: number | null;
-  grantee_department_id?: number | null;
-  access_level?: AccessLevel;
-}
-
-export async function listObjectAccess(objectId: number): Promise<ObjectAccessGrant[]> {
-  const { data } = await api.get<ObjectAccessGrant[]>(`/objects/${objectId}/access`);
-  return data;
-}
-
-export async function createObjectAccess(objectId: number, input: ObjectAccessInput): Promise<ObjectAccessGrant> {
-  const { data } = await api.post<ObjectAccessGrant>(`/objects/${objectId}/access`, input);
-  return data;
-}
-
-export async function deleteObjectAccess(objectId: number, grantId: number): Promise<void> {
-  await api.delete(`/objects/${objectId}/access/${grantId}`);
 }

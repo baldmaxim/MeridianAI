@@ -45,6 +45,7 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
         email=data.email,
         password_hash=hash_password(data.password),
         display_name=data.display_name,
+        department=(data.department or "").strip() or None,
         role="admin" if is_first_user else "user",
     )
     db.add(user)

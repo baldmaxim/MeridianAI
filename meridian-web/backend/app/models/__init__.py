@@ -17,9 +17,6 @@ from .user_identity import UserIdentity
 from .directory import (
     Customer,
     ProjectObject,
-    Department,
-    UserDepartment,
-    ObjectAccessGrant,
     MeetingParticipant,
 )
 from .document import DocumentRecord, DocumentChunk
@@ -50,9 +47,6 @@ __all__ = [
     "UserIdentity",
     "Customer",
     "ProjectObject",
-    "Department",
-    "UserDepartment",
-    "ObjectAccessGrant",
     "MeetingParticipant",
     "DocumentRecord",
     "DocumentChunk",

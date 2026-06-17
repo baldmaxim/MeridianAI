@@ -10,8 +10,6 @@ interface Props {
   onLogout: () => void;
   onShowBatch?: () => void;
   showBatch?: boolean;
-  onShowDirectory?: () => void;
-  showDirectory?: boolean;
   onShowKnowledge?: () => void;
   showKnowledge?: boolean;
   onShowAISettings?: () => void;
@@ -25,11 +23,11 @@ interface Props {
   onToggleViewAs?: () => void;
 }
 
-export function AppLayout({ children, userName, onLogout, onShowBatch, showBatch, onShowDirectory, showDirectory, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
+export function AppLayout({ children, userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
   const updateAvailable = useAppUpdate();
   return (
     <div style={styles.container}>
-      <Header userName={userName} onLogout={onLogout} onShowBatch={onShowBatch} showBatch={showBatch} onShowDirectory={onShowDirectory} showDirectory={showDirectory} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} onShowAISettings={onShowAISettings} showAISettings={showAISettings} onShowObjects={onShowObjects} showObjects={showObjects} onShowSettings={onShowSettings} showSettings={showSettings} canSwitchRole={canSwitchRole} viewAsUser={viewAsUser} onToggleViewAs={onToggleViewAs} />
+      <Header userName={userName} onLogout={onLogout} onShowBatch={onShowBatch} showBatch={showBatch} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} onShowAISettings={onShowAISettings} showAISettings={showAISettings} onShowObjects={onShowObjects} showObjects={showObjects} onShowSettings={onShowSettings} showSettings={showSettings} canSwitchRole={canSwitchRole} viewAsUser={viewAsUser} onToggleViewAs={onToggleViewAs} />
       <AppUpdateBanner updateAvailable={updateAvailable} />
       <main style={styles.main}>{children}</main>
     </div>

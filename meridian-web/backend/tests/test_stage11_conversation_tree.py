@@ -122,34 +122,30 @@ async def test_refs_capped(db):
 
 # ---------- 6: GET требует доступа к встрече ----------
 
-async def test_get_requires_access(db):
+async def test_get_open_to_everyone(db):
     owner = await _mk_user(db, "ct6a@test.local")
     stranger = await _mk_user(db, "ct6b@test.local")
     m = await _mk_meeting(db, owner)
-    # владелец — ок
     tree = await get_conversation_tree(m.id, user=owner, db=db)
     assert tree.meeting_id == m.id
-    # посторонний — 403
-    with pytest.raises(HTTPException) as e:
-        await get_conversation_tree(m.id, user=stranger, db=db)
-    assert e.value.status_code == 403
+    # общая хронология: посторонний тоже видит дерево
+    tree2 = await get_conversation_tree(m.id, user=stranger, db=db)
+    assert tree2.meeting_id == m.id
 
 
 # ---------- 7: view-only не может PATCH ----------
 
-async def test_view_only_cannot_patch(db):
+async def test_patch_open_to_everyone(db):
+    # Общая модель: любой авторизованный может менять дерево разговора.
     owner = await _mk_user(db, "ct7a@test.local")
-    viewer = await _mk_user(db, "ct7b@test.local")
+    other = await _mk_user(db, "ct7b@test.local")
     m = await _mk_meeting(db, owner)
-    db.add(MeetingParticipant(meeting_id=m.id, user_id=viewer.id, role="viewer"))
-    await db.flush()
     out = await _svc().update_from_transcript_segment(
         db, m.id, segment_id="s1", speaker="Иван", role="self",
         text="Сроки", timecode="00:01:00")
-    with pytest.raises(HTTPException) as e:
-        await patch_conversation_topic(
-            m.id, out.id, ConversationTopicUpdate(status="resolved"), user=viewer, db=db)
-    assert e.value.status_code == 403
+    res = await patch_conversation_topic(
+        m.id, out.id, ConversationTopicUpdate(status="resolved"), user=other, db=db)
+    assert res.status == "resolved"
 
 
 # ---------- 8: participant может PATCH ----------

@@ -8,7 +8,6 @@ from app.models.meeting import MeetingSession
 from app.models.directory import (
     Customer,
     ProjectObject,
-    ObjectAccessGrant,
     MeetingParticipant,
 )
 from app.services.access import can_record_meeting
@@ -44,16 +43,11 @@ async def _mk_meeting(db, owner: User, object_id: int | None = None) -> MeetingS
     return m
 
 
-async def _mk_object_with_grant(db, owner: User, grantee: User, level: str):
+async def _mk_object(db, owner: User):
     cust = Customer(owner_user_id=owner.id, name="Зак")
     db.add(cust); await db.flush(); await db.refresh(cust)
     obj = ProjectObject(owner_user_id=owner.id, customer_id=cust.id, name="Об")
     db.add(obj); await db.flush(); await db.refresh(obj)
-    db.add(ObjectAccessGrant(
-        object_id=obj.id, grantee_type="user", grantee_user_id=grantee.id,
-        access_level=level, created_by_user_id=owner.id,
-    ))
-    await db.flush()
     return obj
 
 
@@ -80,62 +74,38 @@ async def test_can_record_participant(db):
     assert await can_record_meeting(db, member.id, m.id) is True
 
 
-async def test_can_record_viewer_denied(db):
+async def test_can_record_any_authenticated(db):
+    # Общая модель: записывать может любой авторизованный (в т.ч. бывший viewer).
     owner = await _mk_user(db, "rec-owner3@test.local")
-    viewer = await _mk_user(db, "rec-viewer@test.local")
+    other = await _mk_user(db, "rec-viewer@test.local")
     m = await _mk_meeting(db, owner)
-    db.add(MeetingParticipant(meeting_id=m.id, user_id=viewer.id, role="viewer"))
-    await db.flush()
-    assert await can_record_meeting(db, viewer.id, m.id) is False
+    assert await can_record_meeting(db, other.id, m.id) is True
 
 
-async def test_can_record_object_edit(db):
+async def test_can_record_object_meeting(db):
     owner = await _mk_user(db, "rec-owner4@test.local")
-    editor = await _mk_user(db, "rec-edit@test.local")
-    obj = await _mk_object_with_grant(db, owner, editor, "edit")
+    other = await _mk_user(db, "rec-edit@test.local")
+    obj = await _mk_object(db, owner)
     m = await _mk_meeting(db, owner, object_id=obj.id)
-    assert await can_record_meeting(db, editor.id, m.id) is True
-
-
-async def test_can_record_object_view_denied(db):
-    owner = await _mk_user(db, "rec-owner5@test.local")
-    watcher = await _mk_user(db, "rec-view@test.local")
-    obj = await _mk_object_with_grant(db, owner, watcher, "view")
-    m = await _mk_meeting(db, owner, object_id=obj.id)
-    # просмотр есть, запись — нет
-    assert await can_record_meeting(db, watcher.id, m.id) is False
+    assert await can_record_meeting(db, other.id, m.id) is True
 
 
 # --- 6–7: мобильный список видимости ---
 
-async def test_mobile_list_returns_accessible(db):
+async def test_mobile_list_shows_all(db):
+    # Общая хронология: любой авторизованный видит все встречи.
     owner = await _mk_user(db, "mob-owner@test.local")
-    member = await _mk_user(db, "mob-part@test.local")
-    watcher = await _mk_user(db, "mob-obj@test.local")
+    other = await _mk_user(db, "mob-other@test.local")
 
     m_created = await _mk_meeting(db, owner)
-    m_part = await _mk_meeting(db, owner)
-    db.add(MeetingParticipant(meeting_id=m_part.id, user_id=member.id, role="participant"))
-    obj = await _mk_object_with_grant(db, owner, watcher, "view")
+    obj = await _mk_object(db, owner)
     m_obj = await _mk_meeting(db, owner, object_id=obj.id)
     await db.flush()
 
-    owner_ids = {x.id for x in await _mobile_list(db, owner)}
-    member_ids = {x.id for x in await _mobile_list(db, member)}
-    watcher_ids = {x.id for x in await _mobile_list(db, watcher)}
+    other_ids = {x.id for x in await _mobile_list(db, other)}
 
-    assert m_created.id in owner_ids       # создатель
-    assert m_part.id in member_ids         # участник
-    assert m_obj.id in watcher_ids         # доступ через объект
-
-
-async def test_mobile_list_hides_inaccessible(db):
-    owner = await _mk_user(db, "mob-owner2@test.local")
-    stranger = await _mk_user(db, "mob-stranger@test.local")
-    m = await _mk_meeting(db, owner)  # без объекта; stranger не участник
-    await db.flush()
-    stranger_ids = {x.id for x in await _mobile_list(db, stranger)}
-    assert m.id not in stranger_ids
+    assert m_created.id in other_ids
+    assert m_obj.id in other_ids
 
 
 # --- 8: live-state содержит право записи ---

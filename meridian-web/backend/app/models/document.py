@@ -25,8 +25,10 @@ class DocumentRecord(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    owner_user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
+    # owner_user_id/created_by_user_id — метки автора, не ключ доступа.
+    # SET NULL: документ переживает удаление пользователя.
+    owner_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     customer_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("customers.id", ondelete="SET NULL")
@@ -50,8 +52,8 @@ class DocumentRecord(Base):
     sheet_count: Mapped[int | None] = mapped_column(Integer)
     extracted_text_s3_key: Mapped[str | None] = mapped_column(String(500))
     summary_json: Mapped[str | None] = mapped_column(Text)
-    created_by_user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

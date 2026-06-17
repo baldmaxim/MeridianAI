@@ -137,15 +137,15 @@ def test_single_alembic_head():
 
 # ---------- 9: no-access не читает документы встречи ----------
 
-async def test_no_access_meeting_documents(db):
+async def test_meeting_documents_open_to_everyone(db):
+    # Общая хронология: документы встречи видны любому авторизованному.
     owner = await _mk_user(db, "h9-owner@test.local")
     stranger = await _mk_user(db, "h9-stranger@test.local")
     m = MeetingSession(user_id=owner.id, created_by_user_id=owner.id, is_active=False,
                        started_at=datetime(2026, 1, 1, 10, 0))
     db.add(m); await db.flush()
-    with pytest.raises(HTTPException) as e:
-        await list_meeting_documents(m.id, user=stranger, db=db)
-    assert e.value.status_code == 403
+    items = await list_meeting_documents(m.id, user=stranger, db=db)
+    assert items == []
 
 
 # ---------- 10: встреча без ai-снапшота резолвится через config ----------

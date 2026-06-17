@@ -11,8 +11,6 @@
 PAGE_CATALOG: list[dict[str, str]] = [
     {"key": "objects", "label": "Проекты"},
     {"key": "batch", "label": "Оффлайн распознавание"},
-    {"key": "dir-objects", "label": "Справочники · Объекты"},
-    {"key": "dir-departments", "label": "Справочники · Отделы"},
     {"key": "knowledge", "label": "База знаний"},
     {"key": "ai-settings", "label": "AI-профили"},
     {"key": "settings", "label": "Настройки / Админ-панель"},

@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models.user import User
 from app.models.meeting import MeetingSession, MeetingDocumentRecord
-from app.models.directory import Customer, ProjectObject, ObjectAccessGrant
+from app.models.directory import Customer, ProjectObject
 from app.models.document import DocumentRecord, DocumentChunk
 from app.schemas.document import DocumentUploadSessionRequest
 from app.services import s3 as s3mod
@@ -126,7 +126,8 @@ async def test_upload_session_accepts_supported_exts(commit_db, monkeypatch):
         assert resp.document_id and resp.upload_url == "http://fake-s3/put"
 
 
-async def test_upload_session_checks_object_access(commit_db, monkeypatch):
+async def test_upload_session_object_open_to_everyone(commit_db, monkeypatch):
+    # Общая модель: объект виден всем — любой авторизованный может прикрепить документ.
     _enable_s3(monkeypatch)
     owner = await _mk_user(commit_db, "doc-owner@test.local")
     stranger = await _mk_user(commit_db, "doc-stranger@test.local")
@@ -134,12 +135,11 @@ async def test_upload_session_checks_object_access(commit_db, monkeypatch):
     commit_db.add(cust); await commit_db.flush(); await commit_db.refresh(cust)
     obj = ProjectObject(owner_user_id=owner.id, customer_id=cust.id, name="O")
     commit_db.add(obj); await commit_db.flush(); await commit_db.refresh(obj)
-    with pytest.raises(HTTPException) as exc:
-        await create_document_upload_session(
-            DocumentUploadSessionRequest(filename="a.pdf", size_bytes=10, object_id=obj.id),
-            user=stranger, db=commit_db,
-        )
-    assert exc.value.status_code == 403
+    resp = await create_document_upload_session(
+        DocumentUploadSessionRequest(filename="a.pdf", size_bytes=10, object_id=obj.id),
+        user=stranger, db=commit_db,
+    )
+    assert resp.document_id and resp.upload_url == "http://fake-s3/put"
 
 
 # ---------- 4: confirm-upload ----------
@@ -229,24 +229,24 @@ async def test_document_process_xlsx_sheet_metadata(sqlite_sm, monkeypatch):
 
 # ---------- 7–9: attach to meeting ----------
 
-async def test_attach_requires_meeting_access(db):
+async def test_attach_meeting_open_to_everyone(db):
+    # Общая модель: любой авторизованный может прикрепить документ к встрече.
     owner = await _mk_user(db, "att-owner@test.local")
     stranger = await _mk_user(db, "att-stranger@test.local")
     meeting = await _mk_meeting(db, owner)
     doc = await _mk_document(db, owner)
-    with pytest.raises(HTTPException) as exc:
-        await attach_meeting_document(meeting.id, doc.id, user=stranger, db=db)
-    assert exc.value.status_code == 403
+    res = await attach_meeting_document(meeting.id, doc.id, user=stranger, db=db)
+    assert res.document_id == doc.id
 
 
-async def test_attach_requires_document_access(db):
+async def test_attach_document_open_to_everyone(db):
+    # Общая модель: чужой документ доступен — прикрепление к встрече разрешено.
     owner = await _mk_user(db, "att-owner2@test.local")
     other = await _mk_user(db, "att-other@test.local")
-    meeting = await _mk_meeting(db, owner)          # owner имеет доступ к встрече
-    doc = await _mk_document(db, other)             # документ чужой, без object → нет доступа
-    with pytest.raises(HTTPException) as exc:
-        await attach_meeting_document(meeting.id, doc.id, user=owner, db=db)
-    assert exc.value.status_code == 403
+    meeting = await _mk_meeting(db, owner)
+    doc = await _mk_document(db, other)             # документ другого автора
+    res = await attach_meeting_document(meeting.id, doc.id, user=owner, db=db)
+    assert res.document_id == doc.id
 
 
 async def test_meeting_documents_list(db):

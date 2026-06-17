@@ -140,29 +140,27 @@ async def test_rebuild_uses_persisted_roles(db):
 
 # ---------- 4: view-only не может PUT ----------
 
-async def test_view_only_cannot_put(db):
+async def test_put_open_to_everyone(db):
+    # Общая модель: любой авторизованный может назначить роль спикера.
     owner = await _mk_user(db, "sr5a@test.local")
-    viewer = await _mk_user(db, "sr5b@test.local")
+    other = await _mk_user(db, "sr5b@test.local")
     m = await _mk_meeting(db, owner)
-    db.add(MeetingParticipant(meeting_id=m.id, user_id=viewer.id, role="viewer"))
-    await db.flush()
-    with pytest.raises(HTTPException) as e:
-        await put_speaker_role(m.id, "Иван", SpeakerRolePut(side="self"), user=viewer, db=db)
-    assert e.value.status_code == 403
+    res = await put_speaker_role(m.id, "Иван", SpeakerRolePut(side="self"), user=other, db=db)
+    assert res is not None
 
 
 # ---------- 5: GET требует доступа ----------
 
-async def test_get_requires_access(db):
+async def test_get_open_to_everyone(db):
     owner = await _mk_user(db, "sr6a@test.local")
     stranger = await _mk_user(db, "sr6b@test.local")
     m = await _mk_meeting(db, owner)
     await srsvc.upsert_role(db, m.id, "Иван", side="self")
     rows = await get_speaker_roles(m.id, user=owner, db=db)
     assert len(rows) == 1
-    with pytest.raises(HTTPException) as e:
-        await get_speaker_roles(m.id, user=stranger, db=db)
-    assert e.value.status_code == 403
+    # общая хронология: посторонний тоже читает роли
+    rows2 = await get_speaker_roles(m.id, user=stranger, db=db)
+    assert len(rows2) == 1
 
 
 # ---------- 5b: participant может PUT ----------

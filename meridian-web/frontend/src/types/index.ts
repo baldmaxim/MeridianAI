@@ -3,6 +3,7 @@ export interface User {
   email: string;
   role: 'user' | 'admin';
   display_name: string | null;
+  department: string | null;
   is_active: boolean;
   // Доступные роли страницы (ключи каталога) — приходят из /auth/me.
   allowed_pages: string[];
@@ -315,38 +316,6 @@ export interface ProjectObject {
   created_at: string;
   updated_at: string;
   customer_name: string | null;
-}
-
-export interface Department {
-  id: number;
-  owner_user_id: number;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DepartmentUser {
-  membership_id: number;
-  user_id: number;
-  email: string;
-  display_name: string | null;
-  created_at: string;
-}
-
-export type GranteeType = 'user' | 'department';
-export type AccessLevel = 'view' | 'edit' | 'manage';
-
-export interface ObjectAccessGrant {
-  id: number;
-  object_id: number;
-  grantee_type: GranteeType;
-  grantee_user_id: number | null;
-  grantee_department_id: number | null;
-  access_level: AccessLevel;
-  created_by_user_id: number;
-  created_at: string;
-  grantee_name: string | null;
 }
 
 export interface MeetingParticipant {

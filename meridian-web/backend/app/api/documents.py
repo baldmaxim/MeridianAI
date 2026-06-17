@@ -33,7 +33,6 @@ from ..services.access import (
     user_can_access_object,
     user_can_access_document,
     user_can_manage_document,
-    accessible_object_ids_select,
 )
 from ..core.context.document_loader import SUPPORTED_EXTENSIONS, DOC_TYPE_LABELS
 from ..services.session_manager import get_session_manager
@@ -168,14 +167,9 @@ async def list_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Список документов, доступных пользователю (свои + по доступу к объекту)."""
-    obj_ids = accessible_object_ids_select(user.id)
+    """Список документов (общая хронология — видны все)."""
     stmt = (
         select(DocumentRecord, _chunks_count_subq().label("chunks_count"))
-        .where(
-            (DocumentRecord.owner_user_id == user.id)
-            | (DocumentRecord.object_id.in_(obj_ids))
-        )
         .order_by(DocumentRecord.created_at.desc())
     )
     if customer_id is not None:

@@ -85,7 +85,9 @@ async def _resolve_customer_object(
 
 
 def _is_meeting_owner(meeting: MeetingSession, user: User) -> bool:
-    return meeting.created_by_user_id == user.id or meeting.user_id == user.id
+    # Общая хронология: встреча не принадлежит пользователю — управлять/удалять
+    # может любой авторизованный сотрудник.
+    return True
 
 
 # --- Список встреч (по доступу + фильтры) ---
@@ -376,17 +378,13 @@ async def batch_delete_meetings(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple meetings at once (только свои/созданные)."""
+    """Delete multiple meetings at once (общая хронология — любые запрошенные)."""
     logger.info(f"[batch-delete] user={user.id} ids={data.ids}")
     if not data.ids:
         return {"ok": True, "deleted": 0}
 
     result = await db.execute(
-        select(MeetingSession).where(
-            MeetingSession.id.in_(data.ids),
-            (MeetingSession.user_id == user.id)
-            | (MeetingSession.created_by_user_id == user.id),
-        )
+        select(MeetingSession).where(MeetingSession.id.in_(data.ids))
     )
     meetings = result.scalars().all()
     logger.info(f"[batch-delete] found {len(meetings)} meetings to delete (requested {len(data.ids)})")

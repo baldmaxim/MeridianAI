@@ -28,9 +28,10 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # owner_user_id — создатель; seam под будущий organization_id
-    owner_user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
+    # owner_user_id — создатель (метка автора); seam под будущий organization_id.
+    # SET NULL: заказчик переживает удаление пользователя.
+    owner_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     inn: Mapped[str | None] = mapped_column(String(20))
@@ -51,8 +52,9 @@ class ProjectObject(Base):
     __tablename__ = "project_objects"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    owner_user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
+    # owner_user_id — метка автора. SET NULL: объект переживает удаление пользователя.
+    owner_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     customer_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("customers.id", ondelete="CASCADE")
@@ -69,77 +71,6 @@ class ProjectObject(Base):
 
     __table_args__ = (
         Index("ix_project_objects_customer", "customer_id"),
-    )
-
-
-class Department(Base):
-    """Отдел. В MVP — ручной справочник/тэг для группировки сотрудников."""
-
-    __tablename__ = "departments"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    owner_user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
-    )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
-
-    __table_args__ = (
-        Index("ix_departments_owner_name", "owner_user_id", "name"),
-    )
-
-
-class UserDepartment(Base):
-    """Членство сотрудника в отделе (many-to-many users <-> departments)."""
-
-    __tablename__ = "user_departments"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
-    )
-    department_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("departments.id", ondelete="CASCADE")
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "department_id", name="uq_user_department"),
-        Index("ix_user_departments_user", "user_id"),
-        Index("ix_user_departments_department", "department_id"),
-    )
-
-
-class ObjectAccessGrant(Base):
-    """Грант доступа к объекту: пользователю или отделу."""
-
-    __tablename__ = "object_access_grants"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    object_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("project_objects.id", ondelete="CASCADE")
-    )
-    grantee_type: Mapped[str] = mapped_column(String(20))  # user | department
-    grantee_user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
-    )
-    grantee_department_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("departments.id", ondelete="CASCADE")
-    )
-    access_level: Mapped[str] = mapped_column(String(20), default="view")  # view | edit | manage
-    created_by_user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        Index("ix_object_access_grants_object", "object_id"),
-        Index("ix_object_access_grants_grantee_user", "grantee_user_id"),
-        Index("ix_object_access_grants_grantee_dept", "grantee_department_id"),
     )
 
 

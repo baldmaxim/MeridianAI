@@ -5,7 +5,7 @@ import { theme } from '../styles/theme';
 
 interface Props {
   onLogin: (email: string, password: string) => Promise<unknown>;
-  onRegister: (email: string, password: string, displayName?: string) => Promise<unknown>;
+  onRegister: (email: string, password: string, displayName?: string, department?: string) => Promise<unknown>;
 }
 
 /* Inline SVG compass mark */
@@ -44,10 +44,10 @@ export function LoginPage({ onLogin, onRegister }: Props) {
     }
   };
 
-  const handleRegister = async (email: string, password: string, displayName?: string) => {
+  const handleRegister = async (email: string, password: string, displayName?: string, department?: string) => {
     setError('');
     try {
-      await onRegister(email, password, displayName);
+      await onRegister(email, password, displayName, department);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка регистрации');
     }

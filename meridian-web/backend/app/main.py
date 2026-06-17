@@ -32,7 +32,6 @@ from .api.history import router as history_router
 from .api.batch import router as batch_router
 from .api.customers import router as customers_router
 from .api.objects import router as objects_router
-from .api.departments import router as departments_router
 from .api.mobile import router as mobile_router
 from .api.learning import router as learning_router
 from .api.knowledge import router as knowledge_router
@@ -241,7 +240,6 @@ app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
 # фильтр истории, AI-настройки встречи), поэтому остаются открытыми.
 app.include_router(customers_router, prefix="/api/customers", tags=["customers"])
 app.include_router(objects_router, prefix="/api/objects", tags=["objects"])
-app.include_router(departments_router, prefix="/api/departments", tags=["departments"])
 app.include_router(mobile_router, prefix="/api/mobile", tags=["mobile"])
 app.include_router(learning_router, prefix="/api", tags=["learning"])
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])

@@ -12,8 +12,10 @@ class MeetingSession(Base):
     __tablename__ = "meeting_sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
+    # Автор встречи — информативная метка, не ключ доступа (общая хронология).
+    # SET NULL: встреча переживает удаление пользователя.
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     title: Mapped[str | None] = mapped_column(String(255))
     meeting_topic: Mapped[str | None] = mapped_column(Text)
@@ -167,8 +169,8 @@ class SavedTranscription(Base):
     session_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("meeting_sessions.id", ondelete="CASCADE")
     )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE")
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     format: Mapped[str] = mapped_column(String(10), nullable=False)  # txt | json

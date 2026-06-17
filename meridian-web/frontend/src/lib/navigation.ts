@@ -29,9 +29,6 @@ export const paths = {
       ? `/meetings/${id}?from=object&obj=${objectId}`
       : `/meetings/${id}`,
   batch: '/batch',
-  directory: '/directory',
-  dirObjects: '/directory/objects',
-  dirDepartments: '/directory/departments',
   knowledge: '/knowledge',
   aiSettings: '/ai-settings',
   settings: '/settings',
@@ -48,9 +45,6 @@ export type AppRoute =
   | { kind: 'history' }
   | { kind: 'meeting-detail'; meetingId: number; from: 'history' | 'object'; objectId?: number }
   | { kind: 'batch' }
-  | { kind: 'directory' }
-  | { kind: 'dir-objects' }
-  | { kind: 'dir-departments' }
   | { kind: 'knowledge' }
   | { kind: 'ai-settings' }
   | { kind: 'settings' }
@@ -79,9 +73,6 @@ export function parseRoute(pathname: string): AppRoute {
     return { kind: 'meeting-detail', meetingId: Number(meetDetail[1]), from, objectId: obj ? Number(obj) : undefined };
   }
   if (/^\/batch\/?$/.test(pathname)) return { kind: 'batch' };
-  if (/^\/directory\/objects\/?$/.test(pathname)) return { kind: 'dir-objects' };
-  if (/^\/directory\/departments\/?$/.test(pathname)) return { kind: 'dir-departments' };
-  if (/^\/directory\/?$/.test(pathname)) return { kind: 'directory' };
   if (/^\/knowledge\/?$/.test(pathname)) return { kind: 'knowledge' };
   if (/^\/ai-settings\/?$/.test(pathname)) return { kind: 'ai-settings' };
   if (/^\/settings\/?$/.test(pathname)) return { kind: 'settings' };

@@ -79,14 +79,14 @@ async def test_cannot_add_self(db):
 
 # ---------- 3: нельзя добавить недоступную прошлую встречу ----------
 
-async def test_cannot_add_inaccessible(db):
+async def test_add_any_meeting_as_context(db):
+    # Общая хронология: любая встреча доступна как источник контекста.
     owner = await _mk_user(db, "ctx3-owner@test.local")
     stranger = await _mk_user(db, "ctx3-stranger@test.local")
     cur = await _mk_meeting(db, owner, active=True, finalized=False)
-    foreign = await _mk_meeting(db, stranger, day=2)  # чужая встреча
-    with pytest.raises(HTTPException) as e:
-        await add_context_source(cur.id, MeetingContextSourceCreate(source_id=foreign.id), user=owner, db=db)
-    assert e.value.status_code == 403
+    foreign = await _mk_meeting(db, stranger, day=2)  # встреча другого автора
+    res = await add_context_source(cur.id, MeetingContextSourceCreate(source_id=foreign.id), user=owner, db=db)
+    assert res is not None
 
 
 # ---------- 4: дубль идемпотентен ----------
@@ -214,20 +214,21 @@ def test_finalization_prompt_treats_prev_as_context():
 
 # ---------- 13: view-only не может добавлять/удалять ----------
 
-async def test_view_only_cannot_modify(db):
+async def test_modify_allowed_for_any_user(db):
+    # Общая модель: добавлять/удалять источники контекста может любой авторизованный.
     owner = await _mk_user(db, "ctx13-owner@test.local")
-    viewer = await _mk_user(db, "ctx13-viewer@test.local")
+    other = await _mk_user(db, "ctx13-viewer@test.local")
     cur = await _mk_meeting(db, owner, active=True, finalized=False)
     prev = await _mk_meeting(db, owner, day=2)
-    db.add(MeetingParticipant(meeting_id=cur.id, user_id=viewer.id, role="viewer"))
+    prev2 = await _mk_meeting(db, owner, day=3)
     src = MeetingContextSource(meeting_id=cur.id, source_type="previous_meeting", source_id=prev.id)
     db.add(src); await db.flush()
-    with pytest.raises(HTTPException) as e1:
-        await add_context_source(cur.id, MeetingContextSourceCreate(source_id=prev.id), user=viewer, db=db)
-    assert e1.value.status_code == 403
-    with pytest.raises(HTTPException) as e2:
-        await delete_context_source(cur.id, src.id, user=viewer, db=db)
-    assert e2.value.status_code == 403
+    # добавление новой встречи как источника
+    added = await add_context_source(cur.id, MeetingContextSourceCreate(source_id=prev2.id), user=other, db=db)
+    assert added is not None
+    # удаление существующего источника
+    res = await delete_context_source(cur.id, src.id, user=other, db=db)
+    assert res is not None
 
 
 # ---------- 14: participant (edit) может добавлять/удалять ----------

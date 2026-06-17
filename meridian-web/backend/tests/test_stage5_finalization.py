@@ -219,27 +219,22 @@ async def test_job_truncates_large_transcript(sqlite_sm, monkeypatch):
 
 # ---------- 7,8: access ----------
 
-async def test_protocol_access_denied_for_stranger(db):
+async def test_protocol_open_to_everyone(db):
+    # Общая хронология: протокол встречи виден любому авторизованному.
     owner = await _mk_user(db, "acc-owner@test.local")
     stranger = await _mk_user(db, "acc-stranger@test.local")
     meeting = await _mk_meeting(db, owner)
-    with pytest.raises(HTTPException) as exc:
-        await get_meeting_protocol(meeting.id, user=stranger, db=db)
-    assert exc.value.status_code == 403
+    res = await get_meeting_protocol(meeting.id, user=stranger, db=db)
+    assert res is not None
 
 
-async def test_edit_retry_denied_for_viewer(db):
+async def test_edit_allowed_for_any_user(db):
+    # Общая модель: редактировать протокол может любой авторизованный (не только владелец).
     owner = await _mk_user(db, "v-owner@test.local")
-    viewer = await _mk_user(db, "v-viewer@test.local")
+    other = await _mk_user(db, "v-viewer@test.local")
     meeting = await _mk_meeting(db, owner)
-    db.add(MeetingParticipant(meeting_id=meeting.id, user_id=viewer.id, role="viewer"))
-    await db.flush()
-    with pytest.raises(HTTPException) as e1:
-        await patch_meeting_protocol(meeting.id, ProtocolPatch(title="x"), user=viewer, db=db)
-    assert e1.value.status_code == 403
-    with pytest.raises(HTTPException) as e2:
-        await retry_finalization(meeting.id, user=viewer, db=db)
-    assert e2.value.status_code == 403
+    res = await patch_meeting_protocol(meeting.id, ProtocolPatch(title="x"), user=other, db=db)
+    assert res is not None
 
 
 # ---------- 9: mobile detail protocol ----------
