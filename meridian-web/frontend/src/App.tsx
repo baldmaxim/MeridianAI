@@ -37,7 +37,7 @@ function pageFromRoute(route: ReturnType<typeof parseRoute>): {
     case 'object-detail':
       return { page: 'object-detail', objectId: route.objectId, meetingId: null, detailReturn: 'history' };
     case 'meeting':
-      return { page: 'meeting', objectId: null, meetingId: null, detailReturn: 'history' };
+      return { page: 'meeting', objectId: null, meetingId: route.meetingId ?? null, detailReturn: 'history' };
     case 'history':
       return { page: 'history', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'meeting-detail':
@@ -129,10 +129,11 @@ function App() {
       const m = await createMeeting({ customer_id: obj.customer_id, object_id: obj.id });
       store.setDraftMeetingId(m.id);
       store.setCurrentMeetingId(m.id);
+      navigate(paths.meetingRoom(m.id));
     } catch {
       // draft не создан — MeetingPage подключится через legacy endpoint
+      navigate(paths.meeting);
     }
-    navigate(paths.meeting);
   };
 
   const onToggleViewAs = () => {
@@ -165,13 +166,27 @@ function App() {
             objectId={selectedObjectId!}
             onBack={() => navigate(paths.objects)}
             onOpenMeeting={(id) => navigate(paths.meetingDetail(id, 'object', selectedObjectId!))}
+            onOpenLiveMeeting={(id) => {
+              const st = useMeetingStore.getState();
+              st.setSelectedObjectId(selectedObjectId!);
+              st.setCurrentMeetingId(id);
+              navigate(paths.meetingRoom(id));
+            }}
             onNewMeeting={startNewMeeting}
           />
         );
       case 'settings':
         return <SettingsHubPage onBack={() => navigate(paths.objects)} />;
       case 'meeting':
-        return <MeetingPage />;
+        return (
+          <MeetingPage
+            meetingId={selectedMeetingId ?? undefined}
+            onBack={() => {
+              const objId = useMeetingStore.getState().selectedObjectId;
+              navigate(objId != null ? paths.objectDetail(objId) : paths.objects);
+            }}
+          />
+        );
       case 'batch':
         return <BatchPage onBack={() => navigate(paths.objects)} />;
       case 'knowledge':
@@ -218,6 +233,7 @@ function App() {
       canSwitchRole={isAdmin}
       viewAsUser={viewAsUser}
       onToggleViewAs={onToggleViewAs}
+      inMeeting={currentPage === 'meeting'}
     >
       <PageTransition
         routeKey={`${currentPage}:${selectedObjectId ?? ''}:${selectedMeetingId ?? ''}`}

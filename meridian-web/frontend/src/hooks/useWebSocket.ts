@@ -218,7 +218,12 @@ export function useWebSocket() {
         break;
 
       case 'meeting_context':
-      case 'meeting_context_updated':
+      case 'meeting_context_updated': {
+        // Снапшот при join (meeting_context) применяем всегда; эхо собственных
+        // правок (meeting_context_updated) не должно затирать поля, пока юзер
+        // печатает — иначе символы пропадают/нельзя укоротить.
+        const isEcho = data.type === 'meeting_context_updated';
+        if (isEcho && Date.now() - s.contextEditedAt < 2000) break;
         if (data.title) s.setMeetingName(data.title);
         s.setMeetingTopic(data.topic);
         s.setMeetingNotes(data.notes);
@@ -226,6 +231,7 @@ export function useWebSocket() {
         s.setMeetingRole(data.meeting_role);
         s.setOpponentWeaknesses(data.opponent_weaknesses);
         break;
+      }
 
       case 'meeting_saved':
         s.setMeetingSavedId(data.meeting_id);

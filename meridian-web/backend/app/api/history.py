@@ -164,6 +164,8 @@ async def list_meetings(
         )
 
     rows = (await db.execute(stmt)).all()
+    # Live-признак записи берём из in-memory реестра комнат (тот же процесс) — без миграции.
+    from ..services.meeting_room import room_registry
     return [
         MeetingListItem(
             id=r.id,
@@ -173,6 +175,9 @@ async def list_meetings(
             started_at=r.started_at,
             ended_at=r.ended_at,
             status=r.status,
+            is_recording=bool(
+                (room := room_registry.get_room(r.id)) and room.session.is_listening
+            ),
             customer_id=r.customer_id,
             object_id=r.object_id,
             customer_name=r.customer_name,

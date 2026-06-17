@@ -55,6 +55,7 @@ class MeetingListItem(BaseModel):
     suggestion_count: int
     # Этап 1 MVP: справочники
     status: str | None = None
+    is_recording: bool = False  # live: идёт ли запись прямо сейчас (in-memory room)
     customer_id: int | None = None
     object_id: int | None = None
     customer_name: str | None = None

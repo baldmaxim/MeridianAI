@@ -22,6 +22,7 @@ interface Props {
   canSwitchRole?: boolean;
   viewAsUser?: boolean;
   onToggleViewAs?: () => void;
+  inMeeting?: boolean;
 }
 
 /* Inline SVG compass mark from branding/meridian-logos.html */
@@ -72,9 +73,11 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs }: Props) {
-  const activeRoleName = useMeetingStore((s) => s.activeRoleName);
-  const meetingName = useMeetingStore((s) => s.meetingName);
+export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting }: Props) {
+  // Meeting-meta (название встречи, таймер, бейдж роли) показываем только на
+  // странице встречи — вне неё «зависший» ярлык роли/имя встречи не нужен.
+  const activeRoleName = useMeetingStore((s) => (inMeeting ? s.activeRoleName : null));
+  const meetingName = useMeetingStore((s) => (inMeeting ? s.meetingName : ''));
   const [menuOpen, setMenuOpen] = useState(false);
   const menu = useOpenClose(menuOpen, { closeVar: '--dropdown-close-dur', fallbackMs: 150 });
 
@@ -109,7 +112,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
           {meetingName && (
             <span className="header-meeting-name" style={styles.meetingName}>{meetingName}</span>
           )}
-          <SessionTimer />
+          {inMeeting && <SessionTimer />}
         </div>
 
         <div className="header-right" style={styles.right}>

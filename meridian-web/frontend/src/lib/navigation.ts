@@ -23,6 +23,7 @@ export const paths = {
   objects: '/objects',
   objectDetail: (id: number) => `/objects/${id}`,
   meeting: '/meeting',
+  meetingRoom: (id: number) => `/meeting/${id}`,
   history: '/history',
   meetingDetail: (id: number, from?: 'history' | 'object', objectId?: number) =>
     from === 'object' && objectId != null
@@ -41,7 +42,7 @@ export type AppRoute =
   | { kind: 'mobile-detail'; meetingId: number }
   | { kind: 'objects' }
   | { kind: 'object-detail'; objectId: number }
-  | { kind: 'meeting' }
+  | { kind: 'meeting'; meetingId?: number }
   | { kind: 'history' }
   | { kind: 'meeting-detail'; meetingId: number; from: 'history' | 'object'; objectId?: number }
   | { kind: 'batch' }
@@ -63,6 +64,8 @@ export function parseRoute(pathname: string): AppRoute {
   if (pathname === '/' || /^\/objects\/?$/.test(pathname)) return { kind: 'objects' };
   const objDetail = pathname.match(/^\/objects\/(\d+)\/?$/);
   if (objDetail) return { kind: 'object-detail', objectId: Number(objDetail[1]) };
+  const meetRoom = pathname.match(/^\/meeting\/(\d+)\/?$/);
+  if (meetRoom) return { kind: 'meeting', meetingId: Number(meetRoom[1]) };
   if (/^\/meeting\/?$/.test(pathname)) return { kind: 'meeting' };
   if (/^\/history\/?$/.test(pathname)) return { kind: 'history' };
   const meetDetail = pathname.match(/^\/meetings\/(\d+)\/?$/);

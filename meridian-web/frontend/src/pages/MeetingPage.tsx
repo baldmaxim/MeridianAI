@@ -17,16 +17,23 @@ import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
 import { MeetingContext } from '../components/context/MeetingContext';
 import { RolesTab } from '../components/context/RolesTab';
 import { theme } from '../styles/theme';
+import { paths } from '../lib/navigation';
 import type { UserSettings } from '../types';
 
 const TABS = ['Переговоры', 'Контекст встречи'] as const;
 
-export function MeetingPage() {
+interface Props {
+  meetingId?: number;
+  onBack: () => void;
+}
+
+export function MeetingPage({ meetingId, onBack }: Props) {
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const ctxSendTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -87,9 +94,10 @@ export function MeetingPage() {
   }, []);
 
   useEffect(() => {
-    // НЕ создаём встречу при заходе. Переподключаемся, только если она уже есть в сторе.
+    // НЕ создаём встречу при заходе. Подключаемся к встрече из URL (meetingId)
+    // или к уже выбранной в сторе (draft / текущая).
     const st = useMeetingStore.getState();
-    const existing = st.currentMeetingId ?? st.draftMeetingId ?? null;
+    const existing = meetingId ?? st.currentMeetingId ?? st.draftMeetingId ?? null;
     if (existing != null) {
       st.setCurrentMeetingId(existing);
       connect({ meetingId: existing, deviceRole: 'desktop' });
@@ -98,7 +106,7 @@ export function MeetingPage() {
       setSettings(s);
       store.setCustomSuggestionTypes(s.custom_suggestion_types);
     }).catch(() => {});
-    return () => { disconnect(); };
+    return () => { disconnect(); if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -182,14 +190,27 @@ export function MeetingPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [store.isListening, store.isConnected, store.suggestionLoading, store.strengthenLoading, handleStartListening, handleStopListening, sendJSON]);
 
+  // Дебаунс отправки контекста: локальный стор обновляется мгновенно (поле/шапка
+  // реагируют сразу), а update_meeting_context уходит на сервер с задержкой —
+  // вместе с guard contextEditedAt это гасит self-echo (символы не пропадают).
   const handleContextChange = useCallback((topic: string, notes: string, negotiationType: string, meetingRole: string, opponentWeaknesses: string) => {
-    sendJSON({ type: 'update_meeting_context', title: store.meetingName || undefined, topic, notes, negotiation_type: negotiationType, meeting_role: meetingRole, opponent_weaknesses: opponentWeaknesses });
-  }, [sendJSON, store.meetingName]);
+    useMeetingStore.getState().markContextEdited();
+    if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
+    ctxSendTimer.current = setTimeout(() => {
+      sendJSON({ type: 'update_meeting_context', title: useMeetingStore.getState().meetingName || undefined, topic, notes, negotiation_type: negotiationType, meeting_role: meetingRole, opponent_weaknesses: opponentWeaknesses });
+    }, 350);
+  }, [sendJSON]);
 
   const handleMeetingNameChange = useCallback((name: string) => {
-    store.setMeetingName(name);
-    sendJSON({ type: 'update_meeting_context', title: name, topic: store.meetingTopic, notes: store.meetingNotes, negotiation_type: store.negotiationType, meeting_role: store.meetingRole, opponent_weaknesses: store.opponentWeaknesses });
-  }, [sendJSON, store.meetingTopic, store.meetingNotes, store.negotiationType, store.meetingRole, store.opponentWeaknesses]);
+    const s = useMeetingStore.getState();
+    s.setMeetingName(name);
+    s.markContextEdited();
+    if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
+    ctxSendTimer.current = setTimeout(() => {
+      const st = useMeetingStore.getState();
+      sendJSON({ type: 'update_meeting_context', title: name, topic: st.meetingTopic, notes: st.meetingNotes, negotiation_type: st.negotiationType, meeting_role: st.meetingRole, opponent_weaknesses: st.opponentWeaknesses });
+    }, 350);
+  }, [sendJSON]);
 
   const [savingMeeting, setSavingMeeting] = useState(false);
 
@@ -205,11 +226,58 @@ export function MeetingPage() {
     sendJSON({ type: 'change_role', role_id: roleId });
   }, [sendJSON]);
 
+  const copyMeetingLink = useCallback(() => {
+    const id = useMeetingStore.getState().currentMeetingId;
+    if (id == null) return;
+    const url = window.location.origin + paths.meetingRoom(id);
+    const done = () => showToast('Ссылка скопирована', 'success');
+    const fail = () => showToast('Не удалось скопировать ссылку', 'error');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, fail);
+    else fail();
+  }, [showToast]);
+
+  // Верхняя панель встречи: «назад» в меню + ссылка на комнату (общая для обоих режимов).
+  const topBar = (
+    <div style={styles.topBar}>
+      <button onClick={onBack} style={styles.backBtn} aria-label="Назад" title="В главное меню">
+        <span>←</span><span className="mp-btn-label"> Назад</span>
+      </button>
+      {store.currentMeetingId != null && (
+        <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
+          <span>🔗</span><span className="mp-btn-label"> Ссылка</span>
+        </button>
+      )}
+    </div>
+  );
+
+  const toastEl = toast && (
+    <div
+      key={toast.message + Date.now()}
+      style={{
+        ...styles.toast,
+        borderColor: toast.type === 'success' ? theme.accent.green : theme.accent.red,
+        background: toast.type === 'success' ? 'rgba(46,229,157,0.12)' : 'rgba(255,75,110,0.12)',
+      }}
+    >
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+        background: toast.type === 'success' ? theme.accent.green : theme.accent.red,
+      }} />
+      <span style={{
+        color: toast.type === 'success' ? theme.accent.green : theme.accent.red,
+        fontSize: 12, fontFamily: theme.font.mono, fontWeight: 500,
+      }}>
+        {toast.message}
+      </span>
+    </div>
+  );
+
   // Простой режим (вид «Пользователь») — чистый диктофон поверх той же сессии.
   // Переключение режима — единым слайдером роли «Админ ⟷ Пользователь» в шапке.
   if (store.uiMode === 'simple') {
     return (
       <div style={styles.container}>
+        {topBar}
         <DictaphoneView
           level={level}
           isListening={store.isListening}
@@ -217,12 +285,14 @@ export function MeetingPage() {
           onStart={handleStartListening}
           onStop={handleStopListening}
         />
+        {toastEl}
       </div>
     );
   }
 
   return (
     <div style={styles.container}>
+      {topBar}
       {/* Tab bar */}
       <div className="meeting-tabs" style={styles.tabs}>
         {TABS.map((tab, i) => (
@@ -395,29 +465,7 @@ export function MeetingPage() {
       )}
 
       {/* Toast notification */}
-      {toast && (
-        <div
-          key={toast.message + Date.now()}
-          style={{
-            ...styles.toast,
-            borderColor: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-            background: toast.type === 'success'
-              ? 'rgba(46,229,157,0.12)'
-              : 'rgba(255,75,110,0.12)',
-          }}
-        >
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-            background: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-          }} />
-          <span style={{
-            color: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-            fontSize: 12, fontFamily: theme.font.mono, fontWeight: 500,
-          }}>
-            {toast.message}
-          </span>
-        </div>
-      )}
+      {toastEl}
 
       {/* Mobile bottom nav */}
       <nav className={`mobile-nav${drawerOpen ? ' nav-hidden' : ''}`}>
@@ -439,6 +487,23 @@ export function MeetingPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' },
+  topBar: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    padding: '8px 20px', background: theme.bg.secondary,
+    borderBottom: `1px solid ${theme.border.default}`, flexShrink: 0,
+  },
+  backBtn: {
+    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+    background: 'transparent', border: `1px solid ${theme.accent.amber}`, borderRadius: 6,
+    color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
+    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em',
+  },
+  linkBtn: {
+    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+    background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 6,
+    color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
+    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em',
+  },
   tabs: {
     display: 'flex', gap: 0, alignItems: 'center',
     borderBottom: `1px solid ${theme.border.default}`,

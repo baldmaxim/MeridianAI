@@ -24,6 +24,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -51,6 +52,17 @@ export function ObjectsPage({ onOpenObject }: Props) {
         (o.customer_name || '').toLowerCase().includes(term) ||
         (o.address || '').toLowerCase().includes(term))
     : objects;
+
+  // Группировка по заказчику (fallback — «Без заказчика»), группы по алфавиту.
+  const groups = (() => {
+    const m = new Map<string, ProjectObject[]>();
+    for (const o of filtered) {
+      const key = o.customer_name?.trim() || 'Без заказчика';
+      const arr = m.get(key);
+      if (arr) arr.push(o); else m.set(key, [o]);
+    }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ru'));
+  })();
 
   return (
     <div className="objects-page" style={styles.container}>
@@ -80,21 +92,41 @@ export function ObjectsPage({ onOpenObject }: Props) {
         <div style={styles.muted}>Ничего не найдено</div>
       )}
 
-      <div className="objects-grid" style={styles.grid}>
-        {filtered.map((o) => {
-          const count = counts[o.id] || 0;
+      <style>{`
+        .obj-group-chevron { transition: transform 0.18s ease; }
+        @media (prefers-reduced-motion: reduce) { .obj-group-chevron { transition: none; } }
+      `}</style>
+
+      <div style={styles.groups}>
+        {groups.map(([customer, items]) => {
+          const isCollapsed = !!collapsed[customer];
           return (
-            <button key={o.id} style={styles.card} onClick={() => onOpenObject(o.id)}>
-              <div style={styles.cardName}>{o.name}</div>
-              <div style={styles.cardMeta}>
-                <span>🏢 {o.customer_name || '—'}</span>
-                {o.address && <span style={styles.cardAddr}>📍 {o.address}</span>}
-              </div>
-              <div style={styles.cardFoot}>
-                <span style={count > 0 ? styles.countActive : styles.count}>{pluralMeetings(count)}</span>
-                <span style={styles.chevron}>→</span>
-              </div>
-            </button>
+            <div key={customer} style={styles.group}>
+              <button
+                style={styles.groupHeader}
+                onClick={() => setCollapsed((c) => ({ ...c, [customer]: !c[customer] }))}
+                aria-expanded={!isCollapsed}
+              >
+                <span className="obj-group-chevron" style={{ ...styles.groupChevron, transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
+                <span style={styles.groupName}>🏢 {customer}</span>
+                <span style={styles.groupCount}>{items.length}</span>
+              </button>
+              {!isCollapsed && (
+                <div style={styles.rows}>
+                  {items.map((o) => {
+                    const count = counts[o.id] || 0;
+                    return (
+                      <button key={o.id} style={styles.row} onClick={() => onOpenObject(o.id)}>
+                        <span style={styles.rowName}>{o.name}</span>
+                        {o.address && <span style={styles.rowAddr}>📍 {o.address}</span>}
+                        <span style={count > 0 ? styles.countActive : styles.count}>{pluralMeetings(count)}</span>
+                        <span style={styles.chevron}>→</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -125,26 +157,42 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 12,
     fontFamily: theme.font.mono, fontWeight: 700, whiteSpace: 'nowrap',
   },
-  grid: { display: 'flex', flexWrap: 'wrap' as const, gap: 12, alignContent: 'flex-start' },
-  card: {
-    display: 'flex', flexDirection: 'column', gap: 8, padding: 16, textAlign: 'left' as const,
-    flex: '1 1 280px', maxWidth: 420, minWidth: 0,
-    background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12,
-    color: theme.text.primary, cursor: 'pointer', fontFamily: theme.font.body,
+  groups: { display: 'flex', flexDirection: 'column', gap: 18 },
+  group: { display: 'flex', flexDirection: 'column', gap: 8 },
+  groupHeader: {
+    display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px',
+    background: 'transparent', border: 'none', cursor: 'pointer',
+    textAlign: 'left' as const, width: '100%',
   },
-  cardName: {
-    fontFamily: theme.font.body, fontWeight: 700, fontSize: 15,
+  groupChevron: { color: theme.accent.amber, fontSize: 12, display: 'inline-block', width: 12 },
+  groupName: {
+    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 13,
+    letterSpacing: '0.04em', color: theme.text.primary, flex: 1, minWidth: 0,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
-  cardMeta: {
-    display: 'flex', gap: 12, flexWrap: 'wrap' as const,
-    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary,
+  groupCount: {
+    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted,
+    background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`,
+    borderRadius: 10, padding: '1px 8px', flexShrink: 0,
   },
-  cardAddr: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 },
-  cardFoot: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  count: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted },
-  countActive: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.green, fontWeight: 600 },
-  chevron: { color: theme.accent.amber, fontSize: 16 },
+  rows: { display: 'flex', flexDirection: 'column', gap: 6 },
+  row: {
+    display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+    padding: '10px 14px', textAlign: 'left' as const,
+    background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 10,
+    color: theme.text.primary, cursor: 'pointer', fontFamily: theme.font.body,
+  },
+  rowName: {
+    fontFamily: theme.font.body, fontWeight: 600, fontSize: 14, flex: 1, minWidth: 0,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  rowAddr: {
+    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220, flexShrink: 1,
+  },
+  count: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted, flexShrink: 0, whiteSpace: 'nowrap' as const },
+  countActive: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.green, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' as const },
+  chevron: { color: theme.accent.amber, fontSize: 16, flexShrink: 0 },
   muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 13, padding: '12px 0' },
   error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 13, padding: '8px 0' },
   empty: { display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start', padding: '24px 0' },

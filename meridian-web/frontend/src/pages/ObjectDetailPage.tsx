@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { theme } from '../styles/theme';
 import { getObject } from '../api/objects';
-import { listMeetings } from '../api/history';
+import { listMeetings, deleteMeeting } from '../api/history';
+import { paths } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
+import { Dropdown } from '../components/common/Dropdown';
+import { Modal } from '../components/common/Modal';
 import type { ProjectObject, MeetingListItem } from '../types';
 
 interface Props {
   objectId: number;
   onBack: () => void;
-  onOpenMeeting: (id: number) => void;
+  onOpenMeeting: (id: number) => void;       // завершённая встреча → история
+  onOpenLiveMeeting: (id: number) => void;   // активная встреча → живая комната
   onNewMeeting: (obj: ProjectObject) => void;
 }
 
@@ -18,29 +22,59 @@ function fmtDate(iso: string): string {
     d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onNewMeeting }: Props) {
+export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMeeting, onNewMeeting }: Props) {
   const [object, setObject] = useState<ProjectObject | null>(null);
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<MeetingListItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true); setError('');
-      try {
-        const [obj, ms] = await Promise.all([getObject(objectId), listMeetings({ object_id: objectId, include_active: true })]);
-        if (cancelled) return;
-        setObject(obj);
-        setMeetings(ms);
-      } catch (e) {
-        if (!cancelled) setError(apiErrorMessage(e, 'Не удалось загрузить объект'));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async (silent = false) => {
+    if (!silent) { setLoading(true); setError(''); }
+    try {
+      const [obj, ms] = await Promise.all([getObject(objectId), listMeetings({ object_id: objectId, include_active: true })]);
+      setObject(obj);
+      setMeetings(ms);
+    } catch (e) {
+      if (!silent) setError(apiErrorMessage(e, 'Не удалось загрузить объект'));
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [objectId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Пока есть активная встреча — тихо обновляем список, чтобы статус «активна»/REC были live.
+  const hasActive = meetings.some((m) => m.status === 'active');
+  useEffect(() => {
+    if (!hasActive) return;
+    const iv = setInterval(() => load(true), 5000);
+    return () => clearInterval(iv);
+  }, [hasActive, load]);
+
+  const copyLink = (id: number) => {
+    const url = window.location.origin + paths.meetingRoom(id);
+    navigator.clipboard?.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
+  };
+
+  const doDelete = useCallback(async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await deleteMeeting(confirmDelete.id);
+      setMeetings((ms) => ms.filter((x) => x.id !== confirmDelete.id));
+      setConfirmDelete(null);
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Не удалось удалить встречу'));
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirmDelete]);
 
   return (
     <div style={styles.container}>
@@ -84,22 +118,86 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onNewMeeting
       )}
 
       <div style={styles.list}>
-        {meetings.map((m) => (
-          <button key={m.id} style={styles.card} onClick={() => onOpenMeeting(m.id)}>
-            <div style={styles.cardTop}>
-              <div style={styles.cardTitle}>{m.title || m.meeting_topic || 'Без названия'}</div>
-              <div style={styles.cardDate}>{fmtDate(m.started_at)}</div>
+        {meetings.map((m) => {
+          const isActive = m.status === 'active';
+          const openRow = () => (isActive ? onOpenLiveMeeting(m.id) : onOpenMeeting(m.id));
+          return (
+            <div
+              key={m.id}
+              style={styles.card}
+              role="button"
+              tabIndex={0}
+              onClick={openRow}
+              onKeyDown={(e) => { if (e.key === 'Enter') openRow(); }}
+            >
+              <div style={styles.cardTop}>
+                <div style={styles.cardTitle}>{m.title || m.meeting_topic || 'Без названия'}</div>
+                <div style={styles.cardDate}>{fmtDate(m.started_at)}</div>
+              </div>
+              {(m.micro_summary || m.meeting_topic) && (
+                <div style={styles.cardSummary}>{m.micro_summary || m.meeting_topic}</div>
+              )}
+              <div style={styles.cardFoot}>
+                <div style={styles.statusWrap}>
+                  {m.is_recording ? (
+                    <span style={styles.recBadge}>
+                      <span className="pulse-dot" style={styles.recDot} /> REC
+                    </span>
+                  ) : isActive ? (
+                    <span style={styles.activeBadge}>
+                      <span style={styles.activeDot} /> активна
+                    </span>
+                  ) : (
+                    m.status && <span style={styles.badge}>{m.status}</span>
+                  )}
+                  {m.suggestion_count > 0 && <span style={styles.badge}>{m.suggestion_count} подсказок</span>}
+                </div>
+                <div style={styles.actions}>
+                  {isActive && (
+                    <button
+                      style={styles.linkBtn}
+                      onClick={(e) => { e.stopPropagation(); copyLink(m.id); }}
+                      title="Скопировать ссылку на встречу"
+                    >
+                      {copiedId === m.id ? '✓ скопировано' : '🔗 ссылка'}
+                    </button>
+                  )}
+                  <div style={styles.menuWrap}>
+                    <button
+                      style={styles.menuBtn}
+                      onClick={(e) => { e.stopPropagation(); setMenuFor((v) => (v === m.id ? null : m.id)); }}
+                      aria-label="Действия со встречей"
+                    >⋮</button>
+                    <Dropdown
+                      open={menuFor === m.id}
+                      onClose={() => setMenuFor(null)}
+                      origin="top-right"
+                      style={styles.menu}
+                    >
+                      <button
+                        style={styles.menuItemDanger}
+                        onClick={(e) => { e.stopPropagation(); setMenuFor(null); setConfirmDelete(m); }}
+                      >Удалить встречу</button>
+                    </Dropdown>
+                  </div>
+                </div>
+              </div>
             </div>
-            {(m.micro_summary || m.meeting_topic) && (
-              <div style={styles.cardSummary}>{m.micro_summary || m.meeting_topic}</div>
-            )}
-            <div style={styles.badges}>
-              {m.status && <span style={styles.badge}>{m.status}</span>}
-              {m.suggestion_count > 0 && <span style={styles.badge}>{m.suggestion_count} подсказок</span>}
-            </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
+
+      <Modal open={confirmDelete != null} onClose={() => { if (!deleting) setConfirmDelete(null); }} maxWidth={420}>
+        <div style={styles.modalTitle}>Удалить встречу?</div>
+        <div style={styles.modalText}>
+          «{confirmDelete?.title || confirmDelete?.meeting_topic || 'Без названия'}» будет удалена со всеми
+          транскриптами и подсказками. Действие необратимо.
+        </div>
+        <div style={styles.modalActions}>
+          <button style={styles.cancelBtn} onClick={() => setConfirmDelete(null)} disabled={deleting}>Отмена</button>
+          <button style={styles.deleteBtn} onClick={doDelete} disabled={deleting}>{deleting ? 'Удаление…' : 'Удалить'}</button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -156,10 +254,63 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12, color: theme.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis',
     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
   },
-  badges: { display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginTop: 2 },
+  cardFoot: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    flexWrap: 'wrap' as const, marginTop: 2,
+  },
+  statusWrap: { display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'center' },
+  actions: { display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 },
   badge: {
     padding: '2px 8px', background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`,
     borderRadius: 4, fontFamily: theme.font.mono, fontSize: 9, color: theme.text.muted, textTransform: 'uppercase' as const,
+  },
+  activeBadge: {
+    display: 'flex', alignItems: 'center', gap: 5, padding: '2px 9px',
+    background: 'rgba(46,229,157,0.1)', border: '1px solid rgba(46,229,157,0.3)', borderRadius: 12,
+    fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.06em',
+    color: theme.accent.green, textTransform: 'uppercase' as const,
+  },
+  activeDot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.green, flexShrink: 0 },
+  recBadge: {
+    display: 'flex', alignItems: 'center', gap: 5, padding: '2px 9px',
+    background: 'rgba(255,75,110,0.12)', border: '1px solid rgba(255,75,110,0.35)', borderRadius: 12,
+    fontFamily: theme.font.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
+    color: theme.accent.red, textTransform: 'uppercase' as const,
+  },
+  recDot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.red, flexShrink: 0 },
+  linkBtn: {
+    padding: '4px 10px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
+    borderRadius: 6, color: theme.accent.amber, cursor: 'pointer',
+    fontFamily: theme.font.mono, fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' as const,
+  },
+  menuWrap: { position: 'relative' as const, flexShrink: 0 },
+  menuBtn: {
+    width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6,
+    color: theme.text.secondary, cursor: 'pointer', fontSize: 16, lineHeight: 1,
+  },
+  menu: {
+    position: 'absolute' as const, top: 32, right: 0, zIndex: 60, minWidth: 180,
+    background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 8,
+    padding: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  },
+  menuItemDanger: {
+    width: '100%', textAlign: 'left' as const, padding: '9px 12px',
+    background: 'transparent', border: 'none', borderRadius: 6,
+    color: theme.accent.red, cursor: 'pointer', fontSize: 13, fontFamily: theme.font.body,
+  },
+  modalTitle: {
+    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 16, color: theme.text.primary,
+  },
+  modalText: { fontFamily: theme.font.body, fontSize: 13, color: theme.text.secondary, lineHeight: 1.5 },
+  modalActions: { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 },
+  cancelBtn: {
+    padding: '8px 16px', background: 'transparent', border: `1px solid ${theme.border.default}`,
+    borderRadius: 8, color: theme.text.secondary, cursor: 'pointer', fontSize: 13, fontFamily: theme.font.body,
+  },
+  deleteBtn: {
+    padding: '8px 18px', background: theme.accent.red, border: 'none', borderRadius: 8,
+    color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: theme.font.body,
   },
   muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 13, padding: '12px 0' },
   error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 13, padding: '8px 0' },

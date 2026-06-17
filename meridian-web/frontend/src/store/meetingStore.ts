@@ -71,6 +71,10 @@ interface MeetingState {
   meetingRole: string;
   opponentWeaknesses: string;
   setMeetingName: (n: string) => void;
+  // Метка последнего локального редактирования полей контекста — гасит self-echo
+  // (meeting_context_updated не должен затирать ввод во время печати).
+  contextEditedAt: number;
+  markContextEdited: () => void;
   setMeetingTopic: (t: string) => void;
   setMeetingNotes: (n: string) => void;
   setNegotiationType: (t: string) => void;
@@ -258,12 +262,14 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   setError: (msg) => set({ lastError: msg }),
 
   meetingName: '',
+  contextEditedAt: 0,
   meetingTopic: '',
   meetingNotes: '',
   negotiationType: 'sale',
   meetingRole: '',
   opponentWeaknesses: '',
   setMeetingName: (n) => set({ meetingName: n }),
+  markContextEdited: () => set({ contextEditedAt: Date.now() }),
   setMeetingTopic: (t) => set({ meetingTopic: t }),
   setMeetingNotes: (n) => set({ meetingNotes: n }),
   setNegotiationType: (t) => set({ negotiationType: t }),
@@ -345,7 +351,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   newMeetingSession: () => set({
     messages: [], committedSegments: [], partialMessage: null, turns: [],
     suggestions: [], currentSuggestionIndex: -1, currentStreamingText: null,
-    analysisStatus: null, isListening: false, lastError: null,
+    analysisStatus: null, isListening: false, lastError: null, activeRoleName: null,
     currentMeetingId: null, draftMeetingId: null, meetingSavedId: null,
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,

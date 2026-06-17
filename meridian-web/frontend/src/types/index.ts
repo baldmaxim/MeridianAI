@@ -583,6 +583,7 @@ export interface MeetingListItem {
   segment_count: number;
   suggestion_count: number;
   status: string | null;
+  is_recording: boolean;
   customer_id: number | null;
   object_id: number | null;
   customer_name: string | null;
