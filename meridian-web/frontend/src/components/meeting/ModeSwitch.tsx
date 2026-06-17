@@ -2,9 +2,9 @@ import { theme } from '../../styles/theme';
 import { useMeetingStore } from '../../store/meetingStore';
 
 /**
- * Слайдер «Простой ⟷ Полный» — уровень детализации экрана встречи.
- * Семантика: «Простой» = упрощённый вид (как у обычного пользователя),
- * «Полный» = детальный вид (как у админа). Это НЕ «мобильный» режим.
+ * Слайдер «Диктофон ⟷ Полный» — вид экрана встречи.
+ * «Диктофон» = упрощённый вид записи (дефолт на мобильном),
+ * «Полный» = детальный интерфейс. Переключатель доступен пользователю во встрече.
  */
 export function ModeSwitch() {
   const uiMode = useMeetingStore((s) => s.uiMode);
@@ -15,10 +15,10 @@ export function ModeSwitch() {
     <button
       type="button"
       onClick={() => setUiMode(simple ? 'full' : 'simple')}
-      title={simple ? 'Переключить в полный режим' : 'Переключить в простой режим'}
+      title={simple ? 'Переключить в полный интерфейс' : 'Переключить в режим диктофона'}
       style={styles.wrap}
     >
-      <span style={{ ...styles.label, color: simple ? theme.accent.amber : theme.text.muted }}>Простой</span>
+      <span style={{ ...styles.label, color: simple ? theme.accent.amber : theme.text.muted }}>Диктофон</span>
       <span style={styles.track}>
         <span style={{ ...styles.knob, transform: simple ? 'translateX(0)' : 'translateX(18px)' }} />
       </span>

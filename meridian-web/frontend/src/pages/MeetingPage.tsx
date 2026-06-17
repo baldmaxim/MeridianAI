@@ -4,12 +4,14 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings } from '../api/settings';
 import { createMeeting } from '../api/meetings';
+import { getMeetingDetail } from '../api/history';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
 import { ConversationTreePanel } from '../components/meeting/ConversationTreePanel';
 import { DictaphoneView } from '../components/meeting/DictaphoneView';
+import { ModeSwitch } from '../components/meeting/ModeSwitch';
 import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
 import { MeetingDocuments } from '../components/context/MeetingDocuments';
@@ -101,6 +103,13 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     if (existing != null) {
       st.setCurrentMeetingId(existing);
       connect({ meetingId: existing, deviceRole: 'desktop' });
+      // По прямой ссылке стор пуст — подтянуть заказчика/объект встречи (WS их не шлёт).
+      getMeetingDetail(existing).then((d) => {
+        const s2 = useMeetingStore.getState();
+        s2.setDraftMeetingId(existing);
+        s2.setSelectedCustomerId(d.customer_id);
+        s2.setSelectedObjectId(d.object_id);
+      }).catch(() => {});
     }
     getSettings().then((s) => {
       setSettings(s);
@@ -236,17 +245,21 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     else fail();
   }, [showToast]);
 
-  // Верхняя панель встречи: «назад» в меню + ссылка на комнату (общая для обоих режимов).
+  // Верхняя панель встречи: «назад» + переключатель вида (диктофон/полный) + ссылка.
+  // Общая для обоих режимов — переключатель доступен и в диктофоне, и в полном.
   const topBar = (
     <div style={styles.topBar}>
       <button onClick={onBack} style={styles.backBtn} aria-label="Назад" title="В главное меню">
         <span>←</span><span className="mp-btn-label"> Назад</span>
       </button>
-      {store.currentMeetingId != null && (
-        <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
-          <span>🔗</span><span className="mp-btn-label"> Ссылка</span>
-        </button>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <ModeSwitch />
+        {store.currentMeetingId != null && (
+          <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
+            <span>🔗</span><span className="mp-btn-label"> Ссылка</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -417,7 +430,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               <RolesTab onRoleSelect={handleRoleSelect} />
             </div>
 
-            {/* Сохранить встречу / Новая встреча */}
+            {/* Сохранить встречу */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
                 className="save-meeting-btn"
@@ -430,12 +443,6 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                 }}
               >
                 {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
-              </button>
-              <button
-                onClick={() => { startSession(true); showToast('Новая встреча', 'success'); }}
-                style={styles.newMeetingBtn}
-              >
-                + Новая встреча
               </button>
             </div>
 
@@ -539,11 +546,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   roomStatusItem: { display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.04em' },
   roomDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
-  newMeetingBtn: {
-    padding: '12px 22px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
-    borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 13,
-    fontWeight: 600, fontFamily: theme.font.body, alignSelf: 'flex-start', letterSpacing: '0.02em',
-  },
   contextInput: {
     padding: '10px 14px',
     background: theme.bg.input,

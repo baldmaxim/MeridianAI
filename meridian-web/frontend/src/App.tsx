@@ -71,12 +71,6 @@ function App() {
     if (user && (route.kind === 'login')) navigate(paths.objects);
   }, [user, route.kind]);
 
-  // Единый слайдер роли управляет и видом встречи: Админ → полный, Пользователь → простой.
-  useEffect(() => {
-    const eff = user?.role === 'admin' && !viewAsUser;
-    useMeetingStore.getState().setUiMode(eff ? 'full' : 'simple');
-  }, [user, viewAsUser]);
-
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080A0F', color: '#EDF2FF' }}>

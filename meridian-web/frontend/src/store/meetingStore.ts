@@ -153,10 +153,15 @@ interface MeetingState {
 
 let messageCounter = 0;
 
+// Дефолт вида встречи: диктофон — только для мобильного; десктоп → полный интерфейс.
+// Явный выбор пользователя сохраняется в meridian_ui_mode_v2 (новый ключ — старый
+// загрязнён 'simple' прежней логикой «роль → режим»).
+const storedUiMode = typeof localStorage !== 'undefined' ? localStorage.getItem('meridian_ui_mode_v2') : null;
+const isMobileViewport = typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 768px)').matches;
 const initialUiMode: 'simple' | 'full' =
-  (typeof localStorage !== 'undefined' && localStorage.getItem('meridian_ui_mode') === 'simple')
-    ? 'simple'
-    : 'full';
+  storedUiMode === 'simple' || storedUiMode === 'full'
+    ? storedUiMode
+    : (isMobileViewport ? 'simple' : 'full');
 
 export const useMeetingStore = create<MeetingState>((set) => ({
   isConnected: false,
@@ -307,7 +312,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   uiMode: initialUiMode,
   setUiMode: (m) => {
-    try { localStorage.setItem('meridian_ui_mode', m); } catch { /* ignore */ }
+    try { localStorage.setItem('meridian_ui_mode_v2', m); } catch { /* ignore */ }
     set({ uiMode: m });
   },
 
