@@ -45,12 +45,24 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onNewMeeting
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn}>&larr; К объектам</button>
+        <button onClick={onBack} style={styles.backBtn} className="od-backBtn" aria-label="К объектам" title="К объектам">
+          <span>&larr;</span><span className="od-btn-label"> К объектам</span>
+        </button>
         <span style={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
         {object && (
-          <button style={styles.newBtn} onClick={() => onNewMeeting(object)}>+ Новая встреча</button>
+          <button style={styles.newBtn} className="od-newBtn" onClick={() => onNewMeeting(object)} aria-label="Новая встреча" title="Новая встреча">
+            <span>+</span><span className="od-btn-label"> Новая встреча</span>
+          </button>
         )}
       </div>
+
+      <style>{`
+        @media (max-width: 767px) {
+          .od-btn-label { display: none !important; }
+          .od-backBtn { padding: 8px 12px !important; font-size: 16px !important; }
+          .od-newBtn { padding: 8px 14px !important; font-size: 18px !important; line-height: 1 !important; }
+        }
+      `}</style>
 
       {loading && <div style={styles.muted}>Загрузка…</div>}
       {error && <div style={styles.error}>{error}</div>}
