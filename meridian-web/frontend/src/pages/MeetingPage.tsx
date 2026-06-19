@@ -614,20 +614,21 @@ export function MeetingPage({ meetingId, onBack }: Props) {
           const ctxMeetingId = store.currentMeetingId ?? store.draftMeetingId ?? null;
           return (
           <div className="mobile-content-pad" style={styles.contextPanel}>
-            {/* A. Компактная карточка «Встреча» */}
-            <div style={styles.contextCard}>
-              <div style={styles.sectionHeader}>
-                <span style={styles.dot} />
-                <span style={styles.sectionTitle}>Встреча</span>
-                {store.currentMeetingId != null && (
-                  <span style={styles.roomBadge}>
-                    <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
-                    {store.roomConnected ? (store.recording ? 'REC' : 'online') : 'offline'}
-                  </span>
-                )}
-              </div>
+            {/* A. Брифинг встречи: две сбалансированные карточки рядом */}
+            <div className="context-columns" style={styles.briefGrid}>
+              {/* Встреча — название/тема (стек) + статус */}
+              <div style={styles.contextCard}>
+                <div style={styles.sectionHeader}>
+                  <span style={styles.dot} />
+                  <span style={styles.sectionTitle}>Встреча</span>
+                  {store.currentMeetingId != null && (
+                    <span style={styles.roomBadge}>
+                      <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
+                      {store.roomConnected ? (store.recording ? 'REC' : 'online') : 'offline'}
+                    </span>
+                  )}
+                </div>
 
-              <div className="context-columns" style={styles.meetingGrid}>
                 <div style={styles.meetingField}>
                   <label style={styles.miniLabel}>Название встречи</label>
                   <input
@@ -649,42 +650,41 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                     style={styles.contextInputReadonly}
                   />
                 </div>
+
+                {store.currentMeetingId != null && (
+                  <div style={styles.roomStatus}>
+                    <span style={styles.roomStatusItem}>Meeting ID: <b style={{ color: theme.text.primary }}>{store.currentMeetingId}</b></span>
+                    <span style={styles.roomStatusItem}>
+                      <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
+                      {store.roomConnected ? 'Room connected' : 'Room offline'}
+                    </span>
+                    <span style={styles.roomStatusItem}>
+                      Active audio: <b style={{ color: store.recording ? theme.accent.green : theme.text.muted }}>
+                        {store.recording ? (store.deviceRole || 'устройство') : 'none'}
+                      </b>
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {store.currentMeetingId != null && (
-                <div style={styles.roomStatus}>
-                  <span style={styles.roomStatusItem}>Meeting ID: <b style={{ color: theme.text.primary }}>{store.currentMeetingId}</b></span>
-                  <span style={styles.roomStatusItem}>
-                    <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
-                    {store.roomConnected ? 'Room connected' : 'Room offline'}
-                  </span>
-                  <span style={styles.roomStatusItem}>
-                    Active audio: <b style={{ color: store.recording ? theme.accent.green : theme.text.muted }}>
-                      {store.recording ? (store.deviceRole || 'устройство') : 'none'}
-                    </b>
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* B. Двухколоночная зона: слева источники контекста, справа краткие настройки */}
-            <div className="context-columns" style={styles.contextSplit}>
-              <ContextBasket
-                meetingId={ctxMeetingId}
-                customerId={store.selectedCustomerId}
-                objectId={store.selectedObjectId}
-                ensureMeetingId={async () => {
-                  const st = useMeetingStore.getState();
-                  if (st.currentMeetingId != null) return st.currentMeetingId;
-                  return await startSession(false);
-                }}
-                ragAdapter={ragContextApiAdapter}
-              />
-
+              {/* Краткие настройки — тип переговоров + ключевые условия */}
               <CollapsibleSection title="Краткие настройки" defaultOpen>
                 <MeetingContext pushContext={pushContext} />
               </CollapsibleSection>
             </div>
+
+            {/* B. Источники контекста — на всю ширину */}
+            <ContextBasket
+              meetingId={ctxMeetingId}
+              customerId={store.selectedCustomerId}
+              objectId={store.selectedObjectId}
+              ensureMeetingId={async () => {
+                const st = useMeetingStore.getState();
+                if (st.currentMeetingId != null) return st.currentMeetingId;
+                return await startSession(false);
+              }}
+              ragAdapter={ragContextApiAdapter}
+            />
 
             {/* C. Расширенные настройки */}
             <CollapsibleSection title="Расширенные настройки">
@@ -889,14 +889,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10, letterSpacing: '0.06em', color: theme.text.secondary,
     textTransform: 'uppercase' as const,
   },
-  meetingGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   meetingField: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
   miniLabel: {
     fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber,
     letterSpacing: '0.08em', textTransform: 'uppercase' as const,
   },
-  contextSplit: {
-    display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
+  briefGrid: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr',
     gap: 20, alignItems: 'start',
   },
   weakTextarea: {
