@@ -63,7 +63,7 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
     <Modal open={open} onClose={onClose} maxWidth={460}>
       <div style={styles.head}>
         <span style={s.title}>Новый объект</span>
-        <button style={styles.close} onClick={onClose}>×</button>
+        <button className="t-btn" style={styles.close} onClick={onClose}>×</button>
       </div>
 
       <div ref={formRef} className="t-input" style={s.formCard}>
@@ -85,8 +85,8 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         <label style={s.label}>Описание</label>
         <input style={s.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="необязательно" />
         <div style={s.formRow}>
-          <button style={s.btn} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
-          <button style={s.btnGhost} onClick={onClose}>Отмена</button>
+          <button className="t-btn t-btn-amber" style={s.btn} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
+          <button className="t-btn" style={s.btnGhost} onClick={onClose}>Отмена</button>
         </div>
       </div>
 

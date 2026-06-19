@@ -69,7 +69,7 @@ export function ApiKeyManager() {
           onChange={(e) => setApiKey(e.target.value)}
           style={styles.input}
         />
-        <button onClick={handleAdd} disabled={loading} style={styles.addBtn}>
+        <button onClick={handleAdd} disabled={loading} className="t-btn t-btn-amber" style={styles.addBtn}>
           Добавить
         </button>
       </div>
@@ -91,6 +91,7 @@ export function ApiKeyManager() {
               <span style={statusDot(k.is_active)} />
               <button
                 onClick={() => handleToggle(k)}
+                className="t-btn"
                 style={{
                   ...styles.toggleBtn,
                   background: k.is_active ? 'rgba(46,229,157,0.12)' : 'rgba(255,75,110,0.12)',
@@ -100,7 +101,7 @@ export function ApiKeyManager() {
               >
                 {k.is_active ? 'Вкл' : 'Выкл'}
               </button>
-              <button onClick={() => handleDelete(k.id)} style={styles.delBtn}>Отозвать</button>
+              <button onClick={() => handleDelete(k.id)} className="t-btn t-btn-red" style={styles.delBtn}>Отозвать</button>
             </div>
           );
         })}

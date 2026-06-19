@@ -110,13 +110,14 @@ export function UserManager() {
                     {u.role.toUpperCase()}
                   </span>
 
-                  <button onClick={() => setEditing(u)} style={styles.editBtn}>
+                  <button onClick={() => setEditing(u)} className="t-btn" style={styles.editBtn}>
                     Изменить
                   </button>
 
                   {!isSelf && (
                     <button
                       onClick={() => toggleActive(u)}
+                      className="t-btn"
                       style={{
                         ...styles.toggleBtn,
                         color: u.is_active ? theme.accent.red : theme.accent.green,
@@ -128,7 +129,7 @@ export function UserManager() {
                   )}
 
                   {!isSelf && (
-                    <button onClick={() => handleDelete(u)} style={styles.deleteBtn}>
+                    <button onClick={() => handleDelete(u)} className="t-btn t-btn-red" style={styles.deleteBtn}>
                       Удалить
                     </button>
                   )}
@@ -224,10 +225,10 @@ function EditUserModal({ user, isSelf, onClose, onSaved }: {
         {error && <div style={styles.error}>{error}</div>}
 
         <div style={styles.modalActions}>
-          <button onClick={onClose} style={styles.cancelBtn} disabled={saving}>
+          <button onClick={onClose} className="t-btn" style={styles.cancelBtn} disabled={saving}>
             Отмена
           </button>
-          <button onClick={save} style={styles.saveBtn} disabled={saving}>
+          <button onClick={save} className="t-btn t-btn-amber" style={styles.saveBtn} disabled={saving}>
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
         </div>

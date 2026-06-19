@@ -112,13 +112,14 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = '
     <div className="detail-container" style={styles.container}>
       {/* Top bar */}
       <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn}>&larr; {backLabel}</button>
+        <button onClick={onBack} className="t-btn" style={styles.backBtn}>&larr; {backLabel}</button>
         <span style={styles.topTitle}>ДЕТАЛИ ВСТРЕЧИ</span>
-        <button onClick={handleContinue} style={styles.continueBtn}>
+        <button onClick={handleContinue} className="t-btn t-btn-amber" style={styles.continueBtn}>
           Продолжить
         </button>
         <button
           onClick={() => setConfirmDelete(true)}
+          className="t-btn t-btn-red"
           style={styles.deleteBtn}
         >
           Удалить
@@ -131,8 +132,8 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = '
           <span style={{ color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 12 }}>
             Удалить встречу и все данные?
           </span>
-          <button onClick={handleDelete} style={styles.confirmYes}>Да, удалить</button>
-          <button onClick={() => setConfirmDelete(false)} style={styles.confirmNo}>Отмена</button>
+          <button onClick={handleDelete} className="t-btn t-btn-red" style={styles.confirmYes}>Да, удалить</button>
+          <button onClick={() => setConfirmDelete(false)} className="t-btn" style={styles.confirmNo}>Отмена</button>
         </div>
       )}
 
@@ -184,6 +185,7 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = '
           <button
             key={tab}
             onClick={() => setMobileTab(tab)}
+            className="t-btn"
             style={mobileTab === tab ? styles.mobileTabActive : styles.mobileTab}
           >
             {tab === 'transcript' ? 'Транскрипция' : tab === 'suggestions' ? 'Подсказки' : 'Контекст'}

@@ -32,7 +32,7 @@ export function ControlButtons({
   return (
     <div className="control-buttons" style={styles.container}>
       <button
-        className="control-btn-suggest"
+        className="control-btn-suggest t-btn"
         onClick={onRequestSuggestion}
         disabled={!isConnected || suggestionLoading}
         style={styles.btnSuggestion}
@@ -42,7 +42,7 @@ export function ControlButtons({
       </button>
 
       <button
-        className="control-btn-main"
+        className={`control-btn-main t-btn ${isListening ? 't-btn-red' : 't-btn-amber'}`}
         onClick={isListening ? onStopListening : onStartListening}
         disabled={!isConnected}
         style={isListening ? styles.btnStop : styles.btnListen}
@@ -55,7 +55,7 @@ export function ControlButtons({
       </button>
 
       <button
-        className="control-btn-strengthen"
+        className="control-btn-strengthen t-btn t-btn-green"
         onClick={onStrengthenPosition}
         disabled={!isConnected || strengthenLoading}
         style={styles.btnStrengthen}

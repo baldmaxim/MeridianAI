@@ -80,7 +80,7 @@ export function SettingsPage({ onBack, embedded }: Props) {
     <div style={embedded ? styles.containerEmbedded : styles.container}>
       {!embedded && (
         <div style={styles.topBar}>
-          <button onClick={onBack} style={styles.backBtn}>&larr; Назад</button>
+          <button onClick={onBack} className="t-btn" style={styles.backBtn}>&larr; Назад</button>
           <span style={styles.topTitle}>НАСТРОЙКИ</span>
         </div>
       )}
@@ -94,6 +94,7 @@ export function SettingsPage({ onBack, embedded }: Props) {
               <button
                 key={sec.id}
                 onClick={() => setSection(sec.id)}
+                className="t-btn"
                 style={section === sec.id ? styles.navActive : styles.navItem}
               >
                 <span style={{ fontSize: 14 }}>{sec.icon}</span> {sec.label}
@@ -146,6 +147,7 @@ export function SettingsPage({ onBack, embedded }: Props) {
             <button
               onClick={handleApply}
               disabled={applying}
+              className="t-btn t-btn-amber"
               style={{ ...styles.applyBtn, opacity: applying ? 0.6 : 1, cursor: applying ? 'wait' : 'pointer' }}
             >
               {applying ? 'Сохранение...' : 'Применить настройки'}
@@ -237,7 +239,7 @@ const styles: Record<string, React.CSSProperties> = {
   applyBtn: {
     marginTop: 8, padding: '9px 22px', background: theme.accent.amber, border: 'none',
     borderRadius: 7, color: '#080A0F', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-    fontFamily: theme.font.body, alignSelf: 'flex-start', transition: 'opacity 0.2s',
+    fontFamily: theme.font.body, alignSelf: 'flex-start',
   },
   toast: {
     position: 'fixed' as const, bottom: 24, right: 24, zIndex: 9999,

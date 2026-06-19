@@ -79,12 +79,12 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn} className="od-backBtn" aria-label="К объектам" title="К объектам">
+        <button onClick={onBack} style={styles.backBtn} className="od-backBtn t-btn" aria-label="К объектам" title="К объектам">
           <span>&larr;</span><span className="od-btn-label"> К объектам</span>
         </button>
         <span style={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
         {object && (
-          <button style={styles.newBtn} className="od-newBtn" onClick={() => onNewMeeting(object)} aria-label="Новая встреча" title="Новая встреча">
+          <button style={styles.newBtn} className="od-newBtn t-btn t-btn-amber" onClick={() => onNewMeeting(object)} aria-label="Новая встреча" title="Новая встреча">
             <span>+</span><span className="od-btn-label"> Новая встреча</span>
           </button>
         )}
@@ -155,6 +155,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                 <div style={styles.actions}>
                   {isActive && (
                     <button
+                      className="t-btn"
                       style={styles.linkBtn}
                       onClick={(e) => { e.stopPropagation(); copyLink(m.id); }}
                       title="Скопировать ссылку на встречу"
@@ -164,6 +165,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                   )}
                   <div style={styles.menuWrap}>
                     <button
+                      className="t-btn"
                       style={styles.menuBtn}
                       onClick={(e) => { e.stopPropagation(); setMenuFor((v) => (v === m.id ? null : m.id)); }}
                       aria-label="Действия со встречей"
@@ -175,6 +177,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                       style={styles.menu}
                     >
                       <button
+                        className="t-btn t-btn-red"
                         style={styles.menuItemDanger}
                         onClick={(e) => { e.stopPropagation(); setMenuFor(null); setConfirmDelete(m); }}
                       >Удалить встречу</button>
@@ -194,8 +197,8 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
           транскриптами и подсказками. Действие необратимо.
         </div>
         <div style={styles.modalActions}>
-          <button style={styles.cancelBtn} onClick={() => setConfirmDelete(null)} disabled={deleting}>Отмена</button>
-          <button style={styles.deleteBtn} onClick={doDelete} disabled={deleting}>{deleting ? 'Удаление…' : 'Удалить'}</button>
+          <button className="t-btn" style={styles.cancelBtn} onClick={() => setConfirmDelete(null)} disabled={deleting}>Отмена</button>
+          <button className="t-btn t-btn-red" style={styles.deleteBtn} onClick={doDelete} disabled={deleting}>{deleting ? 'Удаление…' : 'Удалить'}</button>
         </div>
       </Modal>
     </div>

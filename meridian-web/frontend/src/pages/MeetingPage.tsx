@@ -435,7 +435,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
           .mp-ref { gap: 10px !important; }
         }
       `}</style>
-      <button onClick={onBack} style={styles.backBtn} aria-label="Назад" title="В главное меню">
+      <button onClick={onBack} className="t-btn" style={styles.backBtn} aria-label="Назад" title="В главное меню">
         <span>←</span><span className="mp-btn-label"> Назад</span>
       </button>
       {/* Заказчик/объект/дата — справочно, read-only (привязка задаётся при создании встречи) */}
@@ -465,7 +465,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         <ModeSwitch />
         {store.currentMeetingId != null && (
           <div style={styles.linkWrap}>
-            <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
+            <button onClick={copyMeetingLink} className="t-btn" style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
               <IconSwap state={linkCopied ? 'b' : 'a'} a="🔗" b="✓" />
               <span className="mp-btn-label"> Ссылка</span>
             </button>
@@ -533,6 +533,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
           <button
             key={tab}
             onClick={() => setActiveTab(i)}
+            className="t-btn"
             style={{
               ...styles.tab,
               borderBottom: activeTab === i ? `2px solid ${theme.accent.amber}` : '2px solid transparent',
@@ -585,7 +586,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                     <span className="sheet-dot" />
                     Транскрипция
                   </div>
-                  <button className="sheet-close" onClick={() => setDrawerOpen(false)}>&times;</button>
+                  <button className="sheet-close t-btn" onClick={() => setDrawerOpen(false)}>&times;</button>
                 </div>
                 <SpeakerSideAssignmentPanel
                   meetingId={store.currentMeetingId}
@@ -713,7 +714,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               {/* Сохранить встречу */}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
-                  className="save-meeting-btn"
+                  className="save-meeting-btn t-btn t-btn-amber"
                   onClick={handleSaveMeeting}
                   disabled={savingMeeting}
                   style={{
@@ -791,7 +792,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         {(['Сессия', 'Контекст'] as const).map((label, i) => (
           <button
             key={label}
-            className={`mobile-nav-item${activeTab === i ? ' active' : ''}`}
+            className={`mobile-nav-item t-btn${activeTab === i ? ' active' : ''}`}
             onClick={() => setActiveTab(i)}
           >
             <span className="nav-ico">{['◎', '📄'][i]}</span>

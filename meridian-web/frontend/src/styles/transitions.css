@@ -529,3 +529,57 @@
 @media (prefers-reduced-motion: reduce) {
   .t-avatar { transition: none !important; transform: none !important; }
 }
+
+/* --- Button hover: lift + glow + press (project-specific drop-in) -------- */
+/* Не из каталога transitions.dev — собственный t-* (как .t-update-banner).
+   Анимируем ТОЛЬКО transform/box-shadow/filter/opacity: эти свойства не
+   задаются инлайн у кнопок → !important не нужен, инлайн-фон/бордер целы.
+   Никакого transition: all. */
+:root {
+  --btn-dur: 180ms;
+  --btn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --btn-lift: -1px;
+  --btn-press-scale: 0.97;
+  --btn-brightness: 1.08;
+  --btn-glow-amber:   0 4px 16px rgba(245,166,35,0.30);
+  --btn-glow-red:     0 4px 16px rgba(255,75,110,0.30);
+  --btn-glow-green:   0 4px 16px rgba(46,229,157,0.22);
+  --btn-glow-neutral: 0 4px 14px rgba(0,0,0,0.35);
+}
+
+.t-btn {
+  transition:
+    transform  var(--btn-dur) var(--btn-ease),
+    box-shadow var(--btn-dur) var(--btn-ease),
+    filter     var(--btn-dur) var(--btn-ease),
+    opacity    var(--btn-dur) var(--btn-ease);
+  will-change: transform;
+}
+
+/* Подъём + свечение только на устройствах с реальным указателем
+   (на тач hover «залипает» — исключаем). */
+@media (hover: hover) and (pointer: fine) {
+  .t-btn:hover:not(:disabled) {
+    transform: translateY(var(--btn-lift));
+    filter: brightness(var(--btn-brightness));
+    box-shadow: var(--btn-glow-neutral);
+  }
+  .t-btn-amber:hover:not(:disabled) { box-shadow: var(--btn-glow-amber); }
+  .t-btn-red:hover:not(:disabled)   { box-shadow: var(--btn-glow-red); }
+  .t-btn-green:hover:not(:disabled) { box-shadow: var(--btn-glow-green); }
+}
+
+/* Нажатие — на всех устройствах, включая тач. */
+.t-btn:active:not(:disabled) {
+  transform: translateY(0) scale(var(--btn-press-scale));
+  filter: brightness(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-btn { transition: none !important; }
+  .t-btn:hover:not(:disabled),
+  .t-btn:active:not(:disabled) {
+    transform: none !important;
+    filter: none !important;
+  }
+}

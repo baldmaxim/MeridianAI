@@ -43,7 +43,7 @@ export function AdminPage({ onBack, embedded }: Props) {
       {!embedded && (
         <div className="admin-topbar" style={styles.topBar}>
           {onBack && (
-            <button onClick={onBack} style={styles.backBtn}>
+            <button onClick={onBack} className="t-btn" style={styles.backBtn}>
               &larr; К переговорам
             </button>
           )}
@@ -65,6 +65,7 @@ export function AdminPage({ onBack, embedded }: Props) {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
+            className="t-btn"
             style={{ ...styles.tab, ...(tab === t.key ? styles.tabActive : {}) }}
           >
             {t.label}

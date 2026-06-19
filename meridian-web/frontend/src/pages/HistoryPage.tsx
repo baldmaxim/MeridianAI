@@ -160,7 +160,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
     <div className="history-container" style={styles.container}>
       {/* Top bar */}
       <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn}>&larr; К переговорам</button>
+        <button onClick={onBack} className="t-btn" style={styles.backBtn}>&larr; К переговорам</button>
         <span style={styles.topTitle}>ИСТОРИЯ ВСТРЕЧ</span>
         <span style={styles.topMeta}>{meetings.length} встреч</span>
       </div>
@@ -177,11 +177,11 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
         {/* Batch controls */}
         {meetings.length > 0 && (
           <div style={styles.batchBar}>
-            <button onClick={toggleAll} style={styles.selectAllBtn}>
+            <button onClick={toggleAll} className="t-btn" style={styles.selectAllBtn}>
               {selected.size === meetings.length ? 'Снять все' : 'Выбрать все'}
             </button>
             {selMode && !confirmBatch && (
-              <button onClick={() => setConfirmBatch(true)} style={styles.batchDeleteBtn}>
+              <button onClick={() => setConfirmBatch(true)} className="t-btn t-btn-red" style={styles.batchDeleteBtn}>
                 Удалить ({selected.size})
               </button>
             )}
@@ -190,10 +190,10 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                 <span style={{ color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 }}>
                   Удалить {selected.size} встреч?
                 </span>
-                <button onClick={handleBatchDelete} disabled={deleting} style={styles.confirmYes}>
+                <button onClick={handleBatchDelete} disabled={deleting} className="t-btn t-btn-red" style={styles.confirmYes}>
                   {deleting ? '...' : 'Да'}
                 </button>
-                <button onClick={() => setConfirmBatch(false)} style={styles.confirmNo}>Отмена</button>
+                <button onClick={() => setConfirmBatch(false)} className="t-btn" style={styles.confirmNo}>Отмена</button>
               </>
             )}
           </div>
@@ -206,6 +206,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
           <button
             key={key}
             onClick={() => setView(key)}
+            className="t-btn"
             style={view === key ? styles.viewTabActive : styles.viewTab}
           >
             {label}
@@ -238,7 +239,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') loadMeetings(); }}
         />
-        <button style={styles.filterBtn} onClick={loadMeetings}>Найти</button>
+        <button className="t-btn t-btn-amber" style={styles.filterBtn} onClick={loadMeetings}>Найти</button>
       </div>
 
       {/* Content */}
@@ -348,6 +349,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
               </button>
               {m.status === 'active' && (
                 <button
+                  className="t-btn t-btn-green"
                   style={styles.finalizeSide}
                   onClick={() => handleFinalize(m.id)}
                   disabled={finalizingId === m.id}
@@ -357,7 +359,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                 </button>
               )}
               {m.finalization_status === 'error' && (
-                <button style={styles.retrySide} onClick={() => handleRetry(m.id)} title="Повторить формирование протокола">↻</button>
+                <button className="t-btn t-btn-red" style={styles.retrySide} onClick={() => handleRetry(m.id)} title="Повторить формирование протокола">↻</button>
               )}
             </div>
           ))}

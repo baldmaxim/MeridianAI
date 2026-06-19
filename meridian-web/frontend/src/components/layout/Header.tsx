@@ -129,7 +129,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
           {navItems.map((it) => (
             <button
               key={it.label}
-              className="header-desktop-btn"
+              className="header-desktop-btn t-btn"
               onClick={it.onClick}
               style={it.active ? styles.adminBtnActive : styles.adminBtn}
             >
@@ -141,11 +141,11 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
               <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
             </span>
           )}
-          <button className="header-desktop-btn" onClick={onLogout} style={styles.logout}>
+          <button className="header-desktop-btn t-btn" onClick={onLogout} style={styles.logout}>
             Выход
           </button>
           <button
-            className="header-burger"
+            className="header-burger t-btn"
             style={styles.burger}
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Меню"
@@ -161,6 +161,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
             <button
               key={it.label}
               onClick={() => handleNav(it.onClick)}
+              className="t-btn"
               style={it.active ? styles.menuItemActive : styles.menuItem}
             >
               {it.label}
@@ -171,7 +172,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
               <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
             </div>
           )}
-          <button onClick={() => handleNav(onLogout)} style={styles.menuItem}>
+          <button onClick={() => handleNav(onLogout)} className="t-btn" style={styles.menuItem}>
             Выход
           </button>
         </div>

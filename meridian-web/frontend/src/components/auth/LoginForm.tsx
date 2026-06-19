@@ -50,7 +50,7 @@ export function LoginForm({ onLogin, onSwitchToRegister, error }: Props) {
         required
         style={styles.input}
       />
-      <button type="submit" disabled={loading} style={styles.button}>
+      <button type="submit" className="t-btn t-btn-amber" disabled={loading} style={styles.button}>
         {loading ? 'Вход...' : 'Войти'}
       </button>
       <p style={styles.switch}>

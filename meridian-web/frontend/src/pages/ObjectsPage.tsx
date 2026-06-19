@@ -68,7 +68,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
     <div className="objects-page" style={styles.container}>
       <div style={styles.topBar}>
         <span style={styles.title}>ОБЪЕКТЫ</span>
-        <button style={styles.addBtn} onClick={() => setShowCreate(true)}>+ Объект</button>
+        <button className="t-btn t-btn-amber" style={styles.addBtn} onClick={() => setShowCreate(true)}>+ Объект</button>
       </div>
 
       {objects.length > 0 && (

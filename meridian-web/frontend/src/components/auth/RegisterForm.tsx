@@ -68,7 +68,7 @@ export function RegisterForm({ onRegister, onSwitchToLogin, error }: Props) {
         minLength={6}
         style={styles.input}
       />
-      <button type="submit" disabled={loading} style={styles.button}>
+      <button type="submit" className="t-btn t-btn-amber" disabled={loading} style={styles.button}>
         {loading ? 'Регистрация...' : 'Зарегистрироваться'}
       </button>
       <p style={styles.switch}>
