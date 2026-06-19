@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { BatchJob } from '../api/batch';
-import { uploadBatchAudio, getBatchJobs, deleteBatchJob } from '../api/batch';
+import { useState } from 'react';
 import { BatchUpload } from '../components/batch/BatchUpload';
 import { BatchJobList } from '../components/batch/BatchJobList';
 import { BatchJobDetail } from '../components/batch/BatchJobDetail';
+import { useBatchJobs, useUploadBatch, useDeleteBatchJob } from '../hooks/queries/batch';
 import { theme } from '../styles/theme';
 
 interface Props {
@@ -11,43 +10,27 @@ interface Props {
 }
 
 export function BatchPage({ onBack }: Props) {
-  const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
 
-  const loadJobs = useCallback(async () => {
+  const { data: jobs = [] } = useBatchJobs(); // polling 5с внутри хука
+  const uploadMut = useUploadBatch();
+  const deleteMut = useDeleteBatchJob();
+
+  const handleUpload = async (file: File) => {
     try {
-      const data = await getBatchJobs();
-      setJobs(data);
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    loadJobs();
-    const timer = setInterval(loadJobs, 5000);
-    return () => clearInterval(timer);
-  }, [loadJobs]);
-
-  const handleUpload = useCallback(async (file: File) => {
-    setUploading(true);
-    try {
-      const job = await uploadBatchAudio(file);
+      const job = await uploadMut.mutateAsync(file);
       setSelectedId(job.id);
-      await loadJobs();
     } catch (e: any) {
       alert(e?.response?.data?.detail || 'Ошибка загрузки');
-    } finally {
-      setUploading(false);
     }
-  }, [loadJobs]);
+  };
 
-  const handleDelete = useCallback(async (id: number) => {
+  const handleDelete = async (id: number) => {
     try {
-      await deleteBatchJob(id);
+      await deleteMut.mutateAsync(id);
       if (selectedId === id) setSelectedId(null);
-      await loadJobs();
     } catch { /* ignore */ }
-  }, [selectedId, loadJobs]);
+  };
 
   return (
     <div className="batch-page" style={styles.container}>
@@ -57,7 +40,7 @@ export function BatchPage({ onBack }: Props) {
           <button onClick={onBack} style={styles.backBtn}>{'\u2190'} Назад</button>
           <h2 style={styles.title}>Оффлайн распознавание</h2>
         </div>
-        <BatchUpload onUpload={handleUpload} uploading={uploading} />
+        <BatchUpload onUpload={handleUpload} uploading={uploadMut.isPending} />
         <div style={{ marginTop: 16, flex: 1, overflowY: 'auto' }}>
           <BatchJobList
             jobs={jobs}

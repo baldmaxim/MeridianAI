@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { theme } from '../styles/theme';
-import { listObjects } from '../api/objects';
-import { listMeetings } from '../api/history';
 import { apiErrorMessage } from '../lib/apiError';
 import { ObjectCreateModal } from '../components/directory/ObjectCreateModal';
+import { useObjects, directoryKeys } from '../hooks/queries/directory';
+import { useMeetingsList } from '../hooks/queries/meetings';
 import type { ProjectObject } from '../types';
 
 interface Props {
@@ -18,32 +19,24 @@ function pluralMeetings(n: number): string {
 }
 
 export function ObjectsPage({ onOpenObject }: Props) {
-  const [objects, setObjects] = useState<ProjectObject[]>([]);
-  const [counts, setCounts] = useState<Record<number, number>>({});
+  const qc = useQueryClient();
+  const objectsQuery = useObjects();
+  const meetingsQuery = useMeetingsList(); // для счётчиков встреч по объектам
+  const objects = objectsQuery.data ?? [];
   const [q, setQ] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try {
-      const [objs, meetings] = await Promise.all([listObjects(), listMeetings()]);
-      const map: Record<number, number> = {};
-      for (const m of meetings) {
-        if (m.object_id != null) map[m.object_id] = (map[m.object_id] || 0) + 1;
-      }
-      setObjects(objs);
-      setCounts(map);
-    } catch (e) {
-      setError(apiErrorMessage(e, 'Не удалось загрузить объекты'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loading = objectsQuery.isPending;
+  const error = objectsQuery.error ? apiErrorMessage(objectsQuery.error, 'Не удалось загрузить объекты') : '';
 
-  useEffect(() => { load(); }, [load]);
+  const counts = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const m of meetingsQuery.data ?? []) {
+      if (m.object_id != null) map[m.object_id] = (map[m.object_id] || 0) + 1;
+    }
+    return map;
+  }, [meetingsQuery.data]);
 
   const term = q.trim().toLowerCase();
   const filtered = term
@@ -134,7 +127,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
       <ObjectCreateModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        onCreated={() => { setShowCreate(false); load(); }}
+        onCreated={() => { setShowCreate(false); qc.invalidateQueries({ queryKey: directoryKeys.objectsAll }); }}
       />
     </div>
   );

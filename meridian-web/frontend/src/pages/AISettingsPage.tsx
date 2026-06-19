@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { theme } from '../styles/theme';
+import { Select, Combobox } from '../components/common';
 import { apiErrorMessage } from '../lib/apiError';
 import {
-  listProfiles, createProfile, updateProfile, deleteProfile, makeDefaultProfile, getOptions,
-} from '../api/aiSettings';
-import type { AISettingsProfile, AISettingsProfileInput, AISettingsOptions, SuggestionMode } from '../types';
+  useProfiles, useAiOptions, useCreateProfile, useUpdateProfile, useDeleteProfile, useMakeDefaultProfile,
+} from '../hooks/queries/aiSettings';
+import type { AISettingsProfile, AISettingsProfileInput, SuggestionMode } from '../types';
 
 interface Props { onBack: () => void; }
 
@@ -54,21 +55,25 @@ function blankDraft(): AISettingsProfileInput {
 }
 
 export function AISettingsPage({ onBack }: Props) {
-  const [profiles, setProfiles] = useState<AISettingsProfile[]>([]);
-  const [options, setOptions] = useState<AISettingsOptions | null>(null);
   const [selectedId, setSelectedId] = useState<number | 'new' | null>(null);
   const [draft, setDraft] = useState<AISettingsProfileInput>(blankDraft());
   const [advanced, setAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try { setProfiles(await listProfiles()); }
-    catch (e) { setError(apiErrorMessage(e, 'Не удалось загрузить профили')); }
-  }, []);
+  // profiles и options грузятся параллельно (нет водопада)
+  const profilesRes = useProfiles();
+  const { data: options = null } = useAiOptions();
+  const profiles = profilesRes.data ?? [];
 
-  useEffect(() => { load(); getOptions().then(setOptions).catch(() => {}); }, [load]);
+  const createMut = useCreateProfile();
+  const updateMut = useUpdateProfile();
+  const deleteMut = useDeleteProfile();
+  const makeDefaultMut = useMakeDefaultProfile();
+  const busy = createMut.isPending || updateMut.isPending || deleteMut.isPending || makeDefaultMut.isPending;
+
+  // ошибка действий (error state) + ошибка загрузки профилей из query
+  const displayError = error ?? (profilesRes.error ? apiErrorMessage(profilesRes.error, 'Не удалось загрузить профили') : null);
 
   function selectProfile(p: AISettingsProfile) {
     setSelectedId(p.id);
@@ -84,33 +89,30 @@ export function AISettingsPage({ onBack }: Props) {
 
   async function save() {
     if (!draft.name?.trim()) { setError('Укажите название профиля'); return; }
-    setBusy(true); setError(null); setInfo(null);
+    setError(null); setInfo(null);
     try {
       if (selectedId === 'new') {
-        const p = await createProfile(draft);
-        setInfo('Профиль создан'); await load(); selectProfile(p);
+        const p = await createMut.mutateAsync(draft);
+        setInfo('Профиль создан'); selectProfile(p);
       } else if (typeof selectedId === 'number') {
-        const p = await updateProfile(selectedId, draft);
-        setInfo('Сохранено'); await load(); setDraft({ ...p });
+        const p = await updateMut.mutateAsync({ id: selectedId, body: draft });
+        setInfo('Сохранено'); setDraft({ ...p });
       }
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось сохранить профиль')); }
-    finally { setBusy(false); }
   }
 
   async function makeDefault(id: number) {
-    setBusy(true); setError(null);
-    try { await makeDefaultProfile(id); await load(); setInfo('Профиль по умолчанию обновлён'); }
+    setError(null);
+    try { await makeDefaultMut.mutateAsync(id); setInfo('Профиль по умолчанию обновлён'); }
     catch (e) { setError(apiErrorMessage(e, 'Не удалось')); }
-    finally { setBusy(false); }
   }
 
   async function remove(id: number) {
-    setBusy(true); setError(null);
+    setError(null);
     try {
-      await deleteProfile(id); await load();
+      await deleteMut.mutateAsync(id);
       if (selectedId === id) { setSelectedId(null); setDraft(blankDraft()); }
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось удалить (профиль по умолчанию удалить нельзя)')); }
-    finally { setBusy(false); }
   }
 
   return (
@@ -122,7 +124,7 @@ export function AISettingsPage({ onBack }: Props) {
         <button onClick={startNew} style={styles.newBtn}>+ Новый профиль</button>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {displayError && <div style={styles.error}>{displayError}</div>}
       {info && <div style={styles.info}>{info}</div>}
 
       <div style={styles.layout}>
@@ -168,34 +170,32 @@ export function AISettingsPage({ onBack }: Props) {
             <div style={styles.grid2}>
               <div>
                 <label style={styles.lbl}>STT-провайдер</label>
-                <select style={styles.input} value={draft.stt_provider || ''}
-                        onChange={(e) => set('stt_provider', e.target.value || null)}>
-                  <option value="">по умолчанию</option>
-                  {(options?.available_stt_providers || []).map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <Select style={styles.input} value={draft.stt_provider || ''}
+                        ariaLabel="STT-провайдер"
+                        onChange={(v) => set('stt_provider', v || null)}
+                        options={[{ value: '', label: 'по умолчанию' },
+                          ...(options?.available_stt_providers || []).map((p) => ({ value: p, label: p }))]} />
               </div>
               <div>
                 <label style={styles.lbl}>LLM-провайдер</label>
-                <select style={styles.input} value={draft.llm_provider || ''}
-                        onChange={(e) => set('llm_provider', e.target.value || null)}>
-                  <option value="">по умолчанию</option>
-                  {(options?.available_llm_providers || []).map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <Select style={styles.input} value={draft.llm_provider || ''}
+                        ariaLabel="LLM-провайдер"
+                        onChange={(v) => set('llm_provider', v || null)}
+                        options={[{ value: '', label: 'по умолчанию' },
+                          ...(options?.available_llm_providers || []).map((p) => ({ value: p, label: p }))]} />
               </div>
             </div>
 
             {MODEL_FIELDS.map((f) => (
               <div key={f.key}>
                 <label style={styles.lbl}>{f.label}</label>
-                <input style={styles.input} list="llm-models"
-                       value={(draft[f.key] as string) || ''}
-                       placeholder="по умолчанию (из config)"
-                       onChange={(e) => set(f.key as keyof AISettingsProfileInput, (e.target.value || null) as never)} />
+                <Combobox style={styles.input}
+                          value={(draft[f.key] as string) || ''}
+                          placeholder="по умолчанию (из config)"
+                          options={options?.available_llm_models || []}
+                          onChange={(v) => set(f.key as keyof AISettingsProfileInput, (v || null) as never)} />
               </div>
             ))}
-            <datalist id="llm-models">
-              {(options?.available_llm_models || []).map((m) => <option key={m} value={m} />)}
-            </datalist>
 
             <label style={styles.lbl}>Возможности</label>
             <div style={styles.toggles}>

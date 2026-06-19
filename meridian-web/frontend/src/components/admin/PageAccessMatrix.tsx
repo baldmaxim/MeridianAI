@@ -1,20 +1,12 @@
-import { useState, useEffect } from 'react';
-import { getPageAccess, updatePageAccess } from '../../api/pageAccess';
-import type { PageAccessConfig } from '../../types';
+import { usePageAccess, useUpdatePageAccess } from '../../hooks/queries/admin';
 import { theme } from '../../styles/theme';
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Админ', user: 'Пользователь' };
 
 export function PageAccessMatrix() {
-  const [config, setConfig] = useState<PageAccessConfig | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = async () => {
-    try { setConfig(await getPageAccess()); }
-    catch { setError('Не удалось загрузить настройки доступа'); }
-  };
-  useEffect(() => { load(); }, []);
+  const { data: config, isPending, isError } = usePageAccess();
+  const updateMut = useUpdatePageAccess();
+  const saving = updateMut.isPending;
 
   const header = (
     <div style={styles.header}>
@@ -24,7 +16,8 @@ export function PageAccessMatrix() {
   );
 
   if (!config) {
-    return <div style={styles.container}>{header}<div style={styles.muted}>{error || 'Загрузка…'}</div></div>;
+    const msg = isError ? 'Не удалось загрузить настройки доступа' : isPending ? 'Загрузка…' : '';
+    return <div style={styles.container}>{header}<div style={styles.muted}>{msg}</div></div>;
   }
 
   const roleNames = config.roles.map((r) => r.role_name);
@@ -32,25 +25,18 @@ export function PageAccessMatrix() {
   config.roles.forEach((r) => { allowedByRole[r.role_name] = new Set(r.allowed_pages); });
   const isLocked = (role: string, key: string) => (config.locked[role] || []).includes(key);
 
-  const toggle = async (role: string, key: string) => {
+  const toggle = (role: string, key: string) => {
     if (saving || isLocked(role, key)) return;
     const next = new Set(allowedByRole[role]);
     if (next.has(key)) next.delete(key); else next.add(key);
-    setSaving(true); setError('');
-    try {
-      await updatePageAccess(role, Array.from(next));
-      await load();
-    } catch {
-      setError('Не удалось сохранить');
-    } finally {
-      setSaving(false);
-    }
+    // оптимистичное обновление + откат/инвалидация + показ ошибки — внутри useUpdatePageAccess
+    updateMut.mutate({ role, allowedPages: Array.from(next) });
   };
 
   return (
     <div style={styles.container}>
       {header}
-      {error && <div style={styles.error}>{error}</div>}
+      {updateMut.isError && <div style={styles.error}>Не удалось сохранить</div>}
       <div style={styles.tableWrap}>
         <table style={styles.table}>
           <thead>

@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { User } from '../../types';
-import { listUsers, updateUser, deleteUser, type UserPatch } from '../../api/users';
-import { getMe } from '../../api/auth';
+import { type UserPatch } from '../../api/users';
+import { useUsers, useUpdateUser, useDeleteUser } from '../../hooks/queries/admin';
+import { useMe } from '../../hooks/queries/auth';
 import { theme } from '../../styles/theme';
+import { Select } from '../common';
 
 const AVATAR_COLORS = ['#F5A623', '#5B9CF6', '#2EE59D', '#A78BFA', '#FF4B6E', '#36D8B7'];
 
@@ -34,25 +36,17 @@ function getInitials(user: User): string {
 }
 
 export function UserManager() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [editing, setEditing] = useState<User | null>(null);
 
-  const loadUsers = async () => {
-    try {
-      setUsers(await listUsers());
-    } catch {}
-  };
-
-  useEffect(() => {
-    loadUsers();
-    getMe().then((me) => setCurrentUserId(me.id)).catch(() => {});
-  }, []);
+  const { data: users = [] } = useUsers();
+  const { data: me } = useMe();
+  const currentUserId = me?.id ?? null;
+  const updateUserMut = useUpdateUser();
+  const deleteUserMut = useDeleteUser();
 
   const toggleActive = async (user: User) => {
     try {
-      await updateUser(user.id, { is_active: !user.is_active });
-      await loadUsers();
+      await updateUserMut.mutateAsync({ id: user.id, patch: { is_active: !user.is_active } });
     } catch {}
   };
 
@@ -64,8 +58,7 @@ export function UserManager() {
     );
     if (!ok) return;
     try {
-      await deleteUser(user.id);
-      await loadUsers();
+      await deleteUserMut.mutateAsync(user.id);
     } catch {}
   };
 
@@ -145,7 +138,7 @@ export function UserManager() {
           user={editing}
           isSelf={editing.id === currentUserId}
           onClose={() => setEditing(null)}
-          onSaved={async () => { setEditing(null); await loadUsers(); }}
+          onSaved={() => setEditing(null)}
         />
       )}
     </div>
@@ -163,6 +156,7 @@ function EditUserModal({ user, isSelf, onClose, onSaved }: {
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const updateUserMut = useUpdateUser();
 
   const save = async () => {
     setError('');
@@ -176,7 +170,7 @@ function EditUserModal({ user, isSelf, onClose, onSaved }: {
 
     setSaving(true);
     try {
-      await updateUser(user.id, patch);
+      await updateUserMut.mutateAsync({ id: user.id, patch });
       onSaved();
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -201,15 +195,14 @@ function EditUserModal({ user, isSelf, onClose, onSaved }: {
         />
 
         <label style={styles.label}>Роль</label>
-        <select
+        <Select
           style={styles.input}
           value={role}
           disabled={isSelf}
-          onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
-        >
-          <option value="user">user</option>
-          <option value="admin">admin</option>
-        </select>
+          onChange={(v) => setRole(v as 'user' | 'admin')}
+          options={[{ value: 'user', label: 'user' }, { value: 'admin', label: 'admin' }]}
+          ariaLabel="Роль"
+        />
         {isSelf && <div style={styles.hint}>Нельзя менять собственную роль</div>}
 
         <label style={styles.label}>Новый пароль</label>

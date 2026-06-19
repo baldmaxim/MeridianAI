@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { User } from '../types';
 import { login as apiLogin, register as apiRegister, getMe } from '../api/auth';
+import { queryClient } from '../lib/queryClient';
+import { authKeys } from './queries/auth';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -16,9 +18,13 @@ export function useAuth() {
     const token = localStorage.getItem('token');
     if (token) {
       getMe()
-        .then(setUser)
+        .then((me) => {
+          queryClient.setQueryData(authKeys.me, me); // засеять кэш → useMe не дёргает /auth/me повторно
+          setUser(me);
+        })
         .catch(() => {
           localStorage.removeItem('token');
+          queryClient.clear();
           setUser(null);
         })
         .finally(() => setLoading(false));
@@ -30,7 +36,9 @@ export function useAuth() {
   const login = useCallback(async (email: string, password: string) => {
     const res = await apiLogin(email, password);
     localStorage.setItem('token', res.access_token);
+    queryClient.clear(); // сбросить кэш предыдущей сессии (защита от показа чужих данных)
     const me = await getMe();
+    queryClient.setQueryData(authKeys.me, me);
     setUser(me);
     return me;
   }, []);
@@ -38,13 +46,16 @@ export function useAuth() {
   const register = useCallback(async (email: string, password: string, displayName?: string, department?: string) => {
     const res = await apiRegister(email, password, displayName, department);
     localStorage.setItem('token', res.access_token);
+    queryClient.clear();
     const me = await getMe();
+    queryClient.setQueryData(authKeys.me, me);
     setUser(me);
     return me;
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
+    queryClient.clear(); // очистить весь кэш данных при выходе
     setUser(null);
   }, []);
 

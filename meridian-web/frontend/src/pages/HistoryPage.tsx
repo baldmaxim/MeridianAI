@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { theme } from '../styles/theme';
-import { listMeetings, batchDeleteMeetings } from '../api/history';
-import { retryFinalization, finalizeMeeting } from '../api/finalization';
-import { listCustomers } from '../api/customers';
-import { listObjects } from '../api/objects';
-import type { MeetingListItem, Customer, ProjectObject, FinalizationStatus } from '../types';
+import type { FinalizationStatus } from '../types';
+import { Select } from '../components/common';
+import {
+  useMeetingsList, useFinalizeMeeting, useRetryFinalization, useBatchDeleteMeetings,
+} from '../hooks/queries/meetings';
+import { useCustomers, useObjects } from '../hooks/queries/directory';
 
 const FIN_LABELS: Record<string, string> = {
   queued: 'сохраняется', running: 'протокол…', completed: 'протокол готов',
@@ -54,64 +55,50 @@ function formatDuration(recordedSeconds: number | null | undefined): string {
 }
 
 export function HistoryPage({ onBack, onSelectMeeting }: Props) {
-  const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [deleting, setDeleting] = useState(false);
   const [confirmBatch, setConfirmBatch] = useState(false);
   const [finalizingId, setFinalizingId] = useState<number | null>(null);
 
   // Завершённые (по умолчанию) | Черновики (active) | Все
   const [view, setView] = useState<'finished' | 'drafts' | 'all'>('finished');
 
-  // Этап 1 MVP: фильтры по заказчику/объекту + поиск
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [objects, setObjects] = useState<ProjectObject[]>([]);
+  // Этап 1 MVP: фильтры по заказчику/объекту + поиск (поиск применяется по кнопке/Enter)
   const [filterCustomerId, setFilterCustomerId] = useState<number | ''>('');
   const [filterObjectId, setFilterObjectId] = useState<number | ''>('');
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
-  useEffect(() => {
-    listCustomers().then(setCustomers).catch(() => { /* пусто */ });
-  }, []);
+  const { data: customers = [] } = useCustomers();
+  const { data: objects = [] } = useObjects(filterCustomerId === '' ? undefined : filterCustomerId);
 
-  useEffect(() => {
-    listObjects(filterCustomerId === '' ? undefined : filterCustomerId)
-      .then(setObjects)
-      .catch(() => setObjects([]));
-    setFilterObjectId('');
-  }, [filterCustomerId]);
+  const meetingsQuery = useMeetingsList({
+    customer_id: filterCustomerId === '' ? undefined : filterCustomerId,
+    object_id: filterObjectId === '' ? undefined : filterObjectId,
+    q: appliedSearch || undefined,
+    include_active: view !== 'finished',
+    status: view === 'drafts' ? 'active' : undefined,
+  });
+  const meetings = meetingsQuery.data ?? [];
+  const loading = meetingsQuery.isPending;
+  const error = meetingsQuery.isError ? 'Ошибка загрузки истории' : '';
 
-  useEffect(() => {
-    loadMeetings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCustomerId, filterObjectId, view]);
+  const finalizeMut = useFinalizeMeeting();
+  const retryMut = useRetryFinalization();
+  const batchDeleteMut = useBatchDeleteMeetings();
+  const deleting = batchDeleteMut.isPending;
 
-  async function loadMeetings() {
-    try {
-      setLoading(true);
-      const data = await listMeetings({
-        customer_id: filterCustomerId === '' ? undefined : filterCustomerId,
-        object_id: filterObjectId === '' ? undefined : filterObjectId,
-        q: search.trim() || undefined,
-        include_active: view !== 'finished',
-        status: view === 'drafts' ? 'active' : undefined,
-      });
-      setMeetings(data);
-    } catch {
-      setError('Ошибка загрузки истории');
-    } finally {
-      setLoading(false);
-    }
+  const applySearch = () => setAppliedSearch(search.trim());
+
+  function onCustomerChange(v: number | '') {
+    setFilterCustomerId(v);
+    setFilterObjectId(''); // сброс объекта при смене заказчика
   }
 
   async function handleFinalize(id: number) {
     if (finalizingId != null) return;
     setFinalizingId(id);
     try {
-      await finalizeMeeting(id);
-      await loadMeetings();
+      await finalizeMut.mutateAsync(id);
     } catch { /* ignore */ } finally {
       setFinalizingId(null);
     }
@@ -136,21 +123,16 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
 
   async function handleBatchDelete() {
     if (selected.size === 0 || deleting) return;
-    setDeleting(true);
     try {
-      await batchDeleteMeetings([...selected]);
-      setMeetings((prev) => prev.filter((m) => !selected.has(m.id)));
+      await batchDeleteMut.mutateAsync([...selected]);
       setSelected(new Set());
       setConfirmBatch(false);
-    } catch { /* ignore */ } finally {
-      setDeleting(false);
-    }
+    } catch { /* ignore */ }
   }
 
   async function handleRetry(id: number) {
     try {
-      await retryFinalization(id);
-      await loadMeetings();
+      await retryMut.mutateAsync(id);
     } catch { /* ignore */ }
   }
 
@@ -216,30 +198,30 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
 
       {/* Фильтры (Этап 1 MVP) */}
       <div style={styles.filters}>
-        <select
+        <Select
           style={styles.filterSelect}
-          value={filterCustomerId}
-          onChange={(e) => setFilterCustomerId(e.target.value === '' ? '' : Number(e.target.value))}
-        >
-          <option value="">Все заказчики</option>
-          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select
+          ariaLabel="Фильтр по заказчику"
+          value={String(filterCustomerId)}
+          onChange={(v) => onCustomerChange(v === '' ? '' : Number(v))}
+          options={[{ value: '', label: 'Все заказчики' },
+            ...customers.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
+        <Select
           style={styles.filterSelect}
-          value={filterObjectId}
-          onChange={(e) => setFilterObjectId(e.target.value === '' ? '' : Number(e.target.value))}
-        >
-          <option value="">Все объекты</option>
-          {objects.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
+          ariaLabel="Фильтр по объекту"
+          value={String(filterObjectId)}
+          onChange={(v) => setFilterObjectId(v === '' ? '' : Number(v))}
+          options={[{ value: '', label: 'Все объекты' },
+            ...objects.map((o) => ({ value: String(o.id), label: o.name }))]}
+        />
         <input
           style={styles.filterInput}
           placeholder="Поиск по названию/теме…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') loadMeetings(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') applySearch(); }}
         />
-        <button className="t-btn t-btn-amber" style={styles.filterBtn} onClick={loadMeetings}>Найти</button>
+        <button className="t-btn t-btn-amber" style={styles.filterBtn} onClick={applySearch}>Найти</button>
       </div>
 
       {/* Content */}

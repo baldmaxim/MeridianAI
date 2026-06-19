@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
-import { listCandidates, approveCandidate, rejectCandidate, patchCandidate } from '../../api/learning';
+import { useCandidates, useApproveCandidate, useRejectCandidate, usePatchCandidate } from '../../hooks/queries/learning';
 import type { LearningCandidate, LearningCandidateType } from '../../types';
 
 interface Props {
@@ -48,31 +48,23 @@ function summary(c: LearningCandidate): string {
 }
 
 export function LearningCandidates({ meetingId, onChange, compact }: Props) {
-  const [items, setItems] = useState<LearningCandidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, error: queryError } = useCandidates(meetingId);
+  const items = data ?? [];
+  const approveMut = useApproveCandidate();
+  const rejectMut = useRejectCandidate();
+  const patchMut = usePatchCandidate();
+
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
+  async function act(id: number, runner: (id: number) => Promise<unknown>) {
+    setBusyId(id); setActionError(null);
     try {
-      const data = await listCandidates({ status: 'pending', ...(meetingId != null ? { meeting_id: meetingId } : {}) });
-      setItems(data);
-    } catch (e) { setError(apiErrorMessage(e, 'Не удалось загрузить кандидатов')); }
-    finally { setLoading(false); }
-  }, [meetingId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function act(id: number, fn: (id: number) => Promise<unknown>) {
-    setBusyId(id); setError(null);
-    try {
-      await fn(id);
-      setItems((xs) => xs.filter((x) => x.id !== id));
+      await runner(id);
       onChange?.();
-    } catch (e) { setError(apiErrorMessage(e, 'Действие не выполнено')); }
+    } catch (e) { setActionError(apiErrorMessage(e, 'Действие не выполнено')); }
     finally { setBusyId(null); }
   }
 
@@ -84,18 +76,18 @@ export function LearningCandidates({ meetingId, onChange, compact }: Props) {
   }
 
   async function saveEdit(c: LearningCandidate) {
-    setBusyId(c.id); setError(null);
+    setBusyId(c.id); setActionError(null);
     try {
       const payload = { ...c.payload };
       for (const [key] of EDIT_FIELDS[c.candidate_type]) payload[key] = draft[key] ?? '';
-      const updated = await patchCandidate(c.id, { title: draft.__title, payload });
-      setItems((xs) => xs.map((x) => (x.id === c.id ? updated : x)));
+      await patchMut.mutateAsync({ id: c.id, patch: { title: draft.__title, payload } });
       setEditId(null);
-    } catch (e) { setError(apiErrorMessage(e, 'Не удалось сохранить')); }
+    } catch (e) { setActionError(apiErrorMessage(e, 'Не удалось сохранить')); }
     finally { setBusyId(null); }
   }
 
-  if (loading) return <div style={styles.muted}>Загрузка кандидатов…</div>;
+  if (isPending) return <div style={styles.muted}>Загрузка кандидатов…</div>;
+  const error = actionError ?? (queryError ? apiErrorMessage(queryError, 'Не удалось загрузить кандидатов') : null);
   if (error) return <div style={styles.error}>{error}</div>;
   if (items.length === 0) {
     return <div style={styles.muted}>{meetingId != null ? 'Новых элементов не предложено' : 'Нет кандидатов на проверку'}</div>;
@@ -142,8 +134,8 @@ export function LearningCandidates({ meetingId, onChange, compact }: Props) {
 
           {editId !== c.id && (
             <div style={styles.actions}>
-              <button style={styles.approve} disabled={busyId === c.id} onClick={() => act(c.id, approveCandidate)}>В базу знаний</button>
-              <button style={styles.reject} disabled={busyId === c.id} onClick={() => act(c.id, rejectCandidate)}>Отклонить</button>
+              <button style={styles.approve} disabled={busyId === c.id} onClick={() => act(c.id, (id) => approveMut.mutateAsync(id))}>В базу знаний</button>
+              <button style={styles.reject} disabled={busyId === c.id} onClick={() => act(c.id, (id) => rejectMut.mutateAsync(id))}>Отклонить</button>
               <button style={styles.ghost} disabled={busyId === c.id} onClick={() => startEdit(c)}>Изменить</button>
             </div>
           )}

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { getSettings, updateSettings as apiUpdateSettings, getActiveProviders } from '../api/settings';
+import { useState, useCallback, useRef } from 'react';
+import { useSettings, useActiveProviders, useUpdateSettings } from '../hooks/queries/settings';
 import { useMeetingStore } from '../store/meetingStore';
 import { STTSettings } from '../components/settings/STTSettings';
 import { LLMSettings } from '../components/settings/LLMSettings';
@@ -43,10 +43,17 @@ interface Props {
 }
 
 export function SettingsPage({ onBack, embedded }: Props) {
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  // server-данные кэшируются (мгновенно при повторном заходе); локальная копия — для редактирования
+  const { data: serverSettings } = useSettings();
+  const { data: activeServices } = useActiveProviders();
+  const updateMut = useUpdateSettings();
+  const applying = updateMut.isPending;
+
+  // эффективная копия для редактирования: локальные правки поверх кэша/сервера (без seed-эффекта)
+  const [edited, setEdited] = useState<UserSettings | null>(null);
+  const settings = edited ?? serverSettings ?? null;
+  const setSettings = setEdited;
   const [section, setSection] = useState('stt');
-  const [activeServices, setActiveServices] = useState<string[]>();
-  const [applying, setApplying] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const setCustomSuggestionTypes = useMeetingStore((s) => s.setCustomSuggestionTypes);
@@ -57,24 +64,16 @@ export function SettingsPage({ onBack, embedded }: Props) {
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
-  useEffect(() => {
-    getSettings().then(setSettings).catch(() => {});
-    getActiveProviders().then(setActiveServices).catch(() => {});
-  }, []);
-
   const handleApply = useCallback(async () => {
     if (!settings || applying) return;
-    setApplying(true);
     try {
-      await apiUpdateSettings(settings);
+      await updateMut.mutateAsync(settings);
       setCustomSuggestionTypes(settings.custom_suggestion_types);
       showToast('Настройки сохранены', 'success');
     } catch {
       showToast('Ошибка сохранения настроек', 'error');
-    } finally {
-      setApplying(false);
     }
-  }, [settings, applying, setCustomSuggestionTypes, showToast]);
+  }, [settings, applying, updateMut, setCustomSuggestionTypes, showToast]);
 
   return (
     <div style={embedded ? styles.containerEmbedded : styles.container}>

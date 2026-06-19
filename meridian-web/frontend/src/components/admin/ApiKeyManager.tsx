@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { listApiKeys, createApiKey, deleteApiKey, updateApiKey } from '../../api/settings';
+import { useState } from 'react';
+import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey } from '../../hooks/queries/admin';
 import type { ApiKeyInfo } from '../../types';
 import { theme } from '../../styles/theme';
+import { Select } from '../common';
 
 const SERVICES = ['openrouter', 'deepgram', 'elevenlabs', 'gemini', 'speechmatics'];
 
@@ -14,41 +15,32 @@ const SERVICE_COLORS: Record<string, string> = {
 };
 
 export function ApiKeyManager() {
-  const [keys, setKeys] = useState<ApiKeyInfo[]>([]);
   const [service, setService] = useState('openrouter');
   const [apiKey, setApiKey] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const loadKeys = async () => {
-    try {
-      const data = await listApiKeys();
-      setKeys(data);
-    } catch {}
-  };
-
-  useEffect(() => { loadKeys(); }, []);
+  const { data: keys = [] } = useApiKeys();
+  const createKey = useCreateApiKey();
+  const updateKey = useUpdateApiKey();
+  const deleteKey = useDeleteApiKey();
 
   const handleAdd = async () => {
     if (!apiKey.trim()) return;
-    setLoading(true);
     try {
-      await createApiKey(service, apiKey);
+      await createKey.mutateAsync({ service, apiKey });
       setApiKey('');
-      await loadKeys();
     } catch {}
-    setLoading(false);
   };
 
   const handleToggle = async (k: ApiKeyInfo) => {
     try {
-      await updateApiKey(k.id, { is_active: !k.is_active });
-      await loadKeys();
+      await updateKey.mutateAsync({ id: k.id, updates: { is_active: !k.is_active } });
     } catch {}
   };
 
   const handleDelete = async (id: number) => {
-    await deleteApiKey(id);
-    await loadKeys();
+    try {
+      await deleteKey.mutateAsync(id);
+    } catch {}
   };
 
   return (
@@ -59,9 +51,13 @@ export function ApiKeyManager() {
       </div>
 
       <div className="admin-add-row" style={styles.addRow}>
-        <select value={service} onChange={(e) => setService(e.target.value)} style={styles.select}>
-          {SERVICES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <Select
+          value={service}
+          onChange={setService}
+          options={SERVICES.map((s) => ({ value: s, label: s }))}
+          style={styles.select}
+          ariaLabel="Сервис"
+        />
         <input
           type="password"
           placeholder="API ключ"
@@ -69,7 +65,7 @@ export function ApiKeyManager() {
           onChange={(e) => setApiKey(e.target.value)}
           style={styles.input}
         />
-        <button onClick={handleAdd} disabled={loading} className="t-btn t-btn-amber" style={styles.addBtn}>
+        <button onClick={handleAdd} disabled={createKey.isPending} className="t-btn t-btn-amber" style={styles.addBtn}>
           Добавить
         </button>
       </div>

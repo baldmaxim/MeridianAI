@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import type { BatchJobDetail as BatchJobDetailType } from '../../api/batch';
-import { getBatchJob, downloadBatchResult } from '../../api/batch';
+import { useState } from 'react';
+import { downloadBatchResult } from '../../api/batch';
+import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { theme } from '../../styles/theme';
 
@@ -11,50 +11,19 @@ interface Props {
 type Tab = 'transcript' | 'protocol';
 
 export function BatchJobDetail({ jobId }: Props) {
-  const [job, setJob] = useState<BatchJobDetailType | null>(null);
-  const [tab, setTab] = useState<Tab>('transcript');
-  const [loading, setLoading] = useState(true);
+  const { data: job } = useBatchJob(jobId); // polling/стоп внутри хука
+  const [tab, setTab] = useState<Tab | null>(null); // null = авто-выбор по данным
 
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    const load = async () => {
-      try {
-        const data = await getBatchJob(jobId);
-        if (!cancelled) {
-          setJob(data);
-          setLoading(false);
-          // Auto-switch to protocol tab when available
-          if (data.protocol_markdown && !data.transcription_text) {
-            setTab('protocol');
-          }
-          // Stop polling when done or error
-          if (data.status === 'done' || data.status === 'error') {
-            if (timer) clearInterval(timer);
-          }
-        }
-      } catch {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
-    timer = setInterval(load, 3000);
-
-    return () => {
-      cancelled = true;
-      if (timer) clearInterval(timer);
-    };
-  }, [jobId]);
-
-  if (loading || !job) {
+  if (!job) {
     return (
       <div style={{ padding: 20, textAlign: 'center', color: theme.text.muted, fontSize: 12 }}>
         Загрузка...
       </div>
     );
   }
+
+  // авто-протокол, когда он готов, а транскрипта нет; пока пользователь не выберет вручную
+  const activeTab: Tab = tab ?? (job.protocol_markdown && !job.transcription_text ? 'protocol' : 'transcript');
 
   const isProcessing = !['done', 'error'].includes(job.status);
 
@@ -108,10 +77,10 @@ export function BatchJobDetail({ jobId }: Props) {
       {(job.transcription_text || job.protocol_markdown) && (
         <>
           <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${theme.border.default}`, paddingBottom: 0 }}>
-            <TabButton active={tab === 'transcript'} onClick={() => setTab('transcript')} disabled={!job.transcription_text}>
+            <TabButton active={activeTab === 'transcript'} onClick={() => setTab('transcript')} disabled={!job.transcription_text}>
               Транскрипция
             </TabButton>
-            <TabButton active={tab === 'protocol'} onClick={() => setTab('protocol')} disabled={!job.protocol_markdown}>
+            <TabButton active={activeTab === 'protocol'} onClick={() => setTab('protocol')} disabled={!job.protocol_markdown}>
               Протокол
             </TabButton>
           </div>
@@ -132,7 +101,7 @@ export function BatchJobDetail({ jobId }: Props) {
               wordBreak: 'break-word',
             }}
           >
-            {tab === 'transcript' ? job.transcription_text : job.protocol_markdown}
+            {activeTab === 'transcript' ? job.transcription_text : job.protocol_markdown}
           </div>
 
           {/* Download buttons */}

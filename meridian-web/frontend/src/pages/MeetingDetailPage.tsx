@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { theme } from '../styles/theme';
 import { ProtocolSection } from '../components/protocol/ProtocolSection';
 import { LearningCandidates } from '../components/learning/LearningCandidates';
 import { PreviousMeetingsContext } from '../components/context/PreviousMeetingsContext';
-import { getMeetingDetail, updateMeetingTitle, deleteMeeting, continueMeeting } from '../api/history';
+import {
+  useMeetingDetail, useUpdateMeetingTitle, useDeleteMeeting, useContinueMeeting,
+} from '../hooks/queries/meetings';
 import type { MeetingDetail, MeetingSuggestionRecord, TranscriptSegmentRecord } from '../types';
 
 interface Props {
@@ -54,56 +56,47 @@ function getSpeakerColor(speaker: string): string {
 }
 
 export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = 'К истории' }: Props) {
-  const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: meeting, isPending, isError } = useMeetingDetail(meetingId);
+  const updateTitleMut = useUpdateMeetingTitle();
+  const deleteMut = useDeleteMeeting();
+  const continueMut = useContinueMeeting();
+
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [mobileTab, setMobileTab] = useState<'transcript' | 'suggestions' | 'context'>('transcript');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    loadMeeting();
-  }, [meetingId]);
-
-  async function loadMeeting() {
-    try {
-      setLoading(true);
-      const data = await getMeetingDetail(meetingId);
-      setMeeting(data);
-      setTitleDraft(data.title || '');
-    } catch {
-      setError('Ошибка загрузки встречи');
-    } finally {
-      setLoading(false);
-    }
+  function startEditTitle() {
+    setTitleDraft(meeting?.title || '');
+    setEditingTitle(true);
   }
 
   async function saveTitle() {
     if (!meeting || !titleDraft.trim()) return;
     try {
-      await updateMeetingTitle(meetingId, titleDraft.trim());
-      setMeeting({ ...meeting, title: titleDraft.trim() });
+      await updateTitleMut.mutateAsync({ id: meetingId, title: titleDraft.trim() });
       setEditingTitle(false);
     } catch { /* ignore */ }
   }
 
   async function handleDelete() {
     try {
-      await deleteMeeting(meetingId);
+      await deleteMut.mutateAsync(meetingId);
       onBack();
     } catch { /* ignore */ }
   }
 
   async function handleContinue() {
     try {
-      await continueMeeting(meetingId);
+      await continueMut.mutateAsync(meetingId);
       onContinue();
     } catch { /* ignore */ }
   }
 
-  if (loading) return <div style={styles.loading}>Загрузка...</div>;
-  if (error || !meeting) return <div style={{ ...styles.loading, color: theme.accent.red }}>{error || 'Не найдено'}</div>;
+  if (isPending) return <div style={styles.loading}>Загрузка...</div>;
+  if (isError || !meeting) {
+    return <div style={{ ...styles.loading, color: theme.accent.red }}>{isError ? 'Ошибка загрузки встречи' : 'Не найдено'}</div>;
+  }
 
   const suggestions = meeting.suggestions.filter(s => s.source === 'suggestion');
   const strengthens = meeting.suggestions.filter(s => s.source === 'strengthen');
@@ -149,7 +142,7 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = '
             style={styles.titleInput}
           />
         ) : (
-          <h2 style={styles.title} onClick={() => setEditingTitle(true)}>
+          <h2 style={styles.title} onClick={startEditTitle}>
             {meeting.title || 'Без названия'}
           </h2>
         )}

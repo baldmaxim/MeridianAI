@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
-import {
-  listTerms, listTriggers, listPlaybooks, listTraits, listForbidden, archiveItem,
-} from '../../api/knowledge';
+import { useKnowledgeList, useArchiveKnowledgeItem } from '../../hooks/queries/knowledge';
 import type {
   GlossaryTerm, TriggerPhrase, NegotiationPlaybook, CounterpartyTrait, ForbiddenPhrase, KnowledgeKind,
 } from '../../types';
@@ -47,32 +45,20 @@ function renderItem(kind: KnowledgeKind, it: AnyItem): { main: string; sub?: str
 }
 
 export function KnowledgeList({ kind }: Props) {
-  const [items, setItems] = useState<AnyItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const fn = { terms: listTerms, triggers: listTriggers, playbooks: listPlaybooks, traits: listTraits, forbidden: listForbidden }[kind];
-      setItems(await fn({ status: 'approved' }));
-    } catch (e) { setError(apiErrorMessage(e, 'Не удалось загрузить')); }
-    finally { setLoading(false); }
-  }, [kind]);
-
-  useEffect(() => { load(); }, [load]);
+  const { data, isPending, error: queryError } = useKnowledgeList(kind, { status: 'approved' });
+  const archiveMut = useArchiveKnowledgeItem();
+  const items = (data ?? []) as AnyItem[];
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function archive(id: number) {
-    setBusyId(id); setError(null);
+    setActionError(null);
     try {
-      await archiveItem(kind, id);
-      setItems((xs) => xs.filter((x) => x.id !== id));
-    } catch (e) { setError(apiErrorMessage(e, 'Не удалось архивировать')); }
-    finally { setBusyId(null); }
+      await archiveMut.mutateAsync({ kind, id });
+    } catch (e) { setActionError(apiErrorMessage(e, 'Не удалось архивировать')); }
   }
 
-  if (loading) return <div style={styles.muted}>Загрузка…</div>;
+  if (isPending) return <div style={styles.muted}>Загрузка…</div>;
+  const error = actionError ?? (queryError ? apiErrorMessage(queryError, 'Не удалось загрузить') : null);
   if (error) return <div style={styles.error}>{error}</div>;
   if (items.length === 0) return <div style={styles.muted}>Пока пусто. Элементы добавляются после проверки кандидатов.</div>;
 
@@ -86,7 +72,7 @@ export function KnowledgeList({ kind }: Props) {
               <span style={styles.scope}>{SCOPE_LABEL[(it as { scope?: string }).scope || 'global'] || 'Общее'}</span>
               {r.meta && <span style={styles.meta}>{r.meta}</span>}
               <span style={{ flex: 1 }} />
-              <button style={styles.archive} disabled={busyId === it.id} onClick={() => archive(it.id)}>В архив</button>
+              <button style={styles.archive} disabled={archiveMut.isPending && archiveMut.variables?.id === it.id} onClick={() => archive(it.id)}>В архив</button>
             </div>
             <div style={styles.main}>{r.main}</div>
             {r.sub && <div style={styles.sub}>{r.sub}</div>}
