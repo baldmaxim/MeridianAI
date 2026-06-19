@@ -897,6 +897,7 @@ export interface MeetingListItem {
   negotiation_type: string | null;
   started_at: string;
   ended_at: string | null;
+  recorded_seconds: number | null;
   segment_count: number;
   suggestion_count: number;
   status: string | null;
@@ -950,6 +951,7 @@ export interface MeetingDetail {
   opponent_weaknesses: string | null;
   started_at: string;
   ended_at: string | null;
+  recorded_seconds: number | null;
   status: string | null;
   customer_id: number | null;
   object_id: number | null;

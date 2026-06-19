@@ -133,6 +133,9 @@ class SessionManager:
         # Этап 9.8: server-эпоха старта primary STT-стрима — якорь speech-time меток
         # committed-сегментов (provider даёт относительные start/end). None до start_listening.
         self.listening_started_server_ms: Optional[int] = None
+        # Длительность последнего завершённого интервала записи (сек) — для инкрементального
+        # персиста recorded_seconds. Выставляется в stop_listening, читается комнатой.
+        self.last_interval_seconds: int = 0
         # Этап 9.8: провайдер авторитетного транскрипта (multi-channel epoch). None → single.
         self._authoritative_context_provider: Optional[Callable] = None
 
@@ -539,6 +542,15 @@ class SessionManager:
             return
 
         self.is_listening = False
+
+        # Длительность интервала записи (старт→стоп) для инкремента recorded_seconds.
+        if self.listening_started_server_ms is not None:
+            self.last_interval_seconds = max(
+                0, round((time.time() * 1000 - self.listening_started_server_ms) / 1000)
+            )
+            self.listening_started_server_ms = None
+        else:
+            self.last_interval_seconds = 0
 
         if self.transcription_service:
             self.transcription_service.stop()

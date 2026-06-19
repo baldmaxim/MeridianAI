@@ -37,6 +37,15 @@ function formatDateTime(iso: string): string {
     + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Длительность = суммарное время записи (диктофон), не время открытой сессии.
+function formatRecorded(recordedSeconds: number | null | undefined): string | null {
+  if (!recordedSeconds || recordedSeconds <= 0) return null;
+  const min = Math.floor(recordedSeconds / 60);
+  if (min < 1) return `${recordedSeconds} сек записи`;
+  if (min < 60) return `${min} мин записи`;
+  return `${Math.floor(min / 60)}ч ${min % 60}м записи`;
+}
+
 function getSpeakerColor(speaker: string): string {
   const colors = ['#5B9CF6', '#2EE59D', '#F5A623', '#FF4B6E', '#8896B3'];
   let hash = 0;
@@ -146,6 +155,7 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = '
         <div style={styles.titleMeta}>
           {formatDateTime(meeting.started_at)}
           {meeting.ended_at && ` — ${formatTime(meeting.ended_at)}`}
+          {formatRecorded(meeting.recorded_seconds) && ` · ${formatRecorded(meeting.recorded_seconds)}`}
         </div>
       </div>
 

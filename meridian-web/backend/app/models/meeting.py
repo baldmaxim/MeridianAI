@@ -26,6 +26,9 @@ class MeetingSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Суммарное время активной записи (сек) — сумма интервалов диктофона старт→стоп.
+    # НЕ время открытой сессии (ended_at − started_at). Накапливается инкрементом на каждый стоп.
+    recorded_seconds: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
 
     # Этап 1 MVP: справочники + статус/мета (все nullable, обратная совместимость)
     customer_id: Mapped[int | None] = mapped_column(

@@ -42,10 +42,11 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatDuration(start: string, end: string | null): string {
-  if (!end) return '--';
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  const min = Math.floor(ms / 60000);
+// Длительность = суммарное время записи (диктофон), не время открытой сессии.
+function formatDuration(recordedSeconds: number | null | undefined): string {
+  if (!recordedSeconds || recordedSeconds <= 0) return '--';
+  const min = Math.floor(recordedSeconds / 60);
+  if (min < 1) return `${recordedSeconds} сек`;
   if (min < 60) return `${min} мин`;
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -341,7 +342,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                     {m.suggestion_count} подск.
                   </span>
                   <span style={styles.badgeMuted}>
-                    {formatDuration(m.started_at, m.ended_at)}
+                    {formatDuration(m.recorded_seconds)}
                   </span>
                 </div>
               </button>

@@ -17,7 +17,6 @@ import { MobileMeetingsPage } from './pages/mobile/MobileMeetingsPage';
 import { MobileMeetingDetailPage } from './pages/mobile/MobileMeetingDetailPage';
 import { usePathname, parseRoute, navigate, paths } from './lib/navigation';
 import { useMeetingStore } from './store/meetingStore';
-import { createMeeting } from './api/meetings';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
@@ -112,8 +111,10 @@ function App() {
 
   const openObject = (id: number) => navigate(paths.objectDetail(id));
 
-  // Создать новую встречу под объект и открыть окно встречи.
-  const startNewMeeting = async (obj: ProjectObject) => {
+  // Подготовить новую встречу под объект и открыть окно встречи.
+  // Строку в БД НЕ создаём здесь — это плодит пустые черновики и раздувает номера.
+  // MeetingSession создастся лениво при старте записи / прикреплении контента (MeetingPage).
+  const startNewMeeting = (obj: ProjectObject) => {
     const store = useMeetingStore.getState();
     store.newMeetingSession();
     store.setSelectedCustomerId(obj.customer_id);
@@ -121,15 +122,7 @@ function App() {
     store.setSelectedCustomerName(obj.customer_name);
     store.setSelectedObjectName(obj.name);
     store.setMeetingName('');
-    try {
-      const m = await createMeeting({ customer_id: obj.customer_id, object_id: obj.id });
-      store.setDraftMeetingId(m.id);
-      store.setCurrentMeetingId(m.id);
-      navigate(paths.meetingRoom(m.id));
-    } catch {
-      // draft не создан — MeetingPage подключится через legacy endpoint
-      navigate(paths.meeting);
-    }
+    navigate(paths.meeting);
   };
 
   const onToggleViewAs = () => {

@@ -18,7 +18,7 @@ import time
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from ..config import get_settings
 from ..database import async_session
@@ -905,6 +905,9 @@ class MeetingRoom:
         was_phone = bool(conn and conn.device_role == "phone")
         if self.session.is_listening:
             await self.session.stop_listening()
+            # инкремент длительности записи (только время диктофона, не открытой сессии)
+            await self._persist_recorded_seconds(self.session.last_interval_seconds)
+            self.session.last_interval_seconds = 0  # consumed → не дублировать в finalize
         self.clear_active_audio_source(connection_id)
         await self.broadcast({
             "type": "recording_status",
@@ -1322,6 +1325,21 @@ class MeetingRoom:
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] conversation tree update failed: {e}")
 
+    async def _persist_recorded_seconds(self, delta_seconds: int) -> None:
+        """Инкремент recorded_seconds встречи — только время активной записи (диктофон)."""
+        if not delta_seconds or delta_seconds <= 0:
+            return
+        try:
+            async with async_session() as db:
+                await db.execute(
+                    update(MeetingSession)
+                    .where(MeetingSession.id == self.meeting_id)
+                    .values(recorded_seconds=MeetingSession.recorded_seconds + delta_seconds)
+                )
+                await db.commit()
+        except Exception as e:
+            logger.error(f"[room {self.meeting_id}] persist recorded_seconds failed: {e}")
+
     async def _persist_segments(self, close: bool, title_override: str | None = None) -> None:
         """Сохранить committed-сегменты этой встречи (skip duplicates). При close — закрыть встречу."""
         try:
@@ -1339,6 +1357,13 @@ class MeetingRoom:
                         meeting.status = "finalized"
                         meeting.ended_at = datetime.utcnow()
                         meeting.live_segment_count = len(self.session.committed_segments)
+                        # доначислить незакрытый интервал записи (финализация во время записи).
+                        # stop_audio обнуляет last_interval_seconds после своего персиста — здесь
+                        # учитываем только ещё не сохранённый интервал.
+                        pending = getattr(self.session, "last_interval_seconds", 0) or 0
+                        if pending > 0:
+                            meeting.recorded_seconds = (meeting.recorded_seconds or 0) + pending
+                            self.session.last_interval_seconds = 0
                         if not meeting.title:
                             if meeting.meeting_topic:
                                 meeting.title = meeting.meeting_topic[:80]

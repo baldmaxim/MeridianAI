@@ -51,6 +51,7 @@ class MeetingListItem(BaseModel):
     negotiation_type: str | None
     started_at: datetime
     ended_at: datetime | None
+    recorded_seconds: int | None = None  # суммарное время записи (диктофон), не открытой сессии
     segment_count: int
     suggestion_count: int
     # Этап 1 MVP: справочники
@@ -105,6 +106,7 @@ class MeetingDetailResponse(BaseModel):
     opponent_weaknesses: str | None
     started_at: datetime
     ended_at: datetime | None
+    recorded_seconds: int | None = None  # суммарное время записи (диктофон), не открытой сессии
     # Этап 1 MVP: справочники
     status: str | None = None
     customer_id: int | None = None

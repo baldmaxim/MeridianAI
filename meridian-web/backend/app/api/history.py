@@ -129,6 +129,7 @@ async def list_meetings(
             MeetingSession.negotiation_type,
             MeetingSession.started_at,
             MeetingSession.ended_at,
+            MeetingSession.recorded_seconds,
             MeetingSession.status,
             MeetingSession.customer_id,
             MeetingSession.object_id,
@@ -174,6 +175,7 @@ async def list_meetings(
             negotiation_type=r.negotiation_type,
             started_at=r.started_at,
             ended_at=r.ended_at,
+            recorded_seconds=r.recorded_seconds,
             status=r.status,
             is_recording=bool(
                 (room := room_registry.get_room(r.id)) and room.session.is_listening
@@ -826,6 +828,7 @@ async def get_meeting_detail(
         opponent_weaknesses=meeting.opponent_weaknesses,
         started_at=meeting.started_at,
         ended_at=meeting.ended_at,
+        recorded_seconds=meeting.recorded_seconds,
         status=meeting.status,
         customer_id=meeting.customer_id,
         object_id=meeting.object_id,
