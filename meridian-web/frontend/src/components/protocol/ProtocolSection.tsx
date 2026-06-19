@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../../styles/theme';
+import { Collapse } from '../common';
 import { getFinalizationStatus, getMeetingProtocol, retryFinalization } from '../../api/finalization';
 import { ProtocolView } from './ProtocolView';
 import type { FinalizationStatus, MeetingProtocol } from '../../types';
@@ -44,7 +45,9 @@ export function ProtocolSection({ meetingId }: { meetingId: number }) {
           </button>
         )}
       </div>
-      {open && protocol && <ProtocolView p={protocol} />}
+      {protocol && (
+        <Collapse open={open}><ProtocolView p={protocol} /></Collapse>
+      )}
     </div>
   );
 }

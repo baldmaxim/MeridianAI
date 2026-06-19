@@ -5,6 +5,7 @@ import {
   getMeetingAISettings, patchMeetingAISettings, applyProfileToMeeting, listProfiles,
 } from '../../api/aiSettings';
 import type { AISettingsProfile, MeetingAISettings, MeetingAISettingsPatch, SuggestionMode } from '../../types';
+import { Select } from '../common';
 
 interface Props { meetingId: number; }
 
@@ -70,11 +71,11 @@ export function MeetingAISettingsBlock({ meetingId }: Props) {
       {!canEdit && <div style={styles.muted}>Только просмотр — у вас нет прав на изменение настроек этой встречи.</div>}
 
       <label style={styles.lbl}>Профиль</label>
-      <select style={styles.input} disabled={!canEdit || busy} value={data.profile_id ?? ''}
-              onChange={(e) => e.target.value && applyProfile(Number(e.target.value))}>
-        <option value="">— не выбран —</option>
-        {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.is_default ? ' (по умолч.)' : ''}</option>)}
-      </select>
+      <Select style={styles.input} disabled={!canEdit || busy} value={String(data.profile_id ?? '')}
+              ariaLabel="Профиль AI-настроек"
+              onChange={(v) => { if (v) applyProfile(Number(v)); }}
+              placeholder="— не выбран —"
+              options={profiles.map((p) => ({ value: String(p.id), label: `${p.name}${p.is_default ? ' (по умолч.)' : ''}` }))} />
 
       <label style={styles.lbl}>Режим</label>
       <div style={styles.modeRow}>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getRoles, createRole, updateRole, deleteRole } from '../../api/roles';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { Select } from '../common';
 import type { NegotiationRole } from '../../types';
 
 interface Props {
@@ -213,21 +214,19 @@ ${r.custom_instructions || '(не указаны)'}`;
             />
 
             <label style={s.label}>Дополнительные инструкции для ИИ</label>
-            <select
+            <Select
               style={s.select}
               value=""
-              onChange={(e) => {
-                if (!e.target.value) return;
+              placeholder="Выбрать из шаблонов..."
+              ariaLabel="Шаблоны инструкций"
+              onChange={(v) => {
+                if (!v) return;
                 const cur = form.custom_instructions.trim();
-                const next = cur ? `${cur}\n${e.target.value}` : e.target.value;
+                const next = cur ? `${cur}\n${v}` : v;
                 setForm({ ...form, custom_instructions: next });
               }}
-            >
-              <option value="">Выбрать из шаблонов...</option>
-              {PRESET_INSTRUCTIONS.map((text) => (
-                <option key={text} value={text}>{text}</option>
-              ))}
-            </select>
+              options={PRESET_INSTRUCTIONS.map((text) => ({ value: text, label: text }))}
+            />
             <textarea
               style={s.textarea}
               rows={3}

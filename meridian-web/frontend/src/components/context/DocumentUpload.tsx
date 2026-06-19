@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { uploadDocument } from '../../api/documents';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { Select } from '../common';
 
 const DOC_TYPES = [
   { value: 'contract', label: 'Контракт' },
@@ -75,11 +76,13 @@ export function DocumentUpload() {
 
       {/* Controls row */}
       <div style={styles.controls}>
-        <select value={docType} onChange={(e) => setDocType(e.target.value)} style={styles.select}>
-          {DOC_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
+        <Select
+          value={docType}
+          onChange={setDocType}
+          options={DOC_TYPES}
+          style={styles.select}
+          ariaLabel="Тип документа"
+        />
         <button onClick={() => fileRef.current?.click()} disabled={uploading} style={styles.uploadBtn}>
           {uploading ? 'Загрузка...' : '+ Загрузить'}
         </button>

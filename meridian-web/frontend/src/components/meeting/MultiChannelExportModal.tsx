@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../common/Modal';
+import { Collapse } from '../common';
 import { theme } from '../../styles/theme';
 import type { MultiSourceAlignment, IngestTrackInfo, PublicSpeakerSide } from '../../types';
 import {
@@ -252,7 +253,7 @@ export function MultiChannelExportModal({ open, onClose, meetingId, ingestState 
             onChange={(e) => { setDurationSec(Math.max(1, Math.trunc(Number(e.target.value) || 1))); setPlan(null); }} />
         </label>
       )}
-      {showExplicit && (
+      <Collapse open={showExplicit}>
         <div style={styles.explicit}>
           <label style={styles.inlineLabel}>start server ms:
             <input type="number" value={startMs} style={styles.num}
@@ -261,13 +262,13 @@ export function MultiChannelExportModal({ open, onClose, meetingId, ingestState 
             <input type="number" value={endMs} style={styles.num}
               onChange={(e) => { setEndMs(e.target.value); setPlan(null); }} /></label>
         </div>
-      )}
+      </Collapse>
 
       {/* offsets */}
       <button type="button" style={styles.collapse} onClick={() => setShowOffsets((v) => !v)}>
         {showOffsets ? '▾' : '▸'} Точная подстройка каналов
       </button>
-      {showOffsets && (
+      <Collapse open={showOffsets}>
         <div style={styles.list}>
           <div style={styles.dim}>Положительное значение сдвигает канал позже (мс).</div>
           {selected.map((id) => byId[id] && (
@@ -279,7 +280,7 @@ export function MultiChannelExportModal({ open, onClose, meetingId, ingestState 
             </label>
           ))}
         </div>
-      )}
+      </Collapse>
 
       {/* plan preview */}
       {plan && (

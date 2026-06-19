@@ -8,6 +8,7 @@ import { ContextSourceCard } from './ContextSourceCard';
 import { documentToContextSourceViewModel, type ContextSourceSectionSummary } from './contextSourceModel';
 import { useDocumentUploadQueue } from '../../hooks/useDocumentUploadQueue';
 import { DocumentUploadQueue } from './DocumentUploadQueue';
+import { Select } from '../common';
 
 interface Props {
   meetingId: number | null;
@@ -199,10 +200,15 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
       {/* Выбрать существующий */}
       {available.length > 0 && (
         <div style={styles.pickRow}>
-          <select style={styles.select} value={pickId} onChange={(e) => setPickId(e.target.value === '' ? '' : Number(e.target.value))}>
-            <option value="">— выбрать существующий —</option>
-            {available.map((d) => <option key={d.id} value={d.id}>{d.original_name}</option>)}
-          </select>
+          <Select
+            style={styles.select}
+            wrapperStyle={{ flex: 1, minWidth: 0 }}
+            ariaLabel="Существующий документ"
+            value={String(pickId)}
+            onChange={(v) => setPickId(v === '' ? '' : Number(v))}
+            options={[{ value: '', label: '— выбрать существующий —' },
+              ...available.map((d) => ({ value: String(d.id), label: d.original_name }))]}
+          />
           <button style={styles.attachBtn} onClick={attachExisting} disabled={pickId === ''}>Прикрепить</button>
         </div>
       )}

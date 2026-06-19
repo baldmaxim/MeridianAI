@@ -4,6 +4,10 @@
  */
 export { Modal } from './Modal';
 export { Dropdown } from './Dropdown';
+export { Select } from './Select';
+export type { SelectOption } from './Select';
+export { Combobox } from './Combobox';
+export { Collapse } from './Collapse';
 export { IconSwap } from './IconSwap';
 export { NotificationBadge } from './NotificationBadge';
 export { PageTransition } from './PageTransition';

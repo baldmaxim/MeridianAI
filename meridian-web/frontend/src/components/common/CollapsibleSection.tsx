@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { theme } from '../../styles/theme';
+import { Collapse } from './Collapse';
 
 interface Props {
   title: string;
@@ -26,7 +27,7 @@ export function CollapsibleSection({ title, defaultOpen, children, right }: Prop
         </button>
         {right && <div style={{ flexShrink: 0 }}>{right}</div>}
       </div>
-      {open && <div style={styles.body}>{children}</div>}
+      <Collapse open={open} style={styles.body}>{children}</Collapse>
     </div>
   );
 }

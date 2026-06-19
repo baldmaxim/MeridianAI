@@ -5,6 +5,7 @@ import { putSpeakerRole } from '../../api/speakerRoles';
 import { theme } from '../../styles/theme';
 import type { ConversationTopic, ConversationTopicStatus, ConversationTopicUpdateInput, PublicSpeakerSide } from '../../types';
 import { toPublicSpeakerSide } from '../../lib/speakerSides';
+import { Select } from '../common';
 
 const SIDE_CHOICES: { side: PublicSpeakerSide; label: string }[] = [
   { side: 'self', label: 'Мы' },
@@ -100,10 +101,10 @@ function TopicCard({ topic, meetingId, canEdit }: { topic: ConversationTopic; me
 
       {editing && (
         <div style={styles.editRow}>
-          <select style={styles.select} value={draft.status}
-                  onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as ConversationTopicStatus }))}>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-          </select>
+          <Select style={styles.select} value={draft.status ?? topic.status}
+                  ariaLabel="Статус темы"
+                  onChange={(v) => setDraft((d) => ({ ...d, status: v as ConversationTopicStatus }))}
+                  options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_META[s].label }))} />
           <div style={{ flex: 1 }} />
           <button style={styles.btnGhost} disabled={saving} onClick={() => setEditing(false)}>Отмена</button>
           <button style={styles.btnPrimary} disabled={saving} onClick={save}>Сохранить</button>

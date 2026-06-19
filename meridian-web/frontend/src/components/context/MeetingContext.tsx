@@ -1,5 +1,6 @@
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
+import { Combobox } from '../common';
 
 interface Props {
   // Отправить актуальный контекст из стора (debounce + WS) — см. MeetingPage.pushContext.
@@ -22,17 +23,13 @@ export function MeetingContext({ pushContext }: Props) {
   return (
     <div style={styles.col}>
       <label style={styles.label}>Тип переговоров</label>
-      <input
-        type="text"
-        list="negotiation-type-suggestions"
+      <Combobox
         placeholder="Например: согласование условий"
         value={negotiationType}
-        onChange={(e) => handleNegotiationTypeChange(e.target.value)}
+        onChange={handleNegotiationTypeChange}
+        options={TYPE_SUGGESTIONS}
         style={styles.input}
       />
-      <datalist id="negotiation-type-suggestions">
-        {TYPE_SUGGESTIONS.map((t) => <option key={t} value={t} />)}
-      </datalist>
 
       <label style={styles.label}>Ключевые условия / цели</label>
       <textarea

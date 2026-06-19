@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import { useExitTransition } from '../../hooks/useExitTransition';
+import { Collapse } from '../common';
 import type { Suggestion, SuggestionTypeConfig, SuggestionCard as SuggestionCardT } from '../../types';
 
 const CARD_TYPE_META: Record<string, { label: string; color: string }> = {
@@ -244,12 +245,14 @@ function StructuredSuggestionCard({ card }: { card: SuggestionCardT }) {
           <button style={styles.evToggle} onClick={() => setShowEv((v) => !v)}>
             {showEv ? 'Скрыть источники' : `Источники (${card.evidence.length})`}
           </button>
-          {showEv && card.evidence.map((e, i) => (
-            <div key={i} style={styles.evRow}>
-              <span style={styles.evSource}>{e.source}{e.ref ? ` · ${e.ref}` : ''}</span>
-              <div>{e.text}</div>
-            </div>
-          ))}
+          <Collapse open={showEv}>
+            {card.evidence.map((e, i) => (
+              <div key={i} style={styles.evRow}>
+                <span style={styles.evSource}>{e.source}{e.ref ? ` · ${e.ref}` : ''}</span>
+                <div>{e.text}</div>
+              </div>
+            ))}
+          </Collapse>
         </div>
       )}
     </div>

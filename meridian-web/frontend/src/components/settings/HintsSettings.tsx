@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { theme } from '../../styles/theme';
 import type { SuggestionTypeConfig, TriggerKeywordConfig } from '../../types';
 import { IconSwap } from '../common/IconSwap';
+import { Collapse } from '../common';
 
 interface Props {
   suggestionTypes: SuggestionTypeConfig[];
@@ -129,7 +130,7 @@ export function HintsSettings({ suggestionTypes, triggerKeywords, onSuggestionTy
                 </div>
 
                 {/* Expanded details */}
-                {expanded && (
+                <Collapse open={expanded}>
                   <div style={styles.typeDetails}>
                     <div style={styles.fieldRow}>
                       <div style={styles.fieldCol}>
@@ -228,7 +229,7 @@ export function HintsSettings({ suggestionTypes, triggerKeywords, onSuggestionTy
                       </div>
                     </div>
                   </div>
-                )}
+                </Collapse>
               </div>
             );
           })}

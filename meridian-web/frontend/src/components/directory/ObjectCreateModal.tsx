@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../../lib/apiError';
 import { dirStyles as s } from './directoryStyles';
 import { theme } from '../../styles/theme';
 import { Modal } from '../common/Modal';
+import { Combobox } from '../common';
 import { useErrorShake } from '../../hooks/useErrorShake';
 
 interface Props {
@@ -70,16 +71,13 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         <label style={s.label}>Название *</label>
         <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="ЖК «Рассвет», корпус 2" autoFocus />
         <label style={s.label}>Заказчик *</label>
-        <input
+        <Combobox
           style={s.input}
-          list="object-customers-dl"
           value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
+          onChange={setCustomerName}
+          options={customers.map((c) => c.name)}
           placeholder="ООО «Стройзаказ» — выберите или впишите нового"
         />
-        <datalist id="object-customers-dl">
-          {customers.map((c) => <option key={c.id} value={c.name} />)}
-        </datalist>
         <label style={s.label}>Адрес</label>
         <input style={s.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="необязательно" />
         <label style={s.label}>Описание</label>

@@ -1,4 +1,5 @@
 import { theme } from '../../styles/theme';
+import { Select } from '../common';
 
 const PROVIDERS = [
   { value: 'deepgram', label: 'Deepgram (streaming + диаризация)' },
@@ -61,11 +62,13 @@ export function STTSettings({ value, onChange, useStreaming, onStreamingChange, 
 
       <label style={styles.label}>Провайдер распознавания</label>
       {available.length > 0 ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)} style={styles.select}>
-          {available.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
+        <Select
+          value={value}
+          onChange={onChange}
+          options={available.map((p) => ({ value: p.value, label: p.label }))}
+          style={styles.select}
+          ariaLabel="STT провайдер"
+        />
       ) : (
         <div style={styles.noProviders}>Администратор не активировал STT-провайдеры</div>
       )}

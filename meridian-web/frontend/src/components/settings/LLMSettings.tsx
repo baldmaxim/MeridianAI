@@ -1,4 +1,5 @@
 import { theme } from '../../styles/theme';
+import { Select } from '../common';
 
 const MODELS = [
   'google/gemini-3-flash-preview',
@@ -37,11 +38,13 @@ export function LLMSettings({ model, temperature, onModelChange, onTemperatureCh
       ) : (
         <>
       <label style={styles.label}>Модель</label>
-      <select value={model} onChange={(e) => onModelChange(e.target.value)} style={styles.select}>
-        {MODELS.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
+      <Select
+        value={model}
+        onChange={onModelChange}
+        options={MODELS.map((m) => ({ value: m, label: m }))}
+        style={styles.select}
+        ariaLabel="Языковая модель"
+      />
 
       <div style={styles.sliderRow}>
         <label style={styles.label}>Температура</label>

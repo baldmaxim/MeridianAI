@@ -12,6 +12,8 @@
 |---|---|---|
 | Диалог по центру поверх backdrop | `<Modal>` | 06 modal |
 | Меню/поповер из триггера | `<Dropdown>` или `useOpenClose` + `t-dropdown` | 05 menu-dropdown |
+| Выбор из списка (замена `<select>`) | `<Select>` | 05 menu-dropdown |
+| Свободный ввод + подсказки (замена `<input list>`/`<datalist>`) | `<Combobox>` | 05 menu-dropdown |
 | Панель/шторка выезжает в область | `t-panel-slide` + `useExitTransition` | 07 panel-reveal |
 | Смена роута (вход страницы) | `<PageTransition>` | 08 (производное, enter-only) |
 | Список ↔ деталь side-by-side | `t-page-slide` / `t-page` | 08 page-side-by-side |

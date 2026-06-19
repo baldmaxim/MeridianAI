@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal } from '../common/Modal';
+import { Select } from '../common';
 import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
 import {
@@ -72,14 +73,13 @@ export function ContextPreviewModal({ open, onClose, meetingId }: ContextPreview
       ) : (
         <>
           <div style={styles.toolbar}>
-            <select
+            <Select
               style={styles.select}
-              aria-label="Режим подсказки"
+              ariaLabel="Режим подсказки"
               value={mode}
-              onChange={(e) => setMode(e.target.value as ContextPreviewMode)}
-            >
-              {MODE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+              onChange={(v) => setMode(v as ContextPreviewMode)}
+              options={MODE_OPTIONS}
+            />
             <input
               style={styles.search}
               aria-label="Проверить по вопросу или теме"
