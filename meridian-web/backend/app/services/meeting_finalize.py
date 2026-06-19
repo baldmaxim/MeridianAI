@@ -197,8 +197,12 @@ def _evidence_json(ev_list) -> str:
 
 async def _save_result(db: AsyncSession, meeting: MeetingSession, result: MeetingFinalizationResult,
                        status: str) -> None:
-    meeting.title = result.title or meeting.title or (meeting.meeting_topic or "")[:90] or \
-        f"Встреча {meeting.started_at.strftime('%d.%m.%Y %H:%M')}"
+    # Тема/цель — краткое имя от LLM (read-only в UI, формируется после распознавания).
+    meeting.meeting_topic = result.title or meeting.meeting_topic
+    # Название встречи — пользовательское/дефолтное (Заказчик_Объект_Дата), не затираем именем LLM.
+    if not meeting.title:
+        meeting.title = (meeting.meeting_topic or "")[:90] or \
+            f"Встреча {meeting.started_at.strftime('%d.%m.%Y %H:%M')}"
     meeting.micro_summary = result.micro_summary or meeting.micro_summary
     meeting.tags_json = json.dumps(result.tags, ensure_ascii=False)
     meeting.protocol_markdown = result.protocol_markdown

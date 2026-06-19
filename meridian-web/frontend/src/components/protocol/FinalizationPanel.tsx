@@ -11,7 +11,12 @@ import { SuccessCheck } from '../common/SuccessCheck';
 import { useMeetingStore } from '../../store/meetingStore';
 import type { FinalizationStatus, MeetingProtocol } from '../../types';
 
-interface Props { meetingId: number | null; }
+interface Props {
+  meetingId: number | null;
+  // Вызывается один раз при первой загрузке готового протокола — чтобы подтянуть
+  // сгенерированную тему/название в стор (read-only поле «Тема/цель встречи»).
+  onFinalized?: () => void;
+}
 
 const STATUS_TEXT: Record<FinalizationStatus, string> = {
   not_started: 'Протокол не сформирован',
@@ -30,7 +35,7 @@ function statusColor(s: FinalizationStatus): string {
   return theme.text.muted;
 }
 
-export function FinalizationPanel({ meetingId }: Props) {
+export function FinalizationPanel({ meetingId, onFinalized }: Props) {
   const [status, setStatus] = useState<FinalizationStatus>('not_started');
   const [error, setError] = useState<string | null>(null);
   const [protocol, setProtocol] = useState<MeetingProtocol | null>(null);
@@ -43,6 +48,9 @@ export function FinalizationPanel({ meetingId }: Props) {
   const [saved, setSaved] = useState(false);
   const loadedFor = useRef<number | null>(null);
 
+  const onFinalizedRef = useRef(onFinalized);
+  onFinalizedRef.current = onFinalized;
+
   const loadProtocol = useCallback(async (id: number) => {
     try {
       const p = await getMeetingProtocol(id);
@@ -53,6 +61,7 @@ export function FinalizationPanel({ meetingId }: Props) {
         setTags((p.tags || []).join(', '));
         setMarkdown(p.protocol_markdown || '');
         loadedFor.current = id;
+        onFinalizedRef.current?.();
       }
     } catch { /* ignore */ }
   }, []);

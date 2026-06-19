@@ -39,6 +39,13 @@ import type { UserSettings } from '../types';
 
 const TABS = ['Переговоры', 'Контекст встречи'] as const;
 
+// Дефолтное название встречи: «Заказчик_Объект_ДД.ММ.ГГГГ» (непустые части через «_»).
+function buildDefaultMeetingName(customerName: string | null, objectName: string | null): string {
+  const d = new Date();
+  const date = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  return [customerName, objectName, date].filter((p) => p && p.trim()).join('_');
+}
+
 interface Props {
   meetingId?: number;
   onBack: () => void;
@@ -80,6 +87,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         const m = await createMeeting({
           customer_id: st.selectedCustomerId,
           object_id: st.selectedObjectId,
+          title: st.meetingName || buildDefaultMeetingName(st.selectedCustomerName, st.selectedObjectName) || null,
           meeting_topic: st.meetingTopic || null,
           meeting_notes: st.meetingNotes || null,
           negotiation_type: st.negotiationType || null,
@@ -126,6 +134,9 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         s2.setSelectedObjectId(d.object_id);
         s2.setSelectedCustomerName(d.customer_name);
         s2.setSelectedObjectName(d.object_name);
+        // Тема/цель — read-only, генерируется LLM; название — пользовательское.
+        s2.setMeetingTopic(d.meeting_topic ?? '');
+        if (d.title) s2.setMeetingName(d.title);
       }).catch(() => {});
     }
     getSettings().then((s) => {
@@ -325,7 +336,6 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     }, 350);
   }, [sendJSON]);
 
-  const handleTopicChange = useCallback((v: string) => { useMeetingStore.getState().setMeetingTopic(v); pushContext(); }, [pushContext]);
   const handleWeaknessesChange = useCallback((v: string) => { useMeetingStore.getState().setOpponentWeaknesses(v); pushContext(); }, [pushContext]);
 
   const handleMeetingNameChange = useCallback((name: string) => {
@@ -338,6 +348,27 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       sendJSON({ type: 'update_meeting_context', title: name, topic: st.meetingTopic, notes: st.meetingNotes, negotiation_type: st.negotiationType, meeting_role: st.meetingRole, opponent_weaknesses: st.opponentWeaknesses });
     }, 350);
   }, [sendJSON]);
+
+  // Дефолт названия встречи «Заказчик_Объект_Дата» — только когда поле пустое и
+  // известен заказчик/объект. Не затирает то, что пользователь уже ввёл/подтянуто из БД.
+  useEffect(() => {
+    if (store.meetingName) return;
+    if (!store.selectedCustomerName && !store.selectedObjectName) return;
+    useMeetingStore.getState().setMeetingName(
+      buildDefaultMeetingName(store.selectedCustomerName, store.selectedObjectName),
+    );
+  }, [store.meetingName, store.selectedCustomerName, store.selectedObjectName]);
+
+  // После финализации подтянуть сгенерированную тему/название из БД (read-only поле).
+  const refreshMeetingMeta = useCallback(() => {
+    const id = useMeetingStore.getState().currentMeetingId;
+    if (id == null) return;
+    getMeetingDetail(id).then((d) => {
+      const s2 = useMeetingStore.getState();
+      s2.setMeetingTopic(d.meeting_topic ?? '');
+      if (d.title) s2.setMeetingName(d.title);
+    }).catch(() => {});
+  }, []);
 
   const [savingMeeting, setSavingMeeting] = useState(false);
 
@@ -561,24 +592,14 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                   <label style={styles.miniLabel}>Тема / цель встречи</label>
                   <input
                     type="text"
-                    placeholder="Финальные условия контракта — ЖК Рассвет"
+                    readOnly
+                    placeholder="Сформируется автоматически после завершения встречи"
                     value={store.meetingTopic}
-                    onChange={(e) => handleTopicChange(e.target.value)}
-                    style={styles.contextInput}
+                    title="Краткое наименование формируется ИИ после распознавания всех переговоров"
+                    style={styles.contextInputReadonly}
                   />
                 </div>
               </div>
-
-              {(store.selectedCustomerName || store.selectedObjectName) && (
-                <div style={styles.refRow}>
-                  {store.selectedCustomerName && (
-                    <span style={styles.refChip}><span style={styles.refChipLabel}>Заказчик</span>{store.selectedCustomerName}</span>
-                  )}
-                  {store.selectedObjectName && (
-                    <span style={styles.refChip}><span style={styles.refChipLabel}>Объект</span>{store.selectedObjectName}</span>
-                  )}
-                </div>
-              )}
 
               {store.currentMeetingId != null && (
                 <div style={styles.roomStatus}>
@@ -596,25 +617,26 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               )}
             </div>
 
-            {/* B. Корзина контекста — «что попадёт в подсказки» */}
-            <ContextBasket
-              meetingId={ctxMeetingId}
-              customerId={store.selectedCustomerId}
-              objectId={store.selectedObjectId}
-              ensureMeetingId={async () => {
-                const st = useMeetingStore.getState();
-                if (st.currentMeetingId != null) return st.currentMeetingId;
-                return await startSession(false);
-              }}
-              ragAdapter={ragContextApiAdapter}
-            />
+            {/* B. Двухколоночная зона: слева источники контекста, справа краткие настройки */}
+            <div className="context-columns" style={styles.contextSplit}>
+              <ContextBasket
+                meetingId={ctxMeetingId}
+                customerId={store.selectedCustomerId}
+                objectId={store.selectedObjectId}
+                ensureMeetingId={async () => {
+                  const st = useMeetingStore.getState();
+                  if (st.currentMeetingId != null) return st.currentMeetingId;
+                  return await startSession(false);
+                }}
+                ragAdapter={ragContextApiAdapter}
+              />
 
-            {/* C. Краткие настройки */}
-            <CollapsibleSection title="Краткие настройки" defaultOpen>
-              <MeetingContext pushContext={pushContext} />
-            </CollapsibleSection>
+              <CollapsibleSection title="Краткие настройки" defaultOpen>
+                <MeetingContext pushContext={pushContext} />
+              </CollapsibleSection>
+            </div>
 
-            {/* D. Расширенные настройки */}
+            {/* C. Расширенные настройки */}
             <CollapsibleSection title="Расширенные настройки">
               {/* AI-настройки встречи */}
               {ctxMeetingId != null && <MeetingAISettingsBlock meetingId={ctxMeetingId} />}
@@ -686,7 +708,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               </CollapsibleSection>
 
               {/* Этап 5: итоги встречи / протокол */}
-              <FinalizationPanel meetingId={store.currentMeetingId} />
+              <FinalizationPanel meetingId={store.currentMeetingId} onFinalized={refreshMeetingMeta} />
             </CollapsibleSection>
           </div>
           );
@@ -815,16 +837,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber,
     letterSpacing: '0.08em', textTransform: 'uppercase' as const,
   },
-  refRow: { display: 'flex', gap: 10, flexWrap: 'wrap' as const },
-  refChip: {
-    display: 'inline-flex', alignItems: 'baseline', gap: 8,
-    padding: '6px 12px', borderRadius: 8, background: theme.bg.tertiary,
-    border: `1px solid ${theme.border.default}`, fontFamily: theme.font.body,
-    fontSize: 13, fontWeight: 600, color: theme.text.primary, minWidth: 0,
-  },
-  refChipLabel: {
-    fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const, color: theme.text.muted,
+  contextSplit: {
+    display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
+    gap: 20, alignItems: 'start',
   },
   weakTextarea: {
     padding: '10px 14px', background: theme.bg.input, border: `1px solid ${theme.border.default}`,
@@ -842,6 +857,19 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
     width: '100%',
     boxSizing: 'border-box' as const,
+  },
+  contextInputReadonly: {
+    padding: '10px 14px',
+    background: theme.bg.tertiary,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 7,
+    color: theme.text.secondary,
+    fontSize: 13,
+    fontFamily: theme.font.body,
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    cursor: 'default',
   },
   saveMeetingBtn: {
     padding: '12px 28px',

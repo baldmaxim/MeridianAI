@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
+import { useMeetingStore } from '../../store/meetingStore';
 import {
   listContextCandidates, listContextSources, addContextSource,
   updateContextSource, deleteContextSource,
 } from '../../api/meetingContextSources';
 import type { MeetingContextSource, PreviousMeetingCandidate } from '../../types';
 import { ContextSourceCard } from './ContextSourceCard';
+import { Modal } from '../common/Modal';
 import {
   previousMeetingSourceToContextSourceViewModel,
   previousMeetingCandidateToContextSourceViewModel,
@@ -21,15 +23,22 @@ interface Props {
   onSummaryChange?: (summary: ContextSourceSectionSummary) => void;
 }
 
-type Filter = 'all' | 'customer' | 'object';
-
 export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId, currentObjectId, onSummaryChange }: Props) {
   const [sources, setSources] = useState<MeetingContextSource[]>([]);
   const [candidates, setCandidates] = useState<PreviousMeetingCandidate[]>([]);
-  const [filter, setFilter] = useState<Filter>(currentObjectId ? 'object' : currentCustomerId ? 'customer' : 'all');
   const [q, setQ] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Имена для подписи скоупа (текущий объект/заказчик встречи).
+  const objectName = useMeetingStore((s) => s.selectedObjectName);
+  const customerName = useMeetingStore((s) => s.selectedCustomerName);
+
+  // Строгий скоуп: текущий объект (если задан), иначе текущий заказчик.
+  const scope: { kind: 'object' | 'customer'; name: string | null } | null =
+    currentObjectId != null ? { kind: 'object', name: objectName }
+    : currentCustomerId != null ? { kind: 'customer', name: customerName }
+    : null;
 
   const prevSources = sources.filter((s) => s.source_type === 'previous_meeting');
 
@@ -39,14 +48,15 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
   }, [meetingId]);
 
   const loadCandidates = useCallback(async () => {
+    if (!scope) { setCandidates([]); return; }
     try {
       setCandidates(await listContextCandidates(meetingId, {
         q: q || undefined,
-        customer_id: filter === 'customer' && currentCustomerId != null ? currentCustomerId : undefined,
-        object_id: filter === 'object' && currentObjectId != null ? currentObjectId : undefined,
+        object_id: scope.kind === 'object' ? currentObjectId ?? undefined : undefined,
+        customer_id: scope.kind === 'customer' ? currentCustomerId ?? undefined : undefined,
       }));
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось загрузить кандидатов')); }
-  }, [meetingId, q, filter, currentCustomerId, currentObjectId]);
+  }, [meetingId, q, scope, currentCustomerId, currentObjectId]);
 
   useEffect(() => { loadSources(); }, [loadSources]);
   useEffect(() => { if (showAdd && !readOnly) loadCandidates(); }, [showAdd, readOnly, loadCandidates]);
@@ -100,8 +110,8 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
         <span style={styles.title}>Предыдущие встречи как контекст</span>
         <span style={{ flex: 1 }} />
         {!readOnly && (
-          <button style={styles.addToggle} onClick={() => setShowAdd((v) => !v)}>
-            {showAdd ? 'Скрыть' : '+ Добавить'}
+          <button style={styles.addToggle} onClick={() => setShowAdd(true)}>
+            + Добавить
           </button>
         )}
       </div>
@@ -126,44 +136,49 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
         </div>
       )}
 
-      {/* добавление кандидатов */}
-      {!readOnly && showAdd && (
-        <div style={styles.addBox}>
-          <div style={styles.filters}>
+      {/* модалка добавления — строго в рамках текущего объекта/заказчика */}
+      <Modal open={!readOnly && showAdd} onClose={() => setShowAdd(false)} maxWidth={560}>
+        <div style={styles.modalHead}>
+          <span style={styles.title}>Добавить прошлую встречу</span>
+          <span style={{ flex: 1 }} />
+          <button style={styles.modalClose} onClick={() => setShowAdd(false)} aria-label="Закрыть">×</button>
+        </div>
+
+        {scope ? (
+          <div style={styles.scopeRow}>
+            <span style={styles.scopeLabel}>{scope.kind === 'object' ? 'Объект' : 'Заказчик'}</span>
+            <span style={styles.scopeName}>{scope.name || (scope.kind === 'object' ? 'текущий объект' : 'текущий заказчик')}</span>
+          </div>
+        ) : (
+          <div style={styles.muted}>Выберите заказчика или объект, чтобы подобрать прошлые встречи.</div>
+        )}
+
+        {scope && (
+          <>
             <input
               style={styles.search} placeholder="Поиск по названию/итогу…"
               value={q} onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadCandidates()}
             />
-            {(['all', 'customer', 'object'] as Filter[]).map((f) => {
-              const disabled = (f === 'customer' && currentCustomerId == null) || (f === 'object' && currentObjectId == null);
-              return (
-                <button key={f} disabled={disabled}
-                  style={filter === f ? styles.filterOn : styles.filterOff}
-                  onClick={() => setFilter(f)}>
-                  {f === 'all' ? 'Все доступные' : f === 'customer' ? 'Тот же заказчик' : 'Тот же объект'}
-                </button>
-              );
-            })}
-          </div>
-          {candidates.length === 0 ? (
-            <div style={styles.muted}>Нет подходящих завершённых встреч.</div>
-          ) : (
-            <div style={styles.list}>
-              {candidates.map((c) => (
-                <ContextSourceCard
-                  key={c.meeting_id}
-                  source={previousMeetingCandidateToContextSourceViewModel(c)}
-                  compact
-                  right={c.already_added ? <span style={styles.badgeOn}>добавлена</span> : undefined}
-                  onPrimaryAction={c.already_added ? undefined : () => add(c)}
-                  primaryActionLabel={c.already_added ? undefined : 'Добавить'}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+            {candidates.length === 0 ? (
+              <div style={styles.muted}>Нет подходящих завершённых встреч.</div>
+            ) : (
+              <div style={styles.list}>
+                {candidates.map((c) => (
+                  <ContextSourceCard
+                    key={c.meeting_id}
+                    source={previousMeetingCandidateToContextSourceViewModel(c)}
+                    compact
+                    right={c.already_added ? <span style={styles.badgeOn}>добавлена</span> : undefined}
+                    onPrimaryAction={c.already_added ? undefined : () => add(c)}
+                    primaryActionLabel={c.already_added ? undefined : 'Добавить'}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -175,23 +190,13 @@ const styles: Record<string, React.CSSProperties> = {
   title: { fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary },
   addToggle: { padding: '5px 12px', background: theme.accent.amberGlow, border: `1px solid ${theme.accent.amber}`, borderRadius: 6, color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  srcRow: { display: 'flex', alignItems: 'center', gap: 10, padding: 10, background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 8 },
-  candRow: { display: 'flex', alignItems: 'center', gap: 10, padding: 10, background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 8 },
-  srcTitle: { fontSize: 13, fontWeight: 600, color: theme.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  srcSub: { fontSize: 12, color: theme.text.secondary, lineHeight: 1.4, marginTop: 2 },
-  srcMeta: { fontSize: 10, fontFamily: theme.font.mono, color: theme.text.muted, marginTop: 3 },
-  srcControls: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
-  incl: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: theme.font.mono, color: theme.text.secondary },
-  prio: { width: 50, padding: '4px 6px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 5, color: theme.text.primary, fontSize: 11, fontFamily: theme.font.mono },
-  remove: { padding: '4px 9px', background: 'transparent', border: `1px solid ${theme.accent.red}`, borderRadius: 5, color: theme.accent.red, cursor: 'pointer', fontSize: 11 },
-  addBox: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6, paddingTop: 10, borderTop: `1px solid ${theme.border.default}` },
-  filters: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
-  search: { flex: 1, minWidth: 160, padding: '7px 10px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.primary, fontSize: 12, fontFamily: theme.font.body, outline: 'none' },
-  filterOn: { padding: '6px 10px', background: theme.accent.amberGlow, border: `1px solid ${theme.accent.amber}`, borderRadius: 6, color: theme.accent.amber, cursor: 'pointer', fontSize: 10, fontFamily: theme.font.mono },
-  filterOff: { padding: '6px 10px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.secondary, cursor: 'pointer', fontSize: 10, fontFamily: theme.font.mono },
-  addBtn: { padding: '6px 12px', background: theme.accent.green, border: 'none', borderRadius: 6, color: '#080A0F', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: theme.font.body, flexShrink: 0 },
+  modalHead: { display: 'flex', alignItems: 'center', gap: 8 },
+  modalClose: { background: 'transparent', border: 'none', color: theme.text.secondary, cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0, width: 28, height: 28 },
+  scopeRow: { display: 'inline-flex', alignItems: 'baseline', gap: 8, padding: '6px 12px', borderRadius: 8, background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`, alignSelf: 'flex-start' },
+  scopeLabel: { fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: theme.text.muted },
+  scopeName: { fontFamily: theme.font.body, fontSize: 13, fontWeight: 600, color: theme.text.primary },
+  search: { padding: '8px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.primary, fontSize: 12, fontFamily: theme.font.body, outline: 'none' },
   badgeOn: { padding: '3px 9px', border: `1px solid ${theme.accent.green}`, borderRadius: 10, fontFamily: theme.font.mono, fontSize: 9, color: theme.accent.green, flexShrink: 0 },
-  badgeOff: { padding: '3px 9px', border: `1px solid ${theme.border.default}`, borderRadius: 10, fontFamily: theme.font.mono, fontSize: 9, color: theme.text.muted, flexShrink: 0 },
   muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
   error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
 };
