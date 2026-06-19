@@ -162,5 +162,6 @@ class MeetingCreateResponse(BaseModel):
     object_id: int | None = None
     status: str | None = None
     is_active: bool
+    started_at: datetime
 
     model_config = {"from_attributes": True}

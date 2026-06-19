@@ -21,6 +21,8 @@ import { DictaphoneView } from '../components/meeting/DictaphoneView';
 import { ModeSwitch } from '../components/meeting/ModeSwitch';
 import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
+import { IconSwap } from '../components/common/IconSwap';
+import { useExitTransition } from '../hooks/useExitTransition';
 import { CollapsibleSection } from '../components/common/CollapsibleSection';
 import { ContextBasket } from '../components/context/ContextBasket';
 import { ragContextApiAdapter } from '../api/ragContextAdapter';
@@ -39,11 +41,21 @@ import type { UserSettings } from '../types';
 
 const TABS = ['Переговоры', 'Контекст встречи'] as const;
 
+// Дата в формате ДД.ММ.ГГГГ.
+function formatDmy(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
+
 // Дефолтное название встречи: «Заказчик_Объект_ДД.ММ.ГГГГ» (непустые части через «_»).
 function buildDefaultMeetingName(customerName: string | null, objectName: string | null): string {
-  const d = new Date();
-  const date = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-  return [customerName, objectName, date].filter((p) => p && p.trim()).join('_');
+  return [customerName, objectName, formatDmy(new Date())].filter((p) => p && p.trim()).join('_');
+}
+
+// Дата начала записи встречи для показа в шапке (ISO → ДД.ММ.ГГГГ).
+function formatMeetingDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : formatDmy(d);
 }
 
 interface Props {
@@ -56,8 +68,10 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ctxSendTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const linkCopiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -96,6 +110,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         });
         id = m.id;
         useMeetingStore.getState().setDraftMeetingId(m.id);
+        useMeetingStore.getState().setMeetingStartedAt(m.started_at);
       } catch {
         return null;
       }
@@ -134,6 +149,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         s2.setSelectedObjectId(d.object_id);
         s2.setSelectedCustomerName(d.customer_name);
         s2.setSelectedObjectName(d.object_name);
+        s2.setMeetingStartedAt(d.started_at ?? null);
         // Тема/цель — read-only, генерируется LLM; название — пользовательское.
         s2.setMeetingTopic(d.meeting_topic ?? '');
         if (d.title) s2.setMeetingName(d.title);
@@ -143,7 +159,11 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       setSettings(s);
       store.setCustomSuggestionTypes(s.custom_suggestion_types);
     }).catch(() => {});
-    return () => { disconnect(); if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current); };
+    return () => {
+      disconnect();
+      if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
+      if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -366,6 +386,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     getMeetingDetail(id).then((d) => {
       const s2 = useMeetingStore.getState();
       s2.setMeetingTopic(d.meeting_topic ?? '');
+      if (d.started_at) s2.setMeetingStartedAt(d.started_at);
       if (d.title) s2.setMeetingName(d.title);
     }).catch(() => {});
   }, []);
@@ -388,11 +409,21 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     const id = useMeetingStore.getState().currentMeetingId;
     if (id == null) return;
     const url = window.location.origin + paths.meetingRoom(id);
-    const done = () => showToast('Ссылка скопирована', 'success');
+    const done = () => {
+      // Инлайн-фидбек прямо под кнопкой (вместо тоста): чек + всплывающая подпись.
+      setLinkCopied(true);
+      if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current);
+      linkCopiedTimer.current = setTimeout(() => setLinkCopied(false), 2000);
+    };
     const fail = () => showToast('Не удалось скопировать ссылку', 'error');
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, fail);
     else fail();
   }, [showToast]);
+
+  // Дата встречи (начало записи) для шапки.
+  const meetingDate = formatMeetingDate(store.meetingStartedAt);
+  // Инлайн-уведомление о копировании ссылки (panel-reveal под кнопкой).
+  const copyNote = useExitTransition(linkCopied, { closeVar: '--panel-close-dur', fallbackMs: 350 });
 
   // Верхняя панель встречи: «назад» + переключатель вида (диктофон/полный) + ссылка.
   // Общая для обоих режимов — переключатель доступен и в диктофоне, и в полном.
@@ -407,8 +438,8 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       <button onClick={onBack} style={styles.backBtn} aria-label="Назад" title="В главное меню">
         <span>←</span><span className="mp-btn-label"> Назад</span>
       </button>
-      {/* Заказчик/объект — справочно, read-only (привязка задаётся при создании встречи) */}
-      {(store.selectedCustomerName || store.selectedObjectName) && (
+      {/* Заказчик/объект/дата — справочно, read-only (привязка задаётся при создании встречи) */}
+      {(store.selectedCustomerName || store.selectedObjectName || meetingDate) && (
         <div className="mp-ref" style={styles.refInfo}>
           {store.selectedCustomerName && (
             <span style={styles.refItem} title={`Заказчик: ${store.selectedCustomerName}`}>
@@ -422,14 +453,32 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               <span style={styles.refVal}>{store.selectedObjectName}</span>
             </span>
           )}
+          {meetingDate && (
+            <span style={styles.refItem} title={`Дата встречи: ${meetingDate}`}>
+              <span className="mp-ref-label" style={styles.refLabel}>Дата</span>
+              <span style={styles.refVal}>{meetingDate}</span>
+            </span>
+          )}
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <ModeSwitch />
         {store.currentMeetingId != null && (
-          <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
-            <span>🔗</span><span className="mp-btn-label"> Ссылка</span>
-          </button>
+          <div style={styles.linkWrap}>
+            <button onClick={copyMeetingLink} style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
+              <IconSwap state={linkCopied ? 'b' : 'a'} a="🔗" b="✓" />
+              <span className="mp-btn-label"> Ссылка</span>
+            </button>
+            {copyNote.mounted && (
+              <div
+                className="t-panel-slide"
+                data-open={copyNote.open ? 'true' : 'false'}
+                style={{ ...styles.copyNote, ['--panel-translate-y']: '-6px' } as React.CSSProperties}
+              >
+                Ссылка скопирована
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -783,11 +832,19 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: theme.font.body, fontSize: 13, fontWeight: 600, color: theme.text.primary,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
+  linkWrap: { position: 'relative', flexShrink: 0 },
   linkBtn: {
     display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
     background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 6,
     color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
     fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em',
+  },
+  copyNote: {
+    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+    display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+    padding: '5px 10px', borderRadius: 6,
+    background: 'rgba(46,229,157,0.12)', border: `1px solid ${theme.accent.green}`,
+    color: theme.accent.green, fontSize: 11, fontFamily: theme.font.mono, fontWeight: 500,
   },
   tabs: {
     display: 'flex', gap: 0, alignItems: 'center',

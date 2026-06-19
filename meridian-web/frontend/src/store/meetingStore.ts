@@ -65,6 +65,9 @@ interface MeetingState {
 
   // Meeting context
   meetingName: string;
+  // Дата начала записи встречи (started_at, ISO) — справочно в шапке.
+  meetingStartedAt: string | null;
+  setMeetingStartedAt: (v: string | null) => void;
   meetingTopic: string;
   meetingNotes: string;
   negotiationType: string;
@@ -327,6 +330,8 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   setError: (msg) => set({ lastError: msg }),
 
   meetingName: '',
+  meetingStartedAt: null,
+  setMeetingStartedAt: (v) => set({ meetingStartedAt: v }),
   contextEditedAt: 0,
   meetingTopic: '',
   meetingNotes: '',
@@ -533,6 +538,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     messages: [], committedSegments: [], partialMessage: null, turns: [],
     suggestions: [], currentSuggestionIndex: -1, currentStreamingText: null,
     analysisStatus: null, isListening: false, lastError: null, activeRoleName: null,
+    meetingStartedAt: null,
     currentMeetingId: null, draftMeetingId: null, meetingSavedId: null,
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,
@@ -567,6 +573,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       strengthenLoading: false,
       documents: [],
       meetingName: '',
+      meetingStartedAt: null,
       analysisStatus: null,
       statusMessage: 'Готов к работе',
       lastError: null,

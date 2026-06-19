@@ -826,7 +826,7 @@ class SessionManager:
             return
 
         await self._send_json({"type": "suggestion_loading", "loading": True})
-        await self._send_analysis_status("Формирую тактические подсказки...")
+        await self._send_analysis_status("Формирую AI Подсказки...")
 
         ctx = self._ctx_builder.build_tactical(
             topic=self.document_loader.meeting_topic,

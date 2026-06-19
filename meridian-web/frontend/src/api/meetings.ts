@@ -36,6 +36,7 @@ export interface MeetingDraft {
   object_id: number | null;
   status: string | null;
   is_active: boolean;
+  started_at: string;
 }
 
 export async function createMeeting(input: MeetingDraftInput): Promise<MeetingDraft> {

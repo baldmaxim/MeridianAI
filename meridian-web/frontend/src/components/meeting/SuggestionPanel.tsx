@@ -272,7 +272,7 @@ export function SuggestionPanel() {
 
   const statusText = analysisStatus
     || (streamingText !== null ? 'Генерирую подсказку...'
-    : suggestionLoading ? 'Формирую тактические подсказки...'
+    : suggestionLoading ? 'Формирую AI Подсказки...'
     : strengthenLoading ? 'Анализирую позицию и аргументы...'
     : null);
 
@@ -291,7 +291,7 @@ export function SuggestionPanel() {
           background: isAnalyzing ? theme.accent.green : theme.accent.amber,
           animation: isAnalyzing ? 'pulse 1.5s infinite' : 'none',
         }} />
-        <span style={styles.title}>Тактические подсказки AI</span>
+        <span style={styles.title}>AI Подсказки</span>
         {suggestions.length > 0 && (
           <span style={styles.meta}>
             {suggestions.length} актуальных{relTime ? ` · ${relTime}` : ''}
@@ -314,7 +314,7 @@ export function SuggestionPanel() {
       <div style={styles.cards}>
         {suggestions.length === 0 && !isAnalyzing && (
           <div style={styles.placeholder}>
-            Здесь появятся тактические подсказки AI.
+            Здесь появятся AI Подсказки.
             Начните прослушивание переговоров или запросите подсказку вручную.
           </div>
         )}
