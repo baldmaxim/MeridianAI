@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic, SpeakerSegmentCorrection, SegmentSideHint } from '../types';
+import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic, SpeakerSegmentCorrection, SegmentSideHint, DeviceSyncState, SecondaryShadowTrackSummary, MultiSourceAlignment, MultiChannelLiveState, MultiChannelLiveSegment, MultiChannelLiveSnapshot, MultiChannelReconciliationState, TranscriptionAuthorityState } from '../types';
 
 interface MeetingStats {
   positionStrength: number;
@@ -158,6 +158,43 @@ interface MeetingState {
   setRecordPermissionDenied: (v: boolean) => void;
   setPhoneRecording: (v: boolean) => void;
 
+  // Этап 9.1: синхронизация часов устройства с backend
+  deviceSync: DeviceSyncState | null;
+  setDeviceSync: (s: DeviceSyncState | null) => void;
+
+  // Этап 9.2: сводка secondary audio shadow треков комнаты (для desktop-монитора)
+  shadowTracks: SecondaryShadowTrackSummary[];
+  setShadowTracks: (tracks: SecondaryShadowTrackSummary[]) => void;
+
+  // Этап 9.3: сводка выравнивания multi-source ingest (общая server timeline)
+  ingestAlignment: MultiSourceAlignment | null;
+  setIngestAlignment: (a: MultiSourceAlignment | null) => void;
+
+  // Этап 9.6: realtime multi-channel live STT shadow (диагностический candidate)
+  multiChannelLiveState: MultiChannelLiveState | null;
+  multiChannelLiveFinalSegments: MultiChannelLiveSegment[];
+  multiChannelLiveInterimByChannel: Record<number, MultiChannelLiveSegment>;
+  setMultiChannelLiveState: (s: MultiChannelLiveState | null) => void;
+  upsertMultiChannelLiveResult: (seg: MultiChannelLiveSegment) => void;
+  setMultiChannelLiveSnapshot: (snap: MultiChannelLiveSnapshot) => void;
+  clearMultiChannelLive: () => void;
+
+  // Этап 9.7: channel-aware reconciliation (state + ephemeral dismiss/select)
+  multiChannelReconciliation: MultiChannelReconciliationState | null;
+  dismissedReconciliationEntries: Record<string, true>;
+  selectedReconciliationEntries: Record<string, true>;
+  setMultiChannelReconciliation: (s: MultiChannelReconciliationState | null) => void;
+  dismissReconciliationEntry: (entryId: string) => void;
+  selectReconciliationEntry: (entryId: string, selected: boolean) => void;
+  clearReconciliationSelection: () => void;
+  clearMultiChannelReconciliation: () => void;
+
+  // Этап 9.8: production cutover (авторитетный источник транскрипта)
+  transcriptionAuthority: TranscriptionAuthorityState | null;
+  transcriptionAuthorityError: { code: string | null; message: string | null } | null;
+  setTranscriptionAuthority: (s: TranscriptionAuthorityState | null) => void;
+  setTranscriptionAuthorityError: (e: { code: string | null; message: string | null } | null) => void;
+
   // Сбросить идентичность встречи для НОВОЙ сессии (без reload)
   newMeetingSession: () => void;
 
@@ -166,6 +203,15 @@ interface MeetingState {
 }
 
 let messageCounter = 0;
+
+const MAX_LIVE_FINALS = 2000;
+// Этап 9.6: dedupe по segment_id + sort (start_server_ms, channel_index) + bounded.
+function mergeLiveFinal(list: MultiChannelLiveSegment[], seg: MultiChannelLiveSegment): MultiChannelLiveSegment[] {
+  if (list.some((s) => s.segment_id === seg.segment_id)) return list;
+  const next = [...list, seg].sort(
+    (a, b) => a.start_server_ms - b.start_server_ms || a.channel_index - b.channel_index);
+  return next.length > MAX_LIVE_FINALS ? next.slice(next.length - MAX_LIVE_FINALS) : next;
+}
 
 // Дефолт вида встречи: диктофон — только для мобильного; десктоп → полный интерфейс.
 // Явный выбор пользователя сохраняется в meridian_ui_mode_v2 (новый ключ — старый
@@ -382,6 +428,107 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   setRecordPermissionDenied: (v) => set({ recordPermissionDenied: v }),
   setPhoneRecording: (v) => set({ phoneRecording: v }),
 
+  deviceSync: null,
+  setDeviceSync: (s) => set({ deviceSync: s }),
+
+  shadowTracks: [],
+  setShadowTracks: (tracks) => set({ shadowTracks: tracks }),
+
+  ingestAlignment: null,
+  setIngestAlignment: (a) => set({ ingestAlignment: a }),
+
+  multiChannelLiveState: null,
+  multiChannelLiveFinalSegments: [],
+  multiChannelLiveInterimByChannel: {},
+  setMultiChannelLiveState: (s) => set({ multiChannelLiveState: s }),
+  upsertMultiChannelLiveResult: (seg) =>
+    set((st) => {
+      if (seg.is_final) {
+        const interim = { ...st.multiChannelLiveInterimByChannel };
+        delete interim[seg.channel_index];
+        return {
+          multiChannelLiveFinalSegments: mergeLiveFinal(st.multiChannelLiveFinalSegments, seg),
+          multiChannelLiveInterimByChannel: interim,
+        };
+      }
+      const interim = { ...st.multiChannelLiveInterimByChannel };
+      if (!seg.transcript.trim()) delete interim[seg.channel_index];
+      else interim[seg.channel_index] = seg;
+      return { multiChannelLiveInterimByChannel: interim };
+    }),
+  setMultiChannelLiveSnapshot: (snap) =>
+    set(() => {
+      const interim: Record<number, MultiChannelLiveSegment> = {};
+      for (const [k, v] of Object.entries(snap.latest_interim_by_channel || {})) {
+        interim[Number(k)] = v;
+      }
+      const finals = [...(snap.final_segments || [])].sort(
+        (a, b) => a.start_server_ms - b.start_server_ms || a.channel_index - b.channel_index);
+      return {
+        multiChannelLiveState: snap.state,
+        multiChannelLiveFinalSegments: finals,
+        multiChannelLiveInterimByChannel: interim,
+      };
+    }),
+  clearMultiChannelLive: () =>
+    set({ multiChannelLiveFinalSegments: [], multiChannelLiveInterimByChannel: {} }),
+
+  multiChannelReconciliation: null,
+  dismissedReconciliationEntries: {},
+  selectedReconciliationEntries: {},
+  setMultiChannelReconciliation: (s) =>
+    set((st) => {
+      if (s == null) {
+        return { multiChannelReconciliation: null,
+                 dismissedReconciliationEntries: {}, selectedReconciliationEntries: {} };
+      }
+      // игнорировать устаревшую ревизию
+      const cur = st.multiChannelReconciliation;
+      if (cur && s.revision < cur.revision) return {};
+      // dismiss/select сохраняем только для всё ещё существующих entry id
+      const ids = new Set(s.entries.map((e) => e.entry_id));
+      const prune = (m: Record<string, true>) => {
+        const out: Record<string, true> = {};
+        for (const k of Object.keys(m)) if (ids.has(k)) out[k] = true;
+        return out;
+      };
+      return {
+        multiChannelReconciliation: s,
+        dismissedReconciliationEntries: prune(st.dismissedReconciliationEntries),
+        selectedReconciliationEntries: prune(st.selectedReconciliationEntries),
+      };
+    }),
+  dismissReconciliationEntry: (entryId) =>
+    set((st) => {
+      const sel = { ...st.selectedReconciliationEntries };
+      delete sel[entryId];
+      return {
+        dismissedReconciliationEntries: { ...st.dismissedReconciliationEntries, [entryId]: true },
+        selectedReconciliationEntries: sel,
+      };
+    }),
+  selectReconciliationEntry: (entryId, selected) =>
+    set((st) => {
+      const sel = { ...st.selectedReconciliationEntries };
+      if (selected) sel[entryId] = true; else delete sel[entryId];
+      return { selectedReconciliationEntries: sel };
+    }),
+  clearReconciliationSelection: () => set({ selectedReconciliationEntries: {} }),
+  clearMultiChannelReconciliation: () =>
+    set({ multiChannelReconciliation: null, dismissedReconciliationEntries: {},
+          selectedReconciliationEntries: {} }),
+
+  transcriptionAuthority: null,
+  transcriptionAuthorityError: null,
+  setTranscriptionAuthority: (s) =>
+    set((st) => {
+      // игнорировать устаревшую ревизию (state приходит и из join, и из broadcast)
+      const cur = st.transcriptionAuthority;
+      if (s && cur && cur.meeting_id === s.meeting_id && s.revision < cur.revision) return {};
+      return { transcriptionAuthority: s, transcriptionAuthorityError: null };
+    }),
+  setTranscriptionAuthorityError: (e) => set({ transcriptionAuthorityError: e }),
+
   newMeetingSession: () => set({
     messages: [], committedSegments: [], partialMessage: null, turns: [],
     suggestions: [], currentSuggestionIndex: -1, currentStreamingText: null,
@@ -389,7 +536,11 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     currentMeetingId: null, draftMeetingId: null, meetingSavedId: null,
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,
-    recordPermissionDenied: false, phoneRecording: false,
+    recordPermissionDenied: false, phoneRecording: false, deviceSync: null,
+    shadowTracks: [], ingestAlignment: null,
+    multiChannelLiveState: null, multiChannelLiveFinalSegments: [], multiChannelLiveInterimByChannel: {},
+    multiChannelReconciliation: null, dismissedReconciliationEntries: {}, selectedReconciliationEntries: {},
+    transcriptionAuthority: null, transcriptionAuthorityError: null,
     conversationTree: [], treeVersion: 0, treeUnassigned: [], treeCollapsed: {},
     meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
   }),
@@ -440,6 +591,17 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       recording: false,
       recordPermissionDenied: false,
       phoneRecording: false,
+      deviceSync: null,
+      shadowTracks: [],
+      ingestAlignment: null,
+      multiChannelLiveState: null,
+      multiChannelLiveFinalSegments: [],
+      multiChannelLiveInterimByChannel: {},
+      multiChannelReconciliation: null,
+      dismissedReconciliationEntries: {},
+      selectedReconciliationEntries: {},
+      transcriptionAuthority: null,
+      transcriptionAuthorityError: null,
       conversationTree: [],
       treeVersion: 0,
       treeUnassigned: [],

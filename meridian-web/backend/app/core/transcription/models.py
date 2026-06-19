@@ -91,6 +91,11 @@ class CommittedSegment:
     avg_logprob: Optional[float] = None
     min_logprob: Optional[float] = None
     word_count: int = 0
+    # Этап 9.8: абсолютные server-эпохи РЕЧИ (не момента прихода committed-события).
+    # Считаются как primary_stream_start_server_ms + provider-relative start/end.
+    # None, если якорь старта стрима неизвестен (graceful — падаем на wall_clock/server_ts_ms).
+    speech_start_ms: Optional[int] = None
+    speech_end_ms: Optional[int] = None
 
     def __post_init__(self):
         if self.words:
@@ -108,15 +113,42 @@ class CommittedSegment:
     def is_low_confidence(self) -> bool:
         return self.min_logprob is not None and self.min_logprob < -1.0
 
+    @property
+    def server_ts_ms(self) -> int:
+        """Абсолютный server timeline (epoch ms) — основа для channel alignment (Этап 9.1)."""
+        return int(self.wall_clock.timestamp() * 1000)
+
+    def assign_speech_timestamps(self, stream_start_server_ms: Optional[int]) -> None:
+        """Этап 9.8: проставить абсолютные server-эпохи речи по якорю старта стрима.
+
+        provider-relative start/end (секунды) + якорь → epoch ms. Без якоря — оставляем None.
+        Не меняет байты/протокол STT; чисто производная метка для атрибуции эпох.
+        """
+        if stream_start_server_ms is None:
+            return
+        self.speech_start_ms = stream_start_server_ms + int(round(self.start_time * 1000))
+        self.speech_end_ms = stream_start_server_ms + int(round(self.end_time * 1000))
+
+    @property
+    def effective_speech_start_ms(self) -> int:
+        """Speech-start если известен, иначе fallback на server_ts_ms (момент прихода)."""
+        return self.speech_start_ms if self.speech_start_ms is not None else self.server_ts_ms
+
+    @property
+    def effective_speech_end_ms(self) -> int:
+        return self.speech_end_ms if self.speech_end_ms is not None else self.server_ts_ms
+
     def to_wire(self) -> dict:
         """Minimal payload for WS client (backward-compat with transcript type)."""
         return {
             "segment_id": self.segment_id,
+            "segment_key": self.segment_id,
             "speaker": self.speaker_label or self.speaker_id,
             "text": self.text,
             "start_time": self.start_time,
             "end_time": self.end_time,
             "timestamp": self.wall_clock.strftime("%H:%M:%S"),
+            "server_ts_ms": self.server_ts_ms,
             "is_partial": False,
             "confidence": self.avg_logprob,
         }
@@ -125,6 +157,7 @@ class CommittedSegment:
         """Full payload with word-level data for committed_transcript type."""
         return {
             "segment_id": self.segment_id,
+            "segment_key": self.segment_id,
             "speaker": self.speaker_label or self.speaker_id,
             "text": self.text,
             "words": [w.to_dict() for w in self.words],
@@ -132,6 +165,9 @@ class CommittedSegment:
             "end_time": self.end_time,
             "confidence": self.avg_logprob,
             "timestamp": self.wall_clock.strftime("%H:%M:%S"),
+            "server_ts_ms": self.server_ts_ms,
+            "speech_start_ms": self.speech_start_ms,
+            "speech_end_ms": self.speech_end_ms,
         }
 
     def to_dict(self) -> dict:

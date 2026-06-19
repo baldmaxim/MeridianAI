@@ -128,18 +128,30 @@ async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str
         meta.append(f"Участники: {', '.join(participants)}")
     meeting_block = "\n".join(meta) if meta else "(метаданные не заданы)"
 
-    # transcript
-    segs = (
-        await db.execute(
-            select(TranscriptSegmentRecord)
-            .where(TranscriptSegmentRecord.session_id == meeting.id)
-            .order_by(TranscriptSegmentRecord.wall_clock.asc())
+    # transcript — Этап 9.8: авторитетный (по эпохам) если cutover применялся, иначе raw single
+    transcript_text = ""
+    try:
+        from .transcription_authority_controller import build_authoritative_from_db
+        auth = await build_authoritative_from_db(db, meeting.id)
+        if auth is not None and auth.segments:
+            # head+tail truncation (как у legacy), а не tail-only full_text(max_chars):
+            # для протокола важно НЕ терять начало встречи (ранние решения/обязательства).
+            transcript_text = _truncate(
+                auth.full_text(), settings.meeting_finalization_max_transcript_chars)
+    except Exception:
+        transcript_text = ""
+    if not transcript_text:
+        segs = (
+            await db.execute(
+                select(TranscriptSegmentRecord)
+                .where(TranscriptSegmentRecord.session_id == meeting.id)
+                .order_by(TranscriptSegmentRecord.wall_clock.asc())
+            )
+        ).scalars().all()
+        transcript_text = "\n".join(
+            f"[{_fmt_tc(s.start_time)}] {s.speaker_label or s.speaker_id}: {s.text}" for s in segs
         )
-    ).scalars().all()
-    transcript_text = "\n".join(
-        f"[{_fmt_tc(s.start_time)}] {s.speaker_label or s.speaker_id}: {s.text}" for s in segs
-    )
-    transcript_text = _truncate(transcript_text, settings.meeting_finalization_max_transcript_chars)
+        transcript_text = _truncate(transcript_text, settings.meeting_finalization_max_transcript_chars)
 
     # documents (имена + релевантные чанки, ограничено)
     doc_names = (

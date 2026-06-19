@@ -8,6 +8,11 @@ import { getMeetingDetail } from '../api/history';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SpeakerSideAssignmentPanel } from '../components/meeting/SpeakerSideAssignmentPanel';
 import { ObserverPanel } from '../components/meeting/ObserverPanel';
+import { SecondaryShadowPanel } from '../components/meeting/SecondaryShadowPanel';
+import { IngestPanel } from '../components/meeting/IngestPanel';
+import { MultiChannelLivePanel } from '../components/meeting/MultiChannelLivePanel';
+import { MultiChannelReconciliationPanel } from '../components/meeting/MultiChannelReconciliationPanel';
+import { ProductionCutoverPanel } from '../components/meeting/ProductionCutoverPanel';
 import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
 import { MeetingStats } from '../components/meeting/MeetingStats';
@@ -653,6 +658,31 @@ export function MeetingPage({ meetingId, onBack }: Props) {
               {/* Этап 9: режим наблюдателя (второй телефон) */}
               <CollapsibleSection title="Наблюдатель (второй телефон)">
                 <ObserverPanel meetingId={store.currentMeetingId} />
+              </CollapsibleSection>
+
+              {/* Этап 9.2: второй аудиоканал (shadow) */}
+              <CollapsibleSection title="Второй аудиоканал (shadow)">
+                <SecondaryShadowPanel meetingId={store.currentMeetingId} />
+              </CollapsibleSection>
+
+              {/* Этап 9.3: выравнивание источников (multi-source ingest) */}
+              <CollapsibleSection title="Синхронизация каналов (ingest)">
+                <IngestPanel />
+              </CollapsibleSection>
+
+              {/* Этап 9.6: live multi-channel STT (shadow) */}
+              <CollapsibleSection title="Live multi-channel STT — shadow">
+                <MultiChannelLivePanel meetingId={store.currentMeetingId} sendJSON={sendJSON} />
+              </CollapsibleSection>
+
+              {/* Этап 9.7: сопоставление multi-channel candidate с основным transcript */}
+              <CollapsibleSection title="Сопоставление с основным transcript">
+                <MultiChannelReconciliationPanel meetingId={store.currentMeetingId} sendJSON={sendJSON} />
+              </CollapsibleSection>
+
+              {/* Этап 9.8: авторитетный источник транскрипта (production cutover) */}
+              <CollapsibleSection title="Источник транскрипта (cutover)">
+                <ProductionCutoverPanel meetingId={store.currentMeetingId} sendJSON={sendJSON} />
               </CollapsibleSection>
 
               {/* Этап 5: итоги встречи / протокол */}

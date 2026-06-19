@@ -1,6 +1,7 @@
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import { TextSwap } from '../common/TextSwap';
+import { SyncBadge } from './SyncBadge';
 
 interface Props {
   onStartListening: () => void;
@@ -22,6 +23,7 @@ export function ControlButtons({
   const strengthenLoading = useMeetingStore((s) => s.strengthenLoading);
   const isConnected = useMeetingStore((s) => s.isConnected);
   const lastError = useMeetingStore((s) => s.lastError);
+  const deviceSync = useMeetingStore((s) => s.deviceSync);
 
   const shortModel = modelName
     ? modelName.split('/').pop() || modelName
@@ -74,6 +76,7 @@ export function ControlButtons({
           value={`${lastError ? lastError : isConnected ? 'Подключено' : 'Отключено'}${!lastError && shortModel ? ` · ${shortModel}` : ''}`}
           style={{ ...styles.statusText, color: lastError ? theme.accent.red : isConnected ? theme.accent.green : theme.accent.red }}
         />
+        {isConnected && !lastError && <SyncBadge sync={deviceSync} compact />}
       </div>
     </div>
   );

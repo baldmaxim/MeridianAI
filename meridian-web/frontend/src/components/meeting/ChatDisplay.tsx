@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme, getSpeakerTextColor } from '../../styles/theme';
-import type { PublicSpeakerSide } from '../../types';
+import type { PublicSpeakerSide, MultiChannelReconciliationEntry } from '../../types';
 import { nextPublicSpeakerSide, speakerSideBadge, speakerSideColor, speakerSideLabel } from '../../lib/speakerSides';
 import { resolveSegmentSide, resolveSegmentSpeaker, isSegmentCorrected, segmentKeyForMessage } from '../../lib/segmentCorrections';
 
@@ -27,6 +27,20 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
   const speakerCorrections = useMeetingStore((s) => s.speakerCorrections);
   const segmentHints = useMeetingStore((s) => s.segmentHints);
   const dismissSegmentHint = useMeetingStore((s) => s.dismissSegmentHint);
+  // Этап 9.7: channel evidence по committed-реплике (только matched, не dismissed)
+  const reconciliation = useMeetingStore((s) => s.multiChannelReconciliation);
+  const dismissedRecon = useMeetingStore((s) => s.dismissedReconciliationEntries);
+  const reconByKey = useMemo(() => {
+    const m: Record<string, MultiChannelReconciliationEntry> = {};
+    for (const e of reconciliation?.entries ?? []) {
+      if (e.kind === 'matched' && e.primary_segment_key && !dismissedRecon[e.entry_id]) {
+        m[e.primary_segment_key] = e;
+      }
+    }
+    return m;
+  }, [reconciliation, dismissedRecon]);
+  // Этап 9.8: авторитетный источник транскрипта (баннер при multi-channel)
+  const authority = useMeetingStore((s) => s.transcriptionAuthority);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
 
@@ -66,7 +80,17 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
       <div style={styles.header}>
         <span style={styles.dot} />
         <span style={styles.title}>Транскрипция</span>
+        {authority?.current_source === 'multi_channel' && (
+          <span style={styles.authBadge} title="Авторитетный источник — multi-channel">
+            multi-channel
+          </span>
+        )}
       </div>
+      {authority?.current_source === 'multi_channel' && (
+        <div style={styles.authBanner}>
+          Авторитетный транскрипт ведётся по multi-channel. Single STT продолжает работать как резерв.
+        </div>
+      )}
       <div style={styles.messages}>
         {!hasTurns && messages.length === 0 && (
           <div style={styles.placeholder}>
@@ -124,6 +148,23 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                       {isLowConf && (
                         <span style={styles.lowConfBadge} title="Низкая уверенность транскрипции">?</span>
                       )}
+                      {(() => {
+                        // Этап 9.7: channel evidence chip (display-only; применение — в панели)
+                        const re = reconByKey[segKey];
+                        if (!re) return null;
+                        if (re.side_agreement === 'confirmed') {
+                          return <span style={styles.reconConfirmed} title="Канал подтверждает текущую сторону">канал ✓</span>;
+                        }
+                        if (re.side_agreement === 'conflict') {
+                          const sd = re.channel_side === 'self' ? 'Мы' : 'Не мы';
+                          return <span style={styles.reconConflict} title={`Канал ${(re.channel_index ?? 0) + 1}: ${(re.match_score * 100).toFixed(0)}% совпадение`}>конфликт: канал «{sd}»</span>;
+                        }
+                        if (re.can_apply_side && re.channel_side) {
+                          const sd = re.channel_side === 'self' ? 'Мы' : 'Не мы';
+                          return <span style={styles.reconSuggest} title={`Канал ${(re.channel_index ?? 0) + 1} · ${(re.hint_confidence * 100).toFixed(0)}% — применить в панели «Сопоставление»`}>канал: вероятно {sd} · {(re.hint_confidence * 100).toFixed(0)}%</span>;
+                        }
+                        return null;
+                      })()}
                     </span>
                     {canEdit && onSetSegmentCorrection && (
                       <button
@@ -280,6 +321,29 @@ const styles: Record<string, React.CSSProperties> = {
     verticalAlign: 'middle',
   },
   speakerRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  reconSuggest: {
+    display: 'inline-block', marginLeft: 6, fontSize: 9, padding: '1px 6px', borderRadius: 6,
+    fontFamily: theme.font.mono, background: 'rgba(245,166,35,0.15)', color: theme.accent.amber,
+    verticalAlign: 'middle',
+  },
+  reconConflict: {
+    display: 'inline-block', marginLeft: 6, fontSize: 9, padding: '1px 6px', borderRadius: 6,
+    fontFamily: theme.font.mono, background: 'rgba(255,75,110,0.15)', color: theme.accent.red,
+    verticalAlign: 'middle',
+  },
+  reconConfirmed: {
+    display: 'inline-block', marginLeft: 6, fontSize: 9, padding: '1px 6px', borderRadius: 6,
+    fontFamily: theme.font.mono, background: 'rgba(46,229,157,0.13)', color: theme.accent.green,
+    verticalAlign: 'middle',
+  },
+  authBadge: {
+    marginLeft: 8, fontSize: 9, padding: '1px 6px', borderRadius: 6, fontFamily: theme.font.mono,
+    fontWeight: 700, letterSpacing: '0.06em', background: 'rgba(46,229,157,0.13)', color: theme.accent.green,
+  },
+  authBanner: {
+    margin: '0 0 6px', padding: '4px 10px', fontFamily: theme.font.mono, fontSize: 10,
+    color: theme.accent.green, background: 'rgba(46,229,157,0.08)', borderRadius: 6, lineHeight: 1.5,
+  },
   hintRow: {
     display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const,
     margin: '3px 0', padding: '4px 8px', borderRadius: 6,

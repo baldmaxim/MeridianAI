@@ -160,6 +160,7 @@ export interface TranscriptWord {
 // Committed segment with word-level timestamps
 export interface CommittedSegmentWire {
   segment_id: string;
+  segment_key: string;       // = segment_id; стабильный ключ для channel alignment (Этап 9.1)
   speaker: string;
   text: string;
   words: TranscriptWord[];
@@ -167,6 +168,250 @@ export interface CommittedSegmentWire {
   end_time: number;
   confidence: number | null;
   timestamp: string;
+  server_ts_ms: number;      // абсолютный server timeline (epoch ms)
+}
+
+// Этап 9.1: качество синхронизации часов устройства с backend.
+export type ClockSyncQuality = 'excellent' | 'good' | 'fair' | 'poor';
+
+export interface DeviceSyncState {
+  offsetMs: number;
+  rttMs: number;
+  quality: ClockSyncQuality;
+  samples: number;
+  lastSyncMs: number;
+}
+
+// Этап 9.2: диагностика secondary audio shadow канала (с backend).
+export type SecondaryShadowStatus = 'idle' | 'recording' | 'stale' | 'error';
+
+export interface SecondaryShadowDiag {
+  enabled: boolean;
+  side_hint: PublicSpeakerSide | null;
+  status: SecondaryShadowStatus;
+  sample_rate: number | null;
+  channels: number | null;
+  codec: string | null;
+  chunks_count: number;
+  bytes_count: number;
+  dropped_chunks: number;
+  gaps_count: number;
+  last_seq: number | null;
+  last_duration_ms: number | null;
+  last_packet_age_ms: number | null;
+  estimated_buffer_ms: number;
+  drift_ms: number;
+  target_sample_rate: number;
+  error: string | null;
+}
+
+export interface SecondaryShadowTrackSummary {
+  connection_id: string;
+  side_hint: PublicSpeakerSide | null;
+  status: SecondaryShadowStatus;
+  chunks_count: number;
+  estimated_buffer_ms: number;
+  sample_rate: number | null;
+}
+
+// Этап 9.3: multi-source ingest — единая server timeline всех аудиоисточников.
+export type IngestRole = 'primary' | 'secondary';
+
+export interface IngestTrackInfo {
+  track_id: string;
+  role: IngestRole;
+  side_hint: PublicSpeakerSide | null;
+  sample_rate: number;
+  channels: number;
+  codec: string;
+  frame_ms: number;
+  frame_bytes: number;
+  frames_count: number;
+  buffered_frames: number;
+  gaps_count: number;
+  duplicates_count: number;
+  late_frames: number;
+  jitter_ms: number;
+  drift_ms: number;
+  first_index: number | null;
+  last_index: number | null;
+}
+
+export interface MultiSourceAlignment {
+  meeting_id: number;
+  frame_ms: number;
+  window_ms: number;
+  common_lo: number | null;
+  common_hi: number | null;
+  tracks: IngestTrackInfo[];
+}
+
+// Этап 9.6: realtime multi-channel live STT shadow (диагностический candidate).
+export type MultiChannelLiveStatus =
+  | 'idle' | 'buffering' | 'connecting' | 'streaming'
+  | 'degraded' | 'stopping' | 'stopped' | 'failed';
+
+export interface MultiChannelLiveChannel {
+  channel_index: number;
+  track_id: string;
+  connection_id: string;
+  generation: number;
+  source_kind: string;
+  label: string;
+  side: PublicSpeakerSide | null;
+}
+
+export interface MultiChannelLiveWord {
+  text: string;
+  start: number;
+  end: number;
+  confidence: number | null;
+  punctuated_word: string | null;
+}
+
+export interface MultiChannelLiveSegment {
+  segment_id: string;
+  session_id: string;
+  channel_index: number;
+  channels_count: number;
+  track_id: string;
+  channel_label: string;
+  side: PublicSpeakerSide | null;
+  transcript: string;
+  confidence: number | null;
+  provider_start: number;
+  provider_end: number;
+  start_server_ms: number;
+  end_server_ms: number;
+  is_final: boolean;
+  speech_final: boolean;
+  words: MultiChannelLiveWord[];
+}
+
+export interface MultiChannelLiveState {
+  session_id: string | null;
+  status: MultiChannelLiveStatus;
+  provider?: string;
+  model?: string;
+  language?: string;
+  channel_count: number;
+  channels: MultiChannelLiveChannel[];
+  started_at?: string | null;
+  start_frame_index?: number | null;
+  start_server_ms?: number | null;
+  chunks_sent?: number;
+  frames_sent?: number;
+  bytes_sent?: number;
+  provider_queue_depth?: number;
+  provider_request_id?: string | null;
+  silence_ratio_by_channel?: number[];
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface MultiChannelLiveSnapshot {
+  state: MultiChannelLiveState;
+  final_segments: MultiChannelLiveSegment[];
+  latest_interim_by_channel: Record<string, MultiChannelLiveSegment>;
+}
+
+// Этап 9.7: channel-aware reconciliation (evidence-слой; применение только вручную).
+export type ReconciliationEntryKind = 'matched' | 'ambiguous' | 'channel_only' | 'primary_only';
+export type ReconciliationSideAgreement = 'suggested' | 'confirmed' | 'conflict' | 'unknown';
+
+export interface MultiChannelReconciliationAlternative {
+  channel_segment_id: string;
+  channel_index: number;
+  match_score: number;
+  temporal_score: number;
+  text_score: number;
+}
+
+export interface MultiChannelReconciliationEntry {
+  entry_id: string;
+  kind: ReconciliationEntryKind;
+  primary_segment_key: string | null;
+  channel_segment_id: string | null;
+  primary_text: string | null;
+  channel_text: string | null;
+  primary_start_server_ms: number | null;
+  primary_end_server_ms: number | null;
+  channel_start_server_ms: number | null;
+  channel_end_server_ms: number | null;
+  original_speaker_label: string | null;
+  effective_speaker_label: string | null;
+  current_side: PublicSpeakerSide | null;
+  has_segment_correction: boolean;
+  channel_index: number | null;
+  track_id: string | null;
+  source_connection_id: string | null;
+  source_kind: string | null;
+  generation: number | null;
+  channel_label: string | null;
+  channel_side: PublicSpeakerSide | null;
+  provider_confidence: number | null;
+  temporal_score: number;
+  text_score: number;
+  match_score: number;
+  hint_confidence: number;
+  side_agreement: ReconciliationSideAgreement;
+  can_apply_side: boolean;
+  requires_conflict_confirmation: boolean;
+  alternatives: MultiChannelReconciliationAlternative[];
+  warnings: string[];
+}
+
+export interface MultiChannelReconciliationSummary {
+  primary_segments: number;
+  channel_segments: number;
+  matched: number;
+  ambiguous: number;
+  channel_only: number;
+  primary_only: number;
+  suggested: number;
+  confirmed: number;
+  conflicts: number;
+  unknown_side: number;
+  applicable: number;
+}
+
+export interface MultiChannelReconciliationState {
+  session_id: string;
+  meeting_id: number;
+  revision: number;
+  generated_at: string;
+  truncated: boolean;
+  summary: MultiChannelReconciliationSummary;
+  entries: MultiChannelReconciliationEntry[];
+  warnings: string[];
+}
+
+// --- Этап 9.8: production cutover (авторитетный источник транскрипта) ---
+export type TranscriptionSource = 'single' | 'multi_channel';
+
+export interface CutoverRolloutInfo {
+  allowed: boolean;
+  reason: string;
+  bucket: number;
+}
+
+export interface CutoverQualityInfo {
+  ok: boolean;
+  score: number;
+  reasons: string[];
+  metrics: Record<string, unknown>;
+}
+
+export interface TranscriptionAuthorityState {
+  meeting_id: number;
+  current_source: TranscriptionSource;
+  revision: number;
+  fallback_used: boolean;
+  epochs_count: number;
+  can_promote: boolean;
+  rollout: CutoverRolloutInfo;
+  quality: CutoverQualityInfo | null;
+  last_switch: Record<string, unknown> | null;
 }
 
 // Speaker negotiation side. SpeakerSide — legacy union (для парсинга старых данных сервера).
@@ -265,7 +510,7 @@ export interface ConversationTopicUpdateInput {
 // WebSocket message types
 export type WSMessageFromServer =
   | { type: 'transcript'; speaker: string; text: string; timestamp: string; is_partial: boolean }
-  | { type: 'committed_transcript'; segment_id: string; speaker: string; text: string; words: TranscriptWord[]; start_time: number; end_time: number; confidence: number | null; timestamp: string }
+  | { type: 'committed_transcript'; segment_id: string; segment_key: string; speaker: string; text: string; words: TranscriptWord[]; start_time: number; end_time: number; confidence: number | null; timestamp: string; server_ts_ms: number; speech_start_ms: number | null; speech_end_ms: number | null }
   | { type: 'batch_finalized'; segments: CommittedSegmentWire[] }
   | { type: 'suggestion'; text: string; is_auto: boolean; suggestion_type?: SuggestionType; trigger?: string; confidence?: number; context_info?: string; cards?: SuggestionCard[]; degraded?: boolean; source_mode?: string; raw_text?: string | null }
   | { type: 'strengthen_summary'; cards: SuggestionCard[] }
@@ -302,6 +547,27 @@ export type WSMessageFromServer =
   | { type: 'ai_settings_updated'; meeting_id: number; settings_summary: Record<string, unknown> }
   // --- Conversation Tree: обновление темы дерева общения ---
   | { type: 'conversation_tree_updated'; meeting_id: number; topic: ConversationTopic; tree_version: number }
+  // --- Этап 9.1: device clock sync ---
+  | { type: 'clock_pong'; seq: number; client_send_ms: number; server_receive_ms: number; server_send_ms: number }
+  | { type: 'clock_sync_status'; connection_id: string; offset_ms: number; rtt_ms: number; quality: ClockSyncQuality; samples_count: number }
+  // --- Этап 9.2: secondary audio shadow ---
+  | { type: 'secondary_shadow_enabled'; connection_id: string; sample_rate: number; channels: number; codec: string; target_sample_rate: number; max_chunk_ms: number; max_chunk_bytes: number }
+  | { type: 'secondary_shadow_disabled'; connection_id: string }
+  | { type: 'secondary_shadow_error'; reason: string }
+  | { type: 'secondary_shadow_diag'; connection_id: string } & SecondaryShadowDiag
+  | { type: 'secondary_shadow_track'; meeting_id: number; tracks: SecondaryShadowTrackSummary[] }
+  // --- Этап 9.3: multi-source ingest alignment ---
+  | ({ type: 'multi_source_alignment' } & MultiSourceAlignment)
+  // --- Этап 9.6: realtime multi-channel live STT shadow ---
+  | ({ type: 'multi_channel_live_state' } & MultiChannelLiveState)
+  | { type: 'multi_channel_live_result'; result: MultiChannelLiveSegment }
+  | ({ type: 'multi_channel_live_snapshot' } & MultiChannelLiveSnapshot)
+  // --- Этап 9.7: channel-aware reconciliation ---
+  | { type: 'multi_channel_reconciliation_state'; state: MultiChannelReconciliationState | null }
+  | { type: 'multi_channel_reconciliation_snapshot'; state: MultiChannelReconciliationState | null }
+  // --- Этап 9.8: production cutover (авторитетный источник транскрипта) ---
+  | ({ type: 'transcription_authority_state' } & TranscriptionAuthorityState)
+  | { type: 'transcription_authority_error'; code: string | null; message: string | null; quality?: CutoverQualityInfo | null; state?: TranscriptionAuthorityState }
   | { type: 'error'; message: string }
   | { type: 'status'; message: string };
 
@@ -322,7 +588,26 @@ export type WSMessageToServer =
   | { type: 'set_speaker_role'; name: string; side: PublicSpeakerSide | '' }
   | { type: 'audio_level'; rms: number; peak?: number; vad?: boolean; seq?: number; client_ts_ms?: number }
   | { type: 'observer_side'; side: PublicSpeakerSide | '' }
-  | { type: 'change_role'; role_id: number };
+  | { type: 'change_role'; role_id: number }
+  // Этап 9.1: device clock sync
+  | { type: 'clock_ping'; seq: number; client_send_ms: number }
+  | { type: 'clock_report'; offset_ms: number; rtt_ms: number; quality: ClockSyncQuality; samples_count: number }
+  // Этап 9.2: secondary audio shadow (управление; аудио-чанки идут бинарными кадрами)
+  | { type: 'enable_secondary_shadow'; sample_rate: number; channels: number; codec: string; side_hint?: PublicSpeakerSide }
+  | { type: 'disable_secondary_shadow' }
+  | { type: 'secondary_shadow_side'; side: PublicSpeakerSide | '' }
+  // Этап 9.6: realtime multi-channel live STT shadow (управление)
+  | { type: 'multi_channel_live_start'; track_ids: string[]; channel_side_overrides?: Record<string, PublicSpeakerSide | null>; consent_confirmed: boolean }
+  | { type: 'multi_channel_live_stop' }
+  | { type: 'multi_channel_live_clear' }
+  | { type: 'multi_channel_live_get_snapshot' }
+  // Этап 9.7: reconciliation
+  | { type: 'multi_channel_reconciliation_refresh' }
+  | { type: 'multi_channel_reconciliation_get_snapshot' }
+  // Этап 9.8: production cutover (управление авторитетным источником)
+  | { type: 'transcription_promote'; force?: boolean }
+  | { type: 'transcription_fallback' }
+  | { type: 'get_transcription_authority' };
 
 // --- Справочники (Этап 1 MVP) ---
 

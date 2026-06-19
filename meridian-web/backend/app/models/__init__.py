@@ -31,6 +31,7 @@ from .meeting_conversation import MeetingConversationTopic, MeetingSpeakerRole
 from .role_page_access import RolePageAccess
 from .rag import RagFolder, RagFolderDocument
 from .speaker_correction import MeetingSpeakerSegmentCorrection
+from .transcription_cutover import TranscriptionEpoch, MultiChannelSegmentRecord
 
 __all__ = [
     "User",
@@ -70,4 +71,6 @@ __all__ = [
     "RagFolder",
     "RagFolderDocument",
     "MeetingSpeakerSegmentCorrection",
+    "TranscriptionEpoch",
+    "MultiChannelSegmentRecord",
 ]

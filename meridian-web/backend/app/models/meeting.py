@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import String, Text, Boolean, DateTime, Integer, Float, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import String, Text, Boolean, DateTime, Integer, BigInteger, Float, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -84,6 +84,11 @@ class TranscriptSegmentRecord(Base):
     start_time: Mapped[float] = mapped_column(Float)
     end_time: Mapped[float] = mapped_column(Float)
     wall_clock: Mapped[datetime] = mapped_column(DateTime)
+
+    # Этап 9.8: абсолютные server-эпохи РЕЧИ (не прихода committed-события). Nullable —
+    # старые строки/неизвестный якорь → атрибуция эпох падает на wall_clock.
+    speech_start_ms: Mapped[int | None] = mapped_column(BigInteger)
+    speech_end_ms: Mapped[int | None] = mapped_column(BigInteger)
 
     speaker_id: Mapped[str] = mapped_column(String(50), default="unknown_speaker")
     speaker_label: Mapped[str | None] = mapped_column(String(100))

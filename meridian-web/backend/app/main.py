@@ -43,6 +43,9 @@ from .api.ai_settings import router as ai_settings_router, meeting_router as ai_
 from .api.role_page_access import router as page_access_router
 from .api.rag import router as rag_router
 from .api.context_preview import router as context_preview_router
+from .api.multi_channel_export import router as multi_channel_export_router
+from .api.multi_channel_batch_stt import router as multi_channel_batch_stt_router
+from .api.transcription_authority import router as transcription_authority_router
 from .api.health import router as health_api_router
 from .ws.handler import router as ws_router
 
@@ -146,6 +149,14 @@ async def lifespan(app: FastAPI):
             n = cleanup_idle_sessions(settings.session_idle_ttl)
             if n:
                 logger.info("[Cleanup] Removed %d idle session(s)", n)
+            # Этап 9.5: выгрузить истёкшие batch-STT jobs (in-memory TTL) — иначе реестр растёт
+            try:
+                from .services.multi_channel_batch_jobs import batch_job_registry
+                m = await batch_job_registry.cleanup_expired()
+                if m:
+                    logger.info("[Cleanup] Removed %d expired batch-STT job(s)", m)
+            except Exception:
+                logger.warning("[Cleanup] batch-STT cleanup failed", exc_info=False)
 
     cleanup_task = asyncio.create_task(_session_cleanup_loop())
 
@@ -254,6 +265,9 @@ app.include_router(speaker_roles_router, prefix="/api/meetings", tags=["speaker-
 app.include_router(speaker_corrections_router, prefix="/api/meetings", tags=["speaker-corrections"])
 app.include_router(ai_settings_router, prefix="/api/ai-settings", tags=["ai-settings"])
 app.include_router(ai_settings_meeting_router, prefix="/api/meetings", tags=["ai-settings"])
+app.include_router(multi_channel_export_router, prefix="/api/meetings", tags=["multi-channel-export"])
+app.include_router(multi_channel_batch_stt_router, prefix="/api/meetings", tags=["multi-channel-batch-stt"])
+app.include_router(transcription_authority_router, prefix="/api/meetings", tags=["transcription-authority"])
 app.include_router(health_api_router, prefix="/api/health", tags=["health"])
 app.include_router(ws_router)
 

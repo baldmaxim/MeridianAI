@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import { useMeetingStore } from '../store/meetingStore';
 import type { WSMessageFromServer, WSMessageToServer, PublicSpeakerSide, SpeakerSegmentCorrection } from '../types';
 import { toPublicSpeakerSide } from '../lib/speakerSides';
+import { ClockSyncController } from '../lib/clockSync';
 
 function getWsBase() {
   const env = import.meta.env.VITE_WS_URL;
@@ -20,6 +21,7 @@ export function useWebSocket() {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const closedIntentionally = useRef(false);
   const connectOpts = useRef<ConnectOpts>({});
+  const clockRef = useRef<ClockSyncController | null>(null);
 
   const connect = useCallback((opts?: ConnectOpts) => {
     const token = localStorage.getItem('token');
@@ -40,6 +42,18 @@ export function useWebSocket() {
       s.setConnected(true);
       s.setStatus('Подключено к серверу');
       s.setError(null);
+      // Этап 9.1: синхронизация часов устройства с backend
+      clockRef.current?.stop();
+      clockRef.current = new ClockSyncController({
+        send: (m) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); },
+        onResult: (st) => useMeetingStore.getState().setDeviceSync(st),
+      });
+      clockRef.current.start();
+      // Этап 9.6/9.7: после (ре)коннекта запросить актуальные snapshot'ы
+      try { ws.send(JSON.stringify({ type: 'multi_channel_live_get_snapshot' })); } catch { /* ignore */ }
+      try { ws.send(JSON.stringify({ type: 'multi_channel_reconciliation_get_snapshot' })); } catch { /* ignore */ }
+      // Этап 9.8: актуальное состояние авторитетного источника транскрипта
+      try { ws.send(JSON.stringify({ type: 'get_transcription_authority' })); } catch { /* ignore */ }
     };
 
     ws.onclose = () => {
@@ -47,6 +61,8 @@ export function useWebSocket() {
       s.setConnected(false);
       s.setRoomConnected(false);
       s.setStatus('Отключено от сервера');
+      clockRef.current?.stop();
+      clockRef.current = null;
       // Auto-reconnect only if not intentionally closed
       if (!closedIntentionally.current) {
         reconnectTimer.current = setTimeout(() => connect(), 3000);
@@ -123,6 +139,7 @@ export function useWebSocket() {
         s.clearPartial();
         s.addCommittedSegment({
           segment_id: data.segment_id,
+          segment_key: data.segment_key ?? data.segment_id,
           speaker: data.speaker,
           text: data.text,
           words: data.words,
@@ -130,6 +147,7 @@ export function useWebSocket() {
           end_time: data.end_time,
           confidence: data.confidence,
           timestamp: data.timestamp,
+          server_ts_ms: data.server_ts_ms,
         });
         break;
 
@@ -335,6 +353,69 @@ export function useWebSocket() {
         s.upsertConversationTopic(data.topic, data.tree_version);
         break;
 
+      // Этап 9.1: device clock sync
+      case 'clock_pong':
+        clockRef.current?.handlePong(data);
+        break;
+
+      case 'clock_sync_status':
+        // server-подтверждённый отчёт (quality пересчитан сервером) — он авторитетен
+        s.setDeviceSync({
+          offsetMs: data.offset_ms,
+          rttMs: data.rtt_ms,
+          quality: data.quality,
+          samples: data.samples_count,
+          lastSyncMs: Date.now(),
+        });
+        break;
+
+      // Этап 9.2: сводка secondary audio shadow треков комнаты
+      case 'secondary_shadow_track':
+        s.setShadowTracks(data.tracks);
+        break;
+
+      // Этап 9.3: сводка выравнивания multi-source ingest
+      case 'multi_source_alignment':
+        s.setIngestAlignment(data);
+        break;
+
+      // Этап 9.6: realtime multi-channel live STT shadow
+      case 'multi_channel_live_state': {
+        const { type: _t, ...state } = data;
+        s.setMultiChannelLiveState(state);
+        break;
+      }
+      case 'multi_channel_live_result':
+        if (data.result && Number.isFinite(data.result.start_server_ms)
+            && Number.isInteger(data.result.channel_index)) {
+          s.upsertMultiChannelLiveResult(data.result);
+        }
+        break;
+      case 'multi_channel_live_snapshot':
+        s.setMultiChannelLiveSnapshot({
+          state: data.state,
+          final_segments: data.final_segments || [],
+          latest_interim_by_channel: data.latest_interim_by_channel || {},
+        });
+        break;
+
+      // Этап 9.7: channel-aware reconciliation
+      case 'multi_channel_reconciliation_state':
+      case 'multi_channel_reconciliation_snapshot':
+        s.setMultiChannelReconciliation(data.state ?? null);
+        break;
+
+      // Этап 9.8: production cutover (авторитетный источник транскрипта)
+      case 'transcription_authority_state': {
+        const { type: _t, ...state } = data;
+        s.setTranscriptionAuthority(state);
+        break;
+      }
+      case 'transcription_authority_error':
+        s.setTranscriptionAuthorityError({ code: data.code, message: data.message });
+        if (data.state) s.setTranscriptionAuthority(data.state);
+        break;
+
       case 'error':
         s.setError(data.message);
         break;
@@ -348,6 +429,8 @@ export function useWebSocket() {
   useEffect(() => {
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      clockRef.current?.stop();
+      clockRef.current = null;
     };
   }, []);
 

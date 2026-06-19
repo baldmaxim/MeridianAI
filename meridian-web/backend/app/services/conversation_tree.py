@@ -293,6 +293,22 @@ class ConversationTreeService:
         await db.execute(delete(MeetingConversationTopic).where(
             MeetingConversationTopic.meeting_id == meeting_id))
         await db.flush()
+        # Этап 9.8: если применялся cutover (есть эпохи) — пересобрать из авторитетного транскрипта
+        try:
+            from .transcription_authority_controller import build_authoritative_from_db
+            auth = await build_authoritative_from_db(db, meeting_id)
+        except Exception:
+            auth = None
+        if auth is not None and auth.segments:
+            origin = min(a.start_ms for a in auth.segments)
+            for a in auth.segments:
+                sec = max(0, (a.start_ms - origin) // 1000)
+                tc = f"{sec // 60:02d}:{sec % 60:02d}"
+                await self.update_from_transcript_segment(
+                    db, meeting_id, segment_id=a.segment_key, speaker=(a.speaker or ""),
+                    role=a.side, text=a.text, timecode=tc)
+            await db.flush()
+            return await self.get_tree(db, meeting_id)
         segs = (await db.execute(
             select(TranscriptSegmentRecord)
             .where(TranscriptSegmentRecord.session_id == meeting_id)

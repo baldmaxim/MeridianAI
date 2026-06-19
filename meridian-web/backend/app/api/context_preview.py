@@ -45,4 +45,24 @@ async def context_preview(
     )
     preview = pack.to_preview(preview_chars_per_block)
     preview["meeting_id"] = meeting_id
+    # Этап 9.8: текущий авторитетный источник транскрипта (если cutover применялся)
+    try:
+        from ..services.meeting_room import room_registry
+        room = room_registry.get_room(meeting_id)
+        if room is not None:
+            st = room.cutover.state_dict()
+            preview["transcription_source"] = st.get("current_source")
+            preview["transcription_epochs_count"] = st.get("epochs_count", 0)
+            preview["transcription_fallback_used"] = st.get("fallback_used", False)
+        else:
+            from ..services.transcription_epochs import load_epochs, current_source_from_epochs
+            epochs = await load_epochs(db, meeting_id)
+            preview["transcription_source"] = current_source_from_epochs(epochs)
+            preview["transcription_epochs_count"] = len(epochs)
+            # был ли авто-fallback (recovery/hard-failure) — из persisted эпох
+            preview["transcription_fallback_used"] = any(
+                getattr(e, "reason", None) in ("recovery_fallback", "auto_fallback_failure")
+                for e in epochs)
+    except Exception:
+        pass
     return preview

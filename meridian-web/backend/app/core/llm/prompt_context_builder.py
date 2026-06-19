@@ -31,12 +31,17 @@ class PromptContextBuilder:
         context_analyzer: "ContextAnalyzer",
         committed_context_fn: Callable[[int], str],
         speaker_roles_fn: Callable[[], Dict[str, str]] | None = None,
+        authoritative_context_fn: Callable[[bool], "str | None"] | None = None,
     ):
         self._memory = meeting_memory
         self._docs = document_loader
         self._analyzer = context_analyzer
         self._committed_fn = committed_context_fn  # _get_committed_context(minutes)
         self._roles_fn = speaker_roles_fn  # returns {display_name: side}
+        # Этап 9.8: authoritative_context_fn(recent: bool) -> текст | None.
+        # Не None (вкл. "") → встреча в multi-channel epoch: текст уже со сторонами,
+        # имеет приоритет над live-памятью. None → single (поведение без изменений).
+        self._authoritative_fn = authoritative_context_fn
 
     # ------------------------------------------------------------------
     # Public: 3 modes
@@ -94,8 +99,22 @@ class PromptContextBuilder:
     # Internal: dialog layer
     # ------------------------------------------------------------------
 
+    def _get_authoritative(self, recent: bool) -> "str | None":
+        """Этап 9.8: авторитетный multi-channel транскрипт (или None для single)."""
+        if self._authoritative_fn is None:
+            return None
+        try:
+            text = self._authoritative_fn(recent)
+        except Exception:
+            return None
+        # текст уже со сторонами «МЫ/НЕ МЫ»; не прогоняем через _annotate_roles
+        return text if text else None
+
     def _get_dialog(self) -> str:
-        """Live window → committed fallback → analyzer fallback."""
+        """Authoritative (multi epoch) → live window → committed fallback → analyzer."""
+        auth = self._get_authoritative(recent=True)
+        if auth is not None:
+            return auth
         text = self._memory.get_live_window()
         if not text:
             text = self._committed_fn(5)
@@ -112,7 +131,10 @@ class PromptContextBuilder:
         return dialog
 
     def _get_full_transcript(self) -> str:
-        """Full meeting memory → committed fallback → analyzer fallback."""
+        """Authoritative (multi epoch) → full memory → committed fallback → analyzer."""
+        auth = self._get_authoritative(recent=False)
+        if auth is not None:
+            return auth
         text = self._memory.build_combined_context()
         if not text:
             text = self._committed_fn(5)

@@ -40,6 +40,10 @@ async def _notify(db: AsyncSession, meeting_id: int) -> None:
             "meeting_id": meeting_id,
             "corrections": [r.model_dump(mode="json") for r in rows],
         })
+        # Этап 9.7: коррекция изменилась → пересобрать reconciliation (если live идёт)
+        sched = getattr(room, "_schedule_multi_channel_reconciliation", None)
+        if sched is not None:
+            await sched(reason="correction")
     except Exception:
         pass
 

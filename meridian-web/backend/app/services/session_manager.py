@@ -130,6 +130,11 @@ class SessionManager:
         self.last_activity: float = time.time()
         self.is_listening = False
         self._transcription_task: Optional[asyncio.Task] = None
+        # Этап 9.8: server-эпоха старта primary STT-стрима — якорь speech-time меток
+        # committed-сегментов (provider даёт относительные start/end). None до start_listening.
+        self.listening_started_server_ms: Optional[int] = None
+        # Этап 9.8: провайдер авторитетного транскрипта (multi-channel epoch). None → single.
+        self._authoritative_context_provider: Optional[Callable] = None
 
         # Committed segment store (source of truth during live session)
         self._committed_segments: List[CommittedSegment] = []
@@ -169,6 +174,7 @@ class SessionManager:
             context_analyzer=self.context_analyzer,
             committed_context_fn=self._get_committed_context,
             speaker_roles_fn=lambda: self.speaker_roles,
+            authoritative_context_fn=self._call_authoritative_provider,
         )
 
         # WebSocket send callback
@@ -207,6 +213,21 @@ class SessionManager:
     def set_committed_hook(self, hook: Callable):
         """Conversation Tree: колбэк на committed-сегмент, async(segment, role)."""
         self._committed_hook = hook
+
+    def set_authoritative_transcript_provider(self, provider: Optional[Callable]):
+        """Этап 9.8: провайдер авторитетного транскрипта, fn(recent: bool) -> str|None.
+
+        None или возврат None → single (committed path без изменений); строка → multi epoch.
+        """
+        self._authoritative_context_provider = provider
+
+    def _call_authoritative_provider(self, recent: bool):
+        if self._authoritative_context_provider is None:
+            return None
+        try:
+            return self._authoritative_context_provider(recent)
+        except Exception:
+            return None
 
     def set_speaker_segment_corrections(self, corrections: Dict[str, dict]) -> None:
         """Заменить in-memory кэш segment-level коррекций (segment_id → {side, corrected_speaker_label})."""
@@ -441,6 +462,8 @@ class SessionManager:
         self.audio_queue = asyncio.Queue()
         self.is_listening = True
         self._session_id = uuid.uuid4().hex[:12]
+        # Этап 9.8: якорь speech-time (момент старта стрима в server epoch ms)
+        self.listening_started_server_ms = int(time.time() * 1000)
 
         # Store ElevenLabs key for batch finalization
         self._elevenlabs_key = api_keys.get("elevenlabs", "")
@@ -558,6 +581,9 @@ class SessionManager:
             segment.speaker_label = self.speaker_mapping[segment.speaker_id]
         elif self.current_speaker:
             segment.speaker_label = self.current_speaker
+
+        # Этап 9.8: speech-time метки (для атрибуции эпох) — момент речи, не прихода события
+        segment.assign_speech_timestamps(self.listening_started_server_ms)
 
         # Store committed segment
         self._committed_segments.append(segment)

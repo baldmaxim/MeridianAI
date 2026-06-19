@@ -1,5 +1,6 @@
 import { theme } from '../../styles/theme';
 import { useObserverMic } from '../../hooks/useObserverMic';
+import { SyncBadge } from './SyncBadge';
 
 interface ObserverPanelProps {
   meetingId: number | null;
@@ -8,7 +9,7 @@ interface ObserverPanelProps {
 // Этап 9: режим «наблюдатель» для второго телефона. Устройство НЕ записывает речь в текст —
 // только измеряет громкость локально и подсказывает, к какой стороне относится реплика.
 export function ObserverPanel({ meetingId }: ObserverPanelProps) {
-  const { active, side, level, error, start, stop, setSideHint } = useObserverMic(meetingId);
+  const { active, side, level, error, sync, start, stop, setSideHint } = useObserverMic(meetingId);
   const pct = Math.min(100, Math.round(level * 400));
 
   return (
@@ -45,6 +46,7 @@ export function ObserverPanel({ meetingId }: ObserverPanelProps) {
           </button>
         )}
         <span style={styles.status}>{active ? 'идёт измерение уровня…' : 'выключено'}</span>
+        {active && <SyncBadge sync={sync} />}
       </div>
 
       {meetingId == null && <div style={styles.hint}>Сначала откройте встречу.</div>}

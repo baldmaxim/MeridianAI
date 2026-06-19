@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PublicSpeakerSide } from '../types';
+import type { PublicSpeakerSide, DeviceSyncState } from '../types';
+import { ClockSyncController } from '../lib/clockSync';
 
 // Этап 9: observer-устройство (второй телефон). Считает уровень звука локально и шлёт
 // ТОЛЬКО числовые метрики (rms/peak/vad) по своему WS как device_role=observer.
@@ -20,18 +21,21 @@ export function useObserverMic(meetingId: number | null) {
   const [side, setSide] = useState<PublicSpeakerSide>('opponent');
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [sync, setSync] = useState<DeviceSyncState | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clockRef = useRef<ClockSyncController | null>(null);
   const seqRef = useRef(0);
   const sideRef = useRef<PublicSpeakerSide>('opponent');
   sideRef.current = side;
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (clockRef.current) { clockRef.current.stop(); clockRef.current = null; }
     if (wsRef.current) { try { wsRef.current.close(); } catch { /* ignore */ } wsRef.current = null; }
     if (ctxRef.current) { try { void ctxRef.current.close(); } catch { /* ignore */ } ctxRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
@@ -42,6 +46,7 @@ export function useObserverMic(meetingId: number | null) {
   const stop = useCallback(() => {
     cleanup();
     setActive(false);
+    setSync(null);
   }, [cleanup]);
 
   const start = useCallback(async () => {
@@ -65,6 +70,26 @@ export function useObserverMic(meetingId: number | null) {
       wsRef.current = ws;
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: 'observer_side', side: sideRef.current }));
+        // Этап 9.1: синхронизируем часы observer-устройства → backend применит offset к метрикам
+        clockRef.current?.stop();
+        clockRef.current = new ClockSyncController({
+          send: (m) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); },
+          onResult: (st) => setSync(st),
+        });
+        clockRef.current.start();
+      };
+      ws.onmessage = (ev) => {
+        if (typeof ev.data !== 'string') return;
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.type === 'clock_pong') clockRef.current?.handlePong(m);
+          else if (m.type === 'clock_sync_status') {
+            setSync({
+              offsetMs: m.offset_ms, rttMs: m.rtt_ms, quality: m.quality,
+              samples: m.samples_count, lastSyncMs: Date.now(),
+            });
+          }
+        } catch { /* ignore */ }
       };
       ws.onerror = () => setError('Ошибка соединения наблюдателя');
       ws.onclose = () => { /* остановка управляется stop() */ };
@@ -107,5 +132,5 @@ export function useObserverMic(meetingId: number | null) {
 
   useEffect(() => () => cleanup(), [cleanup]);  // unmount
 
-  return { active, side, level, error, start, stop, setSideHint };
+  return { active, side, level, error, sync, start, stop, setSideHint };
 }

@@ -29,6 +29,10 @@ class AudioLevelMetric:
     peak: float | None = None
     vad: bool = False
     seq: int | None = None
+    # Этап 9.1: момент захвата метрики, приведённый к server timeline (epoch ms) по
+    # device-offset. Основа для будущего multi-channel alignment. None — устройство
+    # ещё не синхронизировалось (или нет client_ts_ms).
+    server_ts_ms: float | None = None
 
 
 @dataclass
@@ -114,7 +118,8 @@ class ObserverDiarization:
 
     def add_metric(self, connection_id: str, *, rms: float, peak: float | None = None,
                    vad: bool = False, seq: int | None = None,
-                   client_ts_ms: int | None = None, server_ts: datetime | None = None) -> None:
+                   client_ts_ms: int | None = None, server_ts: datetime | None = None,
+                   server_ts_ms: float | None = None) -> None:
         if not self.enabled:
             return
         d = self.devices.get(connection_id)
@@ -134,7 +139,7 @@ class ObserverDiarization:
         self.metrics[connection_id].append(AudioLevelMetric(
             connection_id=connection_id, user_id=d.user_id, side_hint=d.side_hint,
             client_ts_ms=client_ts_ms, server_ts=ts, rms=rms_v, peak=peak_v,
-            vad=bool(vad), seq=seq,
+            vad=bool(vad), seq=seq, server_ts_ms=server_ts_ms,
         ))
         d.last_rms = rms_v
         d.last_peak = peak_v

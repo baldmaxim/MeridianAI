@@ -28,3 +28,7 @@ class ContextPackPreviewOut(BaseModel):
     max_chars: int | None = None
     truncated: bool = False
     blocks: list[ContextBlockPreviewOut]
+    # Этап 9.8: текущий авторитетный источник транскрипта (single|multi_channel) и эпохи
+    transcription_source: str | None = None
+    transcription_epochs_count: int = 0
+    transcription_fallback_used: bool = False
