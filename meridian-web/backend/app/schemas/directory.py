@@ -41,6 +41,7 @@ class ProjectObjectCreate(BaseModel):
     address: str | None = None
     description: str | None = None
     notes: str | None = None
+    payhub_project_id: int | None = None
     is_active: bool = True
 
 
@@ -50,6 +51,7 @@ class ProjectObjectUpdate(BaseModel):
     address: str | None = None
     description: str | None = None
     notes: str | None = None
+    payhub_project_id: int | None = None
     is_active: bool | None = None
 
 
@@ -61,6 +63,7 @@ class ProjectObjectResponse(BaseModel):
     address: str | None
     description: str | None
     notes: str | None
+    payhub_project_id: int | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

@@ -112,6 +112,7 @@ def assemble_live_context_pack(
     full_transcript: str = "",
     document_context: str = "",
     rag_context: str = "",
+    letters_context: str = "",
     knowledge_context: str = "",
     previous_meetings_context: str = "",
     ai_settings: dict | None = None,
@@ -152,6 +153,18 @@ def assemble_live_context_pack(
         source_count=(rag_context or "").count("[RAG-папка:"),
     )
 
+    # letters — письма PayHub (внешний RAG). Отдельный источник от RAG-папок; глобальный гейт.
+    letters_global = bool(getattr(s, "letters_rag_effective_enabled", False))
+    letters_on = _ai_on(ai_settings, "letters_context_enabled") and letters_global
+    letters = build_provider_block(
+        "letters", "Переписка (письма)", letters_context if letters_on else "",
+        enabled=letters_on and bool(letters_context),
+        reason=("Письма PayHub не настроены/выключены" if not letters_global
+                else (None if letters_context else "Нет релевантных писем")),
+        priority=55, max_chars=s.context_pack_letters_max_chars,
+        source_count=(letters_context or "").count("[Письмо "),
+    )
+
     # knowledge
     kn_on = _ai_on(ai_settings, "knowledge_context_enabled")
     knowledge = build_provider_block(
@@ -178,7 +191,7 @@ def assemble_live_context_pack(
 
     pack = ContextPack(
         mode=mode, query_text=query_text,
-        blocks=[mc, document, rag, knowledge, previous, dialog],
+        blocks=[mc, document, rag, letters, knowledge, previous, dialog],
         max_chars=context_pack_max_chars_for_mode(mode),
     )
     return apply_pack_budget(pack)
@@ -236,6 +249,14 @@ async def assemble_static_context_pack_for_meeting(
         except Exception as e:
             logger.error("preview rag block failed for meeting %s: %s", meeting_id, e)
 
+    letters_context = ""
+    if getattr(s, "letters_rag_effective_enabled", False):
+        try:
+            from .letters_context import build_meeting_letters_context
+            letters_context = await build_meeting_letters_context(meeting_id, query_text)
+        except Exception as e:
+            logger.error("preview letters block failed for meeting %s: %s", meeting_id, e)
+
     knowledge_context = ""
     try:
         from .knowledge_context import build_meeting_knowledge_context_from_db
@@ -260,6 +281,7 @@ async def assemble_static_context_pack_for_meeting(
         meeting_context_block=meeting_context,
         recent_dialog="", full_transcript="",
         document_context=document_context, rag_context=rag_context,
+        letters_context=letters_context,
         knowledge_context=knowledge_context, previous_meetings_context=previous_context,
         ai_settings=None,
     )

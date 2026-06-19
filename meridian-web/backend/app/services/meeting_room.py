@@ -56,6 +56,7 @@ from .document_context import build_meeting_doc_context
 from .knowledge_context import build_meeting_knowledge_context
 from .previous_meeting_context import get_previous_meeting_context_for_prompt
 from .rag_context import build_meeting_rag_context
+from .letters_context import build_meeting_letters_context
 from .ai_settings import snapshot_for_meeting
 
 logger = logging.getLogger("meridian.room")
@@ -266,6 +267,8 @@ class MeetingRoom:
         room.session.set_previous_meetings_provider(get_previous_meeting_context_for_prompt)
         # Этап 5 (RAG): фрагменты подключённых RAG-папок в контекст LLM-подсказок
         room.session.set_rag_context_provider(build_meeting_rag_context)
+        # Письма PayHub (внешний RAG): блок переписки в контекст LLM-подсказок
+        room.session.set_letters_context_provider(build_meeting_letters_context)
         # Conversation Tree: обновление дерева общения по committed-сегментам
         room._tree_enabled = bool(ai_resolved.get("conversation_tree_enabled", True))
         room.session.set_committed_hook(room._on_committed_segment)

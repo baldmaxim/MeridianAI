@@ -31,6 +31,7 @@ export const paths = {
       : `/meetings/${id}`,
   batch: '/batch',
   knowledge: '/knowledge',
+  letters: '/letters',
   aiSettings: '/ai-settings',
   settings: '/settings',
 };
@@ -47,6 +48,7 @@ export type AppRoute =
   | { kind: 'meeting-detail'; meetingId: number; from: 'history' | 'object'; objectId?: number }
   | { kind: 'batch' }
   | { kind: 'knowledge' }
+  | { kind: 'letters' }
   | { kind: 'ai-settings' }
   | { kind: 'settings' }
   | { kind: 'login' };
@@ -77,6 +79,7 @@ export function parseRoute(pathname: string): AppRoute {
   }
   if (/^\/batch\/?$/.test(pathname)) return { kind: 'batch' };
   if (/^\/knowledge\/?$/.test(pathname)) return { kind: 'knowledge' };
+  if (/^\/letters\/?$/.test(pathname)) return { kind: 'letters' };
   if (/^\/ai-settings\/?$/.test(pathname)) return { kind: 'ai-settings' };
   if (/^\/settings\/?$/.test(pathname)) return { kind: 'settings' };
 

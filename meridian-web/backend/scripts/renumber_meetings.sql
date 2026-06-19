@@ -24,19 +24,53 @@ FROM meeting_sessions;
 
 BEGIN;
 
--- 1) Удалить «пустые» встречи: без контента, контекста и любых дочерних записей.
---    Реальные встречи (есть сегменты / подсказки / документы / протокол / тема и т.п.)
---    под условие не попадают. Дети удаляются по ON DELETE CASCADE; knowledge.meeting_id → NULL.
+-- 1) Удалить «пустые» встречи: ни одной дочерней записи НИ В ОДНОЙ ссылающейся
+--    таблице И пусты все смысловые поля. Реальные встречи (сегменты / подсказки /
+--    документы / протокол / участники / контекст / темы / коррекции и т.п.) под
+--    условие не попадают. Дети реальных встреч удаляются по ON DELETE CASCADE, но
+--    сюда они не доходят (guard ниже). learning_candidates.meeting_id → ON DELETE
+--    SET NULL, но наличие кандидата = встреча дала контент → тоже считаем непустой.
+
+-- 1a) Множество встреч, на которые ссылается хоть один дочерний FK (динамически по
+--     pg_constraint — покрывает все текущие и будущие дочерние таблицы без хардкода).
+CREATE TEMP TABLE _referenced ON COMMIT DROP AS SELECT id FROM meeting_sessions WHERE false;
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT ns.nspname AS schema_name, rel.relname AS table_name, att.attname AS col_name
+    FROM pg_constraint con
+    JOIN pg_class rel    ON rel.oid = con.conrelid
+    JOIN pg_namespace ns ON ns.oid = rel.relnamespace
+    JOIN unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) ON true
+    JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = k.attnum
+    WHERE con.contype = 'f'
+      AND con.confrelid = 'meeting_sessions'::regclass
+  LOOP
+    EXECUTE format('INSERT INTO _referenced SELECT DISTINCT %I FROM %I.%I WHERE %I IS NOT NULL',
+                   r.col_name, r.schema_name, r.table_name, r.col_name);
+  END LOOP;
+END $$;
+
+-- 1b) Удалить только по-настоящему пустые черновики (NOT EXISTS, безопасно к NULL).
 DELETE FROM meeting_sessions ms
 WHERE ms.title IS NULL
   AND ms.meeting_topic IS NULL
   AND ms.meeting_notes IS NULL
+  AND ms.negotiation_type IS NULL
+  AND ms.meeting_role IS NULL
+  AND ms.opponent_weaknesses IS NULL
   AND ms.customer_id IS NULL
   AND ms.object_id IS NULL
   AND ms.protocol_markdown IS NULL
-  AND NOT EXISTS (SELECT 1 FROM transcript_segments s WHERE s.session_id = ms.id)
-  AND NOT EXISTS (SELECT 1 FROM meeting_suggestions g WHERE g.session_id = ms.id)
-  AND NOT EXISTS (SELECT 1 FROM meeting_documents d WHERE d.session_id = ms.id);
+  AND ms.protocol_json IS NULL
+  AND ms.summary_json IS NULL
+  AND ms.micro_summary IS NULL
+  AND ms.tags_json IS NULL
+  AND ms.audio_path IS NULL
+  AND ms.ended_at IS NULL
+  AND COALESCE(ms.recorded_seconds, 0) = 0
+  AND NOT EXISTS (SELECT 1 FROM _referenced r WHERE r.id = ms.id);
 
 -- 2) Перенумеровать оставшиеся в 1..N (по started_at), перенося все FK.
 DO $$

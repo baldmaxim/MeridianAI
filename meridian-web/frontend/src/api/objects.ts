@@ -7,6 +7,7 @@ export interface ProjectObjectInput {
   address?: string | null;
   description?: string | null;
   notes?: string | null;
+  payhub_project_id?: number | null;
   is_active?: boolean;
 }
 

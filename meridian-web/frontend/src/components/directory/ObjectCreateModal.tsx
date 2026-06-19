@@ -25,6 +25,7 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
+  const [payhubProjectId, setPayhubProjectId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
@@ -44,6 +45,8 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
     setError('');
     if (!name.trim()) { fail('Укажите название объекта'); return; }
     if (!customerName.trim()) { fail('Укажите заказчика'); return; }
+    const payhubRaw = payhubProjectId.trim();
+    if (payhubRaw && !/^\d+$/.test(payhubRaw)) { fail('PayHub project_id — только число'); return; }
     setSaving(true);
     try {
       await createObject({
@@ -51,6 +54,7 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         customer_name: customerName.trim(),
         address: address.trim() || null,
         description: description.trim() || null,
+        payhub_project_id: payhubRaw ? Number(payhubRaw) : null,
       });
       onCreated();
     } catch (e) {
@@ -82,6 +86,8 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         <input style={s.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="необязательно" />
         <label style={s.label}>Описание</label>
         <input style={s.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="необязательно" />
+        <label style={s.label}>PayHub project_id</label>
+        <input style={s.input} value={payhubProjectId} onChange={(e) => setPayhubProjectId(e.target.value)} placeholder="ID проекта в PayHub — для поиска писем (необязательно)" inputMode="numeric" />
         <div style={s.formRow}>
           <button className="t-btn t-btn-amber" style={s.btn} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
           <button className="t-btn" style={s.btnGhost} onClick={onClose}>Отмена</button>

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Integer,
+    BigInteger,
     ForeignKey,
     UniqueConstraint,
     Index,
@@ -63,6 +64,8 @@ class ProjectObject(Base):
     address: Mapped[str | None] = mapped_column(String(500))
     description: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    # ID проекта во внешней системе PayHub (для сужения RAG-поиска писем по project_id).
+    payhub_project_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

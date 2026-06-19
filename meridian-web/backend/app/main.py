@@ -32,6 +32,7 @@ from .api.history import router as history_router
 from .api.batch import router as batch_router
 from .api.customers import router as customers_router
 from .api.objects import router as objects_router
+from .api.letters import router as letters_router
 from .api.mobile import router as mobile_router
 from .api.learning import router as learning_router
 from .api.knowledge import router as knowledge_router
@@ -163,6 +164,12 @@ async def lifespan(app: FastAPI):
     yield
 
     cleanup_task.cancel()
+    # Закрыть внешний read-only пул писем PayHub (если был инициализирован)
+    try:
+        from .core.rag_letters import close_store
+        await close_store()
+    except Exception:
+        logger.warning("[Shutdown] letters store close failed", exc_info=False)
     await engine.dispose()
     logger.info("Shutdown complete")
 
@@ -254,6 +261,7 @@ app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
 # фильтр истории, AI-настройки встречи), поэтому остаются открытыми.
 app.include_router(customers_router, prefix="/api/customers", tags=["customers"])
 app.include_router(objects_router, prefix="/api/objects", tags=["objects"])
+app.include_router(letters_router, prefix="/api/letters", tags=["letters"])
 app.include_router(mobile_router, prefix="/api/mobile", tags=["mobile"])
 app.include_router(learning_router, prefix="/api", tags=["learning"])
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])

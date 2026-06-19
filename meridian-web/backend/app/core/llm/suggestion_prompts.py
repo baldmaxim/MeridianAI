@@ -48,6 +48,19 @@ def _knowledge_block(knowledge_context: str) -> list[str]:
             knowledge_context]
 
 
+def _letters_block(letters_context: str) -> list[str]:
+    """Доп. контекст из переписки PayHub (письма). Опорные факты, не выдумывать."""
+    if not letters_context:
+        return []
+    return [
+        "",
+        "===== ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ ИЗ ПЕРЕПИСКИ (ПИСЬМА) =====",
+        "Используй как опорные факты, ссылайся на номер и дату письма. "
+        "НЕ выдумывай того, чего нет в этих фрагментах.",
+        letters_context,
+    ]
+
+
 def _prev_block(previous_meetings_context: str) -> list[str]:
     if not previous_meetings_context:
         return []
@@ -56,10 +69,12 @@ def _prev_block(previous_meetings_context: str) -> list[str]:
 
 def build_auto_cards_prompt(role_name: str, keyword: str, recent_dialog: str,
                             document_context: str, max_cards: int = 2,
-                            knowledge_context: str = "", previous_meetings_context: str = "") -> str:
+                            knowledge_context: str = "", previous_meetings_context: str = "",
+                            letters_context: str = "") -> str:
     parts = [_rules(role_name), "", f"Триггер/ситуация: {keyword}" if keyword else "Авто-анализ последних реплик."]
     if document_context:
         parts += ["", document_context]
+    parts += _letters_block(letters_context)
     parts += _knowledge_block(knowledge_context)
     parts += _prev_block(previous_meetings_context)
     parts += [
@@ -77,10 +92,12 @@ def build_auto_cards_prompt(role_name: str, keyword: str, recent_dialog: str,
 
 def build_manual_cards_prompt(role_name: str, meeting_context_block: str, recent_dialog: str,
                               document_context: str, max_cards: int = 5,
-                              knowledge_context: str = "", previous_meetings_context: str = "") -> str:
+                              knowledge_context: str = "", previous_meetings_context: str = "",
+                              letters_context: str = "") -> str:
     parts = [_rules(role_name), "", "===== КОНТЕКСТ ВСТРЕЧИ =====", meeting_context_block or "(не задан)"]
     if document_context:
         parts += ["", document_context]
+    parts += _letters_block(letters_context)
     parts += _knowledge_block(knowledge_context)
     parts += _prev_block(previous_meetings_context)
     parts += [
@@ -108,11 +125,12 @@ STRENGTHEN_SYSTEM_PROMPT = """Ты — переговорный стратег �
 
 def build_strengthen_prompt(role_name: str, meeting_context_block: str, full_transcript: str,
                             document_context: str, knowledge_context: str = "",
-                            previous_meetings_context: str = "") -> str:
+                            previous_meetings_context: str = "", letters_context: str = "") -> str:
     parts = [STRENGTHEN_SYSTEM_PROMPT.format(role_name=role_name), "",
              "===== КОНТЕКСТ ВСТРЕЧИ =====", meeting_context_block or "(не задан)"]
     if document_context:
         parts += ["", document_context]
+    parts += _letters_block(letters_context)
     parts += _knowledge_block(knowledge_context)
     parts += _prev_block(previous_meetings_context)
     parts += [

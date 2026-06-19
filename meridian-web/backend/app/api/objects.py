@@ -79,6 +79,7 @@ async def create_object(
         address=data.address,
         description=data.description,
         notes=data.notes,
+        payhub_project_id=data.payhub_project_id,
         is_active=data.is_active,
     )
     db.add(obj)

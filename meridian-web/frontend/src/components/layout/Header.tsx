@@ -13,6 +13,8 @@ interface Props {
   showBatch?: boolean;
   onShowKnowledge?: () => void;
   showKnowledge?: boolean;
+  onShowLetters?: () => void;
+  showLetters?: boolean;
   onShowAISettings?: () => void;
   showAISettings?: boolean;
   onShowObjects?: () => void;
@@ -73,7 +75,7 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting }: Props) {
+export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowLetters, showLetters, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting }: Props) {
   // Meeting-meta (название встречи, таймер, бейдж роли) показываем только на
   // странице встречи — вне неё «зависший» ярлык роли/имя встречи не нужен.
   const activeRoleName = useMeetingStore((s) => (inMeeting ? s.activeRoleName : null));
@@ -83,6 +85,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
 
   const navItems = ([
     onShowObjects && { label: 'Проекты', onClick: onShowObjects, active: showObjects },
+    onShowLetters && { label: 'Письма', onClick: onShowLetters, active: showLetters },
     onShowKnowledge && { label: 'База знаний', onClick: onShowKnowledge, active: showKnowledge },
     onShowAISettings && { label: 'AI-профили', onClick: onShowAISettings, active: showAISettings },
     onShowBatch && { label: 'Оффлайн распознавание', onClick: onShowBatch, active: showBatch },

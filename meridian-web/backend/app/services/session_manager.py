@@ -199,6 +199,9 @@ class SessionManager:
         # Этап 5 (RAG): провайдер фрагментов подключённых RAG-папок, async(meeting_id, query)->str
         self._rag_context_provider: Optional[Callable] = None
 
+        # Письма PayHub (внешний RAG): провайдер блока переписки, async(meeting_id, query)->str
+        self._letters_context_provider: Optional[Callable] = None
+
         # Этап 9: resolved AI-настройки встречи (None → fallback на глобальный config)
         self.ai_settings: Optional[dict] = None
         self._llm_api_key: Optional[str] = None
@@ -322,6 +325,26 @@ class SessionManager:
         except Exception:
             return ""
 
+    def set_letters_context_provider(self, provider: Callable):
+        """Письма PayHub: провайдер блока переписки (внешний RAG), отдельный от RAG-папок."""
+        self._letters_context_provider = provider
+
+    async def _letters_context_block(self, query_text: str = "") -> str:
+        """Блок «Переписка (письма)» (или '').
+
+        Гейт: глобальная доступность PayHub-RAG + per-meeting AI-тогл. Никогда не падает.
+        """
+        if not get_settings().letters_rag_effective_enabled:
+            return ""  # письма не настроены/выключены глобально
+        if not self._ai("letters_context_enabled", True):
+            return ""  # письма выключены в настройках встречи
+        if not self._letters_context_provider or not self.db_session_id:
+            return ""
+        try:
+            return await self._letters_context_provider(self.db_session_id, query_text or "")
+        except Exception:
+            return ""
+
     async def _augment_doc_context(self, base: str, query_text: str) -> str:
         """Документы встречи из БД (in-memory loader base + DB-провайдер).
 
@@ -362,13 +385,14 @@ class SessionManager:
         db_doc = (document_context if document_already_augmented
                   else await self._augment_doc_context(document_context, query_text))
         rag = await self._rag_context_block(query_text)
+        letters = await self._letters_context_block(query_text)
         knowledge = await self._knowledge_block(query_text)
         previous = await self._previous_meetings_block(query_text)
         pack = assemble_live_context_pack(
             mode=mode, query_text=query_text,
             meeting_context_block=meeting_context_block,
             recent_dialog=recent_dialog, full_transcript=full_transcript,
-            document_context=db_doc, rag_context=rag,
+            document_context=db_doc, rag_context=rag, letters_context=letters,
             knowledge_context=knowledge, previous_meetings_context=previous,
             ai_settings=self.ai_settings,
         )
@@ -868,7 +892,8 @@ class SessionManager:
                 self._role_name(), pack.text_for("meeting_context"),
                 pack.text_for("recent_dialog"), doc_combined,
                 max_cards, knowledge_context=pack.text_for("knowledge"),
-                previous_meetings_context=pack.text_for("previous_meeting"))
+                previous_meetings_context=pack.text_for("previous_meeting"),
+                letters_context=pack.text_for("letters"))
             raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "manual"))
             await self._emit_suggestion_cards(raw, "manual", doc_context_text=doc_combined)
         else:
@@ -917,6 +942,7 @@ class SessionManager:
             pack.text_for("full_transcript"), pack.combined_documents_text(),
             knowledge_context=pack.text_for("knowledge"),
             previous_meetings_context=pack.text_for("previous_meeting"),
+            letters_context=pack.text_for("letters"),
         )
 
         logger.info(f"[Strengthen] docs={len(self.document_loader.documents)}, "
@@ -1189,7 +1215,8 @@ class SessionManager:
         prompt = build_auto_cards_prompt(
             self._role_name(), keyword, pack.text_for("recent_dialog"), doc_combined,
             max_cards, knowledge_context=pack.text_for("knowledge"),
-            previous_meetings_context=pack.text_for("previous_meeting"))
+            previous_meetings_context=pack.text_for("previous_meeting"),
+            letters_context=pack.text_for("letters"))
         raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "auto"))
         await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_combined)
 

@@ -629,6 +629,7 @@ export interface ProjectObject {
   address: string | null;
   description: string | null;
   notes: string | null;
+  payhub_project_id: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

@@ -72,6 +72,16 @@ class Settings(BaseSettings):
             self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret
         )
 
+    @property
+    def letters_rag_effective_enabled(self) -> bool:
+        """Письма PayHub реально доступны: флаг включён И заданы url+api_key+query_model."""
+        return bool(
+            self.letters_rag_enabled
+            and self.pgvector_db_url
+            and self.yandex_api_key
+            and self.yandex_embedding_query_model
+        )
+
     # S3-совместимое хранилище (§15). Включается при заданных endpoint+bucket+ключах.
     s3_endpoint: str = Field(default="", alias="S3_ENDPOINT")
     s3_region: str = Field(default="ru-central-1", alias="S3_REGION")
@@ -93,6 +103,27 @@ class Settings(BaseSettings):
     rag_context_enabled: bool = Field(default=True, alias="RAG_CONTEXT_ENABLED")
     rag_context_max_chunks: int = Field(default=8, alias="RAG_CONTEXT_MAX_CHUNKS")
     rag_context_max_chars: int = Field(default=12000, alias="RAG_CONTEXT_MAX_CHARS")
+
+    # Письма PayHub (внешнее read-only pgvector, схема rag, vector(768) cosine). Гибридный
+    # поиск + RAG-augmentation подсказок. Отдельный источник от внутренних RAG-папок (kind=letters).
+    # Эффективно включается только при заданных url+api_key+query_model (см. letters_rag_effective_enabled).
+    letters_rag_enabled: bool = Field(default=True, alias="PGVECTOR_LETTERS_ENABLED")
+    pgvector_db_url: str = Field(default="", alias="PGVECTOR_DB_URL")
+    pgvector_ca_cert_path: str = Field(default="", alias="PGVECTOR_CA_CERT_PATH")
+    yandex_api_key: str = Field(default="", alias="YANDEX_API_KEY")
+    yandex_folder_id: str = Field(default="", alias="YANDEX_FOLDER_ID")
+    yandex_embedding_query_model: str = Field(default="", alias="YANDEX_EMBEDDING_QUERY_MODEL")
+    yandex_embedding_dim: int = Field(default=768, alias="YANDEX_EMBEDDING_DIM")
+    yandex_embedding_endpoint: str = Field(
+        default="https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding",
+        alias="YANDEX_EMBEDDING_ENDPOINT",
+    )
+    yandex_embedding_timeout_seconds: int = Field(default=30, alias="YANDEX_EMBEDDING_TIMEOUT_SECONDS")
+    letters_embedding_cache_size: int = Field(default=256, alias="LETTERS_EMBEDDING_CACHE_SIZE")
+    letters_search_timeout_seconds: int = Field(default=10, alias="LETTERS_SEARCH_TIMEOUT_SECONDS")
+    letters_context_k: int = Field(default=6, alias="LETTERS_CONTEXT_K")
+    letters_context_throttle_seconds: int = Field(default=20, alias="LETTERS_CONTEXT_THROTTLE_SECONDS")
+    context_pack_letters_max_chars: int = Field(default=12000, alias="CONTEXT_PACK_LETTERS_MAX_CHARS")
 
     # Context Pack (Этап 6): верхний уровень бюджета сборки prompt. Per-mode общий лимит
     # и per-block лимиты. Старые provider-лимиты (DOCUMENT_CONTEXT_*) остаются внутренними.

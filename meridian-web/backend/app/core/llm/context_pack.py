@@ -21,6 +21,7 @@ ContextBlockKind = Literal[
     "full_transcript",
     "document",
     "rag",
+    "letters",
     "knowledge",
     "previous_meeting",
     "manual",

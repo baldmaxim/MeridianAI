@@ -9,6 +9,7 @@ import { KnowledgePage } from './pages/KnowledgePage';
 import { AISettingsPage } from './pages/AISettingsPage';
 import { ObjectsPage } from './pages/ObjectsPage';
 import { ObjectDetailPage } from './pages/ObjectDetailPage';
+import { LettersSearchPage } from './pages/LettersSearchPage';
 import { SettingsHubPage } from './pages/SettingsHubPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { PageTransition } from './components/common/PageTransition';
@@ -20,10 +21,10 @@ import { useMeetingStore } from './store/meetingStore';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
-  | 'knowledge' | 'ai-settings' | 'settings';
+  | 'knowledge' | 'letters' | 'ai-settings' | 'settings';
 
 // Под-потоки, всегда доступные авторизованному (не входят в матрицу доступа).
-const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail'];
+const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters'];
 
 // Маршрут (URL) → внутренняя страница + выбранные сущности.
 function pageFromRoute(route: ReturnType<typeof parseRoute>): {
@@ -50,6 +51,8 @@ function pageFromRoute(route: ReturnType<typeof parseRoute>): {
       return { page: 'batch', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'knowledge':
       return { page: 'knowledge', objectId: null, meetingId: null, detailReturn: 'history' };
+    case 'letters':
+      return { page: 'letters', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'ai-settings':
       return { page: 'ai-settings', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'settings':
@@ -180,6 +183,8 @@ function App() {
         return <BatchPage onBack={() => navigate(paths.objects)} />;
       case 'knowledge':
         return <KnowledgePage onBack={() => navigate(paths.objects)} />;
+      case 'letters':
+        return <LettersSearchPage onBack={() => navigate(paths.objects)} />;
       case 'ai-settings':
         return <AISettingsPage onBack={() => navigate(paths.objects)} />;
       case 'history':
@@ -217,6 +222,8 @@ function App() {
       showBatch={currentPage === 'batch'}
       onShowKnowledge={canAccess('knowledge') ? () => navigate(currentPage === 'knowledge' ? paths.objects : paths.knowledge) : undefined}
       showKnowledge={currentPage === 'knowledge'}
+      onShowLetters={() => navigate(currentPage === 'letters' ? paths.objects : paths.letters)}
+      showLetters={currentPage === 'letters'}
       onShowAISettings={canAccess('ai-settings') ? () => navigate(currentPage === 'ai-settings' ? paths.objects : paths.aiSettings) : undefined}
       showAISettings={currentPage === 'ai-settings'}
       canSwitchRole={isAdmin}
