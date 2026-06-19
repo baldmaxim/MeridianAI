@@ -182,7 +182,7 @@ const styles: Record<string, React.CSSProperties> = {
   statusDot: { width: 8, height: 8, borderRadius: '50%' },
   levelTrack: { width: '100%', height: 8, background: theme.bg.tertiary, borderRadius: 6, overflow: 'hidden', border: `1px solid ${theme.border.default}` },
   levelFill: { height: '100%', background: theme.accent.green, transition: 'width 0.08s linear' },
-  timer: { fontFamily: theme.font.mono, fontSize: 40, fontWeight: 700, letterSpacing: '0.08em', color: theme.text.primary },
+  timer: { fontFamily: theme.font.body, fontSize: 40, fontWeight: 700, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums', color: theme.text.primary },
   btnStart: { width: '100%', maxWidth: 320, padding: '20px', background: theme.accent.amber, border: 'none', borderRadius: 16, color: '#080A0F', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
   btnStop: { width: '100%', maxWidth: 320, padding: '20px', background: theme.accent.red, border: 'none', borderRadius: 16, color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
   btnDisabled: { width: '100%', maxWidth: 320, padding: '20px', background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 16, color: theme.text.muted, fontSize: 16, fontWeight: 600, cursor: 'not-allowed', fontFamily: theme.font.body },

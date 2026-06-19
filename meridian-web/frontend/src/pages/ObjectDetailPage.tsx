@@ -4,6 +4,7 @@ import { getObject } from '../api/objects';
 import { listMeetings, deleteMeeting } from '../api/history';
 import { paths } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
+import { meetingDisplayName } from '../lib/meetingName';
 import { Dropdown } from '../components/common/Dropdown';
 import { Modal } from '../components/common/Modal';
 import type { ProjectObject, MeetingListItem } from '../types';
@@ -131,7 +132,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
               onKeyDown={(e) => { if (e.key === 'Enter') openRow(); }}
             >
               <div style={styles.cardTop}>
-                <div style={styles.cardTitle}>{m.title || m.meeting_topic || 'Без названия'}</div>
+                <div style={styles.cardTitle}>{meetingDisplayName(m)}</div>
                 <div style={styles.cardDate}>{fmtDate(m.started_at)}</div>
               </div>
               {(m.micro_summary || m.meeting_topic) && (

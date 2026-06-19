@@ -540,7 +540,8 @@ button:disabled {
   }
 
   /* ── Meeting name in header ── */
-  .header-meeting-name {
+  .header-meeting-name,
+  .header-meeting-sep {
     display: none !important;
   }
 

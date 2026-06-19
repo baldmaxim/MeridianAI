@@ -7,6 +7,7 @@ import {
   useMeetingDetail, useUpdateMeetingTitle, useDeleteMeeting, useContinueMeeting,
 } from '../hooks/queries/meetings';
 import type { MeetingDetail, MeetingSuggestionRecord, TranscriptSegmentRecord } from '../types';
+import { meetingDisplayName } from '../lib/meetingName';
 
 interface Props {
   meetingId: number;
@@ -143,7 +144,7 @@ export function MeetingDetailPage({ meetingId, onBack, onContinue, backLabel = '
           />
         ) : (
           <h2 style={styles.title} onClick={startEditTitle}>
-            {meeting.title || 'Без названия'}
+            {meetingDisplayName(meeting)}
           </h2>
         )}
         <div style={styles.titleMeta}>

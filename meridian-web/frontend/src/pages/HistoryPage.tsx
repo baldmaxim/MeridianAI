@@ -6,6 +6,7 @@ import {
   useMeetingsList, useFinalizeMeeting, useRetryFinalization, useBatchDeleteMeetings,
 } from '../hooks/queries/meetings';
 import { useCustomers, useObjects } from '../hooks/queries/directory';
+import { meetingDisplayName } from '../lib/meetingName';
 
 const FIN_LABELS: Record<string, string> = {
   queued: 'сохраняется', running: 'протокол…', completed: 'протокол готов',
@@ -284,7 +285,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                 }}
               >
                 <div style={styles.cardTop}>
-                  <div style={styles.cardTitle}>{m.title || 'Без названия'}</div>
+                  <div style={styles.cardTitle}>{meetingDisplayName(m)}</div>
                   <div style={styles.cardDate}>
                     {formatDate(m.started_at)} &middot; {formatTime(m.started_at)}
                   </div>

@@ -108,12 +108,17 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
           </div>
         </div>
 
-        <div className="header-center" style={styles.center}>
-          {meetingName && (
+        {meetingName && (
+          <>
+            <span className="header-meeting-sep" style={styles.meetingSep} aria-hidden="true" />
             <span className="header-meeting-name" style={styles.meetingName}>{meetingName}</span>
-          )}
-          {inMeeting && <SessionTimer />}
-        </div>
+          </>
+        )}
+        {inMeeting && (
+          <div className="header-center" style={styles.center}>
+            <SessionTimer />
+          </div>
+        )}
 
         <div className="header-right" style={styles.right}>
           {activeRoleName && (
@@ -202,7 +207,8 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 14,
     padding: '0 24px',
     height: 52,
     background: theme.bg.secondary,
@@ -233,12 +239,22 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 12,
   },
+  meetingSep: {
+    width: 1,
+    height: 18,
+    background: theme.border.amber,
+    flexShrink: 0,
+    margin: '0 2px',
+  },
   meetingName: {
     fontFamily: theme.font.body,
-    fontSize: 12,
-    fontWeight: 500,
-    color: theme.text.secondary,
-    maxWidth: 220,
+    fontSize: 16,
+    fontWeight: 700,
+    color: theme.text.primary,
+    maxWidth: 460,
+    minWidth: 0,
+    flexShrink: 1,
+    letterSpacing: '0.01em',
     overflow: 'hidden' as const,
     textOverflow: 'ellipsis' as const,
     whiteSpace: 'nowrap' as const,
@@ -293,6 +309,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
+    marginLeft: 'auto',
   },
   avatar: {
     width: 26,
