@@ -277,6 +277,11 @@ export function useWebSocket() {
       case 'recording_status':
         s.setRecording(data.recording);
         s.setActiveAudioSource(data.active_audio_source);
+        // Задача 2b: кто пишет + когда стартовала запись (для таймера/шапки наблюдателя)
+        s.setRecordingMeta({
+          userLabel: data.recording ? (data.active_audio_user_label ?? null) : null,
+          startedAtMs: data.recording ? (data.recording_started_at_ms ?? null) : null,
+        });
         if (data.recording) s.setRecordPermissionDenied(false);
         break;
 
@@ -303,6 +308,7 @@ export function useWebSocket() {
         s.setActiveAudioSource(null);
         s.setRecording(false);
         s.setListening(false);
+        s.setRecordingMeta({ userLabel: null, startedAtMs: null });
         s.setStatus('Источник аудио отключился');
         break;
 

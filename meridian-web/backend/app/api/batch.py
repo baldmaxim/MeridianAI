@@ -8,7 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,7 @@ from ..schemas.batch import (
     BatchJobDetailResponse,
     UploadSessionRequest,
     UploadSessionResponse,
+    ConfirmUploadRequest,
 )
 from ..services.jobs import enqueue
 from ..services import s3
@@ -40,6 +43,8 @@ MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 @router.post("/upload", response_model=BatchJobResponse)
 async def upload_batch_audio(
     file: UploadFile = File(...),
+    meeting_id: Optional[int] = Form(None),
+    kind: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -67,6 +72,8 @@ async def upload_batch_audio(
         original_filename=file.filename or "unknown",
         original_size=len(content),
         file_path=str(file_path),
+        kind=("gap_fill" if kind == "gap_fill" else None),
+        meeting_id=meeting_id,
     )
     db.add(job)
     await db.flush()
@@ -100,6 +107,7 @@ async def create_upload_session(
         size=data.size,
         purpose="batch_audio",
         status="pending",
+        meeting_id=data.meeting_id,  # Задача 5: привязка дозаписи к встрече
     )
     db.add(rec)
     await db.flush()
@@ -111,6 +119,7 @@ async def create_upload_session(
 @router.post("/confirm/{file_id}", response_model=BatchJobResponse)
 async def confirm_upload(
     file_id: int,
+    data: Optional[ConfirmUploadRequest] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -131,12 +140,18 @@ async def confirm_upload(
     rec.size = meta["size"]
     rec.mime = meta.get("content_type")
 
+    # Задача 5: kind/meeting_id из тела (приоритет) или из FileRecord (upload-session)
+    kind = "gap_fill" if (data and data.kind == "gap_fill") else None
+    meeting_id = (data.meeting_id if data and data.meeting_id is not None else rec.meeting_id)
+
     job = BatchJob(
         user_id=user.id,
         status="uploaded",
         original_filename=rec.original_name,
         original_size=meta["size"] or 0,
         file_path=rec.object_key,  # теперь это S3-ключ, не локальный путь
+        kind=kind,
+        meeting_id=meeting_id,
     )
     db.add(job)
     await db.flush()

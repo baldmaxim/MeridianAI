@@ -19,8 +19,12 @@ class FileRecord(Base):
     original_name: Mapped[str] = mapped_column(String(500), nullable=False)
     size: Mapped[int | None] = mapped_column(Integer)
     mime: Mapped[str | None] = mapped_column(String(100))
-    purpose: Mapped[str] = mapped_column(String(20), nullable=False)  # document | batch_audio
+    purpose: Mapped[str] = mapped_column(String(20), nullable=False)  # document | batch_audio | meeting_audio
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # pending|active|deleted
+    # Задача 3: привязка архива живого аудио к встрече (NULL — не привязано). ON DELETE SET NULL.
+    meeting_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("meeting_sessions.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

@@ -34,26 +34,41 @@ function putToS3(url: string, file: File, onProgress?: (frac: number) => void): 
   });
 }
 
+export interface BatchUploadOpts {
+  /** Задача 5: привязать дозапись офлайн-«дыры» к встрече */
+  meetingId?: number;
+  /** "gap_fill" — дозапись после обрыва связи (вливается в транскрипт встречи, без протокола) */
+  kind?: 'gap_fill';
+}
+
 export async function uploadBatchAudio(
   file: File,
-  onProgress?: (frac: number) => void
+  onProgress?: (frac: number) => void,
+  opts?: BatchUploadOpts
 ): Promise<BatchJob> {
   try {
     // 1. upload session → presigned URL (§15)
     const { data: session } = await api.post('/batch/upload-session', {
       filename: file.name,
       size: file.size,
+      meeting_id: opts?.meetingId,
+      kind: opts?.kind,
     });
     // 2. прямая загрузка в S3
     await putToS3(session.upload_url, file, onProgress);
     // 3. подтверждение → создаёт задачу обработки
-    const { data } = await api.post(`/batch/confirm/${session.file_id}`);
+    const { data } = await api.post(`/batch/confirm/${session.file_id}`, {
+      meeting_id: opts?.meetingId,
+      kind: opts?.kind,
+    });
     return data;
   } catch (e: any) {
     // S3 не настроен → fallback на загрузку через backend
     if (e?.response?.status === 503) {
       const form = new FormData();
       form.append('file', file);
+      if (opts?.meetingId != null) form.append('meeting_id', String(opts.meetingId));
+      if (opts?.kind) form.append('kind', opts.kind);
       const { data } = await api.post('/batch/upload', form);
       return data;
     }

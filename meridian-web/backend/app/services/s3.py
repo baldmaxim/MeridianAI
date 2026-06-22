@@ -88,6 +88,20 @@ async def put_bytes(key: str, data: bytes, content_type: str = "text/plain; char
     await asyncio.to_thread(_p)
 
 
+async def upload_file(local_path: str, key: str, content_type: str | None = None) -> None:
+    """Серверная загрузка файла в S3 (Задача 3: архив сжатого аудио встречи).
+
+    boto3 upload_file стримит с диска (не грузит файл в RAM целиком).
+    """
+    s = get_settings()
+    extra = {"ContentType": content_type} if content_type else None
+
+    def _u():
+        _client().upload_file(local_path, s.s3_bucket, key, ExtraArgs=extra)
+
+    await asyncio.to_thread(_u)
+
+
 async def ping() -> tuple[bool, str]:
     """Лёгкая проверка связности S3 (head_bucket). Не раскрывает секретов."""
     s = get_settings()

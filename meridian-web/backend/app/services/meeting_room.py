@@ -51,6 +51,7 @@ from .meeting_setup import (
 )
 from .api_keys import load_api_keys
 from .local_storage import save_meeting_to_local
+from .meeting_audio_recorder import SessionAudioRecorder, pcm_to_wav
 from .access import can_record_meeting, current_user_meeting_role
 from .document_context import build_meeting_doc_context
 from .knowledge_context import build_meeting_knowledge_context
@@ -125,6 +126,12 @@ class MeetingRoom:
         self.status = status
         self.connections: dict[str, MeetingConnection] = {}
         self.active_audio_source: str | None = None  # connection_id
+        # Задача 2b: кто и с какого момента ведёт запись (для таймера/шапки наблюдателей)
+        self.recording_started_at_ms: int | None = None
+        self.active_audio_user_label: str | None = None
+        self._user_label_cache: dict[int, str] = {}
+        # Задача 3: серверная запись живого аудио активного источника → temp → S3 при финализации
+        self.audio_recorder = SessionAudioRecorder(meeting_id)
         self.settings: dict = {}
         self.api_keys: dict = {}
         self.closed = False
@@ -336,11 +343,7 @@ class MeetingRoom:
             "meeting_role": self.session.meeting_role,
             "opponent_weaknesses": self.session.opponent_weaknesses,
         })
-        await conn.send_json({
-            "type": "recording_status",
-            "recording": self.session.is_listening,
-            "active_audio_source": self.active_audio_source,
-        })
+        await conn.send_json(self._recording_status_payload(self.session.is_listening))
         # текущие роли спикеров (восстановление после refresh)
         if self.session.speaker_roles:
             await conn.send_json({
@@ -383,6 +386,7 @@ class MeetingRoom:
             # источник аудио отключился — НЕ финализируем встречу, только чистим источник
             was_phone = conn.device_role == "phone"
             self.active_audio_source = None
+            self._reset_recording_meta()
             if self.session.is_listening:
                 await self.session.stop_listening()
             await self.broadcast({
@@ -417,6 +421,39 @@ class MeetingRoom:
         if conn:
             conn.is_active_audio_source = False
 
+    def _reset_recording_meta(self) -> None:
+        self.recording_started_at_ms = None
+        self.active_audio_user_label = None
+
+    async def _user_label(self, user_id: int | None) -> str | None:
+        """Ярлык аккаунта для UI (display_name или локальная часть email). В логи не пишем."""
+        if user_id is None:
+            return None
+        if user_id in self._user_label_cache:
+            return self._user_label_cache[user_id]
+        label: str | None = None
+        try:
+            from ..models.user import User
+            async with async_session() as db:
+                u = await db.get(User, user_id)
+                if u:
+                    label = u.display_name or (u.email.split("@", 1)[0] if u.email else None)
+        except Exception:
+            label = None
+        if label:
+            self._user_label_cache[user_id] = label
+        return label
+
+    def _recording_status_payload(self, recording: bool) -> dict:
+        """Единый формат recording_status (+ кто пишет и с какого момента — Задача 2b)."""
+        return {
+            "type": "recording_status",
+            "recording": recording,
+            "active_audio_source": self.active_audio_source if recording else None,
+            "active_audio_user_label": self.active_audio_user_label if recording else None,
+            "recording_started_at_ms": self.recording_started_at_ms if recording else None,
+        }
+
     async def handle_audio_frame(self, connection_id: str, data: bytes) -> None:
         """Бинарный аудио-фрейм.
 
@@ -433,6 +470,8 @@ class MeetingRoom:
             self.session.touch()
             # STT-поток БЕЗ изменений: ровно те же байты уходят в очередь STT.
             await self.session.audio_queue.put((datetime.now(), data))
+            # Задача 3: тот же PCM активного источника пишем на диск для архива (не влияет на STT).
+            self.audio_recorder.append(data)
             # Этап 9.3: tap в ingest-слой (параллельно, не влияет на STT). Никогда не ломаем STT.
             await self._tap_primary_ingest(connection_id, data)
 
@@ -883,17 +922,15 @@ class MeetingRoom:
             })
             return
         self.set_active_audio_source(connection_id)
+        self.active_audio_user_label = await self._user_label(conn.user_id)
         if not self.session.is_listening:
+            self.recording_started_at_ms = int(time.time() * 1000)
             await self.session.start_listening(
                 stt_provider=self.settings.get("stt_provider", "deepgram"),
                 api_keys=self.api_keys,
                 diarization=self.settings.get("diarization", True),
             )
-        await self.broadcast({
-            "type": "recording_status",
-            "recording": True,
-            "active_audio_source": self.active_audio_source,
-        })
+        await self.broadcast(self._recording_status_payload(True))
         if conn.device_role == "phone":
             await self.broadcast({
                 "type": "phone_recording_started",
@@ -912,11 +949,8 @@ class MeetingRoom:
             await self._persist_recorded_seconds(self.session.last_interval_seconds)
             self.session.last_interval_seconds = 0  # consumed → не дублировать в finalize
         self.clear_active_audio_source(connection_id)
-        await self.broadcast({
-            "type": "recording_status",
-            "recording": False,
-            "active_audio_source": None,
-        })
+        self._reset_recording_meta()
+        await self.broadcast(self._recording_status_payload(False))
         if was_phone:
             await self.broadcast({
                 "type": "phone_recording_stopped",
@@ -1213,6 +1247,7 @@ class MeetingRoom:
         if self.session.is_listening:
             await self.session.stop_listening()
         self.active_audio_source = None
+        self._reset_recording_meta()
         # Этап 9.8: остановить promoted live multi-channel (освободить provider-сокет и
         # глобальный слот лимитера) и детерминированно закрыть открытую эпоху транскрипта
         # на границе финализации (иначе утечка слота + epoch с end=NULL навсегда).
@@ -1343,6 +1378,37 @@ class MeetingRoom:
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] persist recorded_seconds failed: {e}")
 
+    async def _archive_session_audio(self) -> None:
+        """Задача 3: сбросить записанный PCM в WAV и поставить job сжатия+заливки в S3.
+
+        Вызывается на финализации/опустошении комнаты. Идемпотентно по факту записи:
+        после сброса заводится свежий рекордер (повторная запись в той же комнате — отдельный файл).
+        Ошибка архивации никогда не ломает персист сегментов/финализацию.
+        """
+        rec = self.audio_recorder
+        if not rec.has_audio:
+            return
+        pcm_path = rec.close_to_pcm()
+        self.audio_recorder = SessionAudioRecorder(self.meeting_id)  # свежий для возможной до-записи
+        if not pcm_path:
+            return
+        try:
+            wav_path = await asyncio.to_thread(pcm_to_wav, pcm_path)
+        except Exception as e:
+            logger.error(f"[room {self.meeting_id}] wav wrap failed: {e}")
+            return
+        try:
+            from .jobs import enqueue
+            async with async_session() as db:
+                await enqueue(db, "meeting_audio_archive", {
+                    "meeting_id": self.meeting_id,
+                    "user_id": self.owner_user_id,
+                    "wav_path": wav_path,
+                })
+                await db.commit()
+        except Exception as e:
+            logger.error(f"[room {self.meeting_id}] enqueue audio archive failed: {e}")
+
     async def _persist_segments(self, close: bool, title_override: str | None = None) -> None:
         """Сохранить committed-сегменты этой встречи (skip duplicates). При close — закрыть встречу."""
         try:
@@ -1404,6 +1470,8 @@ class MeetingRoom:
                 await db.commit()
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] persist segments failed: {e}")
+        # Задача 3: архив живого аудио (после сегментов; ошибки не ломают персист)
+        await self._archive_session_audio()
 
 
 class RoomRegistry:

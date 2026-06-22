@@ -154,6 +154,10 @@ interface MeetingState {
   setRoomJoined: (p: { connectionId: string; deviceRole: string; canSendAudio: boolean; activeAudioSource: string | null }) => void;
   setActiveAudioSource: (id: string | null) => void;
   setRecording: (v: boolean) => void;
+  // Задача 2b: кто ведёт запись (ярлык аккаунта) и server-время её старта (для таймера наблюдателя)
+  activeAudioUserLabel: string | null;
+  recordingStartedAtMs: number | null;
+  setRecordingMeta: (p: { userLabel: string | null; startedAtMs: number | null }) => void;
 
   // Этап 3: право записи / телефон-диктофон
   recordPermissionDenied: boolean;
@@ -216,15 +220,12 @@ function mergeLiveFinal(list: MultiChannelLiveSegment[], seg: MultiChannelLiveSe
   return next.length > MAX_LIVE_FINALS ? next.slice(next.length - MAX_LIVE_FINALS) : next;
 }
 
-// Дефолт вида встречи: диктофон — только для мобильного; десктоп → полный интерфейс.
-// Явный выбор пользователя сохраняется в meridian_ui_mode_v2 (новый ключ — старый
-// загрязнён 'simple' прежней логикой «роль → режим»).
+// Дефолт вида встречи: диктофон (Задача 2) — и на мобильном, и на десктопе. Десктоп
+// открывает встроенный простой диктофон (кнопка «Начать» → таймер); полный интерфейс
+// доступен переключателем. Явный выбор пользователя сохраняется в meridian_ui_mode_v2.
 const storedUiMode = typeof localStorage !== 'undefined' ? localStorage.getItem('meridian_ui_mode_v2') : null;
-const isMobileViewport = typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 768px)').matches;
 const initialUiMode: 'simple' | 'full' =
-  storedUiMode === 'simple' || storedUiMode === 'full'
-    ? storedUiMode
-    : (isMobileViewport ? 'simple' : 'full');
+  storedUiMode === 'simple' || storedUiMode === 'full' ? storedUiMode : 'simple';
 
 export const useMeetingStore = create<MeetingState>((set) => ({
   isConnected: false,
@@ -427,6 +428,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   }),
   setActiveAudioSource: (id) => set({ activeAudioSource: id }),
   setRecording: (v) => set({ recording: v }),
+  activeAudioUserLabel: null,
+  recordingStartedAtMs: null,
+  setRecordingMeta: (p) => set({ activeAudioUserLabel: p.userLabel, recordingStartedAtMs: p.startedAtMs }),
 
   recordPermissionDenied: false,
   phoneRecording: false,
@@ -542,6 +546,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     currentMeetingId: null, draftMeetingId: null, meetingSavedId: null,
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,
+    activeAudioUserLabel: null, recordingStartedAtMs: null,
     recordPermissionDenied: false, phoneRecording: false, deviceSync: null,
     shadowTracks: [], ingestAlignment: null,
     multiChannelLiveState: null, multiChannelLiveFinalSegments: [], multiChannelLiveInterimByChannel: {},
@@ -596,6 +601,8 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       canSendAudio: false,
       activeAudioSource: null,
       recording: false,
+      activeAudioUserLabel: null,
+      recordingStartedAtMs: null,
       recordPermissionDenied: false,
       phoneRecording: false,
       deviceSync: null,

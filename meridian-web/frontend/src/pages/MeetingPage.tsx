@@ -5,6 +5,8 @@ import { useMeetingStore } from '../store/meetingStore';
 import { getSettings } from '../api/settings';
 import { createMeeting } from '../api/meetings';
 import { getMeetingDetail } from '../api/history';
+import { uploadBatchAudio } from '../api/batch';
+import { offlineAudioBuffer } from '../lib/offlineAudioBuffer';
 import { ChatDisplay } from '../components/meeting/ChatDisplay';
 import { SpeakerSideAssignmentPanel } from '../components/meeting/SpeakerSideAssignmentPanel';
 import { ObserverPanel } from '../components/meeting/ObserverPanel';
@@ -19,6 +21,8 @@ import { MeetingStats } from '../components/meeting/MeetingStats';
 import { ConversationTreePanel } from '../components/meeting/ConversationTreePanel';
 import { DictaphoneView } from '../components/meeting/DictaphoneView';
 import { ModeSwitch } from '../components/meeting/ModeSwitch';
+import { RecordingIndicator } from '../components/meeting/RecordingIndicator';
+import { OfflineBanner } from '../components/meeting/OfflineBanner';
 import { getConversationTree } from '../api/conversationTree';
 import { PopNumber } from '../components/common/PopNumber';
 import { IconSwap } from '../components/common/IconSwap';
@@ -80,9 +84,44 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   }, []);
 
   const [level, setLevel] = useState(0);
-  const { connect, disconnect, sendJSON, sendBinary } = useWebSocket();
-  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendBinary, setLevel);
+  const { connect, disconnect, sendJSON, sendBinary, ws } = useWebSocket();
+  // Задача 5: если WS открыт — чанк идёт в realtime STT; иначе буферизуем в IndexedDB
+  // (переживает обрыв/перезагрузку) и дошлём батчем при восстановлении сети.
+  const sendAudioChunk = useCallback((buf: ArrayBuffer) => {
+    if (ws.current?.readyState === WebSocket.OPEN) { sendBinary(buf); return; }
+    const mid = useMeetingStore.getState().currentMeetingId;
+    if (mid != null) void offlineAudioBuffer.append(mid, buf);
+  }, [sendBinary, ws]);
+  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendAudioChunk, setLevel);
   const store = useMeetingStore();
+
+  // Задача 5: при восстановлении WS (false→true) дослать накопленный офлайн-звук
+  // как офлайн-дозапись (kind=gap_fill) — результат вливается в транскрипт встречи.
+  const prevConnectedRef = useRef(false);
+  const flushingRef = useRef(false);
+  useEffect(() => {
+    const connected = store.isConnected;
+    const wasConnected = prevConnectedRef.current;
+    prevConnectedRef.current = connected;
+    if (!connected || wasConnected || flushingRef.current) return;
+    const mid = useMeetingStore.getState().currentMeetingId;
+    if (mid == null) return;
+    flushingRef.current = true;
+    (async () => {
+      try {
+        const wav = await offlineAudioBuffer.drainToWav(mid);
+        if (wav) {
+          const file = new File([wav], `gap_${mid}_${Date.now()}.wav`, { type: 'audio/wav' });
+          await uploadBatchAudio(file, undefined, { meetingId: mid, kind: 'gap_fill' });
+          showToast('Аудио из офлайна отправлено на дораспознавание', 'success');
+        }
+      } catch {
+        showToast('Не удалось отправить офлайн-аудио', 'error');
+      } finally {
+        flushingRef.current = false;
+      }
+    })();
+  }, [store.isConnected, showToast]);
 
   // Встреча (строка в БД) создаётся ТОЛЬКО вручную: старт записи / «Новая встреча» /
   // выбор заказчика. Открытие или reload портала НИЧЕГО не создаёт.
@@ -462,6 +501,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <RecordingIndicator />
         <ModeSwitch />
         {store.currentMeetingId != null && (
           <div style={styles.linkWrap}>
@@ -512,6 +552,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     return (
       <div style={styles.container}>
         {topBar}
+        <OfflineBanner />
         <DictaphoneView
           level={level}
           isListening={store.isListening}
@@ -527,6 +568,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   return (
     <div style={styles.container}>
       {topBar}
+      <OfflineBanner />
       {/* Tab bar */}
       <div className="meeting-tabs" style={styles.tabs}>
         {TABS.map((tab, i) => (

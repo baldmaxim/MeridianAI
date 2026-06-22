@@ -27,8 +27,16 @@ class BatchJobDetailResponse(BatchJobResponse):
 class UploadSessionRequest(BaseModel):
     filename: str
     size: Optional[int] = None
+    # Задача 5: офлайн-дозапись «дыры» записи в встречу
+    meeting_id: Optional[int] = None
+    kind: Optional[str] = None  # None — обычный батч; "gap_fill" — дозапись после обрыва связи
 
 
 class UploadSessionResponse(BaseModel):
     file_id: int
     upload_url: str
+
+
+class ConfirmUploadRequest(BaseModel):
+    meeting_id: Optional[int] = None
+    kind: Optional[str] = None

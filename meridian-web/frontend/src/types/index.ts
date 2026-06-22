@@ -532,7 +532,7 @@ export type WSMessageFromServer =
   | { type: 'device_left'; meeting_id: number; connection_id: string }
   | { type: 'audio_source_busy'; active_audio_source: string | null }
   | { type: 'audio_source_disconnected'; meeting_id?: number }
-  | { type: 'recording_status'; recording: boolean; active_audio_source: string | null }
+  | { type: 'recording_status'; recording: boolean; active_audio_source: string | null; active_audio_user_label?: string | null; recording_started_at_ms?: number | null }
   | { type: 'room_status'; meeting_id: number; status: string }
   // --- Этап 3: право записи / телефон-диктофон ---
   | { type: 'record_permission_denied'; message: string }

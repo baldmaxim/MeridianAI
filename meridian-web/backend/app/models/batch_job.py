@@ -19,6 +19,12 @@ class BatchJob(Base):
     status: Mapped[str] = mapped_column(String(30), default="uploaded")
     # uploaded | compressing | transcribing | generating_protocol | done | error
 
+    # Задача 5: офлайн-дозапись. kind='gap_fill' + meeting_id → влить сегменты в встречу.
+    kind: Mapped[str | None] = mapped_column(String(20))  # None — обычный батч; gap_fill — дыра записи
+    meeting_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("meeting_sessions.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     original_size: Mapped[int] = mapped_column(Integer, default=0)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)

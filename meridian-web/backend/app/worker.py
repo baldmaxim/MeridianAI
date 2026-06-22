@@ -17,6 +17,7 @@ from .database import async_session, engine
 from .logging_setup import setup_logging
 from .services.jobs import claim_one, complete, fail, recover_stale_jobs
 from .core.batch.processor import handle_batch_transcribe
+from .core.batch.meeting_audio_archive import handle_meeting_audio_archive
 from .services.files import handle_file_physical_delete
 from .services.document_processing import handle_document_process
 from .services.meeting_finalize import handle_meeting_finalize
@@ -28,6 +29,7 @@ logger = logging.getLogger("meridian.worker")
 
 HANDLERS = {
     "batch_transcribe": handle_batch_transcribe,
+    "meeting_audio_archive": handle_meeting_audio_archive,
     "file_physical_delete": handle_file_physical_delete,
     "document_process": handle_document_process,
     "meeting_finalize": handle_meeting_finalize,
