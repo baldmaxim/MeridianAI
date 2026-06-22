@@ -31,3 +31,16 @@ export async function searchLetters(params: LetterSearchParams): Promise<LetterH
   });
   return data;
 }
+
+export interface PayhubProject {
+  projectId: number;
+  name: string;
+  letterCount: number | null;
+}
+
+/** Проекты PayHub (реальные названия) для экрана связки с нашими объектами.
+ *  Пустой список = таблица проектов PayHub не настроена на бэкенде. */
+export async function listPayhubProjects(): Promise<PayhubProject[]> {
+  const { data } = await api.get<PayhubProject[]>('/letters/projects');
+  return data;
+}

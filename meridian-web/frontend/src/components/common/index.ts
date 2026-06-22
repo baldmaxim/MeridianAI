@@ -6,6 +6,8 @@ export { Modal } from './Modal';
 export { Dropdown } from './Dropdown';
 export { Select } from './Select';
 export type { SelectOption } from './Select';
+export { SearchableSelect } from './SearchableSelect';
+export type { SearchableOption } from './SearchableSelect';
 export { Combobox } from './Combobox';
 export { Collapse } from './Collapse';
 export { IconSwap } from './IconSwap';

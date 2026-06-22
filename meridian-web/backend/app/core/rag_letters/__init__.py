@@ -3,19 +3,21 @@
 Экспорт:
 - embed_query(text) -> list[float]                        — Yandex query-эмбеддинг (dim=768, LRU)
 - search_letters(query, k=8, project_id=None) -> [RagHit] — гибридный поиск (вектор+FTS+RRF)
+- list_payhub_projects() -> [dict]                        — проекты PayHub (id, name, letterCount)
 - build_rag_context(hits) -> str                          — блок переписки для промпта LLM
 - RagHit, LettersStore, get_store, close_store
 """
 
 from .context import RagHit, build_rag_context
 from .embeddings import embed_query
-from .store import LettersStore, close_store, get_store, search_letters
+from .store import LettersStore, close_store, get_store, list_payhub_projects, search_letters
 
 __all__ = [
     "RagHit",
     "build_rag_context",
     "embed_query",
     "search_letters",
+    "list_payhub_projects",
     "get_store",
     "close_store",
     "LettersStore",

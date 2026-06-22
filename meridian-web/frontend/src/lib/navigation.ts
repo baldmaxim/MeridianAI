@@ -32,6 +32,7 @@ export const paths = {
   batch: '/batch',
   knowledge: '/knowledge',
   letters: '/letters',
+  projectLinks: '/project-links',
   aiSettings: '/ai-settings',
   settings: '/settings',
 };
@@ -49,6 +50,7 @@ export type AppRoute =
   | { kind: 'batch' }
   | { kind: 'knowledge' }
   | { kind: 'letters' }
+  | { kind: 'project-links' }
   | { kind: 'ai-settings' }
   | { kind: 'settings' }
   | { kind: 'login' };
@@ -80,6 +82,7 @@ export function parseRoute(pathname: string): AppRoute {
   if (/^\/batch\/?$/.test(pathname)) return { kind: 'batch' };
   if (/^\/knowledge\/?$/.test(pathname)) return { kind: 'knowledge' };
   if (/^\/letters\/?$/.test(pathname)) return { kind: 'letters' };
+  if (/^\/project-links\/?$/.test(pathname)) return { kind: 'project-links' };
   if (/^\/ai-settings\/?$/.test(pathname)) return { kind: 'ai-settings' };
   if (/^\/settings\/?$/.test(pathname)) return { kind: 'settings' };
 

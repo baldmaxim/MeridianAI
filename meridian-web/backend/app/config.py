@@ -125,6 +125,14 @@ class Settings(BaseSettings):
     letters_context_throttle_seconds: int = Field(default=20, alias="LETTERS_CONTEXT_THROTTLE_SECONDS")
     context_pack_letters_max_chars: int = Field(default=12000, alias="CONTEXT_PACK_LETTERS_MAX_CHARS")
 
+    # Таблица проектов PayHub (read-only) — источник реальных названий для экрана связки
+    # «проект PayHub → наш объект». Это ИДЕНТИФИКАТОРЫ (не значения): их нельзя биндить как
+    # $-параметры asyncpg, поэтому имена строго валидируются регуляркой и квотируются (см.
+    # rag_letters/store.py). Пусто → список проектов вернётся пустым (мягкая деградация).
+    payhub_projects_table: str = Field(default="", alias="PAYHUB_PROJECTS_TABLE")
+    payhub_projects_id_col: str = Field(default="id", alias="PAYHUB_PROJECTS_ID_COL")
+    payhub_projects_name_col: str = Field(default="name", alias="PAYHUB_PROJECTS_NAME_COL")
+
     # Context Pack (Этап 6): верхний уровень бюджета сборки prompt. Per-mode общий лимит
     # и per-block лимиты. Старые provider-лимиты (DOCUMENT_CONTEXT_*) остаются внутренними.
     context_pack_auto_max_chars: int = Field(default=22000, alias="CONTEXT_PACK_AUTO_MAX_CHARS")

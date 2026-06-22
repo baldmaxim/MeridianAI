@@ -10,6 +10,7 @@ import { AISettingsPage } from './pages/AISettingsPage';
 import { ObjectsPage } from './pages/ObjectsPage';
 import { ObjectDetailPage } from './pages/ObjectDetailPage';
 import { LettersSearchPage } from './pages/LettersSearchPage';
+import { ProjectLinkPage } from './pages/ProjectLinkPage';
 import { SettingsHubPage } from './pages/SettingsHubPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { PageTransition } from './components/common/PageTransition';
@@ -21,10 +22,10 @@ import { useMeetingStore } from './store/meetingStore';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
-  | 'knowledge' | 'letters' | 'ai-settings' | 'settings';
+  | 'knowledge' | 'letters' | 'project-links' | 'ai-settings' | 'settings';
 
 // Под-потоки, всегда доступные авторизованному (не входят в матрицу доступа).
-const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters'];
+const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters', 'project-links'];
 
 // Маршрут (URL) → внутренняя страница + выбранные сущности.
 function pageFromRoute(route: ReturnType<typeof parseRoute>): {
@@ -53,6 +54,8 @@ function pageFromRoute(route: ReturnType<typeof parseRoute>): {
       return { page: 'knowledge', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'letters':
       return { page: 'letters', objectId: null, meetingId: null, detailReturn: 'history' };
+    case 'project-links':
+      return { page: 'project-links', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'ai-settings':
       return { page: 'ai-settings', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'settings':
@@ -185,6 +188,8 @@ function App() {
         return <KnowledgePage onBack={() => navigate(paths.objects)} />;
       case 'letters':
         return <LettersSearchPage onBack={() => navigate(paths.objects)} />;
+      case 'project-links':
+        return <ProjectLinkPage onBack={() => navigate(paths.letters)} />;
       case 'ai-settings':
         return <AISettingsPage onBack={() => navigate(paths.objects)} />;
       case 'history':

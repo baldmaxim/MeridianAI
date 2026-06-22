@@ -25,3 +25,11 @@ class LetterSearchHit(BaseModel):
     pageTo: int | None = None
     text: str
     score: float
+
+
+class PayhubProject(BaseModel):
+    """Проект PayHub для экрана связки «проект PayHub → наш объект» (camelCase)."""
+
+    projectId: int
+    name: str
+    letterCount: int | None = None

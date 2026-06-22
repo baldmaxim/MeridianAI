@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import ssl
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -52,6 +53,26 @@ SELECT c.chunk_id, c.letter_id, c.subject, c.reg_number, c.number, c.customer_nu
  ORDER BY score DESC
  LIMIT $3
 """
+
+
+# Имена таблицы/колонок проектов PayHub приходят из config (не из пользовательского ввода),
+# но это идентификаторы — их нельзя биндить как $-параметры. Валидируем строго и квотируем.
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_PROJECTS_LIMIT = 5000  # верхняя граница списка проектов на экране связки
+
+
+def _safe_table(name: str) -> str:
+    """Квотированный идентификатор таблицы (допускаем ``schema.table``)."""
+    parts = (name or "").split(".")
+    if not (1 <= len(parts) <= 2) or not all(_IDENT_RE.match(p) for p in parts):
+        raise ValueError(f"некорректное имя таблицы проектов PayHub: {name!r}")
+    return ".".join(f'"{p}"' for p in parts)
+
+
+def _safe_col(name: str) -> str:
+    if not _IDENT_RE.match(name or ""):
+        raise ValueError(f"некорректное имя колонки PayHub: {name!r}")
+    return f'"{name}"'
 
 
 def _normalize_dsn(url: str) -> str:
@@ -184,6 +205,48 @@ class LettersStore:
         hits = diversify(hits, per_letter=_PER_LETTER)
         return hits[:k]
 
+    async def list_projects(self) -> list[dict]:
+        """Список проектов PayHub (id, name, кол-во писем) для экрана связки.
+
+        Тянет реальные названия из таблицы проектов PayHub (config: PAYHUB_PROJECTS_TABLE),
+        обогащая числом писем из корпуса ``rag.corpus_chunks``. Read-only. Если таблица не
+        настроена — возвращает [] (мягкая деградация: экран связки покажет «не настроено»).
+        """
+        s = get_settings()
+        if not s.payhub_projects_table:
+            return []
+        table = _safe_table(s.payhub_projects_table)
+        id_col = _safe_col(s.payhub_projects_id_col)
+        name_col = _safe_col(s.payhub_projects_name_col)
+        # Идентификаторы провалидированы regex + закавычены; значения не подставляются.
+        sql = f"""
+        SELECT p.{id_col} AS project_id,
+               p.{name_col} AS name,
+               COALESCE(lc.cnt, 0) AS letter_count
+          FROM {table} p
+          LEFT JOIN (
+              SELECT project_id, count(DISTINCT letter_id) AS cnt
+                FROM rag.corpus_chunks
+               WHERE project_id IS NOT NULL
+               GROUP BY project_id
+          ) lc ON lc.project_id = p.{id_col}
+         WHERE p.{id_col} IS NOT NULL
+         ORDER BY p.{name_col}
+         LIMIT {_PROJECTS_LIMIT}
+        """
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql)
+        out: list[dict] = []
+        for r in rows:
+            name = r["name"]
+            out.append({
+                "projectId": int(r["project_id"]),
+                "name": str(name) if name is not None else f"#{r['project_id']}",
+                "letterCount": int(r["letter_count"]) if r["letter_count"] is not None else 0,
+            })
+        return out
+
 
 _store: LettersStore | None = None
 
@@ -198,6 +261,11 @@ def get_store() -> LettersStore:
 async def search_letters(query: str, k: int = 8, project_id: int | None = None) -> list[RagHit]:
     """Удобная обёртка над singleton-store."""
     return await get_store().search_letters(query, k=k, project_id=project_id)
+
+
+async def list_payhub_projects() -> list[dict]:
+    """Список проектов PayHub (id, name, letterCount) для связки. Обёртка над singleton-store."""
+    return await get_store().list_projects()
 
 
 async def close_store() -> None:
