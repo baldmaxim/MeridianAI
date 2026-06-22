@@ -29,7 +29,7 @@ import { ragContextApiAdapter } from '../api/ragContextAdapter';
 import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
 import { MeetingContext } from '../components/context/MeetingContext';
 import { MeetingAISettingsBlock } from '../components/context/MeetingAISettings';
-import { RolesTab } from '../components/context/RolesTab';
+import { RoleSelector } from '../components/context/RoleSelector';
 import { getSpeakerRoles, putSpeakerRole } from '../api/speakerRoles';
 import { listSpeakerCorrections, putSpeakerCorrection, deleteSpeakerCorrection } from '../api/speakerCorrections';
 import { toPublicSpeakerSide, nextPublicSpeakerSide, type PublicSpeakerSide } from '../lib/speakerSides';
@@ -749,7 +749,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                   <span style={styles.dot} />
                   <span style={styles.sectionTitle}>Активная роль (для подсказок)</span>
                 </div>
-                <RolesTab onRoleSelect={handleRoleSelect} />
+                <RoleSelector onRoleSelect={handleRoleSelect} />
               </div>
 
               {/* Сохранить встречу */}

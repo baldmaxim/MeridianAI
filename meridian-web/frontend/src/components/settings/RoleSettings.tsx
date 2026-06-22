@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getRoles, createRole, updateRole, deleteRole } from '../../api/roles';
-import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import { Select } from '../common';
 import type { NegotiationRole } from '../../types';
-
-interface Props {
-  onRoleSelect: (roleId: number) => void;
-}
 
 const EMPTY_FORM = {
   name: '',
@@ -30,10 +25,8 @@ const PRESET_INSTRUCTIONS = [
   'Предлагай альтернативные варианты при тупике в переговорах',
 ];
 
-export function RolesTab({ onRoleSelect }: Props) {
-  const setActiveRoleName = useMeetingStore((s) => s.setActiveRoleName);
+export function RoleSettings() {
   const [roles, setRoles] = useState<NegotiationRole[]>([]);
-  const [activeRoleId, setActiveRoleId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -41,21 +34,8 @@ export function RolesTab({ onRoleSelect }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getRoles().then((r) => {
-      setRoles(r);
-      if (r.length > 0 && !activeRoleId) {
-        setActiveRoleId(r[0].id);
-        setActiveRoleName(r[0].name);
-      }
-    });
+    getRoles().then(setRoles);
   }, []);
-
-  const selectRole = (id: number) => {
-    setActiveRoleId(id);
-    onRoleSelect(id);
-    const role = roles.find((r) => r.id === id);
-    if (role) setActiveRoleName(role.name);
-  };
 
   const startEdit = (role: NegotiationRole) => {
     setEditingId(role.id);
@@ -88,14 +68,9 @@ export function RolesTab({ onRoleSelect }: Props) {
       if (creating) {
         const newRole = await createRole(form);
         setRoles((prev) => [...prev, newRole]);
-        selectRole(newRole.id);
       } else if (editingId) {
         const updated = await updateRole(editingId, form);
         setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-        if (activeRoleId === editingId) {
-          onRoleSelect(editingId);
-          setActiveRoleName(form.name);
-        }
       }
       cancel();
     } finally {
@@ -106,13 +81,8 @@ export function RolesTab({ onRoleSelect }: Props) {
   const handleDelete = async (id: number) => {
     await deleteRole(id);
     setRoles((prev) => prev.filter((r) => r.id !== id));
-    if (activeRoleId === id && roles.length > 1) {
-      const next = roles.find((r) => r.id !== id);
-      if (next) selectRole(next.id);
-    }
+    if (editingId === id) cancel();
   };
-
-  const activeRole = roles.find((r) => r.id === activeRoleId);
 
   const buildPreviewPrompt = (r: typeof form) => {
     if (!r.name) return '';
@@ -139,11 +109,11 @@ ${r.custom_instructions || '(не указаны)'}`;
         {roles.map((role) => (
           <div
             key={role.id}
-            onClick={() => selectRole(role.id)}
+            onClick={() => startEdit(role)}
             style={{
               ...s.roleCard,
-              borderColor: activeRoleId === role.id ? theme.accent.amber : theme.border.default,
-              background: activeRoleId === role.id ? theme.accent.amberGlow : theme.bg.elevated,
+              borderColor: editingId === role.id ? theme.accent.amber : theme.border.default,
+              background: editingId === role.id ? theme.accent.amberGlow : theme.bg.elevated,
             }}
           >
             <div style={s.roleCardTop}>
@@ -170,7 +140,7 @@ ${r.custom_instructions || '(не указаны)'}`;
         <button style={s.addBtn} onClick={startCreate}>+ Новая роль</button>
       </div>
 
-      {/* Edit / Create form or preview */}
+      {/* Edit / Create form */}
       <div style={s.detail}>
         {isEditing ? (
           <div style={s.formCard}>
@@ -253,44 +223,10 @@ ${r.custom_instructions || '(не указаны)'}`;
               <button style={s.cancelBtn} onClick={cancel}>Отмена</button>
             </div>
           </div>
-        ) : activeRole ? (
-          <div style={s.formCard}>
-            <div style={s.listHeader}>
-              <span style={s.dot} />
-              <span style={s.headerTitle}>Активная роль: {activeRole.name}</span>
-            </div>
-
-            <div style={s.previewRow}>
-              <span style={s.previewLabel}>Описание</span>
-              <span style={s.previewValue}>{activeRole.description || '—'}</span>
-            </div>
-            <div style={s.previewRow}>
-              <span style={s.previewLabel}>Интересы</span>
-              <span style={s.previewValue}>{activeRole.interests || '—'}</span>
-            </div>
-            <div style={s.previewRow}>
-              <span style={s.previewLabel}>Оппоненты</span>
-              <span style={s.previewValue}>{activeRole.opponents || '—'}</span>
-            </div>
-            <div style={s.previewRow}>
-              <span style={s.previewLabel}>Инструкции ИИ</span>
-              <span style={s.previewValue}>{activeRole.custom_instructions || '—'}</span>
-            </div>
-
-            <button
-              style={s.toggleBtn}
-              onClick={() => setShowPrompts(!showPrompts)}
-            >
-              {showPrompts ? 'Скрыть промт' : 'Показать собранный промт'}
-            </button>
-            {showPrompts && (
-              <pre style={s.promptPreview}>{buildPreviewPrompt(activeRole)}</pre>
-            )}
-          </div>
         ) : (
           <div style={s.formCard}>
             <div style={{ color: theme.text.muted, fontSize: 13 }}>
-              Выберите роль или создайте новую
+              Выберите роль для редактирования или создайте новую
             </div>
           </div>
         )}
@@ -499,25 +435,5 @@ const s: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 12,
     fontFamily: theme.font.body,
-  },
-  previewRow: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-    padding: '6px 0',
-    borderBottom: `1px solid ${theme.border.default}`,
-  },
-  previewLabel: {
-    fontSize: 10,
-    fontFamily: theme.font.mono,
-    color: theme.accent.amber,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase' as const,
-  },
-  previewValue: {
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    color: theme.text.primary,
-    lineHeight: 1.5,
   },
 };

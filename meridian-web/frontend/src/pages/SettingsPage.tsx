@@ -5,6 +5,7 @@ import { STTSettings } from '../components/settings/STTSettings';
 import { LLMSettings } from '../components/settings/LLMSettings';
 import { HintsSettings } from '../components/settings/HintsSettings';
 import { StorageSettings } from '../components/settings/StorageSettings';
+import { RoleSettings } from '../components/settings/RoleSettings';
 import { theme } from '../styles/theme';
 import type { UserSettings, SuggestionTypeConfig, TriggerKeywordConfig } from '../types';
 
@@ -31,6 +32,7 @@ const DEFAULT_TRIGGER_KEYWORDS: TriggerKeywordConfig[] = [
 const SETTINGS_SECTIONS = [
   { id: 'stt', icon: '\u{1F399}', label: 'Распознавание речи' },
   { id: 'llm', icon: '\u{1F916}', label: 'Языковая модель' },
+  { id: 'roles', icon: '\u{1F3AD}', label: 'Роли переговоров' },
   { id: 'hints', icon: '⚡', label: 'Подсказки' },
   { id: 'storage', icon: '\u{1F4C1}', label: 'Хранилище' },
   { id: 'notifications', icon: '\u{1F514}', label: 'Уведомления' },
@@ -131,6 +133,7 @@ export function SettingsPage({ onBack, embedded }: Props) {
                 onTriggerKeywordsChange={(keywords) => setSettings({ ...settings, custom_trigger_keywords: keywords })}
               />
             )}
+            {section === 'roles' && <RoleSettings />}
             {section === 'storage' && (
               <StorageSettings
                 localPath={settings.local_storage_path || ''}
@@ -143,14 +146,16 @@ export function SettingsPage({ onBack, embedded }: Props) {
             {section === 'locale' && (
               <PlaceholderSection title="Язык и регион" text="Язык интерфейса, формат даты и валюты. Раздел в разработке." />
             )}
-            <button
-              onClick={handleApply}
-              disabled={applying}
-              className="t-btn t-btn-amber"
-              style={{ ...styles.applyBtn, opacity: applying ? 0.6 : 1, cursor: applying ? 'wait' : 'pointer' }}
-            >
-              {applying ? 'Сохранение...' : 'Применить настройки'}
-            </button>
+            {section !== 'roles' && (
+              <button
+                onClick={handleApply}
+                disabled={applying}
+                className="t-btn t-btn-amber"
+                style={{ ...styles.applyBtn, opacity: applying ? 0.6 : 1, cursor: applying ? 'wait' : 'pointer' }}
+              >
+                {applying ? 'Сохранение...' : 'Применить настройки'}
+              </button>
+            )}
           </div>
         </div>
       )}
