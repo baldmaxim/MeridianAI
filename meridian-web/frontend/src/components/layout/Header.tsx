@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
+import { paths, navTo } from '../../lib/navigation';
 import { theme } from '../../styles/theme';
 import { RoleSwitch } from './RoleSwitch';
 import { useOpenClose } from '../../hooks/useOpenClose';
@@ -84,13 +85,13 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
   const menu = useOpenClose(menuOpen, { closeVar: '--dropdown-close-dur', fallbackMs: 150 });
 
   const navItems = ([
-    onShowObjects && { label: 'Проекты', onClick: onShowObjects, active: showObjects },
-    onShowLetters && { label: 'Письма', onClick: onShowLetters, active: showLetters },
-    onShowKnowledge && { label: 'База знаний', onClick: onShowKnowledge, active: showKnowledge },
-    onShowAISettings && { label: 'AI-профили', onClick: onShowAISettings, active: showAISettings },
-    onShowBatch && { label: 'Оффлайн распознавание', onClick: onShowBatch, active: showBatch },
-    onShowSettings && { label: '⚙ Настройки', onClick: onShowSettings, active: showSettings },
-  ].filter(Boolean)) as { label: string; onClick: () => void; active?: boolean }[];
+    onShowObjects && { label: 'Проекты', path: paths.objects, onClick: onShowObjects, active: showObjects },
+    onShowLetters && { label: 'Письма', path: paths.letters, onClick: onShowLetters, active: showLetters },
+    onShowKnowledge && { label: 'База знаний', path: paths.knowledge, onClick: onShowKnowledge, active: showKnowledge },
+    onShowAISettings && { label: 'AI-профили', path: paths.aiSettings, onClick: onShowAISettings, active: showAISettings },
+    onShowBatch && { label: 'Оффлайн распознавание', path: paths.batch, onClick: onShowBatch, active: showBatch },
+    onShowSettings && { label: '⚙ Настройки', path: paths.settings, onClick: onShowSettings, active: showSettings },
+  ].filter(Boolean)) as { label: string; path: string; onClick: () => void; active?: boolean }[];
 
   const handleNav = (fn: () => void) => { setMenuOpen(false); fn(); };
 
@@ -100,7 +101,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
         <div
           className="header-logo"
           style={{ ...styles.logo, cursor: onShowObjects ? 'pointer' : 'default' }}
-          onClick={onShowObjects}
+          {...(onShowObjects ? navTo(paths.objects, onShowObjects) : {})}
           title={onShowObjects ? 'К объектам' : undefined}
         >
           <LogoMark />
@@ -138,7 +139,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
             <button
               key={it.label}
               className="header-desktop-btn t-btn"
-              onClick={it.onClick}
+              {...navTo(it.path, it.onClick)}
               style={it.active ? styles.adminBtnActive : styles.adminBtn}
             >
               {it.label}
@@ -168,7 +169,7 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
           {navItems.map((it) => (
             <button
               key={it.label}
-              onClick={() => handleNav(it.onClick)}
+              {...navTo(it.path, () => handleNav(it.onClick))}
               className="t-btn"
               style={it.active ? styles.menuItemActive : styles.menuItem}
             >

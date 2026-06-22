@@ -3,7 +3,7 @@ import { searchLetters, type LetterHit } from '../api/letters';
 import { listObjects } from '../api/objects';
 import type { ProjectObject } from '../types';
 import { apiErrorMessage } from '../lib/apiError';
-import { navigate, paths } from '../lib/navigation';
+import { navTo, paths } from '../lib/navigation';
 import { SearchableSelect, type SearchableOption } from '../components/common';
 import { theme } from '../styles/theme';
 
@@ -79,7 +79,7 @@ export function LettersSearchPage({ onBack }: Props) {
         <button className="t-btn" style={styles.back} onClick={onBack}>← Назад</button>
         <span style={styles.title}>Поиск по письмам</span>
         <span style={styles.subtitle}>PayHub · семантический + полнотекстовый</span>
-        <button className="t-btn" style={styles.linkProjects} onClick={() => navigate(paths.projectLinks)}>Связка проектов</button>
+        <button className="t-btn" style={styles.linkProjects} {...navTo(paths.projectLinks)}>Связка проектов</button>
       </div>
 
       <div style={styles.searchRow}>
@@ -109,7 +109,7 @@ export function LettersSearchPage({ onBack }: Props) {
       {unlinked && (
         <div style={styles.hint}>
           Объект «{selectedObject?.name}» не привязан к проекту PayHub — поиск идёт по всему корпусу.{' '}
-          <button style={styles.hintLink} onClick={() => navigate(paths.projectLinks)}>Привязать проекты</button>
+          <button style={styles.hintLink} {...navTo(paths.projectLinks)}>Привязать проекты</button>
         </div>
       )}
 

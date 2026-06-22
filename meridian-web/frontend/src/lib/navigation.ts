@@ -1,10 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 
 /** Лёгкий path-роутер без зависимостей. */
 export function navigate(path: string) {
   if (window.location.pathname + window.location.search === path) return;
   window.history.pushState({}, '', path);
   window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+function openNewTab(path: string) {
+  // относительный путь → текущий origin; без width/height это вкладка, не popup
+  window.open(path, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Пропсы для кликабельного элемента навигации (button / div role="button").
+ * ЛКМ → SPA-переход (run или navigate(path)); колесо/Ctrl/⌘ → новая вкладка с path.
+ */
+export function navTo(path: string, run?: () => void) {
+  return {
+    onClick: (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) { e.preventDefault(); openNewTab(path); return; }
+      if (run) run(); else navigate(path);
+    },
+    onAuxClick: (e: MouseEvent) => {
+      if (e.button === 1) { e.preventDefault(); openNewTab(path); }
+    },
+    onMouseDown: (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault(); // подавить кружок автоскролла на колесе
+    },
+  };
 }
 
 export function usePathname(): string {

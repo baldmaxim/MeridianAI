@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { theme } from '../styles/theme';
 import { getObject } from '../api/objects';
 import { listMeetings, deleteMeeting } from '../api/history';
-import { paths } from '../lib/navigation';
+import { paths, navTo } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
 import { meetingDisplayName } from '../lib/meetingName';
 import { Dropdown } from '../components/common/Dropdown';
@@ -122,13 +122,14 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
         {meetings.map((m) => {
           const isActive = m.status === 'active';
           const openRow = () => (isActive ? onOpenLiveMeeting(m.id) : onOpenMeeting(m.id));
+          const href = isActive ? paths.meetingRoom(m.id) : paths.meetingDetail(m.id, 'object', objectId);
           return (
             <div
               key={m.id}
               style={styles.card}
               role="button"
               tabIndex={0}
-              onClick={openRow}
+              {...navTo(href, openRow)}
               onKeyDown={(e) => { if (e.key === 'Enter') openRow(); }}
             >
               <div style={styles.cardTop}>
@@ -159,6 +160,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                       className="t-btn"
                       style={styles.linkBtn}
                       onClick={(e) => { e.stopPropagation(); copyLink(m.id); }}
+                      onAuxClick={(e) => e.stopPropagation()}
                       title="Скопировать ссылку на встречу"
                     >
                       {copiedId === m.id ? '✓ скопировано' : '🔗 ссылка'}
@@ -169,6 +171,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                       className="t-btn"
                       style={styles.menuBtn}
                       onClick={(e) => { e.stopPropagation(); setMenuFor((v) => (v === m.id ? null : m.id)); }}
+                      onAuxClick={(e) => e.stopPropagation()}
                       aria-label="Действия со встречей"
                     >⋮</button>
                     <Dropdown

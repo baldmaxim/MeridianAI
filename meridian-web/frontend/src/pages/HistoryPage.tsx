@@ -7,6 +7,7 @@ import {
 } from '../hooks/queries/meetings';
 import { useCustomers, useObjects } from '../hooks/queries/directory';
 import { meetingDisplayName } from '../lib/meetingName';
+import { paths, navTo } from '../lib/navigation';
 
 const FIN_LABELS: Record<string, string> = {
   queued: 'сохраняется', running: 'протокол…', completed: 'протокол готов',
@@ -276,7 +277,7 @@ export function HistoryPage({ onBack, onSelectMeeting }: Props) {
                   borderLeft: 'none',
                   borderColor: selected.has(m.id) ? 'rgba(245,166,35,0.3)' : undefined,
                 }}
-                onClick={() => onSelectMeeting(m.id)}
+                {...navTo(paths.meetingDetail(m.id), () => onSelectMeeting(m.id))}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,166,35,0.3)';
                 }}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { theme } from '../styles/theme';
+import { paths, navTo } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
 import { ObjectCreateModal } from '../components/directory/ObjectCreateModal';
 import { useObjects, directoryKeys } from '../hooks/queries/directory';
@@ -109,7 +110,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
                   {items.map((o) => {
                     const count = counts[o.id] || 0;
                     return (
-                      <button key={o.id} style={styles.row} onClick={() => onOpenObject(o.id)}>
+                      <button key={o.id} style={styles.row} {...navTo(paths.objectDetail(o.id), () => onOpenObject(o.id))}>
                         <span style={styles.rowName}>{o.name}</span>
                         {o.address && <span style={styles.rowAddr}>📍 {o.address}</span>}
                         <span style={count > 0 ? styles.countActive : styles.count}>{pluralMeetings(count)}</span>
