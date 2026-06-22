@@ -33,3 +33,44 @@ class PayhubProject(BaseModel):
     projectId: int
     name: str
     letterCount: int | None = None
+
+
+class LetterSnapshot(BaseModel):
+    """Снапшот письма (camelCase — как LetterSearchHit, без score).
+
+    Письма — внешний read-only источник; чтобы прикреплённое письмо детерминированно
+    попадало в контекст без обращения к Yandex/pgvector, его поля сохраняются целиком.
+    """
+
+    chunkId: str
+    letterId: str | None = None
+    subject: str | None = None
+    regNumber: str | None = None
+    number: str | None = None
+    customerNumber: str | None = None
+    direction: str | None = None
+    letterDate: str | None = None
+    projectId: int | None = None
+    pageFrom: int | None = None
+    pageTo: int | None = None
+    text: str
+
+
+class MeetingLetterAttach(LetterSnapshot):
+    """Тело POST: снапшот письма + флаги включения/приоритета."""
+
+    included: bool = True
+    priority: int = 100
+
+
+class MeetingLetterUpdate(BaseModel):
+    included: bool | None = None
+    priority: int | None = None
+
+
+class MeetingLetterOut(LetterSnapshot):
+    """Прикреплённое к встрече письмо (для рендера карточки в UI)."""
+
+    sourceId: int
+    included: bool
+    priority: int

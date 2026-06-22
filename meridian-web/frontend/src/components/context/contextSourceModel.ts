@@ -3,6 +3,7 @@ import type {
   DocumentStatus, PreviousMeetingSummaryCard,
 } from '../../types';
 import type { RagFolderViewModel, RagAttachedFolderViewModel, RagFolderStatus } from './ragContextTypes';
+import type { LetterHit, MeetingLetter } from '../../api/letters';
 
 // ── UI-only модель источников контекста ───────────────────────────────────────
 // Эти типы НЕ совпадают с backend ContextSourceType. RAG-папки здесь существуют
@@ -12,6 +13,7 @@ export type ContextSourceKind =
   | 'document'
   | 'previous_meeting'
   | 'rag_folder'
+  | 'letter'
   | 'manual'
   | 'knowledge'
   | 'customer_profile'
@@ -191,6 +193,55 @@ export function ragAttachedFolderToContextSourceViewModel(
     statusLabel: source.statusLabel ?? (status === 'ready' ? undefined : UI_STATUS_LABELS[status]),
     priority: source.priority,
     disabled,
+  };
+}
+
+// ── письма PayHub ─────────────────────────────────────────────────────────────
+
+type LetterLike = Pick<
+  LetterHit,
+  'subject' | 'regNumber' | 'number' | 'direction' | 'letterDate' | 'pageFrom' | 'pageTo'
+>;
+
+function letterTitle(l: LetterLike): string {
+  return l.subject || l.regNumber || l.number || 'Письмо';
+}
+
+function letterSubtitle(l: LetterLike): string | undefined {
+  const dir = (l.direction || '').toLowerCase() === 'incoming' ? 'входящее' : 'исходящее';
+  return joinMeta(dir, l.letterDate || undefined);
+}
+
+function letterMeta(l: LetterLike): string | undefined {
+  const num = l.subject ? (l.regNumber || l.number) : null; // № в meta только если title = тема
+  const pages = l.pageFrom != null || l.pageTo != null
+    ? `стр. ${l.pageFrom ?? '?'}-${l.pageTo ?? '?'}`
+    : undefined;
+  return joinMeta(num ? `№ ${num}` : undefined, pages);
+}
+
+export function letterHitToContextSourceViewModel(hit: LetterHit, attached?: boolean): ContextSourceViewModel {
+  return {
+    id: `letter-${hit.chunkId}`,
+    kind: 'letter',
+    title: letterTitle(hit),
+    subtitle: letterSubtitle(hit),
+    meta: letterMeta(hit),
+    included: !!attached,
+    status: 'ready',
+  };
+}
+
+export function attachedLetterToContextSourceViewModel(m: MeetingLetter): ContextSourceViewModel {
+  return {
+    id: `letter-src-${m.sourceId}`,
+    kind: 'letter',
+    title: letterTitle(m),
+    subtitle: letterSubtitle(m),
+    meta: letterMeta(m),
+    included: !!m.included,
+    status: 'ready',
+    priority: m.priority,
   };
 }
 

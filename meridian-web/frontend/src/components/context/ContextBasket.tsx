@@ -9,9 +9,11 @@ import { ContextPreviewModal } from './ContextPreviewModal';
 import {
   ragPlaceholderToContextSourceViewModel,
   ragAttachedFolderToContextSourceViewModel,
+  attachedLetterToContextSourceViewModel,
   type ContextSourceSectionSummary,
 } from './contextSourceModel';
 import { useRagContextFolders } from '../../hooks/useRagContextFolders';
+import { useMeetingLetters } from '../../hooks/useMeetingLetters';
 import type { RagContextAdapter } from './ragContextTypes';
 
 interface Props {
@@ -46,10 +48,13 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
     ensureMeetingId,
     open: ragPickerOpen,
   });
+  const letters = useMeetingLetters({ meetingId, ensureMeetingId, open: ragPickerOpen });
 
   const ragTotal = rag.attachedFolders.length;
   const ragIncluded = rag.attachedFolders.filter((x) => x.included).length;
   const ragChip = rag.enabled ? `RAG: ${ragIncluded}/${ragTotal}` : 'RAG: скоро';
+  const letterTotal = letters.attached.length;
+  const letterIncluded = letters.attached.filter((x) => x.included).length;
 
   return (
     <div style={styles.wrap}>
@@ -68,6 +73,7 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
           {uploadActive > 0 && <span style={styles.chipActive}>Загрузка: {uploadActive}</span>}
           <span style={styles.chipItem}>{chip('Прошлые встречи', prevSummary)}</span>
           <span style={styles.chipItem}>{ragChip}</span>
+          <span style={styles.chipItem}>{`Письма: ${letterIncluded}/${letterTotal}`}</span>
         </div>
       </div>
 
@@ -97,25 +103,37 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="RAG-папки">
+      <CollapsibleSection title="RAG-папки и письма">
         <div style={styles.ragSection}>
-          {rag.attachedFolders.length === 0 ? (
+          {rag.attachedFolders.length === 0 && letters.attached.length === 0 ? (
             <ContextSourceCard source={ragPlaceholder} />
           ) : (
-            rag.attachedFolders.map((s) => (
-              <ContextSourceCard
-                key={s.sourceId}
-                source={ragAttachedFolderToContextSourceViewModel(s)}
-                onToggleIncluded={() => rag.toggleIncluded(s.sourceId, !s.included)}
-                onPriorityChange={(p) => rag.updatePriority(s.sourceId, p)}
-                onRemove={() => rag.detachFolder(s.sourceId)}
-              />
-            ))
+            <>
+              {rag.attachedFolders.map((s) => (
+                <ContextSourceCard
+                  key={s.sourceId}
+                  source={ragAttachedFolderToContextSourceViewModel(s)}
+                  onToggleIncluded={() => rag.toggleIncluded(s.sourceId, !s.included)}
+                  onPriorityChange={(p) => rag.updatePriority(s.sourceId, p)}
+                  onRemove={() => rag.detachFolder(s.sourceId)}
+                />
+              ))}
+              {letters.attached.map((m) => (
+                <ContextSourceCard
+                  key={`letter-${m.sourceId}`}
+                  source={attachedLetterToContextSourceViewModel(m)}
+                  onToggleIncluded={() => letters.toggleIncluded(m.sourceId, !m.included)}
+                  onPriorityChange={(p) => letters.updatePriority(m.sourceId, p)}
+                  onRemove={() => letters.detach(m.sourceId)}
+                />
+              ))}
+            </>
           )}
           <div style={styles.ragActions}>
             <button type="button" style={styles.ragPickBtn} onClick={() => setRagPickerOpen(true)}>
-              Выбрать папку
+              Выбрать папку или письмо
             </button>
+            {letters.error && <span style={styles.ragNote}>{letters.error}</span>}
             {!rag.enabled && <span style={styles.ragNote}>Backend RAG ещё не подключён</span>}
           </div>
         </div>
@@ -144,6 +162,7 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
         onDetachFolder={rag.detachFolder}
         onToggleIncluded={rag.toggleIncluded}
         onPriorityChange={rag.updatePriority}
+        letters={letters}
       />
     </div>
   );

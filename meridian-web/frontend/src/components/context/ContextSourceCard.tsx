@@ -17,6 +17,7 @@ const KIND_ICON: Record<ContextSourceKind, string> = {
   document: '📄',
   previous_meeting: '🗓',
   rag_folder: '📁',
+  letter: '✉',
   manual: '◆',
   knowledge: '◆',
   customer_profile: '◆',

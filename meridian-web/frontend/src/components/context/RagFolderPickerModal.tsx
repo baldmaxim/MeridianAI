@@ -1,10 +1,29 @@
+import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { theme } from '../../styles/theme';
 import { ContextSourceCard } from './ContextSourceCard';
+import { LettersPickerPanel } from './LettersPickerPanel';
 import { ragFolderToContextSourceViewModel, ragAttachedFolderToContextSourceViewModel } from './contextSourceModel';
 import type { RagFolderViewModel, RagAttachedFolderViewModel } from './ragContextTypes';
+import type { LetterHit, MeetingLetter } from '../../api/letters';
 
 const RAG_DND_MIME = 'application/x-rag-folder-id';
+
+// Контроллер вкладки «Письма» (совместим с возвратом useMeetingLetters).
+export interface LettersTabController {
+  results: LetterHit[];
+  attached: MeetingLetter[];
+  searching?: boolean;
+  loading?: boolean;
+  error?: string | null;
+  query: string;
+  setQuery: (value: string) => void;
+  search: () => void;
+  attach: (hit: LetterHit) => void | Promise<void>;
+  detach: (sourceId: number) => void | Promise<void>;
+  toggleIncluded: (sourceId: number, included: boolean) => void | Promise<void>;
+  updatePriority: (sourceId: number, priority: number) => void | Promise<void>;
+}
 
 interface RagFolderPickerModalProps {
   open: boolean;
@@ -28,14 +47,22 @@ interface RagFolderPickerModalProps {
   onDetachFolder: (sourceId: string) => void | Promise<void>;
   onToggleIncluded: (sourceId: string, included: boolean) => void | Promise<void>;
   onPriorityChange: (sourceId: string, priority: number) => void | Promise<void>;
+
+  // Вкладка «Письма» — если передан контроллер, в модалке появляются вкладки.
+  letters?: LettersTabController;
 }
+
+type PickerTab = 'folders' | 'letters';
 
 export function RagFolderPickerModal(props: RagFolderPickerModalProps) {
   const {
     open, onClose, enabled, disabledReason, folders, attachedFolders,
     loading, refreshing, error, query, onQueryChange, onRefresh,
     onAttachFolder, onDetachFolder, onToggleIncluded, onPriorityChange,
+    letters,
   } = props;
+
+  const [tab, setTab] = useState<PickerTab>('folders');
 
   if (!open) return null;
 
@@ -51,10 +78,48 @@ export function RagFolderPickerModal(props: RagFolderPickerModalProps) {
   return (
     <Modal open={open} onClose={onClose} maxWidth={820}>
       <div style={styles.headerRow}>
-        <span style={styles.title}>Добавить RAG-папки в контекст</span>
+        <span style={styles.title}>
+          {letters && tab === 'letters' ? 'Письма PayHub в контекст' : 'RAG-папки в контекст'}
+        </span>
         <button type="button" style={styles.closeBtn} onClick={onClose} aria-label="Закрыть">✕</button>
       </div>
 
+      {letters && (
+        <div style={styles.tabBar} role="tablist">
+          <button
+            type="button" role="tab" aria-selected={tab === 'folders'}
+            style={tab === 'folders' ? styles.tabActive : styles.tab}
+            onClick={() => setTab('folders')}
+          >
+            RAG-папки
+          </button>
+          <button
+            type="button" role="tab" aria-selected={tab === 'letters'}
+            style={tab === 'letters' ? styles.tabActive : styles.tab}
+            onClick={() => setTab('letters')}
+          >
+            Письма {letters.attached.length > 0 ? `(${letters.attached.length})` : ''}
+          </button>
+        </div>
+      )}
+
+      {letters && tab === 'letters' ? (
+        <LettersPickerPanel
+          results={letters.results}
+          attached={letters.attached}
+          searching={letters.searching}
+          loading={letters.loading}
+          error={letters.error}
+          query={letters.query}
+          onQueryChange={letters.setQuery}
+          onSearch={letters.search}
+          onAttach={letters.attach}
+          onDetach={letters.detach}
+          onToggleIncluded={letters.toggleIncluded}
+          onPriorityChange={letters.updatePriority}
+        />
+      ) : (
+      <>
       <div style={styles.toolbar}>
         <input
           style={styles.search}
@@ -144,6 +209,8 @@ export function RagFolderPickerModal(props: RagFolderPickerModalProps) {
           </div>
         </div>
       </div>
+      </>
+      )}
     </Modal>
   );
 }
@@ -157,6 +224,15 @@ const styles: Record<string, React.CSSProperties> = {
   closeBtn: {
     width: 30, height: 28, background: 'transparent', border: `1px solid ${theme.border.default}`,
     borderRadius: 6, color: theme.text.secondary, cursor: 'pointer', fontSize: 13, flexShrink: 0,
+  },
+  tabBar: { display: 'flex', gap: 6, borderBottom: `1px solid ${theme.border.default}`, paddingBottom: 2 },
+  tab: {
+    padding: '7px 14px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent',
+    color: theme.text.secondary, cursor: 'pointer', fontSize: 12, fontFamily: theme.font.body, fontWeight: 600,
+  },
+  tabActive: {
+    padding: '7px 14px', background: 'transparent', border: 'none', borderBottom: `2px solid ${theme.accent.amber}`,
+    color: theme.accent.amber, cursor: 'pointer', fontSize: 12, fontFamily: theme.font.body, fontWeight: 600,
   },
   toolbar: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const },
   search: {
