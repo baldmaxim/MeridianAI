@@ -29,6 +29,7 @@ class UserSettingsResponse(BaseModel):
     user_role: str
     use_streaming: bool
     diarization: bool
+    diarization_max_speakers: int
     silence_filter: bool
     custom_suggestion_types: list[SuggestionTypeConfig] | None = None
     custom_trigger_keywords: list[TriggerKeywordConfig] | None = None
@@ -51,7 +52,15 @@ class UserSettingsUpdate(BaseModel):
     user_role: str | None = None
     use_streaming: bool | None = None
     diarization: bool | None = None
+    diarization_max_speakers: int | None = None
     silence_filter: bool | None = None
+
+    @field_validator("diarization_max_speakers")
+    @classmethod
+    def clamp_max_speakers(cls, v):
+        if v is None:
+            return v
+        return max(2, min(6, int(v)))
     custom_suggestion_types: list[SuggestionTypeConfig] | None = None
     custom_trigger_keywords: list[TriggerKeywordConfig] | None = None
     local_storage_path: str | None = None

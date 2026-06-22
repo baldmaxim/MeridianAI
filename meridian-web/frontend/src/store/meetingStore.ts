@@ -96,6 +96,10 @@ interface MeetingState {
   speakerRoles: Record<string, string>;
   setSpeakerRoles: (roles: Record<string, string>) => void;
 
+  // Имена спикеров (speaker_label → display_name)
+  speakerNames: Record<string, string>;
+  setSpeakerNames: (names: Record<string, string>) => void;
+
   // Этап 8: segment-level коррекции диаризации (по segment_key)
   speakerCorrections: Record<string, SpeakerSegmentCorrection>;
   setSpeakerCorrections: (corrections: Record<string, SpeakerSegmentCorrection>) => void;
@@ -356,6 +360,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   speakerRoles: {},
   setSpeakerRoles: (roles) => set({ speakerRoles: roles }),
+
+  speakerNames: {},
+  setSpeakerNames: (names) => set({ speakerNames: names }),
   speakerCorrections: {},
   setSpeakerCorrections: (corrections) => set({ speakerCorrections: corrections }),
   segmentHints: {},
@@ -592,6 +599,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       isListening: false,
       lastSuggestionTime: null,
       speakerRoles: {},
+      speakerNames: {},
       speakerCorrections: {},
       segmentHints: {},
       activeRoleName: null,

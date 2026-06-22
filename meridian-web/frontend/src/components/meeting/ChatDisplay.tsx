@@ -24,6 +24,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
   const partialMessage = useMeetingStore((s) => s.partialMessage);
   const committedSegments = useMeetingStore((s) => s.committedSegments);
   const speakerRoles = useMeetingStore((s) => s.speakerRoles);
+  const speakerNames = useMeetingStore((s) => s.speakerNames);
   const speakerCorrections = useMeetingStore((s) => s.speakerCorrections);
   const segmentHints = useMeetingStore((s) => s.segmentHints);
   const dismissSegmentHint = useMeetingStore((s) => s.dismissSegmentHint);
@@ -108,7 +109,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                     onClick={() => cycleSpeakerRole(turn.speaker)}
                     title={onSetSpeakerRole ? 'Нажмите для смены стороны: Мы / Не мы' : undefined}
                   >
-                    {turn.speaker}
+                    {speakerNames[turn.speaker] || turn.speaker}
                     {badge && (
                       <span style={{ ...styles.roleBadge, background: badgeColor + '25', color: badgeColor }}>{badge}</span>
                     )}
@@ -122,7 +123,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
               const segKey = segmentKeyForMessage(msg);
               const segSide = resolveSegmentSide(segKey, msg.speaker, speakerCorrections, speakerRoles);
               const corrected = isSegmentCorrected(speakerCorrections, segKey);
-              const effectiveSpeaker = resolveSegmentSpeaker(segKey, msg.speaker, speakerCorrections);
+              const effectiveSpeaker = resolveSegmentSpeaker(segKey, msg.speaker, speakerCorrections, speakerNames);
               const badge = speakerSideBadge(segSide);
               const badgeColor = speakerSideColor(segSide);
               const canEdit = !!onSetSegmentCorrection || !!onCorrectSegment;

@@ -116,6 +116,7 @@ export interface UserSettings {
   user_role: string;
   use_streaming: boolean;
   diarization: boolean;
+  diarization_max_speakers: number;
   silence_filter: boolean;
   custom_suggestion_types: SuggestionTypeConfig[] | null;
   custom_trigger_keywords: TriggerKeywordConfig[] | null;
@@ -467,7 +468,7 @@ export interface SpeakerRoleOut {
   id: number;
   meeting_id: number;
   speaker_label: string;
-  side: SpeakerSide;
+  side: SpeakerSide | null;
   display_name: string | null;
   assigned_by_user_id: number | null;
   created_at: string;
@@ -536,7 +537,7 @@ export type WSMessageFromServer =
   | { type: 'meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'meeting_context_updated'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'meeting_saved'; meeting_id: number }
-  | { type: 'speaker_roles_updated'; roles: Record<string, SpeakerSide> }
+  | { type: 'speaker_roles_updated'; roles: Record<string, SpeakerSide>; names?: Record<string, string> }
   | { type: 'speaker_corrections_updated'; meeting_id: number; corrections: SpeakerSegmentCorrection[] }
   | { type: 'segment_side_hint'; meeting_id: number; segment_key: string; side: PublicSpeakerSide | null; confidence: number; reason: string; source?: string | null; device_count: number; window_ms: number; auto_apply: boolean }
   | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number }
@@ -599,9 +600,9 @@ export type WSMessageToServer =
   | { type: 'request_batch_finalize' }
   | { type: 'mark_speaker'; name: string }
   | { type: 'update_meeting_context'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
-  | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; silence_filter?: boolean }
+  | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; diarization_max_speakers?: number; silence_filter?: boolean }
   | { type: 'save_to_history'; meeting_name?: string }
-  | { type: 'set_speaker_role'; name: string; side: PublicSpeakerSide | '' }
+  | { type: 'set_speaker_role'; name: string; side: PublicSpeakerSide | ''; display_name?: string }
   | { type: 'audio_level'; rms: number; peak?: number; vad?: boolean; seq?: number; client_ts_ms?: number }
   | { type: 'observer_side'; side: PublicSpeakerSide | '' }
   | { type: 'change_role'; role_id: number }

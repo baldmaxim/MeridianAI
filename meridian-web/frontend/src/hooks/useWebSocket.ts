@@ -329,6 +329,13 @@ export function useWebSocket() {
           if (publicSide) normalized[speaker] = publicSide;
         });
         s.setSpeakerRoles(normalized);
+        if (data.names) {
+          const names: Record<string, string> = {};
+          Object.entries(data.names).forEach(([label, name]) => {
+            if (name) names[label] = name as string;
+          });
+          s.setSpeakerNames(names);
+        }
         break;
       }
 

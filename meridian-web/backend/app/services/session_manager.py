@@ -150,7 +150,8 @@ class SessionManager:
         # Speaker
         self.speaker_mapping: Dict[str, str] = {}
         self.current_speaker: Optional[str] = None
-        self.speaker_roles: Dict[str, str] = {}  # display_name → side
+        self.speaker_roles: Dict[str, str] = {}  # speaker_label → side
+        self.speaker_names: Dict[str, str] = {}  # speaker_label → имя (display_name)
         # Этап 8: segment-level коррекции диаризации (segment_id → {side, corrected_speaker_label})
         self.speaker_segment_corrections: Dict[str, dict] = {}
 
@@ -250,7 +251,8 @@ class SessionManager:
         seg_key = getattr(segment, "segment_id", None) or ""
         corr = self.speaker_segment_corrections.get(seg_key) if seg_key else None
         corrected_label = (corr or {}).get("corrected_speaker_label")
-        effective = corrected_label or original
+        # Глобальное имя спикера (если задано) подменяет сырую метку SM_0/DG_S0
+        effective = corrected_label or self.speaker_names.get(original) or original
         side = None
         if corr and corr.get("side"):
             side = to_public_side(corr.get("side"))
@@ -481,7 +483,7 @@ class SessionManager:
     # ---------------------------------------------------------------
 
     async def start_listening(self, stt_provider: str, api_keys: dict,
-                              diarization: bool = True):
+                              diarization: bool = True, max_speakers: int = 3):
         """Start transcription with given provider and API keys."""
         if self.is_listening:
             return
@@ -548,6 +550,7 @@ class SessionManager:
                 api_key=key,
                 audio_queue=self.audio_queue,
                 message_callback=self._on_legacy_transcript,
+                max_speakers=max_speakers,
             )
         else:
             await self._send_error(f"Unknown STT provider: {stt_provider}")
@@ -1048,6 +1051,18 @@ class SessionManager:
             self.speaker_roles[speaker_name] = norm
         else:
             self.speaker_roles.pop(speaker_name, None)
+
+    def set_speaker_name(self, speaker_label: str, display_name: str | None):
+        """Назначить человекочитаемое имя метке спикера (SM_0 → «Иван»). Пусто → снять."""
+        name = (display_name or "").strip()
+        if name:
+            self.speaker_names[speaker_label] = name
+        else:
+            self.speaker_names.pop(speaker_label, None)
+
+    def set_speaker_names(self, names: Dict[str, str]) -> None:
+        """Заменить in-memory кэш имён спикеров ({speaker_label: display_name})."""
+        self.speaker_names = {k: v for k, v in (names or {}).items() if v}
 
     def update_meeting_context(self, topic: str, notes: str):
         """Update meeting topic and notes."""

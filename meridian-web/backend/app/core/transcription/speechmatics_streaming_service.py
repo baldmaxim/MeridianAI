@@ -28,11 +28,12 @@ class SpeechmaticsStreamingTranscriptionService:
 
     def __init__(self, api_key: str, audio_queue: asyncio.Queue,
                  message_callback: Callable,
-                 sample_rate: int = 16000):
+                 sample_rate: int = 16000, max_speakers: int = 3):
         self.api_key = api_key
         self.audio_queue = audio_queue
         self.message_callback = message_callback
         self.sample_rate = sample_rate
+        self.max_speakers = max(2, int(max_speakers or 3))
 
         self.is_running = False
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
@@ -55,9 +56,9 @@ class SpeechmaticsStreamingTranscriptionService:
                 "enable_entities": True,
                 "diarization": "speaker",
                 "speaker_diarization_config": {
-                    "max_speakers": 3,
+                    "max_speakers": self.max_speakers,
                     "prefer_current_speaker": True,
-                    "speaker_sensitivity": 0.35,
+                    "speaker_sensitivity": 0.5,
                 },
                 "punctuation_overrides": {
                     "permitted_marks": ["all"],
@@ -222,50 +223,99 @@ class SpeechmaticsStreamingTranscriptionService:
         self.message_callback(segment, is_partial=True)
 
     def _handle_transcript(self, data: dict):
-        """Handle final transcript — single utterance, dominant speaker."""
+        """Handle final transcript — split utterance into per-speaker runs.
+
+        Speechmatics emits word-level `speaker`. Группируем подряд идущие слова по
+        говорящему и эмитим отдельный сегмент на каждую смену спикера, чтобы границы
+        реплик внутри одной utterance не терялись (раньше всё сваливалось на одного
+        «доминирующего» спикера).
+        """
         metadata = data.get("metadata", {})
-        transcript = metadata.get("transcript", "").strip()
-        if not transcript:
+        if not metadata.get("transcript", "").strip():
             return
 
         results = data.get("results", [])
+        segments = self._group_results_by_speaker(results)
+        if not segments:
+            return
 
-        # Dominant speaker: count words per speaker, pick the most frequent
-        speaker_counts: dict[str, int] = {}
-        for word in results:
-            if word.get("type") != "word":
+        logger.info(
+            "Emitting %d segment(s): speakers=%s",
+            len(segments), [s.speaker for s in segments],
+        )
+        for segment in segments:
+            self.message_callback(segment, is_partial=False)
+
+    def _group_results_by_speaker(self, results: list) -> list[TranscriptSegment]:
+        """Сгруппировать results в сегменты по подряд идущему `speaker`.
+
+        Пунктуация (`type:"punctuation"`) присоединяется к текущему отрезку без
+        ведущего пробела и не переключает спикера.
+        """
+        segments: list[TranscriptSegment] = []
+        cur_speaker: Optional[str] = None
+        cur_words: list[str] = []
+        cur_start: float = 0.0
+        cur_end: float = 0.0
+        cur_confidences: list[float] = []
+
+        def flush():
+            if not cur_words:
+                return
+            text = "".join(cur_words).strip()
+            if not text:
+                return
+            avg_conf = (
+                sum(cur_confidences) / len(cur_confidences) if cur_confidences else None
+            )
+            segments.append(TranscriptSegment(
+                speaker=cur_speaker or "Unknown",
+                text=text,
+                start_time=cur_start,
+                end_time=cur_end,
+                timestamp=datetime.now(),
+                confidence=avg_conf,
+            ))
+
+        for item in results:
+            item_type = item.get("type")
+            alts = item.get("alternatives") or [{}]
+            content = alts[0].get("content", "")
+            if not content:
                 continue
-            alts = word.get("alternatives", [])
-            if not alts:
+
+            if item_type == "punctuation":
+                # приклеить к текущему отрезку без пробела; спикера не меняем
+                if cur_words:
+                    cur_words.append(content)
+                    cur_end = item.get("end_time", cur_end)
                 continue
+
+            if item_type != "word":
+                continue
+
             spk = alts[0].get("speaker")
             label = f"SM_{spk}" if spk is not None else "Unknown"
-            speaker_counts[label] = speaker_counts.get(label, 0) + 1
 
-        speaker = max(speaker_counts, key=speaker_counts.get) if speaker_counts else "Unknown"
+            if cur_speaker is None:
+                cur_speaker = label
+                cur_start = item.get("start_time", 0.0)
+            elif label != cur_speaker:
+                cur_end = item.get("start_time", cur_end)
+                flush()
+                cur_speaker = label
+                cur_words = []
+                cur_confidences = []
+                cur_start = item.get("start_time", 0.0)
 
-        # Timing from results
-        start_time = results[0].get("start_time", 0.0) if results else 0.0
-        end_time = results[-1].get("end_time", 0.0) if results else 0.0
+            sep = " " if cur_words else ""
+            cur_words.append(f"{sep}{content}")
+            cur_end = item.get("end_time", cur_end)
+            if "confidence" in alts[0]:
+                cur_confidences.append(alts[0]["confidence"])
 
-        # Average confidence
-        confidences = []
-        for w in results:
-            alts = w.get("alternatives", [])
-            if alts and "confidence" in alts[0]:
-                confidences.append(alts[0]["confidence"])
-        avg_confidence = sum(confidences) / len(confidences) if confidences else None
-
-        segment = TranscriptSegment(
-            speaker=speaker,
-            text=transcript,
-            start_time=start_time,
-            end_time=end_time,
-            timestamp=datetime.now(),
-            confidence=avg_confidence,
-        )
-        logger.info("Emitting 1 segment: speaker=%s, len=%d", speaker, len(transcript))
-        self.message_callback(segment, is_partial=False)
+        flush()
+        return segments
 
     def stop(self):
         self.is_running = False

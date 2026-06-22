@@ -51,8 +51,10 @@ async def put_speaker_role(meeting_id: int, speaker_label: str, body: SpeakerRol
             room.session.speaker_roles.pop(speaker_label, None)
         else:
             room.session.speaker_roles[speaker_label] = norm
+        if body.display_name is not None:
+            room.session.set_speaker_name(speaker_label, body.display_name)
         try:
-            await room.broadcast({"type": "speaker_roles_updated", "roles": room.session.speaker_roles})
+            await room.broadcast(room._speaker_roles_payload())
         except Exception:
             pass
 

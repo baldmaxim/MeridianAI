@@ -65,6 +65,18 @@ async def get_roles_map(db: AsyncSession, meeting_id: int) -> dict[str, str]:
     return out
 
 
+async def get_names_map(db: AsyncSession, meeting_id: int) -> dict[str, str]:
+    """{speaker_label: display_name} — имена спикеров для live SessionManager и UI.
+
+    Пустые/None display_name пропускаются.
+    """
+    rows = (await db.execute(
+        select(MeetingSpeakerRole.speaker_label, MeetingSpeakerRole.display_name)
+        .where(MeetingSpeakerRole.meeting_id == meeting_id)
+    )).all()
+    return {label: name for label, name in rows if (name or "").strip()}
+
+
 async def list_roles(db: AsyncSession, meeting_id: int) -> list[MeetingSpeakerRole]:
     return list((await db.execute(
         select(MeetingSpeakerRole)
@@ -77,7 +89,12 @@ async def upsert_role(
     db: AsyncSession, meeting_id: int, speaker_label: str, *,
     side: str | None, display_name: str | None = None, assigned_by_user_id: int | None = None,
 ) -> MeetingSpeakerRole | None:
-    """Создать/обновить роль. side=None/unknown → удалить строку (вернёт None). Коммитит вызывающий."""
+    """Создать/обновить роль и/или имя спикера. Коммитит вызывающий.
+
+    side=None/unknown → сторона очищается (но строка остаётся, если есть имя).
+    display_name: None → имя не трогать; "" → очистить; иначе → задать.
+    Строка удаляется, только когда не остаётся ни стороны, ни имени.
+    """
     label = (speaker_label or "").strip()
     if not label:
         return None
@@ -89,7 +106,13 @@ async def upsert_role(
         )
     )).scalar_one_or_none()
 
-    if norm is None:
+    # целевое имя: None = не трогать; иначе нормализуем пустую строку к None
+    touch_name = display_name is not None
+    new_name = ((display_name or "").strip() or None) if touch_name else None
+    effective_name = new_name if touch_name else (existing.display_name if existing else None)
+
+    # ни стороны, ни имени → строка не нужна
+    if norm is None and not effective_name:
         if existing:
             await db.delete(existing)
             await db.flush()
@@ -97,8 +120,8 @@ async def upsert_role(
 
     if existing:
         existing.side = norm
-        if display_name is not None:
-            existing.display_name = display_name or None
+        if touch_name:
+            existing.display_name = new_name
         if assigned_by_user_id is not None:
             existing.assigned_by_user_id = assigned_by_user_id
         await db.flush()
@@ -106,7 +129,7 @@ async def upsert_role(
 
     role = MeetingSpeakerRole(
         meeting_id=meeting_id, speaker_label=label, side=norm,
-        display_name=(display_name or None), assigned_by_user_id=assigned_by_user_id,
+        display_name=effective_name, assigned_by_user_id=assigned_by_user_id,
     )
     db.add(role)
     await db.flush()

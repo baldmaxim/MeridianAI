@@ -13,8 +13,9 @@ class SpeakerRoleOut(BaseModel):
     id: int
     meeting_id: int
     speaker_label: str
-    # исторически self|opponent|ally|third_party; UI v1 канонизирует к self|opponent
-    side: str = Field(description="self = Мы, opponent = Не мы (ally/third_party — legacy)")
+    # исторически self|opponent|ally|third_party; UI v1 канонизирует к self|opponent;
+    # None — спикер назван без выбора стороны
+    side: str | None = Field(default=None, description="self = Мы, opponent = Не мы; None — сторона не выбрана")
     display_name: str | None = None
     assigned_by_user_id: int | None = None
     created_at: datetime

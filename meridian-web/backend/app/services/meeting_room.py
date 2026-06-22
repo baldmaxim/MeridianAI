@@ -229,8 +229,9 @@ class MeetingRoom:
 
                 # Conversation Tree: загрузить persisted-роли спикеров (source of truth)
                 try:
-                    from .speaker_roles import get_roles_map
+                    from .speaker_roles import get_roles_map, get_names_map
                     s.speaker_roles = await get_roles_map(db, meeting_id)
+                    s.set_speaker_names(await get_names_map(db, meeting_id))
                 except Exception as e:
                     logger.warning(f"[room {meeting_id}] load speaker roles failed: {e}")
 
@@ -355,12 +356,9 @@ class MeetingRoom:
             "opponent_weaknesses": self.session.opponent_weaknesses,
         })
         await conn.send_json(self._recording_status_payload(self.session.is_listening))
-        # текущие роли спикеров (восстановление после refresh)
-        if self.session.speaker_roles:
-            await conn.send_json({
-                "type": "speaker_roles_updated",
-                "roles": self.session.speaker_roles,
-            })
+        # текущие роли + имена спикеров (восстановление после refresh)
+        if self.session.speaker_roles or self.session.speaker_names:
+            await conn.send_json(self._speaker_roles_payload())
         # Этап 9.6: на join — текущее состояние live multi-channel (+ snapshot если есть)
         if self.multi_channel_live:
             await conn.send_json(self.multi_channel_live.snapshot_payload())
@@ -1038,6 +1036,7 @@ class MeetingRoom:
                 stt_provider=self.settings.get("stt_provider", "deepgram"),
                 api_keys=self.api_keys,
                 diarization=self.settings.get("diarization", True),
+                max_speakers=self.settings.get("diarization_max_speakers", 3),
             )
         await self.broadcast(self._recording_status_payload(True))
         # Задача 3: сменился активный источник → обновить роли участников в шапке
@@ -1110,14 +1109,19 @@ class MeetingRoom:
         elif t == "set_speaker_role":
             name = message.get("name", "")
             side = message.get("side", "")
+            has_name = "display_name" in message
+            display_name = message.get("display_name")
             if name:
                 self.session.set_speaker_role(name, side)
+                if has_name:
+                    self.session.set_speaker_name(name, display_name)
                 conn = self.connections.get(connection_id)
-                await self._persist_speaker_role(name, side, conn.user_id if conn else None)
-                await self.broadcast({
-                    "type": "speaker_roles_updated",
-                    "roles": self.session.speaker_roles,
-                })
+                await self._persist_speaker_role(
+                    name, side, conn.user_id if conn else None,
+                    display_name=display_name if has_name else None,
+                    set_display_name=has_name,
+                )
+                await self.broadcast(self._speaker_roles_payload())
                 await self._schedule_multi_channel_reconciliation(reason="role")
         elif t == "update_meeting_context":
             await self._update_context(message)
@@ -1335,7 +1339,8 @@ class MeetingRoom:
             })
 
     def _change_settings(self, message: dict) -> None:
-        for k in ("stt_provider", "llm_model", "temperature", "diarization", "silence_filter"):
+        for k in ("stt_provider", "llm_model", "temperature", "diarization",
+                  "diarization_max_speakers", "silence_filter"):
             if k in message:
                 self.settings[k] = message[k]
         if "llm_model" in message or "temperature" in message:
@@ -1410,13 +1415,28 @@ class MeetingRoom:
         # снять комнату с реестра (новые подключения создадут свежую при необходимости)
         room_registry.remove(self.meeting_id)
 
-    async def _persist_speaker_role(self, speaker_label: str, side: str, user_id: int | None) -> None:
-        """Сохранить роль спикера в БД (source of truth). Ошибка не ломает live-сессию."""
+    def _speaker_roles_payload(self) -> dict:
+        """WS-пейлоад с ролями (label→side) и именами (label→display_name) спикеров."""
+        return {
+            "type": "speaker_roles_updated",
+            "roles": self.session.speaker_roles,
+            "names": self.session.speaker_names,
+        }
+
+    async def _persist_speaker_role(
+        self, speaker_label: str, side: str, user_id: int | None,
+        *, display_name: str | None = None, set_display_name: bool = False,
+    ) -> None:
+        """Сохранить роль/имя спикера в БД (source of truth). Ошибка не ломает live-сессию."""
         try:
             from .speaker_roles import upsert_role
             async with async_session() as db:
-                await upsert_role(db, self.meeting_id, speaker_label,
-                                  side=side, assigned_by_user_id=user_id)
+                # display_name=None при set_display_name=False означает «не трогать имя»
+                await upsert_role(
+                    db, self.meeting_id, speaker_label,
+                    side=side, assigned_by_user_id=user_id,
+                    display_name=(display_name or "") if set_display_name else None,
+                )
                 await db.commit()
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] persist speaker role failed: {e}")

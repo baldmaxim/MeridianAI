@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import type { PublicSpeakerSide } from '../../types';
@@ -9,16 +9,19 @@ interface SpeakerSideAssignmentPanelProps {
   canEdit?: boolean;
   compact?: boolean;
   onSetSpeakerSide: (speaker: string, side: PublicSpeakerSide | '' | null) => void | Promise<void>;
+  // Назначить человекочитаемое имя метке спикера (SM_0 → «Иван»)
+  onSetSpeakerName?: (speaker: string, displayName: string) => void | Promise<void>;
 }
 
-// Быстрое назначение стороны спикерам: «Мы» / «Не мы». Speaker label — это метка STT,
-// а не имя человека; для подсказок достаточно двух сторон.
-export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeakerSide }: SpeakerSideAssignmentPanelProps) {
+// Идентификация спикеров: имя каждого голоса + сторона «Мы»/«Не мы». Метка вида SM_0 —
+// это сырой ярлык STT; имя задаётся вручную и применяется по всему транскрипту.
+export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeakerSide, onSetSpeakerName }: SpeakerSideAssignmentPanelProps) {
   const turns = useMeetingStore((s) => s.turns);
   const messages = useMeetingStore((s) => s.messages);
   const committedSegments = useMeetingStore((s) => s.committedSegments);
   const treeUnassigned = useMeetingStore((s) => s.treeUnassigned);
   const speakerRoles = useMeetingStore((s) => s.speakerRoles);
+  const speakerNames = useMeetingStore((s) => s.speakerNames);
 
   const speakers = useMemo(() => {
     const set = new Set<string>();
@@ -27,6 +30,7 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
     committedSegments.forEach((s) => { if (s.speaker) set.add(s.speaker); });
     treeUnassigned.forEach((n) => n && set.add(n));
     Object.keys(speakerRoles).forEach((n) => n && set.add(n));
+    Object.keys(speakerNames).forEach((n) => n && set.add(n));
     const list = Array.from(set);
     // unassigned первыми, потом assigned; внутри — по имени
     return list.sort((a, b) => {
@@ -35,7 +39,7 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
       if (aa !== bb) return aa - bb;
       return a.localeCompare(b, 'ru');
     });
-  }, [turns, messages, committedSegments, treeUnassigned, speakerRoles]);
+  }, [turns, messages, committedSegments, treeUnassigned, speakerRoles, speakerNames]);
 
   const assignedCount = speakers.filter((s) => toPublicSpeakerSide(speakerRoles[s]) !== '').length;
   const allAssigned = speakers.length > 0 && assignedCount === speakers.length;
@@ -43,12 +47,12 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
   return (
     <div style={{ ...styles.panel, ...(allAssigned ? styles.panelMuted : {}) }}>
       <div style={styles.head}>
-        <span style={styles.title}>Стороны спикеров</span>
+        <span style={styles.title}>Спикеры</span>
         {speakers.length > 0 && <span style={styles.counter}>Назначено {assignedCount}/{speakers.length}</span>}
       </div>
       {!compact && (
         <div style={styles.hint}>
-          Назначьте, кто говорит от нашей стороны, а кто от другой. Для подсказок достаточно двух сторон.
+          Впишите имя каждого голоса — оно подставится по всему транскрипту. Сторону «Мы»/«Не мы» выбирайте отдельно.
         </div>
       )}
 
@@ -58,9 +62,21 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
         <div style={styles.list}>
           {speakers.map((name) => {
             const side = toPublicSpeakerSide(speakerRoles[name]);
+            const canName = canEdit && !!onSetSpeakerName;
             return (
               <div key={name} style={styles.row}>
-                <span style={styles.name} title={name}>{name}</span>
+                <div style={styles.idCol}>
+                  {canName ? (
+                    <NameInput
+                      value={speakerNames[name] || ''}
+                      placeholder={name}
+                      onCommit={(v) => onSetSpeakerName!(name, v)}
+                    />
+                  ) : (
+                    <span style={styles.name} title={name}>{speakerNames[name] || name}</span>
+                  )}
+                  <span style={styles.rawLabel} title="Метка распознавания">{name}</span>
+                </div>
                 {canEdit ? (
                   <div style={styles.btns}>
                     <button
@@ -74,7 +90,7 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
                       onClick={() => onSetSpeakerSide(name, 'opponent')}
                     >Не мы</button>
                     {side !== '' && (
-                      <button type="button" style={styles.clearBtn} onClick={() => onSetSpeakerSide(name, '')} title="Очистить">✕</button>
+                      <button type="button" style={styles.clearBtn} onClick={() => onSetSpeakerSide(name, '')} title="Очистить сторону">✕</button>
                     )}
                   </div>
                 ) : (
@@ -86,6 +102,25 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
         </div>
       )}
     </div>
+  );
+}
+
+// Поле имени спикера: локальный draft, коммит по blur/Enter, синк при внешнем изменении.
+function NameInput({ value, placeholder, onCommit }: {
+  value: string; placeholder: string; onCommit: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  const commit = () => { if (draft.trim() !== value.trim()) onCommit(draft); };
+  return (
+    <input
+      style={styles.nameInput}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+    />
   );
 }
 
@@ -103,11 +138,21 @@ const styles: Record<string, React.CSSProperties> = {
   counter: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.secondary },
   hint: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, lineHeight: 1.4 },
   empty: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted },
-  list: { display: 'flex', flexDirection: 'column', gap: 6 },
+  list: { display: 'flex', flexDirection: 'column', gap: 8 },
   row: { display: 'flex', alignItems: 'center', gap: 8 },
+  idCol: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
   name: {
-    flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: theme.text.primary,
+    minWidth: 0, fontSize: 12, fontWeight: 600, color: theme.text.primary,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+  },
+  nameInput: {
+    width: '100%', boxSizing: 'border-box' as const, padding: '5px 8px',
+    background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6,
+    color: theme.text.primary, fontSize: 12, fontWeight: 600, fontFamily: theme.font.body,
+  },
+  rawLabel: {
+    fontFamily: theme.font.mono, fontSize: 9, color: theme.text.muted,
+    letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
   },
   btns: { display: 'flex', gap: 4, flexShrink: 0 },
   btnOff: {

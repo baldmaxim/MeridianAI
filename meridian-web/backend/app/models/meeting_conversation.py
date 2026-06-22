@@ -74,8 +74,9 @@ class MeetingSpeakerRole(Base):
         Integer, ForeignKey("meeting_sessions.id", ondelete="CASCADE"), nullable=False
     )
     speaker_label: Mapped[str] = mapped_column(String(255), nullable=False)
-    # self | opponent | ally | third_party  (live-словарь)
-    side: Mapped[str] = mapped_column(String(20), nullable=False)
+    # self | opponent | ally | third_party (live-словарь); NULL — спикер назван, но
+    # сторона ещё не выбрана (строка хранит только имя).
+    side: Mapped[str | None] = mapped_column(String(20), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(255))
     assigned_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")

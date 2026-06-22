@@ -22,13 +22,20 @@ export function isSegmentCorrected(corrections: SegmentCorrectionMap, key: strin
   return !!c && (!!c.side || !!c.corrected_speaker_label);
 }
 
-/** Эффективный speaker label реплики: corrected_speaker_label → original. */
+/** Эффективное отображаемое имя реплики:
+ *  per-segment correction → глобальное имя спикера (speakerNames) → сырая метка. */
 export function resolveSegmentSpeaker(
   key: string,
   originalSpeaker: string,
   corrections: SegmentCorrectionMap,
+  speakerNames?: Record<string, string>,
 ): string {
-  return corrections[key]?.corrected_speaker_label || originalSpeaker || '';
+  const corrected = corrections[key]?.corrected_speaker_label;
+  if (corrected) return corrected;
+  if (speakerNames && originalSpeaker && speakerNames[originalSpeaker]) {
+    return speakerNames[originalSpeaker];
+  }
+  return originalSpeaker || '';
 }
 
 /** Эффективная сторона реплики (то же правило приоритета, что и на backend). */

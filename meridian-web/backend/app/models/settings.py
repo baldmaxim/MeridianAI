@@ -22,7 +22,10 @@ class UserSettings(Base):
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
     user_role: Mapped[str] = mapped_column(String(50), default="gen_contractor")
     use_streaming: Mapped[bool] = mapped_column(Boolean, default=True)
-    diarization: Mapped[bool] = mapped_column(Boolean, default=False)
+    diarization: Mapped[bool] = mapped_column(Boolean, default=True)
+    diarization_max_speakers: Mapped[int] = mapped_column(
+        Integer, server_default="3", default=3
+    )
     silence_filter: Mapped[bool] = mapped_column(Boolean, default=False)
     custom_suggestion_types: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None

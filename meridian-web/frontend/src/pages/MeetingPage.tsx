@@ -209,13 +209,16 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     getSpeakerRoles(mid)
       .then((rows) => {
         const map: Record<string, PublicSpeakerSide> = {};
+        const names: Record<string, string> = {};
         for (const r of rows) {
           const side = toPublicSpeakerSide(r.side);
           if (side) map[r.speaker_label] = side;
+          if (r.display_name) names[r.speaker_label] = r.display_name;
         }
         useMeetingStore.getState().setSpeakerRoles(map);
+        useMeetingStore.getState().setSpeakerNames(names);
       })
-      .catch(() => {});  // тихо игнорируем — роли подтянутся по WS
+      .catch(() => {});  // тихо игнорируем — роли/имена подтянутся по WS
     // Этап 8: persisted segment-level коррекции
     listSpeakerCorrections(mid)
       .then((rows) => {
@@ -294,6 +297,31 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       }
     }
     // нет соединения и нет встречи → только локальный optimistic (встречу не создаём)
+  }, [sendJSON]);
+
+  // Имя спикера: optimistic + WS (или REST fallback). Сторону спикера сохраняем (шлём текущую).
+  const handleSetSpeakerName = useCallback(async (name: string, displayName: string) => {
+    const label = name.trim();
+    if (!label) return;
+    const trimmed = displayName.trim();
+    const st = useMeetingStore.getState();
+    const prev = st.speakerNames;
+    const next: Record<string, string> = { ...prev };
+    if (trimmed) next[label] = trimmed;
+    else delete next[label];
+    st.setSpeakerNames(next);
+
+    const side = toPublicSpeakerSide(st.speakerRoles[label]);
+    if (st.isConnected) {
+      sendJSON({ type: 'set_speaker_role', name: label, side: side || '', display_name: trimmed });
+    } else if (st.currentMeetingId != null) {
+      try {
+        await putSpeakerRole(st.currentMeetingId, label, { side: side || '', display_name: trimmed });
+      } catch {
+        useMeetingStore.getState().setSpeakerNames(prev);  // откат optimistic
+        useMeetingStore.getState().setError('Не удалось сохранить имя спикера');
+      }
+    }
   }, [sendJSON]);
 
   // Conversation Tree: начальная загрузка дерева при открытии встречи
@@ -634,6 +662,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                   canEdit={store.canSendAudio}
                   compact
                   onSetSpeakerSide={handleSetSpeakerSide}
+                  onSetSpeakerName={handleSetSpeakerName}
                 />
                 <ChatDisplay
                   onSetSpeakerRole={handleSetSpeakerSide}
