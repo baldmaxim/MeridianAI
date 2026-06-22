@@ -255,7 +255,11 @@ class MeetingRoom:
             logger.warning(f"[room {meeting_id}] AI settings snapshot failed: {e}")
         if ai_resolved.get("live_suggestion_model"):
             room.settings["llm_model"] = ai_resolved["live_suggestion_model"]
-        if ai_resolved.get("stt_provider"):
+        # STT-провайдер берём из ТЕКУЩИХ настроек владельца (страница «Настройки»),
+        # а не из замороженного AI-снапшота: снапшот мог зафиксировать прежнего
+        # провайдера, и смена провайдера в настройках иначе молча игнорировалась бы.
+        # AI-снапшот тут — лишь fallback, когда у владельца провайдер не задан.
+        if not room.settings.get("stt_provider") and ai_resolved.get("stt_provider"):
             room.settings["stt_provider"] = ai_resolved["stt_provider"]
 
         openrouter_key = room.api_keys.get("openrouter", "")
