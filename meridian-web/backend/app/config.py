@@ -212,13 +212,20 @@ class Settings(BaseSettings):
     # соединение. Это ДИАГНОСТИЧЕСКИЙ candidate: основной STT/подсказки/transcript не меняются.
     # Ничего не сохраняется. По умолчанию ВЫКЛЮЧЕНО.
     multi_channel_live_enabled: bool = Field(default=False, alias="MULTI_CHANNEL_LIVE_ENABLED")
+    # Авто-оркестрация: когда в комнате есть primary-источник И активный shadow-трек,
+    # backend сам поднимает live multi-channel (без ручного старта из UI). Гейтится также
+    # `multi_channel_live_enabled` (master) и наличием ключа провайдера. Можно отключить,
+    # оставив только ручной старт. По умолчанию ВКЛ (но мастер-флаг по умолчанию ВЫКЛ).
+    multi_channel_live_autostart: bool = Field(default=True, alias="MULTI_CHANNEL_LIVE_AUTOSTART")
     multi_channel_live_provider: str = Field(default="deepgram", alias="MULTI_CHANNEL_LIVE_PROVIDER")
     multi_channel_live_model: str = Field(default="nova-3", alias="MULTI_CHANNEL_LIVE_MODEL")
     multi_channel_live_language: str = Field(default="ru", alias="MULTI_CHANNEL_LIVE_LANGUAGE")
     multi_channel_live_min_channels: int = Field(default=2, alias="MULTI_CHANNEL_LIVE_MIN_CHANNELS")
     multi_channel_live_max_channels: int = Field(default=4, alias="MULTI_CHANNEL_LIVE_MAX_CHANNELS")
-    multi_channel_live_playout_delay_ms: int = Field(default=500, alias="MULTI_CHANNEL_LIVE_PLAYOUT_DELAY_MS")
-    multi_channel_live_min_prebuffer_ms: int = Field(default=1000, alias="MULTI_CHANNEL_LIVE_MIN_PREBUFFER_MS")
+    # Латентность (задача 2): снижены дефолты prebuffer/playout, чтобы reconciliation-кандидат
+    # появлялся быстрее. Primary live-транскрипт это не затрагивает (shadow вне его пути).
+    multi_channel_live_playout_delay_ms: int = Field(default=300, alias="MULTI_CHANNEL_LIVE_PLAYOUT_DELAY_MS")
+    multi_channel_live_min_prebuffer_ms: int = Field(default=600, alias="MULTI_CHANNEL_LIVE_MIN_PREBUFFER_MS")
     multi_channel_live_send_chunk_ms: int = Field(default=100, alias="MULTI_CHANNEL_LIVE_SEND_CHUNK_MS")
     multi_channel_live_send_queue_chunks: int = Field(default=30, alias="MULTI_CHANNEL_LIVE_SEND_QUEUE_CHUNKS")
     multi_channel_live_track_stale_grace_ms: int = Field(default=3000, alias="MULTI_CHANNEL_LIVE_TRACK_STALE_GRACE_MS")

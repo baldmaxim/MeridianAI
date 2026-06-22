@@ -495,9 +495,22 @@ export interface SegmentSideHint {
   side: PublicSpeakerSide | null;
   confidence: number;
   reason: string;
+  // источник подсказки: 'observer' (числовые метрики) | 'shadow' (rms второго телефона)
+  source?: string | null;
   device_count: number;
   window_ms: number;
   auto_apply: boolean;
+}
+
+// Участник live-комнаты встречи (одно WS-соединение). Дедуп по user_id — на UI.
+export interface RoomParticipant {
+  connection_id: string;
+  user_id: number | null;
+  device_role: string;
+  user_label: string | null;
+  can_send_audio: boolean;
+  is_active_audio_source: boolean;
+  is_helper: boolean;
 }
 
 export interface ConversationTopicUpdateInput {
@@ -523,13 +536,14 @@ export type WSMessageFromServer =
   | { type: 'meeting_saved'; meeting_id: number }
   | { type: 'speaker_roles_updated'; roles: Record<string, SpeakerSide> }
   | { type: 'speaker_corrections_updated'; meeting_id: number; corrections: SpeakerSegmentCorrection[] }
-  | { type: 'segment_side_hint'; meeting_id: number; segment_key: string; side: PublicSpeakerSide | null; confidence: number; reason: string; device_count: number; window_ms: number; auto_apply: boolean }
+  | { type: 'segment_side_hint'; meeting_id: number; segment_key: string; side: PublicSpeakerSide | null; confidence: number; reason: string; source?: string | null; device_count: number; window_ms: number; auto_apply: boolean }
   | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number }
   | { type: 'turns_reset' }
   // --- Этап 2: MeetingRoom / multi-device ---
   | { type: 'room_joined'; meeting_id: number; connection_id: string; device_role: string; can_send_audio: boolean; active_audio_source: string | null }
   | { type: 'device_joined'; meeting_id: number; connection_id: string; device_role: string }
   | { type: 'device_left'; meeting_id: number; connection_id: string }
+  | { type: 'room_participants'; meeting_id: number; participants: RoomParticipant[]; active_audio_source: string | null }
   | { type: 'audio_source_busy'; active_audio_source: string | null }
   | { type: 'audio_source_disconnected'; meeting_id?: number }
   | { type: 'recording_status'; recording: boolean; active_audio_source: string | null; active_audio_user_label?: string | null; recording_started_at_ms?: number | null }

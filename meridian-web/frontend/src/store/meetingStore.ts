@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic, SpeakerSegmentCorrection, SegmentSideHint, DeviceSyncState, SecondaryShadowTrackSummary, MultiSourceAlignment, MultiChannelLiveState, MultiChannelLiveSegment, MultiChannelLiveSnapshot, MultiChannelReconciliationState, TranscriptionAuthorityState } from '../types';
+import type { ChatMessage, Suggestion, DocumentInfo, CommittedSegmentWire, SuggestionTypeConfig, TurnWire, ConversationTopic, SpeakerSegmentCorrection, SegmentSideHint, DeviceSyncState, SecondaryShadowTrackSummary, MultiSourceAlignment, MultiChannelLiveState, MultiChannelLiveSegment, MultiChannelLiveSnapshot, MultiChannelReconciliationState, TranscriptionAuthorityState, RoomParticipant } from '../types';
 
 interface MeetingStats {
   positionStrength: number;
@@ -158,6 +158,10 @@ interface MeetingState {
   activeAudioUserLabel: string | null;
   recordingStartedAtMs: number | null;
   setRecordingMeta: (p: { userLabel: string | null; startedAtMs: number | null }) => void;
+
+  // Задача 3: участники комнаты (live-снапшот для бейджа в шапке). Авторитетен сервер.
+  participants: RoomParticipant[];
+  setParticipants: (p: RoomParticipant[]) => void;
 
   // Этап 3: право записи / телефон-диктофон
   recordPermissionDenied: boolean;
@@ -432,6 +436,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   recordingStartedAtMs: null,
   setRecordingMeta: (p) => set({ activeAudioUserLabel: p.userLabel, recordingStartedAtMs: p.startedAtMs }),
 
+  participants: [],
+  setParticipants: (p) => set({ participants: p }),
+
   recordPermissionDenied: false,
   phoneRecording: false,
   setRecordPermissionDenied: (v) => set({ recordPermissionDenied: v }),
@@ -546,7 +553,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     currentMeetingId: null, draftMeetingId: null, meetingSavedId: null,
     roomConnected: false, connectionId: null, deviceRole: null,
     canSendAudio: false, activeAudioSource: null, recording: false,
-    activeAudioUserLabel: null, recordingStartedAtMs: null,
+    activeAudioUserLabel: null, recordingStartedAtMs: null, participants: [],
     recordPermissionDenied: false, phoneRecording: false, deviceSync: null,
     shadowTracks: [], ingestAlignment: null,
     multiChannelLiveState: null, multiChannelLiveFinalSegments: [], multiChannelLiveInterimByChannel: {},
@@ -603,6 +610,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       recording: false,
       activeAudioUserLabel: null,
       recordingStartedAtMs: null,
+      participants: [],
       recordPermissionDenied: false,
       phoneRecording: false,
       deviceSync: null,

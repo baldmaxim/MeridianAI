@@ -274,6 +274,11 @@ export function useWebSocket() {
       case 'device_left':
         break;
 
+      // Задача 3: авторитетный снапшот участников комнаты (бейдж в шапке, авто-обновление)
+      case 'room_participants':
+        s.setParticipants(data.participants);
+        break;
+
       case 'recording_status':
         s.setRecording(data.recording);
         s.setActiveAudioSource(data.active_audio_source);

@@ -20,6 +20,8 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 
+from .observer_diarization import SegmentSideHint, score_segment_side
+
 logger = logging.getLogger("meridian.shadow")
 
 # нет «нового кадра дольше ожидаемого + допуск» → считаем пропуск (gap)
@@ -329,3 +331,53 @@ class SecondaryAudioShadow:
                 "sample_rate": t.sample_rate,
             })
         return out
+
+    # --- быстрая диаризация по уровню (как у observer, но из shadow-чанков) ---
+
+    def compute_segment_hint(
+        self, segment_key: str, center_ms: int, *, window_ms: int,
+        min_rms: float, ratio: float, min_confidence: float,
+    ) -> SegmentSideHint | None:
+        """Подсказка стороны реплики по RMS shadow-чанков вокруг center_ms (epoch ms).
+
+        Это «быстрая дорожка» помощи распознаванию: shadow-чанки приходят ~раз в 100мс и
+        уже несут rms, поэтому к моменту commit primary-сегмента окно вокруг него заполнено —
+        подсказка считается сразу, не дожидаясь multi-channel STT. Возвращает None, если
+        уверенности мало или нет активных треков с side_hint. Reuse скоринга observer.
+        """
+        if not self.enabled:
+            return None
+        lo = center_ms - window_ms
+        hi = center_ms + window_ms
+        energy = {"self": 0.0, "opponent": 0.0, "unknown": 0.0}
+        max_rms = 0.0
+        device_count = 0
+        for cid, t in self.tracks.items():
+            if not t.enabled:
+                continue
+            buf = self._buffers.get(cid)
+            if not buf:
+                continue
+            relevant = [c for (c, _p) in buf
+                        if c.rms is not None and lo <= c.server_ts_ms <= hi]
+            if not relevant:
+                continue
+            device_count += 1
+            e = sum(c.rms for c in relevant)
+            peak = max(c.rms for c in relevant)
+            max_rms = max(max_rms, peak)
+            key = t.side_hint if t.side_hint in ("self", "opponent") else "unknown"
+            energy[key] += e
+        if device_count == 0:
+            return None
+        side, confidence, reason = score_segment_side(
+            energy["self"], energy["opponent"], energy["unknown"], max_rms,
+            min_rms=min_rms, ratio=ratio, min_confidence=min_confidence,
+        )
+        if side is None:
+            return None
+        return SegmentSideHint(
+            segment_key=segment_key, side=side, confidence=confidence, reason=reason,
+            self_energy=energy["self"], opponent_energy=energy["opponent"],
+            unknown_energy=energy["unknown"], device_count=device_count, window_ms=window_ms,
+        )

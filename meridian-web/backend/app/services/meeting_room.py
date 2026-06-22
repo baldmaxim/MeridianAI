@@ -150,6 +150,10 @@ class MeetingRoom:
         self._last_ingest_emit_ms: int = 0
         # Этап 9.6: realtime multi-channel live STT shadow (одна сессия на встречу)
         self.multi_channel_live: MultiChannelLiveSession | None = None
+        # silent-режим для авто-старта (подавляет «failed» при «ещё не готово»)
+        self._live_start_silent: bool = False
+        # защита от гонки двойного авто-старта между параллельными shadow-кадрами
+        self._live_autostart_inflight: bool = False
         # Этап 9.7: channel-aware reconciliation (in-memory evidence; ничего не сохраняется)
         self.multi_channel_reconciliation = None
         self._reconciliation_revision: int = 0
@@ -372,6 +376,8 @@ class MeetingRoom:
             },
             exclude=conn.connection_id,
         )
+        # Задача 3: актуальный список участников всем (включая новое соединение)
+        await self._broadcast_participants()
 
     async def remove_connection(self, connection_id: str) -> None:
         conn = self.connections.pop(connection_id, None)
@@ -403,6 +409,8 @@ class MeetingRoom:
             "meeting_id": self.meeting_id,
             "connection_id": connection_id,
         })
+        # Задача 3: список участников после отключения
+        await self._broadcast_participants()
         # комната опустела — сохранить сегменты (без закрытия встречи), чтобы не потерять
         if not self.connections and not self.closed:
             await self._persist_segments(close=False)
@@ -453,6 +461,38 @@ class MeetingRoom:
             "active_audio_user_label": self.active_audio_user_label if recording else None,
             "recording_started_at_ms": self.recording_started_at_ms if recording else None,
         }
+
+    async def _participants_payload(self) -> dict:
+        """Снапшот участников комнаты для шапки (число людей + роли устройств).
+
+        Участник = одно WS-соединение. Дедуп по пользователю — на фронте (бейдж считает
+        уникальные user_id). Роли: пишет звук / помогает распознаванию (shadow) / наблюдает.
+        """
+        participants = []
+        for cid, conn in self.connections.items():
+            t = self.shadow.tracks.get(cid)
+            participants.append({
+                "connection_id": cid,
+                "user_id": conn.user_id,
+                "device_role": conn.device_role,
+                "user_label": await self._user_label(conn.user_id),
+                "can_send_audio": conn.can_send_audio,
+                "is_active_audio_source": cid == self.active_audio_source,
+                "is_helper": bool(t is not None and t.enabled),
+            })
+        return {
+            "type": "room_participants",
+            "meeting_id": self.meeting_id,
+            "participants": participants,
+            "active_audio_source": self.active_audio_source,
+        }
+
+    async def _broadcast_participants(self) -> None:
+        """Разослать актуальный снапшот участников всем соединениям (в т.ч. новому)."""
+        try:
+            await self.broadcast(await self._participants_payload())
+        except Exception as e:
+            logger.debug(f"[room {self.meeting_id}] participants broadcast failed: {e}")
 
     async def handle_audio_frame(self, connection_id: str, data: bytes) -> None:
         """Бинарный аудио-фрейм.
@@ -530,6 +570,18 @@ class MeetingRoom:
             seq = int(header.get("seq", 0))
         except (TypeError, ValueError):
             return
+        # Авто-режим: если трек ещё не включён (клиент не слал enable_secondary_shadow) —
+        # включаем по первому кадру дефолтами из заголовка. Делает второй телефон
+        # помощником распознаванию без ручного тумблера.
+        t0 = self.shadow.tracks.get(conn.connection_id)
+        if t0 is not None and not t0.enabled:
+            await self._ensure_shadow_enabled(
+                conn,
+                sample_rate=header.get("sample_rate") or self.shadow.target_sample_rate,
+                channels=header.get("channels") or 1,
+                codec=header.get("codec") or "pcm16",
+                side_hint=t0.side_hint,
+            )
         accepted, _reason = self.shadow.add_chunk(
             conn.connection_id,
             seq=seq,
@@ -570,6 +622,8 @@ class MeetingRoom:
                                               {"type": "secondary_shadow_diag", **diag})
             await self._broadcast_shadow_summary(now_ms=now_ms)
             await self._maybe_broadcast_ingest(now_ms)
+            # Авто-оркестрация: попробовать поднять live multi-channel (если включён и готов)
+            await self._maybe_autostart_multichannel()
 
     @staticmethod
     def _shadow_diag_every(t) -> int:
@@ -614,6 +668,10 @@ class MeetingRoom:
         return "Shadow — сторона не указана"
 
     async def _send_live_error(self, connection_id: str, code: str, message: str) -> None:
+        # При авто-старте (silent) не шлём «failed» — это нормальные «ещё не готово» состояния
+        # (alignment/clock), которые повторятся и поднимутся сами. Ручной старт ошибки видит.
+        if getattr(self, "_live_start_silent", False):
+            return
         await self.send_to_connection(connection_id, {
             "type": "multi_channel_live_state", "session_id": None, "status": "failed",
             "error_code": code, "error_message": message, "channels": [], "channel_count": 0,
@@ -628,8 +686,16 @@ class MeetingRoom:
                 "channels": [], "channel_count": 0,
             })
 
-    async def _handle_live_start(self, connection_id: str, message: dict) -> None:
+    async def _handle_live_start(self, connection_id: str, message: dict,
+                                 *, silent: bool = False) -> None:
         settings = get_settings()
+        self._live_start_silent = silent
+        try:
+            await self._do_live_start(connection_id, message, settings)
+        finally:
+            self._live_start_silent = False
+
+    async def _do_live_start(self, connection_id: str, message: dict, settings) -> None:
         conn = self.connections.get(connection_id)
         if conn is None or not conn.can_record:
             await self._send_live_error(connection_id, "FORBIDDEN", "Нет права запускать live shadow")
@@ -727,6 +793,41 @@ class MeetingRoom:
         )
         self.multi_channel_live = session
         await session.start()
+
+    async def _maybe_autostart_multichannel(self) -> None:
+        """Авто-поднять live multi-channel, когда есть primary-источник И активный shadow-трек.
+
+        Тихо (silent=True): «ещё не готово» (alignment/clock) не шумит в UI и повторяется по
+        мере прихода кадров. Гейтится мастер-флагом + autostart-флагом + провайдером + ключом.
+        Без ключа/флага — no-op (работают только быстрые side-hints, второй STT не поднимаем).
+        """
+        settings = get_settings()
+        if not (settings.multi_channel_live_enabled and settings.multi_channel_live_autostart):
+            return
+        if settings.multi_channel_live_provider != "deepgram":
+            return
+        if not (self.api_keys or {}).get("deepgram"):
+            return
+        if self.active_audio_source is None:
+            return
+        if self._live_is_active(self.multi_channel_live) or self._live_autostart_inflight:
+            return
+        secondary_ids = [cid for cid, t in self.shadow.tracks.items() if t.enabled]
+        if not secondary_ids:
+            return
+        track_ids = [self.active_audio_source, *secondary_ids][:settings.multi_channel_live_max_channels]
+        # ingest-треки ещё не созданы (мало кадров) → рано, повторим на следующем кадре
+        if any(tid not in self.ingest.tracks for tid in track_ids):
+            return
+        self._live_autostart_inflight = True
+        try:
+            await self._handle_live_start(
+                self.active_audio_source,
+                {"track_ids": track_ids, "consent_confirmed": True},
+                silent=True,
+            )
+        finally:
+            self._live_autostart_inflight = False
 
     async def stop_multi_channel_live(self) -> None:
         if self.multi_channel_live:
@@ -931,6 +1032,8 @@ class MeetingRoom:
                 diarization=self.settings.get("diarization", True),
             )
         await self.broadcast(self._recording_status_payload(True))
+        # Задача 3: сменился активный источник → обновить роли участников в шапке
+        await self._broadcast_participants()
         if conn.device_role == "phone":
             await self.broadcast({
                 "type": "phone_recording_started",
@@ -951,6 +1054,8 @@ class MeetingRoom:
         self.clear_active_audio_source(connection_id)
         self._reset_recording_meta()
         await self.broadcast(self._recording_status_payload(False))
+        # Задача 3: источник освобождён → обновить роли участников в шапке
+        await self._broadcast_participants()
         if was_phone:
             await self.broadcast({
                 "type": "phone_recording_stopped",
@@ -1093,26 +1198,37 @@ class MeetingRoom:
             })
 
     async def _enable_shadow(self, connection_id: str, message: dict) -> None:
-        """Этап 9.2: включить secondary audio shadow для устройства."""
+        """Этап 9.2: включить secondary audio shadow по явному сообщению клиента."""
         conn = self.connections.get(connection_id)
         if conn is None or conn.device_role != "secondary":
             await self.send_to_connection(connection_id, {
                 "type": "secondary_shadow_error", "reason": "wrong_device_role",
             })
             return
-        sample_rate = message.get("sample_rate", self.shadow.target_sample_rate)
-        channels = message.get("channels", 1)
-        codec = message.get("codec", "pcm16")
-        side_hint = message.get("side_hint")
-        ok, reason = self.shadow.enable_track(
-            connection_id, sample_rate=sample_rate, channels=channels,
-            codec=codec, side_hint=side_hint,
+        ok, reason = await self._ensure_shadow_enabled(
+            conn,
+            sample_rate=message.get("sample_rate", self.shadow.target_sample_rate),
+            channels=message.get("channels", 1),
+            codec=message.get("codec", "pcm16"),
+            side_hint=message.get("side_hint"),
         )
         if not ok:
             await self.send_to_connection(connection_id, {
                 "type": "secondary_shadow_error", "reason": reason or "enable_failed",
             })
-            return
+
+    async def _ensure_shadow_enabled(self, conn: "MeetingConnection", *, sample_rate,
+                                     channels, codec, side_hint) -> tuple[bool, str | None]:
+        """Идемпотентно включить shadow-трек устройства (вызов из сообщения ИЛИ авто по
+        первому кадру). При успехе шлёт `secondary_shadow_enabled` отправителю и обновляет
+        участников/сводку. Повторный вызов на уже включённом треке — no-op (ok)."""
+        connection_id = conn.connection_id
+        ok, reason = self.shadow.enable_track(
+            connection_id, sample_rate=sample_rate, channels=channels,
+            codec=codec, side_hint=side_hint,
+        )
+        if not ok:
+            return False, reason
         await self.send_to_connection(connection_id, {
             "type": "secondary_shadow_enabled",
             "connection_id": connection_id,
@@ -1124,6 +1240,9 @@ class MeetingRoom:
             "max_chunk_bytes": self.shadow.max_chunk_bytes,
         })
         await self._broadcast_shadow_summary()
+        # роль устройства стала «помогает распознаванию» → обновить шапку участников
+        await self._broadcast_participants()
+        return True, None
 
     async def _apply_clock_report(self, connection_id: str, message: dict) -> None:
         """Этап 9.1: сохранить присланный клиентом offset/rtt и эхо-статус качества."""
@@ -1295,24 +1414,42 @@ class MeetingRoom:
             logger.error(f"[room {self.meeting_id}] persist speaker role failed: {e}")
 
     async def _on_committed_segment(self, segment, role: str | None) -> None:
-        """Единый committed-хук: observer-подсказка (независимо) + дерево общения."""
+        """Единый committed-хук: side-подсказка (observer + shadow) + дерево общения."""
         try:
-            await self._broadcast_observer_hint(segment)
+            await self._broadcast_side_hint(segment)
         except Exception as e:
-            logger.debug(f"[room {self.meeting_id}] observer hint failed: {e}")
+            logger.debug(f"[room {self.meeting_id}] side hint failed: {e}")
         await self._on_committed_for_tree(segment, role)
         # Этап 9.7: новый committed primary → пересобрать reconciliation (если live идёт)
         await self._schedule_multi_channel_reconciliation(reason="committed")
 
-    async def _broadcast_observer_hint(self, segment) -> None:
-        """Сравнить уровни observer-устройств вокруг реплики и broadcast `segment_side_hint`."""
-        if not self.observer.enabled:
-            return
+    async def _broadcast_side_hint(self, segment) -> None:
+        """Подсказка стороны реплики из двух «быстрых» источников вокруг committed-сегмента:
+        observer-устройства (числовые метрики) И shadow-треки (rms аудио-чанков второго
+        телефона). Берём более уверенную из двух (одна подсказка на сегмент). Это даёт помощь
+        в диаризации «чья реплика» с задержкой ~100–200мс, не дожидаясь multi-channel STT."""
         seg_key = getattr(segment, "segment_id", None)
-        center = getattr(segment, "wall_clock", None)
-        if not seg_key or center is None:
+        if not seg_key:
             return
-        hint = self.observer.compute_segment_hint(seg_key, center)
+        center = getattr(segment, "wall_clock", None)
+        hint = None
+        source = None
+        # 1) observer (datetime-окно)
+        if self.observer.enabled and center is not None:
+            hint = self.observer.compute_segment_hint(seg_key, center)
+            if hint is not None:
+                source = "observer"
+        # 2) shadow (epoch-ms окно), переиспользуем пороги observer
+        if self.shadow.enabled:
+            center_ms = getattr(segment, "server_ts_ms", None)
+            if center_ms is not None:
+                sh = self.shadow.compute_segment_hint(
+                    seg_key, int(center_ms), window_ms=self.observer.window_ms,
+                    min_rms=self.observer.min_rms, ratio=self.observer.ratio,
+                    min_confidence=self.observer.min_confidence,
+                )
+                if sh is not None and (hint is None or sh.confidence > hint.confidence):
+                    hint, source = sh, "shadow"
         if hint is None:
             return
         await self.broadcast({
@@ -1322,6 +1459,7 @@ class MeetingRoom:
             "side": hint.side,
             "confidence": hint.confidence,
             "reason": hint.reason,
+            "source": source,
             "device_count": hint.device_count,
             "window_ms": hint.window_ms,
             "auto_apply": self.observer.auto_apply,
