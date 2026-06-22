@@ -507,61 +507,103 @@ class SessionManager:
         self.audio_recorder.start()
 
         # Create transcription service based on provider
-        if stt_provider == "deepgram":
-            from ..core.transcription.deepgram_streaming_service import (
-                DeepgramStreamingTranscriptionService,
-            )
-            key = api_keys.get("deepgram", "")
-            self.transcription_service = DeepgramStreamingTranscriptionService(
-                api_key=key,
-                audio_queue=self.audio_queue,
-                message_callback=self._on_legacy_transcript,
-                diarization=diarization,
-            )
-        elif stt_provider == "elevenlabs":
-            from ..core.transcription.streaming_service import (
-                StreamingTranscriptionService,
-            )
-            key = api_keys.get("elevenlabs", "")
-            self.transcription_service = StreamingTranscriptionService(
-                api_key=key,
-                audio_queue=self.audio_queue,
-                on_partial=self._on_partial,
-                on_committed=self._on_committed,
-                on_error=self._on_stt_error,
-                audio_recorder=self.audio_recorder,
-            )
-        elif stt_provider == "gemini":
-            from ..core.transcription.gemini_streaming_service import (
-                GeminiStreamingTranscriptionService,
-            )
-            key = api_keys.get("gemini", "")
-            self.transcription_service = GeminiStreamingTranscriptionService(
-                api_key=key,
-                audio_queue=self.audio_queue,
-                message_callback=self._on_legacy_transcript,
-            )
-        elif stt_provider == "speechmatics":
-            from ..core.transcription.speechmatics_streaming_service import (
-                SpeechmaticsStreamingTranscriptionService,
-            )
-            key = api_keys.get("speechmatics", "")
-            self.transcription_service = SpeechmaticsStreamingTranscriptionService(
-                api_key=key,
-                audio_queue=self.audio_queue,
-                message_callback=self._on_legacy_transcript,
-                max_speakers=max_speakers,
-            )
-        else:
+        service = self._build_transcription_service(
+            stt_provider, api_keys, diarization, max_speakers
+        )
+        if service is None:
             await self._send_error(f"Unknown STT provider: {stt_provider}")
             self.is_listening = False
             return
+        self.transcription_service = service
 
         # Start transcription in background task
         self._transcription_task = asyncio.create_task(
             self.transcription_service.run()
         )
         await self._send_status("Прослушивание активно...")
+
+    def _build_transcription_service(self, stt_provider: str, api_keys: dict,
+                                     diarization: bool, max_speakers: int):
+        """Собрать STT-сервис по провайдеру (использует текущий self.audio_queue).
+
+        Общий код для start_listening и restart_transcription. Возвращает None для
+        неизвестного провайдера.
+        """
+        if stt_provider == "deepgram":
+            from ..core.transcription.deepgram_streaming_service import (
+                DeepgramStreamingTranscriptionService,
+            )
+            return DeepgramStreamingTranscriptionService(
+                api_key=api_keys.get("deepgram", ""),
+                audio_queue=self.audio_queue,
+                message_callback=self._on_legacy_transcript,
+                diarization=diarization,
+            )
+        if stt_provider == "elevenlabs":
+            from ..core.transcription.streaming_service import (
+                StreamingTranscriptionService,
+            )
+            return StreamingTranscriptionService(
+                api_key=api_keys.get("elevenlabs", ""),
+                audio_queue=self.audio_queue,
+                on_partial=self._on_partial,
+                on_committed=self._on_committed,
+                on_error=self._on_stt_error,
+                audio_recorder=self.audio_recorder,
+            )
+        if stt_provider == "gemini":
+            from ..core.transcription.gemini_streaming_service import (
+                GeminiStreamingTranscriptionService,
+            )
+            return GeminiStreamingTranscriptionService(
+                api_key=api_keys.get("gemini", ""),
+                audio_queue=self.audio_queue,
+                message_callback=self._on_legacy_transcript,
+            )
+        if stt_provider == "speechmatics":
+            from ..core.transcription.speechmatics_streaming_service import (
+                SpeechmaticsStreamingTranscriptionService,
+            )
+            return SpeechmaticsStreamingTranscriptionService(
+                api_key=api_keys.get("speechmatics", ""),
+                audio_queue=self.audio_queue,
+                message_callback=self._on_legacy_transcript,
+                max_speakers=max_speakers,
+            )
+        return None
+
+    async def restart_transcription(self, stt_provider: str, api_keys: dict,
+                                    diarization: bool = True, max_speakers: int = 3) -> bool:
+        """Пересоздать STT-сервис с новым max_speakers БЕЗ потери транскрипта.
+
+        Нужно для Speechmatics: max_speakers вшивается в StartRecognition и меняется
+        только новым подключением. Пересоздаём лишь сервис+задачу+очередь; committed-
+        сегменты, turns, память, спикеры и якорь speech-time сохраняются.
+        """
+        if not self.is_listening:
+            return False
+        # teardown только STT-сервиса и его задачи (стейт транскрипта не трогаем)
+        if self.transcription_service:
+            self.transcription_service.stop()
+        if self._transcription_task:
+            self._transcription_task.cancel()
+            try:
+                await self._transcription_task
+            except asyncio.CancelledError:
+                pass
+        # свежая очередь + новый сервис (is_listening остаётся True)
+        self.audio_queue = asyncio.Queue()
+        service = self._build_transcription_service(
+            stt_provider, api_keys, diarization, max_speakers
+        )
+        if service is None:
+            return False
+        self.transcription_service = service
+        self._transcription_task = asyncio.create_task(
+            self.transcription_service.run()
+        )
+        await self._send_status("Распознавание перезапущено (число спикеров обновлено)")
+        return True
 
     async def stop_listening(self):
         """Stop transcription and audio recording."""

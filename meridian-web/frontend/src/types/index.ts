@@ -538,6 +538,7 @@ export type WSMessageFromServer =
   | { type: 'meeting_context_updated'; title?: string; topic: string; notes: string; negotiation_type: string; meeting_role: string; opponent_weaknesses: string }
   | { type: 'meeting_saved'; meeting_id: number }
   | { type: 'speaker_roles_updated'; roles: Record<string, SpeakerSide>; names?: Record<string, string> }
+  | { type: 'meeting_settings_updated'; diarization_max_speakers: number }
   | { type: 'speaker_corrections_updated'; meeting_id: number; corrections: SpeakerSegmentCorrection[] }
   | { type: 'segment_side_hint'; meeting_id: number; segment_key: string; side: PublicSpeakerSide | null; confidence: number; reason: string; source?: string | null; device_count: number; window_ms: number; auto_apply: boolean }
   | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number }

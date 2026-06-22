@@ -3,6 +3,9 @@ import { useMeetingStore } from '../../store/meetingStore';
 import { theme } from '../../styles/theme';
 import type { PublicSpeakerSide } from '../../types';
 import { toPublicSpeakerSide, speakerSideLabel, speakerSideColor } from '../../lib/speakerSides';
+import { Select } from '../common';
+
+const MAX_SPEAKER_OPTIONS = [2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) }));
 
 interface SpeakerSideAssignmentPanelProps {
   meetingId: number | null;
@@ -11,17 +14,21 @@ interface SpeakerSideAssignmentPanelProps {
   onSetSpeakerSide: (speaker: string, side: PublicSpeakerSide | '' | null) => void | Promise<void>;
   // Назначить человекочитаемое имя метке спикера (SM_0 → «Иван»)
   onSetSpeakerName?: (speaker: string, displayName: string) => void | Promise<void>;
+  // Задать ожидаемое число спикеров для диаризации (per-meeting). undefined → контрол скрыт.
+  onSetMaxSpeakers?: (n: number) => void;
 }
 
 // Идентификация спикеров: имя каждого голоса + сторона «Мы»/«Не мы». Метка вида SM_0 —
 // это сырой ярлык STT; имя задаётся вручную и применяется по всему транскрипту.
-export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeakerSide, onSetSpeakerName }: SpeakerSideAssignmentPanelProps) {
+export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeakerSide, onSetSpeakerName, onSetMaxSpeakers }: SpeakerSideAssignmentPanelProps) {
   const turns = useMeetingStore((s) => s.turns);
   const messages = useMeetingStore((s) => s.messages);
   const committedSegments = useMeetingStore((s) => s.committedSegments);
   const treeUnassigned = useMeetingStore((s) => s.treeUnassigned);
   const speakerRoles = useMeetingStore((s) => s.speakerRoles);
   const speakerNames = useMeetingStore((s) => s.speakerNames);
+  const maxSpeakers = useMeetingStore((s) => s.maxSpeakers);
+  const isListening = useMeetingStore((s) => s.isListening);
 
   const speakers = useMemo(() => {
     const set = new Set<string>();
@@ -50,6 +57,21 @@ export function SpeakerSideAssignmentPanel({ canEdit = true, compact, onSetSpeak
         <span style={styles.title}>Спикеры</span>
         {speakers.length > 0 && <span style={styles.counter}>Назначено {assignedCount}/{speakers.length}</span>}
       </div>
+      {onSetMaxSpeakers && (
+        <div style={styles.countRow}>
+          <span style={styles.countLabel}>Ожидается спикеров</span>
+          <Select
+            value={String(maxSpeakers || 3)}
+            onChange={(v) => onSetMaxSpeakers(Number(v))}
+            options={MAX_SPEAKER_OPTIONS}
+            style={styles.countSelect}
+            ariaLabel="Ожидаемое число спикеров"
+          />
+        </div>
+      )}
+      {onSetMaxSpeakers && isListening && (
+        <div style={styles.countHint}>Изменение применится сразу — распознавание перезапустится.</div>
+      )}
       {!compact && (
         <div style={styles.hint}>
           Впишите имя каждого голоса — оно подставится по всему транскрипту. Сторону «Мы»/«Не мы» выбирайте отдельно.
@@ -136,6 +158,17 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: theme.text.primary,
   },
   counter: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.secondary },
+  countRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    padding: '6px 0',
+  },
+  countLabel: { fontSize: 12, fontWeight: 600, color: theme.text.primary },
+  countSelect: {
+    padding: '5px 10px', minWidth: 64,
+    background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6,
+    color: theme.text.primary, fontSize: 12, fontFamily: theme.font.body, flexShrink: 0,
+  },
+  countHint: { fontFamily: theme.font.mono, fontSize: 9, color: theme.text.muted, lineHeight: 1.4 },
   hint: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, lineHeight: 1.4 },
   empty: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },

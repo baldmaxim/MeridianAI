@@ -29,6 +29,9 @@ class MeetingSession(Base):
     # Суммарное время активной записи (сек) — сумма интервалов диктофона старт→стоп.
     # НЕ время открытой сессии (ended_at − started_at). Накапливается инкрементом на каждый стоп.
     recorded_seconds: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # Число спикеров для диаризации — индивидуально на встречу (разное число людей).
+    # NULL = взять дефолт владельца (UserSettings.diarization_max_speakers).
+    diarization_max_speakers: Mapped[int | None] = mapped_column(Integer)
 
     # Этап 1 MVP: справочники + статус/мета (все nullable, обратная совместимость)
     customer_id: Mapped[int | None] = mapped_column(

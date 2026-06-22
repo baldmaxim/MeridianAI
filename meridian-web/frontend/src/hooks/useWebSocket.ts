@@ -346,6 +346,13 @@ export function useWebSocket() {
         break;
       }
 
+      case 'meeting_settings_updated': {
+        if (typeof data.diarization_max_speakers === 'number') {
+          s.setMaxSpeakers(data.diarization_max_speakers);
+        }
+        break;
+      }
+
       case 'segment_side_hint':
         // Этап 9: observer-подсказка стороны реплики (эфемерная, не авто-применяется)
         s.addSegmentHint(data);

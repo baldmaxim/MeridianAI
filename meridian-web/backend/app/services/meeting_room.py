@@ -188,9 +188,11 @@ class MeetingRoom:
             ).scalar_one_or_none()
             owner = None
             status = None
+            meeting_max_spk = None
             if meeting:
                 owner = meeting.created_by_user_id or meeting.user_id
                 status = meeting.status
+                meeting_max_spk = meeting.diarization_max_speakers
             room = cls(meeting_id, owner, status)
 
             if meeting:
@@ -245,6 +247,9 @@ class MeetingRoom:
         # конфигурация движка по настройкам владельца встречи
         room.settings = await load_user_settings(owner)
         room.api_keys = await load_api_keys()
+        # per-meeting число спикеров перекрывает дефолт владельца (NULL = дефолт)
+        if meeting_max_spk is not None:
+            room.settings["diarization_max_speakers"] = meeting_max_spk
 
         # Этап 9: заморозить AI-настройки встречи (snapshot) и применить модель/STT/тогглы
         ai_resolved: dict = {}
@@ -359,6 +364,11 @@ class MeetingRoom:
         # текущие роли + имена спикеров (восстановление после refresh)
         if self.session.speaker_roles or self.session.speaker_names:
             await conn.send_json(self._speaker_roles_payload())
+        # per-meeting число спикеров диаризации (для контрола во встрече)
+        await conn.send_json({
+            "type": "meeting_settings_updated",
+            "diarization_max_speakers": self.settings.get("diarization_max_speakers", 3),
+        })
         # Этап 9.6: на join — текущее состояние live multi-channel (+ snapshot если есть)
         if self.multi_channel_live:
             await conn.send_json(self.multi_channel_live.snapshot_payload())
@@ -1128,7 +1138,7 @@ class MeetingRoom:
         elif t == "change_role":
             await self._change_role(message, connection_id)
         elif t == "change_settings":
-            self._change_settings(message)
+            await self._change_settings(message)
             await self.send_to_connection(connection_id, {
                 "type": "status", "message": "Настройки обновлены",
             })
@@ -1338,11 +1348,25 @@ class MeetingRoom:
                 "type": "error", "message": "Роль не найдена",
             })
 
-    def _change_settings(self, message: dict) -> None:
+    async def _change_settings(self, message: dict) -> None:
+        prev_max = self.settings.get("diarization_max_speakers")
+        prev_diar = self.settings.get("diarization")
         for k in ("stt_provider", "llm_model", "temperature", "diarization",
                   "diarization_max_speakers", "silence_filter"):
             if k in message:
                 self.settings[k] = message[k]
+        # число спикеров — per-meeting: clamp 2..6, persist на встречу, broadcast устройствам
+        if "diarization_max_speakers" in message:
+            try:
+                clamped = max(2, min(6, int(self.settings.get("diarization_max_speakers") or 3)))
+            except (TypeError, ValueError):
+                clamped = 3
+            self.settings["diarization_max_speakers"] = clamped
+            await self._persist_meeting_max_speakers(clamped)
+            await self.broadcast({
+                "type": "meeting_settings_updated",
+                "diarization_max_speakers": clamped,
+            })
         if "llm_model" in message or "temperature" in message:
             openrouter_key = self.api_keys.get("openrouter", "")
             if openrouter_key:
@@ -1357,6 +1381,38 @@ class MeetingRoom:
             if "custom_trigger_keywords" in message:
                 self.settings["custom_trigger_keywords"] = message["custom_trigger_keywords"]
             apply_custom_hint_settings(self.session, self.settings)
+        # live re-apply: Speechmatics учитывает max_speakers только при старте стрима —
+        # если идёт запись и значение изменилось, перезапускаем STT (без потери транскрипта)
+        new_max = self.settings.get("diarization_max_speakers")
+        new_diar = self.settings.get("diarization")
+        if (self.settings.get("stt_provider") == "speechmatics"
+                and self.session.is_listening
+                and (new_max != prev_max or new_diar != prev_diar)):
+            try:
+                await self.session.restart_transcription(
+                    stt_provider="speechmatics",
+                    api_keys=self.api_keys,
+                    diarization=bool(new_diar),
+                    max_speakers=int(new_max or 3),
+                )
+                await self.broadcast(self._recording_status_payload(self.session.is_listening))
+            except Exception as e:
+                logger.error(f"[room {self.meeting_id}] restart STT failed: {e}")
+
+    async def _persist_meeting_max_speakers(self, value: int) -> None:
+        """Сохранить число спикеров на саму встречу (source of truth). Ошибка не ломает сессию."""
+        try:
+            async with async_session() as db:
+                meeting = (
+                    await db.execute(
+                        select(MeetingSession).where(MeetingSession.id == self.meeting_id)
+                    )
+                ).scalar_one_or_none()
+                if meeting:
+                    meeting.diarization_max_speakers = value
+                    await db.commit()
+        except Exception as e:
+            logger.error(f"[room {self.meeting_id}] persist max_speakers failed: {e}")
 
     # --- финализация (по meeting_id) ---
 

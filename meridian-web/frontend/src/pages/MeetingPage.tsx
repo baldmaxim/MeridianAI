@@ -193,6 +193,8 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     getSettings().then((s) => {
       setSettings(s);
       store.setCustomSuggestionTypes(s.custom_suggestion_types);
+      // дефолт числа спикеров (до live meeting_settings_updated по WS)
+      useMeetingStore.getState().setMaxSpeakers(s.diarization_max_speakers || 3);
     }).catch(() => {});
     return () => {
       disconnect();
@@ -322,6 +324,14 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         useMeetingStore.getState().setError('Не удалось сохранить имя спикера');
       }
     }
+  }, [sendJSON]);
+
+  // Число спикеров диаризации — per-meeting. Optimistic + WS (бэкенд персистит на встречу
+  // и при активной записи перезапускает Speechmatics с новым значением).
+  const handleMaxSpeakersChange = useCallback((n: number) => {
+    const v = Math.max(2, Math.min(6, Math.round(n) || 3));
+    useMeetingStore.getState().setMaxSpeakers(v);
+    sendJSON({ type: 'change_settings', diarization_max_speakers: v });
   }, [sendJSON]);
 
   // Conversation Tree: начальная загрузка дерева при открытии встречи
@@ -663,6 +673,12 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                   compact
                   onSetSpeakerSide={handleSetSpeakerSide}
                   onSetSpeakerName={handleSetSpeakerName}
+                  onSetMaxSpeakers={
+                    store.canSendAudio
+                    && (settings?.stt_provider === 'speechmatics' || settings?.stt_provider === 'deepgram')
+                    && settings?.diarization
+                      ? handleMaxSpeakersChange : undefined
+                  }
                 />
                 <ChatDisplay
                   onSetSpeakerRole={handleSetSpeakerSide}

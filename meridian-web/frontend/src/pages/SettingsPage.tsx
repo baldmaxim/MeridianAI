@@ -111,8 +111,6 @@ export function SettingsPage({ onBack, embedded }: Props) {
                 onStreamingChange={(v) => setSettings({ ...settings, use_streaming: v })}
                 diarization={settings.diarization}
                 onDiarizationChange={(v) => setSettings({ ...settings, diarization: v })}
-                maxSpeakers={settings.diarization_max_speakers}
-                onMaxSpeakersChange={(v) => setSettings({ ...settings, diarization_max_speakers: v })}
                 silenceFilter={settings.silence_filter}
                 onSilenceFilterChange={(v) => setSettings({ ...settings, silence_filter: v })}
                 activeServices={activeServices}

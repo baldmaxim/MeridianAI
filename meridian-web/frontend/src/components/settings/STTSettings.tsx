@@ -15,14 +15,10 @@ interface Props {
   onStreamingChange: (v: boolean) => void;
   diarization: boolean;
   onDiarizationChange: (v: boolean) => void;
-  maxSpeakers: number;
-  onMaxSpeakersChange: (v: number) => void;
   silenceFilter: boolean;
   onSilenceFilterChange: (v: boolean) => void;
   activeServices?: string[];
 }
-
-const MAX_SPEAKER_OPTIONS = [2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) }));
 
 function Toggle({ checked, onToggle, label, description, disabled }: {
   checked: boolean; onToggle: () => void; label: string; description: string; disabled?: boolean;
@@ -47,7 +43,7 @@ function Toggle({ checked, onToggle, label, description, disabled }: {
   );
 }
 
-export function STTSettings({ value, onChange, useStreaming, onStreamingChange, diarization, onDiarizationChange, maxSpeakers, onMaxSpeakersChange, silenceFilter, onSilenceFilterChange, activeServices }: Props) {
+export function STTSettings({ value, onChange, useStreaming, onStreamingChange, diarization, onDiarizationChange, silenceFilter, onSilenceFilterChange, activeServices }: Props) {
   const available = activeServices
     ? PROVIDERS.filter((p) => activeServices.includes(p.value))
     : [];
@@ -89,24 +85,9 @@ export function STTSettings({ value, onChange, useStreaming, onStreamingChange, 
           checked={diarization}
           onToggle={() => onDiarizationChange(!diarization)}
           label="Разделение спикеров"
-          description={diarizationCapable ? 'Diarization — различать отдельных говорящих' : 'Только для Deepgram / Speechmatics'}
+          description={diarizationCapable ? 'Diarization — различать отдельных говорящих (число спикеров задаётся во встрече)' : 'Только для Deepgram / Speechmatics'}
           disabled={!diarizationCapable}
         />
-        {diarizationCapable && diarization && (
-          <div style={styles.maxRow}>
-            <div>
-              <div style={styles.toggleLabel}>Максимум спикеров</div>
-              <div style={styles.toggleDesc}>Сколько разных голосов различать (больше — выше риск ложных смен)</div>
-            </div>
-            <Select
-              value={String(maxSpeakers || 3)}
-              onChange={(v) => onMaxSpeakersChange(Number(v))}
-              options={MAX_SPEAKER_OPTIONS}
-              style={styles.maxSelect}
-              ariaLabel="Максимум спикеров"
-            />
-          </div>
-        )}
         <Toggle
           checked={silenceFilter}
           onToggle={() => onSilenceFilterChange(!silenceFilter)}
@@ -207,25 +188,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderTop: `1px solid ${theme.border.default}`,
     cursor: 'pointer',
     userSelect: 'none' as const,
-  },
-  maxRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    padding: '14px 0',
-    borderTop: `1px solid ${theme.border.default}`,
-  },
-  maxSelect: {
-    padding: '8px 12px',
-    minWidth: 72,
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    flexShrink: 0,
   },
   toggleLabel: {
     fontSize: 13,

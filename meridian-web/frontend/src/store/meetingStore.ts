@@ -100,6 +100,10 @@ interface MeetingState {
   speakerNames: Record<string, string>;
   setSpeakerNames: (names: Record<string, string>) => void;
 
+  // Число спикеров диаризации — per-meeting (для контрола во встрече)
+  maxSpeakers: number;
+  setMaxSpeakers: (n: number) => void;
+
   // Этап 8: segment-level коррекции диаризации (по segment_key)
   speakerCorrections: Record<string, SpeakerSegmentCorrection>;
   setSpeakerCorrections: (corrections: Record<string, SpeakerSegmentCorrection>) => void;
@@ -363,6 +367,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   speakerNames: {},
   setSpeakerNames: (names) => set({ speakerNames: names }),
+
+  maxSpeakers: 3,
+  setMaxSpeakers: (n) => set({ maxSpeakers: n }),
   speakerCorrections: {},
   setSpeakerCorrections: (corrections) => set({ speakerCorrections: corrections }),
   segmentHints: {},
@@ -600,6 +607,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
       lastSuggestionTime: null,
       speakerRoles: {},
       speakerNames: {},
+      maxSpeakers: 3,
       speakerCorrections: {},
       segmentHints: {},
       activeRoleName: null,
