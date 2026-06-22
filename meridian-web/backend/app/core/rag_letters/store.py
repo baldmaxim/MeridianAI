@@ -219,31 +219,38 @@ class LettersStore:
         id_col = _safe_col(s.payhub_projects_id_col)
         name_col = _safe_col(s.payhub_projects_name_col)
         # Идентификаторы провалидированы regex + закавычены; значения не подставляются.
-        sql = f"""
-        SELECT p.{id_col} AS project_id,
-               p.{name_col} AS name,
-               COALESCE(lc.cnt, 0) AS letter_count
+        projects_sql = f"""
+        SELECT p.{id_col} AS project_id, p.{name_col} AS name
           FROM {table} p
-          LEFT JOIN (
-              SELECT project_id, count(DISTINCT letter_id) AS cnt
-                FROM rag.corpus_chunks
-               WHERE project_id IS NOT NULL
-               GROUP BY project_id
-          ) lc ON lc.project_id = p.{id_col}
          WHERE p.{id_col} IS NOT NULL
          ORDER BY p.{name_col}
          LIMIT {_PROJECTS_LIMIT}
         """
         pool = await self._get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(sql)
+            rows = await conn.fetch(projects_sql)
+            # Кол-во писем — best-effort ОТДЕЛЬНЫМ запросом, НЕ джойном: count(DISTINCT
+            # letter_id) по всему корпусу ~4с, а объединённый план уводит за command_timeout.
+            # Если агрегат не уложится/упадёт — список проектов всё равно вернётся
+            # (letterCount=None → бейдж «писем» просто не показываем).
+            counts: dict[int, int] | None = None
+            try:
+                crows = await conn.fetch(
+                    "SELECT project_id, count(DISTINCT letter_id) AS cnt "
+                    "FROM rag.corpus_chunks WHERE project_id IS NOT NULL GROUP BY project_id"
+                )
+                counts = {int(r["project_id"]): int(r["cnt"]) for r in crows}
+            except Exception as e:  # noqa: BLE001 — best-effort, обогащение не критично
+                logger.warning("rag_letters: letter-count aggregate skipped: %s", e)
         out: list[dict] = []
         for r in rows:
             name = r["name"]
+            pid = int(r["project_id"])
             out.append({
-                "projectId": int(r["project_id"]),
-                "name": str(name) if name is not None else f"#{r['project_id']}",
-                "letterCount": int(r["letter_count"]) if r["letter_count"] is not None else 0,
+                "projectId": pid,
+                "name": str(name) if name is not None else f"#{pid}",
+                # агрегат удался: есть письма → cnt, нет → 0; агрегат пропущен → None
+                "letterCount": (counts.get(pid, 0) if counts is not None else None),
             })
         return out
 
