@@ -29,6 +29,7 @@ from ..services.meeting_room import (
     VALID_DEVICE_ROLES,
 )
 from ..services.access import user_can_access_meeting, can_record_meeting
+from ..services.device_metadata import device_label_from_user_agent
 
 router = APIRouter()
 
@@ -53,7 +54,10 @@ async def serve_meeting_connection(
         except Exception:
             pass
 
-    conn = MeetingConnection(meeting_id, user.id, device_role, send_json, can_record=can_record)
+    # Метаданные устройства из User-Agent (эфемерно, для шапки участников; сырой UA не храним)
+    device_label = device_label_from_user_agent(websocket.headers.get("user-agent"))
+    conn = MeetingConnection(meeting_id, user.id, device_role, send_json,
+                             can_record=can_record, device_label=device_label)
     await room.add_connection(conn)
     logger.info(
         f"[WS] user {user.id} joined meeting {meeting_id} as {device_role} "

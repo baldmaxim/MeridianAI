@@ -507,6 +507,8 @@ export interface RoomParticipant {
   connection_id: string;
   user_id: number | null;
   device_role: string;
+  // Ярлык устройства из User-Agent (напр. «iPhone · Safari»); null — не распознан.
+  device_label: string | null;
   user_label: string | null;
   can_send_audio: boolean;
   is_active_audio_source: boolean;

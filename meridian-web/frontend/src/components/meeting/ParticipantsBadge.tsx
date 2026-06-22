@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
-import { uniqueParticipantUsers, deviceRoleLabel, type ParticipantUser } from '../../lib/participants';
+import { uniqueParticipantUsers, type ParticipantUser } from '../../lib/participants';
 import { theme } from '../../styles/theme';
 
 // Бейдж участников встречи в шапке: «👥 N» (N — уникальные люди). При наведении/тапе —
@@ -53,7 +53,7 @@ export function ParticipantsBadge() {
 }
 
 function UserRow({ user }: { user: ParticipantUser }) {
-  const devices = user.roles.map(deviceRoleLabel).join(', ');
+  const devices = user.deviceLabels.join(', ');
   return (
     <div style={styles.row}>
       <div style={styles.rowMain}>

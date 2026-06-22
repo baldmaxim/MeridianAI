@@ -71,12 +71,15 @@ class MeetingConnection:
     """Одно WebSocket-соединение устройства/пользователя к встрече."""
 
     def __init__(self, meeting_id: int, user_id: int, device_role: str, send_json,
-                 can_record: bool = False):
+                 can_record: bool = False, device_label: str | None = None):
         self.connection_id: str = uuid.uuid4().hex[:16]
         self.meeting_id: int = meeting_id
         self.user_id: int = user_id
         self.device_role: str = device_role
         self.can_record: bool = can_record
+        # Распарсенный ярлык устройства (напр. «iPhone · Safari») из User-Agent. Эфемерно,
+        # в БД/логи не пишем — только для шапки участников. None, если UA нет/не распознан.
+        self.device_label: str | None = device_label
         # Этап 3: источником аудио может быть только desktop/phone И с правом записи
         # (can_record_meeting). viewer — никогда; phone/desktop с view-доступом — нет.
         self.can_send_audio: bool = device_role in AUDIO_CAPABLE_ROLES and can_record
@@ -475,6 +478,7 @@ class MeetingRoom:
                 "connection_id": cid,
                 "user_id": conn.user_id,
                 "device_role": conn.device_role,
+                "device_label": conn.device_label,
                 "user_label": await self._user_label(conn.user_id),
                 "can_send_audio": conn.can_send_audio,
                 "is_active_audio_source": cid == self.active_audio_source,

@@ -6,6 +6,7 @@ export interface ParticipantUser {
   label: string;
   deviceCount: number;
   roles: string[];          // device_role каждого соединения
+  deviceLabels: string[];   // ярлыки устройств (UA), уникальные (напр. «iPhone · Safari»)
   isRecording: boolean;     // ведёт ли звук с какого-либо устройства
   isHelper: boolean;        // помогает ли распознаванию (shadow) с какого-либо устройства
 }
@@ -29,10 +30,12 @@ export function uniqueParticipantUsers(participants: RoomParticipant[]): Partici
   const byUser = new Map<string, ParticipantUser>();
   for (const p of participants) {
     const key = p.user_id != null ? `u:${p.user_id}` : `c:${p.connection_id}`;
+    const deviceLabel = p.device_label || deviceRoleLabel(p.device_role);
     const existing = byUser.get(key);
     if (existing) {
       existing.deviceCount += 1;
       existing.roles.push(p.device_role);
+      if (!existing.deviceLabels.includes(deviceLabel)) existing.deviceLabels.push(deviceLabel);
       existing.isRecording = existing.isRecording || p.is_active_audio_source;
       existing.isHelper = existing.isHelper || p.is_helper;
       if (existing.label === 'Гость' && p.user_label) existing.label = p.user_label;
@@ -42,6 +45,7 @@ export function uniqueParticipantUsers(participants: RoomParticipant[]): Partici
         label: p.user_label || 'Гость',
         deviceCount: 1,
         roles: [p.device_role],
+        deviceLabels: [deviceLabel],
         isRecording: p.is_active_audio_source,
         isHelper: p.is_helper,
       });
