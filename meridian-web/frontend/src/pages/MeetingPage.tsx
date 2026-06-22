@@ -319,7 +319,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     // Этап 3: если активный источник аудио — другое устройство (телефон), не стартуем
     let st = useMeetingStore.getState();
     if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-      store.setError('Источник аудио занят (идёт запись с телефона)');
+      store.setError('Источник аудио занят (идёт запись с устройства)');
       return;
     }
     // Встреча создаётся вручную при первом старте записи (не при заходе на портал).
@@ -330,7 +330,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       if (!ok) { store.setError('Не удалось подключиться к встрече'); return; }
       st = useMeetingStore.getState();
       if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-        store.setError('Источник аудио занят (идёт запись с телефона)');
+        store.setError('Источник аудио занят (идёт запись с устройства)');
         return;
       }
     }

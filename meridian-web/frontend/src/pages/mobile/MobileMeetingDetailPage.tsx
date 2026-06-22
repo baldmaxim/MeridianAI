@@ -75,9 +75,9 @@ export function MobileMeetingDetailPage({ meetingId }: Props) {
       <div style={styles.card}>
         <div style={styles.cardLabel}>LIVE</div>
         <div style={styles.liveRow}><Dot on={!!live?.desktop_connected} /> Desktop подключён</div>
-        <div style={styles.liveRow}><Dot on={!!live?.phone_connected} /> Телефон подключён</div>
+        <div style={styles.liveRow}><Dot on={!!live?.phone_connected} /> Устройство подключено</div>
         <div style={styles.liveRow}><Dot on={!!live?.phone_recording || !!(live?.active_audio_source)} color={theme.accent.red} /> Запись: {live?.active_audio_source ? 'идёт' : 'нет'}</div>
-        <div style={styles.liveSub}>Источник аудио: {live?.active_audio_source ? (live?.phone_recording ? 'телефон' : 'desktop') : 'нет'}</div>
+        <div style={styles.liveSub}>Источник аудио: {live?.active_audio_source ? (live?.phone_recording ? 'устройство' : 'desktop') : 'нет'}</div>
       </div>
 
       {/* Тема / контекст */}

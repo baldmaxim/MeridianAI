@@ -13,7 +13,7 @@ export interface ParticipantUser {
 
 const ROLE_LABELS: Record<string, string> = {
   desktop: 'компьютер',
-  phone: 'телефон',
+  phone: 'устройство',
   secondary: 'второй канал',
   observer: 'наблюдатель',
   viewer: 'просмотр',
