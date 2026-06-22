@@ -207,7 +207,10 @@ function App() {
             onBack={() => navigate(detailReturn === 'object-detail' && selectedObjectId != null
               ? paths.objectDetail(selectedObjectId)
               : paths.history)}
-            onContinue={() => navigate(paths.meeting)}
+            onContinue={() => {
+              useMeetingStore.getState().setCurrentMeetingId(selectedMeetingId!);
+              navigate(paths.meetingRoom(selectedMeetingId!));
+            }}
           />
         );
       default:
