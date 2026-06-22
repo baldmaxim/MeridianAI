@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         default=[
             "http://localhost:5173",
             "http://localhost:3000",
-            "https://meridian.fvds.ru",
+            "https://meridianai.ru",
         ],
         alias="CORS_ORIGINS",
     )
