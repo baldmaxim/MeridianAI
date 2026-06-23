@@ -18,19 +18,27 @@ export function ProjectLinkPage({ onBack }: Props) {
   const [selected, setSelected] = useState<PayhubProject | null>(null);
   const [leftQ, setLeftQ] = useState('');
   const [rightQ, setRightQ] = useState('');
-  const [loading, setLoading] = useState(true);
+  // Раздельные флаги: объекты (локальные, быстрые) не ждут проекты PayHub
+  // (внешняя БД, секунды) — иначе правая колонка висит из-за медленного запроса.
+  const [objectsLoading, setObjectsLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      listPayhubProjects().catch((e) => { setNotConfigured(true); throw e; }),
-      listObjects(),
-    ])
-      .then(([pj, objs]) => { setProjects(pj); setObjects(objs); })
-      .catch((e) => setError(apiErrorMessage(e, 'Не удалось загрузить данные')))
-      .finally(() => setLoading(false));
+    // Наши объекты — сразу по готовности, не дожидаясь PayHub.
+    listObjects()
+      .then(setObjects)
+      .catch((e) => setError(apiErrorMessage(e, 'Не удалось загрузить объекты')))
+      .finally(() => setObjectsLoading(false));
+
+    // Проекты PayHub — отдельно; их сбой даёт мягкую деградацию левой колонки,
+    // но не блокирует объекты и не роняет общий error.
+    listPayhubProjects()
+      .then(setProjects)
+      .catch(() => setNotConfigured(true))
+      .finally(() => setProjectsLoading(false));
   }, []);
 
   const projectName = useMemo(() => {
@@ -71,7 +79,15 @@ export function ProjectLinkPage({ onBack }: Props) {
   }
 
   return (
-    <div style={styles.container}>
+    <div className="plp" style={styles.container}>
+      <style>{`
+        @media (max-width: 820px) {
+          .plp { overflow-y: auto !important; }
+          .plp-cols { flex-direction: column !important; flex: none !important; }
+          .plp-col { flex: none !important; }
+          .plp-list { max-height: 50vh; }
+        }
+      `}</style>
       <div style={styles.head}>
         <button className="t-btn" style={styles.back} onClick={onBack}>← Назад</button>
         <span style={styles.title}>Связка проектов</span>
@@ -86,17 +102,17 @@ export function ProjectLinkPage({ onBack }: Props) {
         </div>
       )}
 
-      <div style={styles.cols}>
+      <div className="plp-cols" style={styles.cols}>
         {/* Левая колонка — проекты PayHub */}
-        <div style={styles.col}>
+        <div className="plp-col" style={styles.col}>
           <div style={styles.colHead}>Проекты PayHub</div>
           <input style={styles.search} placeholder="Поиск проекта…" value={leftQ} onChange={(e) => setLeftQ(e.target.value)} />
-          <div style={styles.list}>
-            {loading && <div style={styles.empty}>Загрузка…</div>}
-            {!loading && notConfigured && (
+          <div className="plp-list" style={styles.list}>
+            {projectsLoading && <div style={styles.empty}>Загрузка…</div>}
+            {!projectsLoading && notConfigured && (
               <div style={styles.empty}>Таблица проектов PayHub не настроена (PAYHUB_PROJECTS_TABLE).</div>
             )}
-            {!loading && !notConfigured && filteredProjects.length === 0 && (
+            {!projectsLoading && !notConfigured && filteredProjects.length === 0 && (
               <div style={styles.empty}>Проекты не найдены</div>
             )}
             {filteredProjects.map((p) => {
@@ -124,11 +140,12 @@ export function ProjectLinkPage({ onBack }: Props) {
         </div>
 
         {/* Правая колонка — наши объекты */}
-        <div style={styles.col}>
+        <div className="plp-col" style={styles.col}>
           <div style={styles.colHead}>Наши объекты</div>
           <input style={styles.search} placeholder="Поиск объекта или заказчика…" value={rightQ} onChange={(e) => setRightQ(e.target.value)} />
-          <div style={styles.list}>
-            {!loading && filteredObjects.length === 0 && <div style={styles.empty}>Объекты не найдены</div>}
+          <div className="plp-list" style={styles.list}>
+            {objectsLoading && <div style={styles.empty}>Загрузка…</div>}
+            {!objectsLoading && filteredObjects.length === 0 && <div style={styles.empty}>Объекты не найдены</div>}
             {filteredObjects.map((o) => {
               const linkedName = o.payhub_project_id != null
                 ? (projectName.get(o.payhub_project_id) ?? `#${o.payhub_project_id}`)
@@ -196,9 +213,9 @@ const styles: Record<string, React.CSSProperties> = {
     marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer',
     color: theme.accent.amber, fontSize: 12, fontFamily: theme.font.mono, textDecoration: 'underline',
   },
-  cols: { flex: 1, minHeight: 0, display: 'flex', gap: 16, flexWrap: 'wrap' },
+  cols: { flex: 1, minHeight: 0, display: 'flex', gap: 16, flexWrap: 'nowrap' },
   col: {
-    flex: '1 1 320px', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8,
+    flex: '1 1 320px', minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 8,
     background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`, borderRadius: 10, padding: 12,
   },
   colHead: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.amber, letterSpacing: '0.08em', textTransform: 'uppercase' },
