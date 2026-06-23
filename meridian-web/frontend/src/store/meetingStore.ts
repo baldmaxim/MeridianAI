@@ -149,6 +149,10 @@ interface MeetingState {
   setSelectedObjectName: (n: string | null) => void;
   setDraftMeetingId: (id: number | null) => void;
 
+  // Ярлык «Заказчик | Объект» в шапке на странице объекта (read-only канал из ObjectDetailPage).
+  objectHeader: { customer: string | null; object: string | null } | null;
+  setObjectHeader: (v: { customer: string | null; object: string | null } | null) => void;
+
   // MeetingRoom / multi-device (Этап 2)
   currentMeetingId: number | null;
   roomConnected: boolean;
@@ -427,6 +431,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   setSelectedCustomerName: (n) => set({ selectedCustomerName: n }),
   setSelectedObjectName: (n) => set({ selectedObjectName: n }),
   setDraftMeetingId: (id) => set({ draftMeetingId: id }),
+
+  objectHeader: null,
+  setObjectHeader: (v) => set({ objectHeader: v }),
 
   currentMeetingId: null,
   roomConnected: false,

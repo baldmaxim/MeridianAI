@@ -396,6 +396,14 @@ async def batch_delete_meetings(
     meetings = result.scalars().all()
     logger.info(f"[batch-delete] found {len(meetings)} meetings to delete (requested {len(data.ids)})")
 
+    # Закрыть живые комнаты удаляемых встреч (оповестить устройства + свернуть движок)
+    from app.services.meeting_room import room_registry
+    for m in meetings:
+        room = room_registry.get_room(m.id)
+        if room:
+            await room.terminate("deleted")
+            room_registry.remove(m.id)
+
     for m in meetings:
         await db.delete(m)
 
@@ -894,6 +902,13 @@ async def delete_meeting(
         raise HTTPException(status_code=404, detail="Meeting not found")
     if not _is_meeting_owner(meeting, user):
         raise HTTPException(status_code=403, detail="Удалять встречу может только создатель")
+
+    # Закрыть живую комнату: оповестить устройства (meeting_closed) и свернуть движок
+    from app.services.meeting_room import room_registry
+    room = room_registry.get_room(meeting_id)
+    if room:
+        await room.terminate("deleted")
+        room_registry.remove(meeting_id)
 
     logger.info(f"[delete] deleting meeting id={meeting.id} title={meeting.title!r}")
     await db.delete(meeting)

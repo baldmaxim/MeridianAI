@@ -1471,6 +1471,36 @@ class MeetingRoom:
         # снять комнату с реестра (новые подключения создадут свежую при необходимости)
         room_registry.remove(self.meeting_id)
 
+    async def terminate(self, reason: str = "deleted") -> None:
+        """Принудительно закрыть live-комнату (встреча удаляется): оповестить все
+        устройства событием meeting_closed и свернуть движок. Без _persist_segments —
+        строка встречи и её сегменты каскадно удаляются из БД."""
+        if self.closed:
+            return
+        self.closed = True
+        await self.broadcast({
+            "type": "meeting_closed", "meeting_id": self.meeting_id, "reason": reason,
+        })
+        # best-effort teardown (зеркалит remove_room_if_idle, но без сохранения)
+        if self.session.is_listening:
+            try:
+                await self.session.stop_listening()
+            except Exception:
+                pass
+        try:
+            await self.stop_multi_channel_live()
+        except Exception:
+            pass
+        try:
+            await self._clear_multi_channel_reconciliation()
+        except Exception:
+            pass
+        try:
+            from .multi_channel_batch_jobs import batch_job_registry
+            await batch_job_registry.cancel_meeting_jobs(self.meeting_id)
+        except Exception:
+            pass
+
     def _speaker_roles_payload(self) -> dict:
         """WS-пейлоад с ролями (label→side) и именами (label→display_name) спикеров."""
         return {

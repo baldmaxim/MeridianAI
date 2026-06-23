@@ -16,12 +16,15 @@ interface ConnectOpts {
   deviceRole?: 'desktop' | 'phone' | 'viewer' | 'participant';
 }
 
-export function useWebSocket() {
+export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const closedIntentionally = useRef(false);
   const connectOpts = useRef<ConnectOpts>({});
   const clockRef = useRef<ClockSyncController | null>(null);
+  // колбэк держим в ref, чтобы не пересоздавать connect/handleMessage
+  const onMeetingClosedRef = useRef(onMeetingClosed);
+  useEffect(() => { onMeetingClosedRef.current = onMeetingClosed; }, [onMeetingClosed]);
 
   const connect = useCallback((opts?: ConnectOpts) => {
     const token = localStorage.getItem('token');
@@ -319,6 +322,17 @@ export function useWebSocket() {
 
       case 'room_status':
         if (data.status === 'finalized') s.setStatus('Встреча завершена');
+        break;
+
+      case 'meeting_closed':
+        // Встреча удалена — гасим reconnect, закрываем сокет, чистим стор, на главный экран
+        closedIntentionally.current = true;
+        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+        try { wsRef.current?.close(); } catch { /* ignore */ }
+        wsRef.current = null;
+        s.reset();
+        s.setStatus('Встреча удалена');
+        onMeetingClosedRef.current?.(data.reason);
         break;
 
       case 'speaker_roles_updated': {

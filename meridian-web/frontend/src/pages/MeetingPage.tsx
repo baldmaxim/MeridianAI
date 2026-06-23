@@ -36,7 +36,7 @@ import { toPublicSpeakerSide, nextPublicSpeakerSide, type PublicSpeakerSide } fr
 import { segmentOverrideSide } from '../lib/segmentCorrections';
 import type { SpeakerSegmentCorrection } from '../types';
 import { theme } from '../styles/theme';
-import { paths } from '../lib/navigation';
+import { navigate, paths } from '../lib/navigation';
 import type { UserSettings } from '../types';
 
 const TABS = ['Переговоры', 'Контекст встречи'] as const;
@@ -80,7 +80,11 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   }, []);
 
   const [level, setLevel] = useState(0);
-  const { connect, disconnect, sendJSON, sendBinary, ws } = useWebSocket();
+  const { connect, disconnect, sendJSON, sendBinary, ws } = useWebSocket(() => {
+    // Встреча удалена на сервере — на главный экран
+    showToast('Встреча удалена', 'error');
+    navigate(paths.objects);
+  });
   // Задача 5: если WS открыт — чанк идёт в realtime STT; иначе буферизуем в IndexedDB
   // (переживает обрыв/перезагрузку) и дошлём батчем при восстановлении сети.
   const sendAudioChunk = useCallback((buf: ArrayBuffer) => {

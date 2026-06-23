@@ -259,6 +259,7 @@ function App() {
       viewAsUser={viewAsUser}
       onToggleViewAs={onToggleViewAs}
       inMeeting={currentPage === 'meeting'}
+      inObjectDetail={currentPage === 'object-detail'}
     >
       <PageTransition
         routeKey={`${currentPage}:${selectedObjectId ?? ''}:${selectedMeetingId ?? ''}`}

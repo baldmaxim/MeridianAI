@@ -12,7 +12,8 @@ interface Props {
 }
 
 export function RecorderPage({ meetingId }: Props) {
-  const { connect, disconnect, sendJSON, sendBinary } = useWebSocket();
+  const [closed, setClosed] = useState(false);
+  const { connect, disconnect, sendJSON, sendBinary } = useWebSocket(() => setClosed(true));
   const [level, setLevel] = useState(0);
   const [micOn, setMicOn] = useState(false);
   const [meeting, setMeeting] = useState<MobileMeetingDetail | null>(null);
@@ -106,6 +107,18 @@ export function RecorderPage({ meetingId }: Props) {
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
   const ss = String(seconds % 60).padStart(2, '0');
   const lastLines = messages.slice(-5);
+
+  if (closed) {
+    return (
+      <div style={styles.root}>
+        <div style={{ ...styles.body, justifyContent: 'center', textAlign: 'center' }}>
+          <div style={styles.title}>Встреча удалена</div>
+          <div style={styles.permNote}>Эта встреча была удалена. Запись недоступна.</div>
+          <button style={styles.btnStart} onClick={() => navigate('/mobile/meetings')}>К списку встреч</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.root}>

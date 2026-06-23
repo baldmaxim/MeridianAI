@@ -5,6 +5,9 @@ import { listMeetings, deleteMeeting } from '../api/history';
 import { paths, navTo } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
 import { meetingDisplayName } from '../lib/meetingName';
+import { formatMoscowDateTime } from '../lib/datetime';
+import { FIN_LABELS, finBadgeStyle, formatDuration } from '../lib/meetingMeta';
+import { useMeetingStore } from '../store/meetingStore';
 import { Dropdown } from '../components/common/Dropdown';
 import { Modal } from '../components/common/Modal';
 import type { ProjectObject, MeetingListItem } from '../types';
@@ -17,18 +20,14 @@ interface Props {
   onNewMeeting: (obj: ProjectObject) => void;
 }
 
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' +
-    d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-}
-
 export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMeeting, onNewMeeting }: Props) {
+  const setObjectHeader = useMeetingStore((s) => s.setObjectHeader);
   const [object, setObject] = useState<ProjectObject | null>(null);
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<MeetingListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -38,15 +37,23 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
     try {
       const [obj, ms] = await Promise.all([getObject(objectId), listMeetings({ object_id: objectId, include_active: true })]);
       setObject(obj);
+      setObjectHeader({ customer: obj.customer_name, object: obj.name });
       setMeetings(ms);
     } catch (e) {
       if (!silent) setError(apiErrorMessage(e, 'Не удалось загрузить объект'));
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [objectId]);
+  }, [objectId, setObjectHeader]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Шапка показывает «Заказчик | Объект» только пока открыта эта страница;
+  // при смене объекта/уходе — чистим, чтобы не мигали данные прошлого объекта.
+  useEffect(() => {
+    setObjectHeader(null);
+    return () => setObjectHeader(null);
+  }, [objectId, setObjectHeader]);
 
   // Пока есть активная встреча — тихо обновляем список, чтобы статус «активна»/REC были live.
   const hasActive = meetings.some((m) => m.status === 'active');
@@ -83,7 +90,32 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
         <button onClick={onBack} style={styles.backBtn} className="od-backBtn t-btn" aria-label="К объектам" title="К объектам">
           <span>&larr;</span><span className="od-btn-label"> К объектам</span>
         </button>
-        <span style={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
+        <div style={styles.titleWrap}>
+          <span style={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
+          {object && (object.address || object.description) && (
+            <div style={styles.infoWrap}>
+              <button
+                type="button"
+                className="t-btn"
+                style={styles.infoBtn}
+                onClick={() => setInfoOpen((v) => !v)}
+                aria-label="Информация об объекте"
+                title="Информация об объекте"
+              >ⓘ инфо</button>
+              <Dropdown open={infoOpen} onClose={() => setInfoOpen(false)} origin="top-left" style={styles.infoMenu}>
+                {object.customer_name && (
+                  <div style={styles.infoRow}><span style={styles.infoLabel}>Заказчик</span><span style={styles.infoVal}>{object.customer_name}</span></div>
+                )}
+                {object.address && (
+                  <div style={styles.infoRow}><span style={styles.infoLabel}>Адрес</span><span style={styles.infoVal}>{object.address}</span></div>
+                )}
+                {object.description && (
+                  <div style={styles.infoRow}><span style={styles.infoLabel}>Описание</span><span style={styles.infoVal}>{object.description}</span></div>
+                )}
+              </Dropdown>
+            </div>
+          )}
+        </div>
         {object && (
           <button style={styles.newBtn} className="od-newBtn t-btn t-btn-amber" onClick={() => onNewMeeting(object)} aria-label="Новая встреча" title="Новая встреча">
             <span>+</span><span className="od-btn-label"> Новая встреча</span>
@@ -103,14 +135,6 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
       {error && <div style={styles.error}>{error}</div>}
 
       {object && (
-        <div style={styles.infoCard}>
-          <div style={styles.infoRow}><span style={styles.infoLabel}>Заказчик</span><span style={styles.infoVal}>{object.customer_name || '—'}</span></div>
-          {object.address && <div style={styles.infoRow}><span style={styles.infoLabel}>Адрес</span><span style={styles.infoVal}>{object.address}</span></div>}
-          {object.description && <div style={styles.infoRow}><span style={styles.infoLabel}>Описание</span><span style={styles.infoVal}>{object.description}</span></div>}
-        </div>
-      )}
-
-      {object && (
         <div style={styles.sectionTitle}>Встречи ({meetings.length})</div>
       )}
 
@@ -123,6 +147,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
           const isActive = m.status === 'active';
           const openRow = () => (isActive ? onOpenLiveMeeting(m.id) : onOpenMeeting(m.id));
           const href = isActive ? paths.meetingRoom(m.id) : paths.meetingDetail(m.id, 'object', objectId);
+          const dur = formatDuration(m.recorded_seconds);
           return (
             <div
               key={m.id}
@@ -134,7 +159,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
             >
               <div style={styles.cardTop}>
                 <div style={styles.cardTitle}>{meetingDisplayName(m)}</div>
-                <div style={styles.cardDate}>{fmtDate(m.started_at)}</div>
+                <div style={styles.cardDate}>{formatMoscowDateTime(m.started_at)}</div>
               </div>
               {(m.micro_summary || m.meeting_topic) && (
                 <div style={styles.cardSummary}>{m.micro_summary || m.meeting_topic}</div>
@@ -152,7 +177,14 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                   ) : (
                     m.status && <span style={styles.badge}>{m.status}</span>
                   )}
+                  {m.finalization_status && m.finalization_status !== 'not_started' && (
+                    <span style={finBadgeStyle(m.finalization_status)}>{FIN_LABELS[m.finalization_status] || m.finalization_status}</span>
+                  )}
+                  {dur !== '--' && <span style={styles.badge}>{dur}</span>}
                   {m.suggestion_count > 0 && <span style={styles.badge}>{m.suggestion_count} подсказок</span>}
+                  {m.tags && m.tags.length > 0 && m.tags.map((t) => (
+                    <span key={t} style={styles.tagBadge}>#{t}</span>
+                  ))}
                 </div>
                 <div style={styles.actions}>
                   {isActive && (
@@ -221,19 +253,28 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
     fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em', flexShrink: 0,
   },
+  titleWrap: { display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
   topTitle: {
     fontFamily: theme.font.body, fontSize: 15, fontWeight: 700,
-    letterSpacing: '0.04em', color: theme.text.primary, flex: 1,
+    letterSpacing: '0.04em', color: theme.text.primary, flex: '0 1 auto', minWidth: 0,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  infoWrap: { position: 'relative' as const, flexShrink: 0 },
+  infoBtn: {
+    padding: '4px 10px', background: 'transparent', border: `1px solid ${theme.border.default}`,
+    borderRadius: 6, color: theme.text.secondary, cursor: 'pointer',
+    fontFamily: theme.font.mono, fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' as const,
+  },
+  infoMenu: {
+    position: 'absolute' as const, top: 32, left: 0, zIndex: 60, minWidth: 240, maxWidth: 360,
+    background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 8,
+    padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+    display: 'flex', flexDirection: 'column', gap: 10,
   },
   newBtn: {
     padding: '8px 18px', background: theme.accent.amber, border: 'none', borderRadius: 8,
     color: '#080A0F', cursor: 'pointer', fontSize: 13, fontWeight: 600,
     fontFamily: theme.font.body, whiteSpace: 'nowrap',
-  },
-  infoCard: {
-    background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12,
-    padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
   },
   infoRow: { display: 'flex', flexDirection: 'column', gap: 2 },
   infoLabel: {
@@ -270,6 +311,10 @@ const styles: Record<string, React.CSSProperties> = {
   badge: {
     padding: '2px 8px', background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`,
     borderRadius: 4, fontFamily: theme.font.mono, fontSize: 9, color: theme.text.muted, textTransform: 'uppercase' as const,
+  },
+  tagBadge: {
+    padding: '2px 8px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
+    borderRadius: 4, fontFamily: theme.font.mono, fontSize: 9, color: theme.accent.amber,
   },
   activeBadge: {
     display: 'flex', alignItems: 'center', gap: 5, padding: '2px 9px',

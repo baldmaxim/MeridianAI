@@ -26,6 +26,7 @@ interface Props {
   viewAsUser?: boolean;
   onToggleViewAs?: () => void;
   inMeeting?: boolean;
+  inObjectDetail?: boolean;
 }
 
 /* Inline SVG compass mark from branding/meridian-logos.html */
@@ -76,11 +77,14 @@ function SessionTimer() {
   );
 }
 
-export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowLetters, showLetters, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting }: Props) {
+export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowLetters, showLetters, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting, inObjectDetail }: Props) {
   // Meeting-meta (название встречи, таймер, бейдж роли) показываем только на
   // странице встречи — вне неё «зависший» ярлык роли/имя встречи не нужен.
   const activeRoleName = useMeetingStore((s) => (inMeeting ? s.activeRoleName : null));
   const meetingName = useMeetingStore((s) => (inMeeting ? s.meetingName : ''));
+  // Ярлык «Заказчик | Объект» — только на странице объекта.
+  const objectHeader = useMeetingStore((s) => (inObjectDetail ? s.objectHeader : null));
+  const showObjectTag = !!objectHeader && !!(objectHeader.customer || objectHeader.object);
   const [menuOpen, setMenuOpen] = useState(false);
   const menu = useOpenClose(menuOpen, { closeVar: '--dropdown-close-dur', fallbackMs: 150 });
 
@@ -116,6 +120,22 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
           <>
             <span className="header-meeting-sep" style={styles.meetingSep} aria-hidden="true" />
             <span className="header-meeting-name" style={styles.meetingName}>{meetingName}</span>
+          </>
+        )}
+        {showObjectTag && (
+          <>
+            <span className="header-object-sep" style={styles.meetingSep} aria-hidden="true" />
+            <span className="header-object-tag" style={styles.objectTag}>
+              {objectHeader!.customer && (
+                <span style={styles.objectTagCustomer}>{objectHeader!.customer}</span>
+              )}
+              {objectHeader!.customer && objectHeader!.object && (
+                <span style={styles.objectTagSep} aria-hidden="true">|</span>
+              )}
+              {objectHeader!.object && (
+                <span style={styles.objectTagObject}>{objectHeader!.object}</span>
+              )}
+            </span>
           </>
         )}
         {inMeeting && (
@@ -186,8 +206,16 @@ export function Header({ userName, onLogout, onShowBatch, showBatch, onShowKnowl
           </button>
         </div>
       )}
-      {(activeRoleName || meetingName) && (
+      {(activeRoleName || meetingName || showObjectTag) && (
         <div className="mobile-role-strip" style={styles.mobileRoleStrip}>
+          {showObjectTag && (
+            <>
+              <span style={styles.mobileRoleDot} />
+              <span style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                {[objectHeader!.customer, objectHeader!.object].filter(Boolean).join(' | ')}
+              </span>
+            </>
+          )}
           {meetingName && (
             <>
               <span style={styles.mobileRoleDot} />
@@ -262,6 +290,41 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden' as const,
     textOverflow: 'ellipsis' as const,
     whiteSpace: 'nowrap' as const,
+  },
+  objectTag: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 8,
+    minWidth: 0,
+    flex: '0 1 auto',
+    overflow: 'hidden',
+  },
+  objectTagCustomer: {
+    fontFamily: theme.font.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: theme.text.secondary,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    maxWidth: 220,
+    flexShrink: 0,
+  },
+  objectTagSep: {
+    color: theme.text.muted,
+    fontSize: 13,
+    flexShrink: 0,
+  },
+  objectTagObject: {
+    fontFamily: theme.font.body,
+    fontSize: 13,
+    fontWeight: 700,
+    color: theme.accent.amber,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    minWidth: 0,
+    flexShrink: 1,
   },
   sessionGroup: {
     display: 'flex',

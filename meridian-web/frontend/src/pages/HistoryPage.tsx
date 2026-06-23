@@ -1,28 +1,13 @@
 import { useState } from 'react';
 import { theme } from '../styles/theme';
-import type { FinalizationStatus } from '../types';
 import { Select } from '../components/common';
 import {
   useMeetingsList, useFinalizeMeeting, useRetryFinalization, useBatchDeleteMeetings,
 } from '../hooks/queries/meetings';
 import { useCustomers, useObjects } from '../hooks/queries/directory';
 import { meetingDisplayName } from '../lib/meetingName';
+import { FIN_LABELS, finBadgeStyle, formatDuration } from '../lib/meetingMeta';
 import { paths, navTo } from '../lib/navigation';
-
-const FIN_LABELS: Record<string, string> = {
-  queued: 'сохраняется', running: 'протокол…', completed: 'протокол готов',
-  partial: 'протокол частично', error: 'ошибка протокола',
-};
-
-function finBadgeStyle(s: FinalizationStatus): React.CSSProperties {
-  const color = s === 'completed' ? '#2EE59D' : s === 'error' ? '#FF4B6E'
-    : s === 'partial' ? '#F5A623' : '#5B9CF6';
-  return {
-    padding: '2px 8px', background: 'transparent', border: `1px solid ${color}`,
-    borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-    color, letterSpacing: '0.04em',
-  };
-}
 
 interface Props {
   onBack: () => void;
@@ -43,17 +28,6 @@ function formatDate(iso: string): string {
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-}
-
-// Длительность = суммарное время записи (диктофон), не время открытой сессии.
-function formatDuration(recordedSeconds: number | null | undefined): string {
-  if (!recordedSeconds || recordedSeconds <= 0) return '--';
-  const min = Math.floor(recordedSeconds / 60);
-  if (min < 1) return `${recordedSeconds} сек`;
-  if (min < 60) return `${min} мин`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}ч ${m}м`;
 }
 
 export function HistoryPage({ onBack, onSelectMeeting }: Props) {
