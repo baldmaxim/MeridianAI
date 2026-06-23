@@ -57,8 +57,11 @@ class SpeechmaticsStreamingTranscriptionService:
                 "diarization": "speaker",
                 "speaker_diarization_config": {
                     "max_speakers": self.max_speakers,
-                    "prefer_current_speaker": True,
-                    "speaker_sensitivity": 0.5,
+                    # prefer_current_speaker=true блокировал переключение между похожими
+                    # голосами → 2 спикера схлопывались в одного. Выключено.
+                    "prefer_current_speaker": False,
+                    # выше sensitivity → больше шансов развести отдельных спикеров.
+                    "speaker_sensitivity": 0.65,
                 },
                 "punctuation_overrides": {
                     "permitted_marks": ["all"],
