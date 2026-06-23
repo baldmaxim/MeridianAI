@@ -44,7 +44,9 @@ export function ControlButtons({
       <button
         className={`control-btn-main t-btn ${isListening ? 't-btn-red' : 't-btn-amber'}`}
         onClick={isListening ? onStopListening : onStartListening}
-        disabled={!isConnected}
+        /* Старт — bootstrap встречи (создаёт встречу и подключается), поэтому НЕ гейтим
+           по isConnected: иначе на новой встрече кнопка заблокирована до соединения,
+           а соединение невозможно без созданной встречи (дедлок). Стоп тоже доступен. */
         style={isListening ? styles.btnStop : styles.btnListen}
       >
         <span className="t-icon-swap" data-state={isListening ? 'b' : 'a'} aria-hidden="true">

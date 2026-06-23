@@ -84,10 +84,11 @@ export function DictaphoneView({ level, isListening, isConnected, onStart, onSto
       ) : isListening ? (
         <button style={styles.btnStop} onClick={onStop}>■ Остановить запись</button>
       ) : (
+        // Старт — bootstrap встречи (создаёт и подключается). НЕ гейтим по isConnected,
+        // иначе дедлок: нет соединения → кнопка заблокирована → встреча не создаётся.
         <button
-          style={isConnected ? styles.btnStart : styles.btnDisabled}
+          style={styles.btnStart}
           onClick={onStart}
-          disabled={!isConnected}
         >
           ● Начать запись
         </button>

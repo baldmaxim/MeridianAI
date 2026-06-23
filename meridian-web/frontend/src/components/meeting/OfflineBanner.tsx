@@ -27,7 +27,8 @@ export function OfflineBanner() {
     return () => { alive = false; clearInterval(iv); };
   }, [isConnected, meetingId]);
 
-  if (isConnected) return null;
+  // Нет встречи (черновик ещё не создан) — соединению неоткуда взяться, баннер не нужен.
+  if (isConnected || meetingId == null) return null;
 
   const mm = String(Math.floor(bufferedSec / 60)).padStart(2, '0');
   const ss = String(bufferedSec % 60).padStart(2, '0');
