@@ -19,6 +19,8 @@ import { MobileMeetingsPage } from './pages/mobile/MobileMeetingsPage';
 import { MobileMeetingDetailPage } from './pages/mobile/MobileMeetingDetailPage';
 import { usePathname, parseRoute, navigate, paths } from './lib/navigation';
 import { useMeetingStore } from './store/meetingStore';
+import { createMeeting } from './api/meetings';
+import { meetingDisplayName } from './lib/meetingName';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
@@ -117,18 +119,37 @@ function App() {
 
   const openObject = (id: number) => navigate(paths.objectDetail(id));
 
-  // Подготовить новую встречу под объект и открыть окно встречи.
-  // Строку в БД НЕ создаём здесь — это плодит пустые черновики и раздувает номера.
-  // MeetingSession создастся лениво при старте записи / прикреплении контента (MeetingPage).
-  const startNewMeeting = (obj: ProjectObject) => {
+  // «Новая встреча» — ЯВНОЕ действие: сразу создаём встречу в БД (POST), чтобы у неё был
+  // id, рабочая комната и ссылка для подключения других устройств — ещё ДО старта записи.
+  // (Открытие/reload портала по-прежнему ничего не создаёт — только этот клик.)
+  const startNewMeeting = async (obj: ProjectObject) => {
     const store = useMeetingStore.getState();
     store.newMeetingSession();
     store.setSelectedCustomerId(obj.customer_id);
     store.setSelectedObjectId(obj.id);
     store.setSelectedCustomerName(obj.customer_name);
     store.setSelectedObjectName(obj.name);
-    store.setMeetingName('');
-    navigate(paths.meeting);
+    const title = meetingDisplayName({
+      customer_name: obj.customer_name,
+      object_name: obj.name,
+      started_at: new Date().toISOString(),
+    });
+    store.setMeetingName(title);
+    try {
+      const m = await createMeeting({
+        customer_id: obj.customer_id,
+        object_id: obj.id,
+        title: title || null,
+      });
+      store.setDraftMeetingId(m.id);
+      store.setCurrentMeetingId(m.id);
+      store.setMeetingStartedAt(m.started_at);
+      navigate(paths.meetingRoom(m.id));
+    } catch {
+      // Не удалось создать — открываем черновик (запись создаст встречу как fallback).
+      store.setMeetingName(title);
+      navigate(paths.meeting);
+    }
   };
 
   const onToggleViewAs = () => {

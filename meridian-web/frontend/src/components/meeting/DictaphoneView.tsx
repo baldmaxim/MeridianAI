@@ -45,7 +45,8 @@ export function DictaphoneView({ level, isListening, isConnected, onStart, onSto
 
   let status = 'Подключение…';
   let statusColor: string = theme.text.muted;
-  if (!isConnected) { status = 'Нет соединения'; statusColor = theme.accent.red; }
+  if (currentMeetingId == null) { status = 'Готов к записи'; statusColor = theme.text.secondary; }
+  else if (!isConnected) { status = 'Нет соединения'; statusColor = theme.accent.red; }
   else if (recordingActive) { status = 'Идёт запись'; statusColor = theme.accent.green; }
   else { status = 'Подключено'; statusColor = theme.accent.green; }
 

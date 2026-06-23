@@ -22,7 +22,8 @@ function pluralMeetings(n: number): string {
 export function ObjectsPage({ onOpenObject }: Props) {
   const qc = useQueryClient();
   const objectsQuery = useObjects();
-  const meetingsQuery = useMeetingsList(); // для счётчиков встреч по объектам
+  // include_active: активные встречи тоже считаем (иначе у объекта «0 встреч», хотя они есть)
+  const meetingsQuery = useMeetingsList({ include_active: true }); // счётчики встреч по объектам
   const objects = objectsQuery.data ?? [];
   const [q, setQ] = useState('');
   const [showCreate, setShowCreate] = useState(false);
