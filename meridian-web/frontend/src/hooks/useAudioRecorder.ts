@@ -11,11 +11,17 @@ import { useRef, useCallback, useState } from 'react';
 export function useAudioRecorder(
   sendBinary: (data: ArrayBuffer) => void,
   onLevel?: (level: number) => void,
+  onInterrupt?: () => void,
 ) {
   const [isRecording, setIsRecording] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
+  const sinkRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const stoppedRef = useRef(false);
+  // onInterrupt держим в ref — чтобы инлайн-колбэк не пересоздавал start/stop.
+  const onInterruptRef = useRef(onInterrupt);
+  onInterruptRef.current = onInterrupt;
 
   const start = useCallback(async () => {
     try {
@@ -28,9 +34,27 @@ export function useAudioRecorder(
         },
       });
       streamRef.current = stream;
+      stoppedRef.current = false;
 
       const context = new AudioContext({ sampleRate: 16000 });
       contextRef.current = context;
+
+      // iOS/Android: при блокировке экрана / входящем звонке AudioContext уходит в
+      // 'interrupted'/'suspended', а mic-трек может завершиться. Сигналим наверх,
+      // чтобы UI показал «возобновить запись». Гасим во время намеренного stop().
+      // sawRunning гасит ложное 'suspended' на старте (до первого 'running').
+      let sawRunning = (context.state as string) === 'running';
+      context.onstatechange = () => {
+        if (stoppedRef.current) return;
+        const st = context.state as string;
+        if (st === 'running') { sawRunning = true; return; }
+        if (st === 'interrupted' || (st === 'suspended' && sawRunning)) {
+          onInterruptRef.current?.();
+        }
+      };
+      stream.getAudioTracks().forEach((t) => {
+        t.onended = () => { if (!stoppedRef.current) onInterruptRef.current?.(); };
+      });
 
       // Create AudioWorklet for PCM extraction
       const workletCode = `
@@ -95,12 +119,14 @@ export function useAudioRecorder(
       };
 
       source.connect(worklet);
-      // Connect to a silent destination to keep the AudioWorklet processing
-      // without playing mic audio through speakers (avoids feedback)
-      const silentGain = context.createGain();
-      silentGain.gain.value = 0;
-      worklet.connect(silentGain);
-      silentGain.connect(context.destination);
+      // НЕ подключаем граф к context.destination: на iOS любой активный output
+      // поднимает play-and-record аудиосессию, и движок выводит звук в динамик в
+      // обход «без звука» — это и есть системный звук старта (как у диктофона).
+      // MediaStreamAudioDestinationNode тянет граф (worklet.process() вызывается),
+      // но аудио уходит в выбрасываемый MediaStream, а НЕ в динамик.
+      const sink = context.createMediaStreamDestination();
+      sinkRef.current = sink;
+      worklet.connect(sink);
 
       setIsRecording(true);
     } catch (err) {
@@ -110,9 +136,19 @@ export function useAudioRecorder(
   }, [sendBinary, onLevel]);
 
   const stop = useCallback(() => {
+    stoppedRef.current = true;
+    // Снять lifecycle-обработчики ДО close()/track.stop(), иначе они дёрнут onInterrupt.
+    if (contextRef.current) contextRef.current.onstatechange = null;
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach((t) => { t.onended = null; });
+    }
     if (workletRef.current) {
       workletRef.current.disconnect();
       workletRef.current = null;
+    }
+    if (sinkRef.current) {
+      try { sinkRef.current.disconnect(); } catch { /* ignore */ }
+      sinkRef.current = null;
     }
     if (contextRef.current) {
       contextRef.current.close();

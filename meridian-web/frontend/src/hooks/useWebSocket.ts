@@ -465,6 +465,23 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
     }
   }
 
+  // Возврат вкладки из фона: таймер reconnect (setTimeout) в фоне «засыпает», поэтому
+  // при возврате в видимость немедленно переподключаемся, если сокет мёртв и закрытие
+  // не было намеренным. connectOpts.current хранит последние meetingId/role.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (closedIntentionally.current) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+        connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [connect]);
+
   useEffect(() => {
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);

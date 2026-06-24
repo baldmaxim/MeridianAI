@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { theme } from '../styles/theme';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { useMeetingStore } from '../store/meetingStore';
 import { getMobileMeeting } from '../api/mobile';
 import { navigate } from '../lib/navigation';
@@ -16,6 +17,9 @@ export function RecorderPage({ meetingId }: Props) {
   const { connect, disconnect, sendJSON, sendBinary } = useWebSocket(() => setClosed(true));
   const [level, setLevel] = useState(0);
   const [micOn, setMicOn] = useState(false);
+  const [paused, setPaused] = useState(false);
+  // Wake Lock: не даём экрану авто-гаснуть во время записи (см. useWakeLock).
+  const wakeLock = useWakeLock();
   const [meeting, setMeeting] = useState<MobileMeetingDetail | null>(null);
   const [seconds, setSeconds] = useState(0);
 
@@ -39,7 +43,10 @@ export function RecorderPage({ meetingId }: Props) {
     }
   }, [sendBinary]);
 
-  const { start: startMic, stop: stopMic } = useAudioRecorder(guardedSend, setLevel);
+  // Прерывание захвата ОС (экран заблокирован/звонок). Обработчики снимаются в stop(),
+  // поэтому колбэк прилетает только во время активной записи.
+  const onMicInterrupt = useCallback(() => setPaused(true), []);
+  const { start: startMic, stop: stopMic } = useAudioRecorder(guardedSend, setLevel, onMicInterrupt);
 
   // подключение к комнате как phone
   useEffect(() => {
@@ -57,17 +64,21 @@ export function RecorderPage({ meetingId }: Props) {
   useEffect(() => {
     if (recordPermissionDenied && micOn) {
       stopMic();
+      wakeLock.release();
       setMicOn(false);
+      setPaused(false);
     }
-  }, [recordPermissionDenied, micOn, stopMic]);
+  }, [recordPermissionDenied, micOn, stopMic, wakeLock]);
 
   // источник занят другим устройством — освобождаем микрофон
   useEffect(() => {
     if (micOn && activeAudioSource && !isActiveSource) {
       stopMic();
+      wakeLock.release();
       setMicOn(false);
+      setPaused(false);
     }
-  }, [micOn, activeAudioSource, isActiveSource, stopMic]);
+  }, [micOn, activeAudioSource, isActiveSource, stopMic, wakeLock]);
 
   // таймер записи
   useEffect(() => {
@@ -82,7 +93,9 @@ export function RecorderPage({ meetingId }: Props) {
     useMeetingStore.getState().setRecordPermissionDenied(false);
     try {
       await startMic();
+      void wakeLock.request();
       setMicOn(true);
+      setPaused(false);
       sendJSON({ type: 'start_audio' });
     } catch {
       useMeetingStore.getState().setError('Не удалось получить доступ к микрофону');
@@ -92,8 +105,25 @@ export function RecorderPage({ meetingId }: Props) {
 
   const handleStop = () => {
     stopMic();
+    wakeLock.release();
     setMicOn(false);
+    setPaused(false);
     sendJSON({ type: 'stop_audio' });
+  };
+
+  // Возобновление после прерывания ОС: пересоздаём захват (старый трек/контекст мертвы).
+  // Тап = user-gesture, который iOS требует для повторного getUserMedia.
+  const handleResume = async () => {
+    try {
+      stopMic();
+      await startMic();
+      void wakeLock.request();
+      sendJSON({ type: 'start_audio' });
+      setPaused(false);
+    } catch {
+      useMeetingStore.getState().setError('Не удалось возобновить запись');
+      setMicOn(false);
+    }
   };
 
   let status = 'Подключение…';
@@ -166,6 +196,19 @@ export function RecorderPage({ meetingId }: Props) {
           </button>
         )}
 
+        {paused && (
+          <div style={styles.pausedBanner} role="alert">
+            <span>Запись приостановлена — экран был заблокирован.</span>
+            <button style={styles.resumeBtn} onClick={handleResume}>Продолжить запись</button>
+          </div>
+        )}
+
+        {isActiveSource && recording && !paused && (
+          <div style={styles.recHint}>
+            Не блокируйте экран. На iPhone запись в фоне при выключенном экране невозможна.
+          </div>
+        )}
+
         {lastError && <div style={styles.err}>{lastError}</div>}
 
         {/* Последние строки транскрипции */}
@@ -200,6 +243,9 @@ const styles: Record<string, React.CSSProperties> = {
   btnStop: { width: '100%', maxWidth: 320, padding: '20px', background: theme.accent.red, border: 'none', borderRadius: 16, color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
   btnDisabled: { width: '100%', maxWidth: 320, padding: '20px', background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 16, color: theme.text.muted, fontSize: 16, fontWeight: 600, cursor: 'not-allowed', fontFamily: theme.font.body },
   permNote: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted, textAlign: 'center' as const, lineHeight: 1.5, maxWidth: 320 },
+  recHint: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, textAlign: 'center' as const, lineHeight: 1.5, maxWidth: 320 },
+  pausedBanner: { width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12, border: `1px solid ${theme.accent.amber}`, background: 'rgba(245,166,35,0.12)', color: theme.text.primary, fontFamily: theme.font.mono, fontSize: 12, textAlign: 'center' as const },
+  resumeBtn: { padding: '12px 20px', borderRadius: 10, border: 'none', background: theme.accent.amber, color: '#080A0F', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
   err: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 12, textAlign: 'center' as const },
   transcript: { width: '100%', background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 },
   transcriptLabel: { fontFamily: theme.font.mono, fontSize: 10, letterSpacing: '0.12em', color: theme.accent.amber },

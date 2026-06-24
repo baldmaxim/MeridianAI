@@ -180,10 +180,10 @@ export function useSecondaryShadow(meetingId: number | null) {
       };
 
       source.connect(worklet);
-      const silent = ctx.createGain();
-      silent.gain.value = 0;
-      worklet.connect(silent);
-      silent.connect(ctx.destination);
+      // См. useAudioRecorder: тянем граф через MediaStreamAudioDestinationNode, чтобы
+      // на iOS НЕ поднимать play-and-record сессию (системный звук старта в обход «без звука»).
+      const sink = ctx.createMediaStreamDestination();
+      worklet.connect(sink);
 
       setActive(true);
     } catch {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings } from '../api/settings';
 import { createMeeting } from '../api/meetings';
@@ -92,7 +93,14 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     const mid = useMeetingStore.getState().currentMeetingId;
     if (mid != null) void offlineAudioBuffer.append(mid, buf);
   }, [sendBinary, ws]);
-  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendAudioChunk, setLevel);
+  // Wake Lock держит экран включённым, пока идёт запись (мобильный фон/блокировка).
+  const wakeLock = useWakeLock();
+  // Запись прервана ОС (экран заблокирован / звонок) — показываем «Продолжить».
+  const [recordingPaused, setRecordingPaused] = useState(false);
+  const onAudioInterrupt = useCallback(() => {
+    if (useMeetingStore.getState().isListening) setRecordingPaused(true);
+  }, []);
+  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendAudioChunk, setLevel, onAudioInterrupt);
   const store = useMeetingStore();
 
   // Задача 5: при восстановлении WS (false→true) дослать накопленный офлайн-звук
@@ -378,18 +386,36 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     }
     try {
       await startAudio();
+      void wakeLock.request();
+      setRecordingPaused(false);
       sendJSON({ type: 'start_audio' });
       store.setListening(true);
     } catch {
       store.setError('Не удалось получить доступ к микрофону');
     }
-  }, [startAudio, sendJSON, startSession, waitForConnected, store]);
+  }, [startAudio, sendJSON, startSession, waitForConnected, store, wakeLock]);
 
   const handleStopListening = useCallback(() => {
     stopAudio();
+    wakeLock.release();
+    setRecordingPaused(false);
     sendJSON({ type: 'stop_audio' });
     store.setListening(false);
-  }, [stopAudio, sendJSON, store]);
+  }, [stopAudio, sendJSON, store, wakeLock]);
+
+  // Возобновление после прерывания ОС: пересоздаём захват (старый трек/контекст мертвы).
+  // Тап по кнопке = гарантированный user-gesture, который iOS требует для getUserMedia.
+  const handleResumeListening = useCallback(async () => {
+    try {
+      stopAudio();
+      await startAudio();
+      void wakeLock.request();
+      sendJSON({ type: 'start_audio' });
+      setRecordingPaused(false);
+    } catch {
+      store.setError('Не удалось возобновить запись');
+    }
+  }, [stopAudio, startAudio, sendJSON, store, wakeLock]);
 
   // Hotkeys: Space — toggle listening, H — suggestion, S — strengthen
   useEffect(() => {
@@ -584,6 +610,25 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     </div>
   );
 
+  // Баннер записи: после прерывания ОС — кнопка «Продолжить»; иначе во время записи —
+  // подсказка «не блокируйте экран» (только мобильные, через CSS-класс). Wake Lock держит
+  // экран сам; iPhone в фоне при выключенном экране писать не может — об этом и предупреждаем.
+  const recordingBanner = recordingPaused ? (
+    <div style={styles.recoveryBanner} role="alert">
+      <span>Запись приостановлена (экран был заблокирован).</span>
+      <button style={styles.recoveryBtn} onClick={handleResumeListening}>Продолжить запись</button>
+    </div>
+  ) : store.isListening ? (
+    // display управляется классом (none на десктопе, block на мобиле) — без inline display.
+    <div className="mp-rec-hint" style={styles.recHint}>
+      <style>{`
+        .mp-rec-hint { display: none; }
+        @media (max-width: 767px) { .mp-rec-hint { display: block; } }
+      `}</style>
+      Не блокируйте экран. На iPhone запись в фоне при выключенном экране невозможна.
+    </div>
+  ) : null;
+
   // Простой режим (вид «Пользователь») — чистый диктофон поверх той же сессии.
   // Переключение режима — единым слайдером роли «Админ ⟷ Пользователь» в шапке.
   if (store.uiMode === 'simple') {
@@ -591,6 +636,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       <div style={styles.container}>
         {topBar}
         <OfflineBanner />
+        {recordingBanner}
         <HelperPanel />
         <DictaphoneView
           level={level}
@@ -608,6 +654,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     <div style={styles.container}>
       {topBar}
       <OfflineBanner />
+      {recordingBanner}
       <HelperPanel />
       {/* Tab bar + бейдж участников справа */}
       <div className="meeting-tabs" style={styles.tabs}>
@@ -1023,5 +1070,23 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid',
     backdropFilter: 'blur(12px)',
     animation: 'toastSlideIn 0.3s ease-out',
+  },
+  recHint: {
+    flexShrink: 0, padding: '8px 14px', margin: '0 12px',
+    borderRadius: 8, border: `1px solid ${theme.border.default}`,
+    background: theme.bg.elevated,
+    color: theme.text.secondary, fontFamily: theme.font.mono, fontSize: 11, lineHeight: 1.4,
+  },
+  recoveryBanner: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' as const,
+    flexShrink: 0, padding: '10px 14px', margin: '0 12px',
+    borderRadius: 8, border: `1px solid ${theme.accent.amber}`,
+    background: 'rgba(245,166,35,0.12)',
+    color: theme.text.primary, fontFamily: theme.font.mono, fontSize: 12,
+  },
+  recoveryBtn: {
+    padding: '8px 16px', borderRadius: 8, border: 'none',
+    background: theme.accent.amber, color: '#080A0F',
+    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body,
   },
 };
