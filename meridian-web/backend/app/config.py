@@ -257,6 +257,10 @@ class Settings(BaseSettings):
     multi_channel_reconciliation_refresh_ms: int = Field(default=750, alias="MULTI_CHANNEL_RECONCILIATION_REFRESH_MS")
     multi_channel_reconciliation_max_text_chars: int = Field(default=800, alias="MULTI_CHANNEL_RECONCILIATION_MAX_TEXT_CHARS")
 
+    # Дерево общения (Conversation Tree): дебаунс live-LLM-экстрактора условий
+    conversation_tree_debounce_ms: int = Field(default=35000, alias="CONVERSATION_TREE_DEBOUNCE_MS")
+    conversation_tree_max_dialog_chars: int = Field(default=6000, alias="CONVERSATION_TREE_MAX_DIALOG_CHARS")
+
     # Production cutover (Этап 9.8): РУЧНОЕ продвижение конкретной встречи с single STT на
     # авторитетный multi-channel transcript. Single STT остаётся всегда-включённым hot standby.
     # Переключения источника моделируются «эпохами транскрипции»; нормализованные final
@@ -370,6 +374,9 @@ class Settings(BaseSettings):
         self.multi_channel_reconciliation_ambiguity_delta = min(0.5, max(0.0, self.multi_channel_reconciliation_ambiguity_delta))
         self.multi_channel_reconciliation_refresh_ms = max(100, self.multi_channel_reconciliation_refresh_ms)
         self.multi_channel_reconciliation_max_text_chars = min(5000, max(100, self.multi_channel_reconciliation_max_text_chars))
+        # дерево общения: дебаунс не реже 5с (защита от спама LLM), окно диалога — разумный предел
+        self.conversation_tree_debounce_ms = max(5000, self.conversation_tree_debounce_ms)
+        self.conversation_tree_max_dialog_chars = min(20000, max(1000, self.conversation_tree_max_dialog_chars))
         return self
 
     @property

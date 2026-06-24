@@ -144,6 +144,10 @@ class MeetingRoom:
         # Conversation Tree (дерево общения)
         self._tree_enabled = True
         self._tree_version = 0
+        # live LLM-экстрактор условий: один in-flight таск + дебаунс (зеркало reconciliation)
+        self._tree_extract_task: asyncio.Task | None = None
+        self._tree_extract_pending = False
+        self._tree_dirty = False
         # Этап 9: observer-диаризация (метрики уровня звука вторых устройств)
         self.observer = ObserverDiarization(get_settings())
         # Этап 9.2: secondary audio shadow (аудио-чанки вторых устройств БЕЗ STT)
@@ -419,6 +423,8 @@ class MeetingRoom:
                     "type": "phone_recording_stopped",
                     "connection_id": connection_id,
                 })
+            # финальный прогон дерева по накопленному диалогу (после UI-статусов)
+            await self._flush_tree_extraction()
         await self.broadcast({
             "type": "device_left",
             "meeting_id": self.meeting_id,
@@ -1078,6 +1084,8 @@ class MeetingRoom:
                 "type": "phone_recording_stopped",
                 "connection_id": connection_id,
             })
+        # финальный прогон дерева по накопленному диалогу (после UI-статусов — LLM медленнее)
+        await self._flush_tree_extraction()
 
     # --- сообщения клиента (старые + новые алиасы) ---
 
@@ -1436,6 +1444,9 @@ class MeetingRoom:
             await self.session.stop_listening()
         self.active_audio_source = None
         self._reset_recording_meta()
+        # дерево общения: финальный прогон по накопленному диалогу, затем снять таск
+        await self._flush_tree_extraction()
+        await self._cancel_tree_extraction()
         # Этап 9.8: остановить promoted live multi-channel (освободить provider-сокет и
         # глобальный слот лимитера) и детерминированно закрыть открытую эпоху транскрипта
         # на границе финализации (иначе утечка слота + epoch с end=NULL навсегда).
@@ -1487,6 +1498,10 @@ class MeetingRoom:
                 await self.session.stop_listening()
             except Exception:
                 pass
+        try:
+            await self._cancel_tree_extraction()
+        except Exception:
+            pass
         try:
             await self.stop_multi_channel_live()
         except Exception:
@@ -1580,31 +1595,70 @@ class MeetingRoom:
         })
 
     async def _on_committed_for_tree(self, segment, role: str | None) -> None:
-        """Conversation Tree: upsert темы по committed-сегменту + broadcast обновления.
+        """Conversation Tree: пометить дерево «грязным» и запланировать LLM-экстракцию.
 
+        Больше НЕ делает upsert по слову (Speechmatics коммитит пословно — давало кашу).
         Fire-and-forget из SessionManager. Любая ошибка не должна ломать комнату/STT.
         """
         if not self._tree_enabled:
             return
+        self._tree_dirty = True
+        self._schedule_tree_extraction(reason="committed")
+
+    def _schedule_tree_extraction(self, *, reason: str, immediate: bool = False) -> None:
+        """Запланировать один прогон LLM-экстрактора дерева (зеркало reconciliation)."""
+        if not self._tree_enabled or self.closed:
+            return
+        if self.session.llm_client is None:  # нет ключа OpenRouter → no-op
+            return
+        if self._tree_extract_task and not self._tree_extract_task.done():
+            self._tree_extract_pending = True
+            return
+        self._tree_extract_task = asyncio.create_task(
+            self._tree_extraction_runner(reason=reason, immediate=immediate))
+
+    async def _tree_extraction_runner(self, *, reason: str, immediate: bool) -> None:
+        delay = get_settings().conversation_tree_debounce_ms / 1000.0
         try:
-            from .conversation_tree import ConversationTreeService
+            if not immediate:
+                await asyncio.sleep(delay)
+            while True:
+                self._tree_extract_pending = False
+                await self._run_tree_extraction_once()
+                if not self._tree_extract_pending:
+                    break
+                await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.debug("[room %s] tree extraction runner error", self.meeting_id)
+        finally:
+            self._tree_extract_task = None
 
-            segment_id = (getattr(segment, "segment_id", None)
-                          or f"legacy_{uuid.uuid4().hex[:12]}")
-            speaker = (getattr(segment, "speaker_label", None) or getattr(segment, "speaker_id", None)
-                       or getattr(segment, "speaker", None) or "")
-            text = getattr(segment, "text", "") or ""
-            start = getattr(segment, "start_time", 0) or 0
-            timecode = f"{int(start)//60:02d}:{int(start)%60:02d}"
-
-            async with async_session() as db:
-                topic_out = await ConversationTreeService().update_from_transcript_segment(
-                    db, self.meeting_id, segment_id=segment_id, speaker=speaker,
-                    role=role, text=text, timecode=timecode,
-                )
+    async def _run_tree_extraction_once(self) -> None:
+        if not self._tree_dirty:
+            return
+        self._tree_dirty = False
+        llm_client = self.session.llm_client
+        if llm_client is None:
+            return
+        dialog = self.session.recent_dialog_with_sides(
+            max_chars=get_settings().conversation_tree_max_dialog_chars)
+        if not dialog.strip():
+            return
+        from .conversation_tree import ConversationTreeService
+        svc = ConversationTreeService()
+        changed: list = []
+        async with async_session() as db:
+            tree = await svc.get_tree(db, self.meeting_id)  # текущее состояние для MERGE
+            changed, ok = await svc.extract_live(
+                db, self.meeting_id, dialog_text=dialog,
+                current_topics=tree.topics, llm_client=llm_client)
+            if ok and changed:
                 await db.commit()
-            if topic_out is None:
-                return
+            else:
+                await db.rollback()
+        for topic_out in (changed or []):
             self._tree_version += 1
             await self.broadcast({
                 "type": "conversation_tree_updated",
@@ -1612,8 +1666,39 @@ class MeetingRoom:
                 "topic": topic_out.model_dump(mode="json"),
                 "tree_version": self._tree_version,
             })
-        except Exception as e:
-            logger.error(f"[room {self.meeting_id}] conversation tree update failed: {e}")
+
+    async def _flush_tree_extraction(self) -> None:
+        """Немедленный финальный прогон по накопленному диалогу (на остановке записи).
+
+        Снимает in-flight debounced-таск (он мог уснуть на ~35с) и выполняет экстракцию
+        напрямую — чтобы не блокировать stop/finalize на длину дебаунса."""
+        if not (self._tree_enabled and self.session.llm_client is not None and self._tree_dirty):
+            return
+        t = self._tree_extract_task
+        if t and not t.done():
+            t.cancel()
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
+        self._tree_extract_task = None
+        self._tree_extract_pending = False
+        try:
+            await self._run_tree_extraction_once()
+        except Exception:
+            logger.debug("[room %s] tree flush error", self.meeting_id)
+
+    async def _cancel_tree_extraction(self) -> None:
+        self._tree_extract_pending = False
+        self._tree_dirty = False
+        t = self._tree_extract_task
+        if t and not t.done():
+            t.cancel()
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
+        self._tree_extract_task = None
 
     async def _persist_recorded_seconds(self, delta_seconds: int) -> None:
         """Инкремент recorded_seconds встречи — только время активной записи (диктофон)."""

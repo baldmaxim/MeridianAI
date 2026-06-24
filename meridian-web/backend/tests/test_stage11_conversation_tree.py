@@ -248,3 +248,157 @@ async def test_feature_disabled_skips(db):
     cnt = (await db.execute(select(func.count(MeetingConversationTopic.id)).where(
         MeetingConversationTopic.meeting_id == m.id))).scalar()
     assert cnt == 0
+
+
+# ---------- LLM-экстрактор условий (мок LLM) ----------
+
+class _MockLLM:
+    """Мок LLM-клиента: возвращает заранее заданный ответ get_suggestion_async."""
+    def __init__(self, payload):
+        self._payload = payload
+        self.calls = 0
+
+    async def get_suggestion_async(self, prompt, max_tokens=None):
+        self.calls += 1
+        return self._payload
+
+
+# ---------- 13: extract_live создаёт осмысленную тему со связными цитатами ----------
+
+async def test_extract_live_creates_topics(db):
+    owner = await _mk_user(db, "ct13@test.local")
+    m = await _mk_meeting(db, owner)
+    payload = json.dumps([{
+        "key": "price", "title": "Цена и стоимость",
+        "our_position": "Предлагаем скидку 5%.",
+        "opponent_position": "Просят снизить цену на 10%.",
+        "status": "disputed",
+        "quotes": [
+            {"side": "our", "speaker": "SM_S1", "text": "Можем дать скидку пять процентов."},
+            {"side": "opponent", "speaker": "SM_S2", "text": "Нам нужна скидка десять процентов."},
+        ],
+    }], ensure_ascii=False)
+    changed, ok = await _svc().extract_live(
+        db, m.id, dialog_text="[МЫ] SM_S1: ...\n[НЕ МЫ] SM_S2: ...",
+        current_topics=[], llm_client=_MockLLM(payload))
+    assert ok is True and len(changed) == 1
+    t = changed[0]
+    assert t.normalized_key == "price"
+    assert t.status == "disputed"
+    assert t.our_summary and t.opponent_summary
+    # цитаты — связные фразы (есть пробелы), не отдельные слова; без привязки к сегменту
+    assert len(t.our_refs) == 1 and " " in t.our_refs[0].text and t.our_refs[0].segment_id == ""
+    assert len(t.opponent_refs) == 1
+
+
+# ---------- 14: тот же key → merge без дубля ----------
+
+async def test_extract_live_merges_existing(db):
+    owner = await _mk_user(db, "ct14@test.local")
+    m = await _mk_meeting(db, owner)
+    svc = _svc()
+    p1 = json.dumps([{"key": "deadlines", "title": "Сроки", "our_position": "К 1 июля.",
+                      "opponent_position": None, "status": "new", "quotes": []}], ensure_ascii=False)
+    await svc.extract_live(db, m.id, dialog_text="x", current_topics=[], llm_client=_MockLLM(p1))
+    tree = await svc.get_tree(db, m.id)
+    p2 = json.dumps([{"key": "deadlines", "title": "Сроки сдачи",
+                      "our_position": "К 1 июля.", "opponent_position": "Просят к 15 июня.",
+                      "status": "updated", "quotes": []}], ensure_ascii=False)
+    changed, ok = await svc.extract_live(db, m.id, dialog_text="y",
+                                         current_topics=tree.topics, llm_client=_MockLLM(p2))
+    cnt = (await db.execute(select(func.count(MeetingConversationTopic.id)).where(
+        MeetingConversationTopic.meeting_id == m.id))).scalar()
+    assert cnt == 1
+    assert changed[0].title == "Сроки сдачи" and changed[0].opponent_summary
+    assert changed[0].status == "updated"
+
+
+# ---------- 15: нет LLM-клиента → no-op ----------
+
+async def test_extract_live_no_llm(db):
+    owner = await _mk_user(db, "ct15@test.local")
+    m = await _mk_meeting(db, owner)
+    changed, ok = await _svc().extract_live(db, m.id, dialog_text="что-то",
+                                            current_topics=[], llm_client=None)
+    assert changed == [] and ok is False
+    cnt = (await db.execute(select(func.count(MeetingConversationTopic.id)).where(
+        MeetingConversationTopic.meeting_id == m.id))).scalar()
+    assert cnt == 0
+
+
+# ---------- 16: битый JSON → no-op без исключения ----------
+
+async def test_extract_live_bad_json(db):
+    owner = await _mk_user(db, "ct16@test.local")
+    m = await _mk_meeting(db, owner)
+    changed, ok = await _svc().extract_live(
+        db, m.id, dialog_text="реплика", current_topics=[],
+        llm_client=_MockLLM("извините, не json"))
+    assert changed == [] and ok is False
+    cnt = (await db.execute(select(func.count(MeetingConversationTopic.id)).where(
+        MeetingConversationTopic.meeting_id == m.id))).scalar()
+    assert cnt == 0
+
+
+# ---------- 17: липкий статус не перетирается LLM-апдейтом ----------
+
+async def test_extract_live_sticky_status(db):
+    owner = await _mk_user(db, "ct17@test.local")
+    m = await _mk_meeting(db, owner)
+    svc = _svc()
+    p1 = json.dumps([{"key": "price", "title": "Цена", "our_position": "ок",
+                      "opponent_position": None, "status": "new", "quotes": []}], ensure_ascii=False)
+    changed, _ = await svc.extract_live(db, m.id, dialog_text="x", current_topics=[],
+                                        llm_client=_MockLLM(p1))
+    await svc.manual_update_topic(db, m.id, changed[0].id, ConversationTopicUpdate(status="resolved"))
+    tree = await svc.get_tree(db, m.id)
+    p2 = json.dumps([{"key": "price", "title": "Цена", "our_position": "ок2",
+                      "opponent_position": None, "status": "updated", "quotes": []}], ensure_ascii=False)
+    changed2, _ = await svc.extract_live(db, m.id, dialog_text="y",
+                                         current_topics=tree.topics, llm_client=_MockLLM(p2))
+    assert changed2[0].status == "resolved"  # липкий статус сохранён
+
+
+# ---------- 18: rebuild_with_llm строит связные темы из транскрипта ----------
+
+async def test_rebuild_with_llm(db):
+    owner = await _mk_user(db, "ct18@test.local")
+    m = await _mk_meeting(db, owner)
+    db.add(TranscriptSegmentRecord(
+        session_id=m.id, segment_id="s1", text="Нам нужна скидка на цену",
+        start_time=10.0, end_time=12.0, wall_clock=datetime(2026, 1, 1, 10, 1),
+        speaker_id="spk_0", speaker_label="Пётр", origin="live_committed", word_count=5))
+    await db.flush()
+    payload = json.dumps([{"key": "price", "title": "Цена и стоимость",
+                           "our_position": None, "opponent_position": "Просят скидку.",
+                           "status": "new",
+                           "quotes": [{"side": "opponent", "speaker": "Пётр",
+                                       "text": "Нам нужна скидка на цену."}]}], ensure_ascii=False)
+    tree = await _svc().rebuild_with_llm(db, m.id, _MockLLM(payload),
+                                         speaker_roles={"Пётр": "opponent"})
+    assert len(tree.topics) == 1
+    assert tree.topics[0].normalized_key == "price" and tree.topics[0].opponent_summary
+
+
+# ---------- 19: recent_dialog_with_sides — связный диалог с тегами сторон ----------
+
+async def test_recent_dialog_with_sides():
+    from app.services.session_manager import SessionManager
+
+    class _Turn:
+        def __init__(self, speaker, text):
+            self.speaker = speaker
+            self.text = text
+
+    class _TA:
+        turns = [_Turn("SM_S1", "Можем дать скидку."),
+                 _Turn("SM_S2", "Нужна большая скидка."),
+                 _Turn("SM_S3", "Реплика без стороны.")]
+
+    sm = SessionManager(0)
+    sm._turn_assembler = _TA()
+    sm.speaker_roles = {"SM_S1": "self", "SM_S2": "opponent"}
+    dialog = sm.recent_dialog_with_sides()
+    assert "[МЫ] SM_S1: Можем дать скидку." in dialog
+    assert "[НЕ МЫ] SM_S2: Нужна большая скидка." in dialog
+    assert "SM_S3: Реплика без стороны." in dialog  # без тега стороны

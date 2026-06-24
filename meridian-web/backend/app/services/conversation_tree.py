@@ -8,16 +8,18 @@
 
 import json
 import logging
+import re
 from datetime import datetime
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.meeting_conversation import MeetingConversationTopic, STICKY_STATUSES
+from ..models.meeting_conversation import MeetingConversationTopic, STICKY_STATUSES, TOPIC_STATUSES
 from ..models.meeting import TranscriptSegmentRecord
 from ..schemas.conversation_tree import (
     ConversationTopicOut, ConversationTopicRef, ConversationTreeOut, ConversationTopicUpdate,
 )
+from .speaker_roles import to_public_side
 
 logger = logging.getLogger("meridian.conversation_tree")
 
@@ -47,6 +49,48 @@ OTHER_TITLE = "Прочее"
 def _truncate(text: str, n: int) -> str:
     text = (text or "").strip()
     return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+def _slugify_key(raw: str) -> str:
+    """Стабильный normalized_key (≤80 симв) из key/title LLM. Юникод (кириллица) допустим."""
+    s = (raw or "").strip().lower()
+    s = re.sub(r"[^\w\-]+", "_", s, flags=re.UNICODE)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return (s or "topic")[:80]
+
+
+def _side_tag(side: str | None) -> str:
+    """Префикс стороны для строки стенограммы: [МЫ] / [НЕ МЫ] / ''."""
+    pub = to_public_side(side)
+    if pub == "self":
+        return "[МЫ] "
+    if pub == "opponent":
+        return "[НЕ МЫ] "
+    return ""
+
+
+def build_tree_extraction_prompt(dialog_text: str, current_topics_json: str) -> str:
+    """Промпт LLM-экстрактора условий (RU, строительная сфера)."""
+    return (
+        "Ты — ассистент переговоров в строительной сфере. По стенограмме встречи выдели и обнови\n"
+        "список ОБСУЖДАЕМЫХ УСЛОВИЙ (тем). Для каждой темы укажи понятную позицию каждой стороны\n"
+        "деловым предложением и 1–2 показательные цитаты (НЕ отдельные слова, а законченные фразы).\n\n"
+        "Стороны: «МЫ» — наша сторона, «НЕ МЫ» — оппонент/заказчик.\n\n"
+        "Уже выделенные темы (обнови их, не дублируй; сопоставляй по \"key\" или близкому смыслу):\n"
+        f"{current_topics_json}\n\n"
+        "Свежая стенограмма (каждая строка: [СТОРОНА] спикер: реплика):\n"
+        f"{dialog_text}\n\n"
+        "Правила:\n"
+        "- НЕ выдумывай факты: только то, что реально сказано.\n"
+        "- Объединяй однотемные реплики в ОДНУ тему; не плоди тему на каждое слово.\n"
+        "- our_position / opponent_position — короткое деловое предложение (или null, если сторона не высказалась).\n"
+        "- quotes — связные фразы из стенограммы, с указанием стороны (\"our\" или \"opponent\").\n"
+        "- status: new | updated | resolved | disputed | needs_follow_up.\n"
+        "- Если новых тем/изменений нет — верни пустой массив [].\n\n"
+        "Верни ТОЛЬКО JSON-массив объектов строго такой формы:\n"
+        "[{\"key\":\"price\",\"title\":\"Цена и стоимость\",\"our_position\":\"...\",\"opponent_position\":\"...\",\n"
+        "  \"status\":\"disputed\",\"quotes\":[{\"side\":\"opponent\",\"speaker\":\"SM_S2\",\"text\":\"...\"}]}]"
+    )
 
 
 def _roll_summary(existing: str | None, new_text: str) -> str:
@@ -188,6 +232,118 @@ class ConversationTreeService:
         )
         return self.topic_to_out(topic)
 
+    # ---------- LLM-экстрактор условий (live + offline) ----------
+
+    async def extract_live(
+        self, db: AsyncSession, meeting_id: int, *, dialog_text: str,
+        current_topics: list[ConversationTopicOut], llm_client,
+    ) -> tuple[list[ConversationTopicOut], bool]:
+        """Главный LLM-проход: по связному диалогу выделить/обновить осмысленные темы-условия.
+
+        Возвращает (изменённые_темы, ok). ok=False — нет ключа/ошибка/пустой ответ (no-op,
+        вызывающий делает rollback). В логи НИКОГДА не пишем текст реплик/ответа (corp-no-secrets).
+        """
+        if llm_client is None or not (dialog_text or "").strip():
+            return [], False
+        compact = [{
+            "id": t.id, "key": t.normalized_key, "title": t.title,
+            "our": _truncate(t.our_summary or "", 200),
+            "opponent": _truncate(t.opponent_summary or "", 200),
+        } for t in current_topics]
+        prompt = build_tree_extraction_prompt(dialog_text, json.dumps(compact, ensure_ascii=False))
+        try:
+            raw = await llm_client.get_suggestion_async(prompt, max_tokens=1400)
+        except Exception as e:
+            logger.warning("extract_live: meeting %s LLM error: %s", meeting_id, str(e)[:120])
+            return [], False
+        items = self._parse_json_array(raw)
+        if not items:
+            return [], False
+
+        by_key = {t.normalized_key for t in current_topics}
+        by_title = {(t.title or "").strip().lower(): t.normalized_key for t in current_topics}
+        changed: list[ConversationTopicOut] = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            title = str(it.get("title") or "").strip()
+            if not title:
+                continue
+            raw_key = it.get("key")
+            key = _slugify_key(str(raw_key)) if raw_key else _slugify_key(title)
+            if key not in by_key:
+                # тот же заголовок под другим ключом → переиспользовать существующий ключ (без дублей)
+                key = by_title.get(title.lower(), key)
+            quotes = it.get("quotes") if isinstance(it.get("quotes"), list) else []
+            topic_out = await self._apply_llm_topic(
+                db, meeting_id, key=key, title=title,
+                our_position=it.get("our_position"), opponent_position=it.get("opponent_position"),
+                status=str(it.get("status") or "").strip().lower(), quotes=quotes,
+            )
+            if topic_out is not None:
+                changed.append(topic_out)
+                by_key.add(topic_out.normalized_key)
+                by_title[(topic_out.title or "").strip().lower()] = topic_out.normalized_key
+        return changed, True
+
+    async def _apply_llm_topic(
+        self, db: AsyncSession, meeting_id: int, *, key: str, title: str,
+        our_position, opponent_position, status: str, quotes: list,
+    ) -> ConversationTopicOut | None:
+        """Upsert темы по (meeting_id, normalized_key): позиции сторон + связные цитаты (НЕ пословно)."""
+        topic = (await db.execute(
+            select(MeetingConversationTopic).where(
+                MeetingConversationTopic.meeting_id == meeting_id,
+                MeetingConversationTopic.normalized_key == key,
+            )
+        )).scalar_one_or_none()
+        now = datetime.utcnow()
+        is_new = topic is None
+        if is_new:
+            topic = MeetingConversationTopic(
+                meeting_id=meeting_id, title=_truncate(title, 255), normalized_key=key,
+                status="new", last_updated_at=now, created_at=now, updated_at=now,
+            )
+            db.add(topic)
+        else:
+            topic.title = _truncate(title, 255)
+
+        our_pos = our_position.strip() if isinstance(our_position, str) else ""
+        opp_pos = opponent_position.strip() if isinstance(opponent_position, str) else ""
+        if our_pos:
+            topic.our_summary = _truncate(our_pos, MAX_SUMMARY_CHARS)
+        if opp_pos:
+            topic.opponent_summary = _truncate(opp_pos, MAX_SUMMARY_CHARS)
+
+        our_refs: list[dict] = []
+        opp_refs: list[dict] = []
+        for q in quotes:
+            if not isinstance(q, dict):
+                continue
+            text = str(q.get("text") or "").strip()
+            if not text:
+                continue
+            side = to_public_side(q.get("side"))
+            if side is None:
+                continue
+            ref = {"segment_id": "", "speaker": str(q.get("speaker") or ""),
+                   "timecode": "", "text": _truncate(text, MAX_TEXT_CHARS)}
+            (our_refs if side == "self" else opp_refs).append(ref)
+        if our_refs:
+            topic.our_refs_json = json.dumps(our_refs[-MAX_REFS_PER_SIDE:], ensure_ascii=False)
+            topic.our_last_text = our_refs[-1]["text"]
+        if opp_refs:
+            topic.opponent_refs_json = json.dumps(opp_refs[-MAX_REFS_PER_SIDE:], ensure_ascii=False)
+            topic.opponent_last_text = opp_refs[-1]["text"]
+
+        if is_new:
+            topic.status = status if status in TOPIC_STATUSES else "new"
+        elif topic.status not in STICKY_STATUSES:
+            topic.status = status if status in TOPIC_STATUSES else "updated"
+        topic.last_updated_at = now
+        await db.flush()
+        return self.topic_to_out(topic)
+
     # ---------- чтение ----------
 
     async def get_tree(self, db: AsyncSession, meeting_id: int) -> ConversationTreeOut:
@@ -324,6 +480,76 @@ class ConversationTreeService:
                 db, meeting_id, segment_id=s.segment_id, speaker=speaker,
                 role=role, text=s.text, timecode=tc,
             )
+        await db.flush()
+        return await self.get_tree(db, meeting_id)
+
+    @staticmethod
+    def _chunk_lines(lines: list[str], max_chars: int) -> list[str]:
+        """Сгруппировать строки диалога в чанки ≤ max_chars (для длинных встреч)."""
+        chunks: list[str] = []
+        cur: list[str] = []
+        cur_len = 0
+        for ln in lines:
+            if cur and cur_len + len(ln) + 1 > max_chars:
+                chunks.append("\n".join(cur))
+                cur, cur_len = [], 0
+            cur.append(ln)
+            cur_len += len(ln) + 1
+        if cur:
+            chunks.append("\n".join(cur))
+        return chunks
+
+    async def rebuild_with_llm(
+        self, db: AsyncSession, meeting_id: int, llm_client, speaker_roles: dict[str, str] | None = None,
+    ) -> ConversationTreeOut:
+        """Offline-пересборка дерева через LLM из persisted-транскрипта.
+
+        Нет LLM-клиента → детерминированный fallback (rebuild_from_segments)."""
+        if llm_client is None:
+            return await self.rebuild_from_segments(db, meeting_id, speaker_roles)
+        if speaker_roles is None:
+            from .speaker_roles import get_roles_map
+            speaker_roles = await get_roles_map(db, meeting_id)
+        speaker_roles = speaker_roles or {}
+        from .speaker_corrections import list_segment_corrections, resolve_speaker_for_segment
+        corrections = await list_segment_corrections(db, meeting_id)
+
+        dialog_lines: list[str] = []
+        try:
+            from .transcription_authority_controller import build_authoritative_from_db
+            auth = await build_authoritative_from_db(db, meeting_id)
+        except Exception:
+            auth = None
+        if auth is not None and auth.segments:
+            for a in auth.segments:
+                text = (a.text or "").strip()
+                if not text:
+                    continue
+                dialog_lines.append(f"{_side_tag(a.side)}{a.speaker or ''}: {text}")
+        else:
+            segs = (await db.execute(
+                select(TranscriptSegmentRecord)
+                .where(TranscriptSegmentRecord.session_id == meeting_id)
+                .order_by(TranscriptSegmentRecord.wall_clock.asc())
+            )).scalars().all()
+            for s in segs:
+                text = (s.text or "").strip()
+                if not text:
+                    continue
+                original = s.speaker_label or s.speaker_id
+                resolved = resolve_speaker_for_segment(s.segment_id, original, corrections, speaker_roles)
+                spk = resolved.effective_speaker_label or original or ""
+                dialog_lines.append(f"{_side_tag(resolved.side)}{spk}: {text}")
+
+        await db.execute(delete(MeetingConversationTopic).where(
+            MeetingConversationTopic.meeting_id == meeting_id))
+        await db.flush()
+        if not dialog_lines:
+            return await self.get_tree(db, meeting_id)
+        for chunk in self._chunk_lines(dialog_lines, max_chars=6000):
+            tree = await self.get_tree(db, meeting_id)
+            await self.extract_live(db, meeting_id, dialog_text=chunk,
+                                    current_topics=tree.topics, llm_client=llm_client)
         await db.flush()
         return await self.get_tree(db, meeting_id)
 

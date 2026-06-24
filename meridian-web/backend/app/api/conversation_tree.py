@@ -95,6 +95,26 @@ async def merge_conversation_topic(meeting_id: int, topic_id: int, body: MergeRe
     return topic
 
 
+async def _build_llm_client(db: AsyncSession, meeting_id: int):
+    """LLM-клиент для offline-пересборки/уточнения (OpenRouter). None — нет ключа/ошибка."""
+    try:
+        from ..services.api_keys import load_api_keys
+        from ..services.ai_settings import resolve_for_meeting
+        from ..config import get_settings
+        from ..core.llm.client import LLMClient
+
+        api_keys = await load_api_keys()
+        key = api_keys.get("openrouter")
+        if not key:
+            return None
+        resolved = await resolve_for_meeting(db, meeting_id)
+        model = resolved.get("live_suggestion_model") or get_settings().finalization_model
+        return LLMClient(api_key=key, model=model, temperature=0.2, max_tokens=1400)
+    except Exception as e:
+        logger.warning("conversation-tree: meeting %s client init failed: %s", meeting_id, str(e)[:120])
+        return None
+
+
 @router.post("/{meeting_id}/conversation-tree/rebuild", response_model=ConversationTreeOut)
 async def rebuild_conversation_tree(meeting_id: int, user: User = Depends(get_current_user),
                                     db: AsyncSession = Depends(get_db)):
@@ -106,7 +126,9 @@ async def rebuild_conversation_tree(meeting_id: int, user: User = Depends(get_cu
     room = room_registry.get_room(meeting_id)
     if room:
         roles.update(room.session.speaker_roles)
-    tree = await _service.rebuild_from_segments(db, meeting_id, speaker_roles=roles)
+    llm_client = await _build_llm_client(db, meeting_id)
+    # есть ключ → LLM-пересборка осмысленных условий; нет → детерминированный fallback
+    tree = await _service.rebuild_with_llm(db, meeting_id, llm_client, speaker_roles=roles)
     await db.commit()
     return tree
 
@@ -123,23 +145,18 @@ async def refine_conversation_tree(meeting_id: int, user: User = Depends(get_cur
         raise HTTPException(429, "Слишком часто. Повторите чуть позже.")
     _last_refine[meeting_id] = now
 
-    llm_client = None
-    try:
-        from ..services.api_keys import load_api_keys
-        from ..services.ai_settings import resolve_for_meeting
-        from ..config import get_settings
-        from ..core.llm.client import LLMClient
+    # live-комната с ключом → форсировать немедленную LLM-экстракцию по свежему диалогу
+    room = room_registry.get_room(meeting_id)
+    if room is not None and room.session.llm_client is not None:
+        try:
+            room._tree_dirty = True
+            await room._flush_tree_extraction()
+        except Exception as e:
+            logger.warning("refine: meeting %s live flush failed: %s", meeting_id, str(e)[:120])
+        return await _service.get_tree(db, meeting_id)
 
-        api_keys = await load_api_keys()
-        key = api_keys.get("openrouter")
-        if key:
-            resolved = await resolve_for_meeting(db, meeting_id)
-            model = resolved.get("live_suggestion_model") or get_settings().finalization_model
-            llm_client = LLMClient(api_key=key, model=model, temperature=0.2, max_tokens=1200)
-    except Exception as e:
-        logger.warning("refine: meeting %s client init failed: %s", meeting_id, str(e)[:120])
-        llm_client = None
-
-    tree = await _service.refine_with_llm(db, meeting_id, llm_client)
+    # offline → собрать клиент и пересобрать дерево через LLM по persisted-транскрипту
+    llm_client = await _build_llm_client(db, meeting_id)
+    tree = await _service.rebuild_with_llm(db, meeting_id, llm_client)
     await db.commit()
     return tree

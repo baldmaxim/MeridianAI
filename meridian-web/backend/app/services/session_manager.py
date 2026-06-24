@@ -1154,6 +1154,32 @@ class SessionManager:
         """Public access to assembled turns."""
         return self._turn_assembler.turns
 
+    def recent_dialog_with_sides(self, max_turns: int = 40, max_chars: int = 6000) -> str:
+        """Связный диалог для LLM-экстрактора дерева общения.
+
+        Хвост из последних turns (TurnAssembler уже склеил пословные коммиты в реплики),
+        каждая строка: «[МЫ|НЕ МЫ] speaker: text». Сторона — из speaker_roles (канонизация
+        legacy через ROLE_LABELS). Спикеры без стороны идут без тега. Обрезка по хвосту до
+        max_chars (самое свежее важнее)."""
+        turns = self._turn_assembler.turns
+        if not turns:
+            return ""
+        lines: list[str] = []
+        for t in turns[-max_turns:]:
+            text = (t.text or "").strip()
+            if not text:
+                continue
+            role_tag = ROLE_LABELS.get(self.speaker_roles.get(t.speaker, ""), "")
+            prefix = f"[{role_tag}] " if role_tag else ""
+            lines.append(f"{prefix}{t.speaker}: {text}")
+        dialog = "\n".join(lines)
+        if len(dialog) > max_chars:
+            dialog = dialog[-max_chars:]
+            nl = dialog.find("\n")
+            if nl != -1:
+                dialog = dialog[nl + 1:]
+        return dialog
+
     def _get_turn_context(self, minutes: int = 5) -> str:
         """Format recent turns as text (prepared for future LLM prompts)."""
         if not self._turn_assembler.turns:
