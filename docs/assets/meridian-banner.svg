@@ -37,7 +37,7 @@
   <!-- Amber accent rule -->
   <rect x="304" y="134" width="248" height="3" rx="1.5" fill="#F5A623"/>
   <!-- Mono subtitle -->
-  <text x="306" y="168" font-family="'JetBrains Mono', Consolas, monospace" font-weight="400" font-size="15" letter-spacing="5" fill="#8896B3">AI ТАКТИК · NEGOTIATION ASSISTANT</text>
+  <text x="306" y="168" font-family="'JetBrains Mono', Consolas, monospace" font-weight="400" font-size="15" letter-spacing="5" fill="#8896B3">AI · NEGOTIATION ASSISTANT</text>
   <!-- Tagline -->
   <text x="304" y="200" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-weight="400" font-size="17" fill="#8896B3">Realtime-транскрипция + LLM-подсказки для переговоров в строительстве</text>
 </svg>

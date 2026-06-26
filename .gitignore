@@ -95,3 +95,6 @@ meridian-web/backend/uploads/*
 /profile.txt
 /lmstudio_three_models_skill.md
 /subpage-*.json
+
+# Внутренний корпоративный стандарт — не для публичного репо (остаётся локально)
+/corp_standard_full_single_vps.md
