@@ -13,7 +13,9 @@ from ..schemas.auth import UserResponse, AdminUserUpdate
 from ..schemas.settings import ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate
 from ..auth.dependencies import require_admin
 from ..auth.service import hash_password
+from ..config import settings
 from ..services.encryption import encrypt_api_key, decrypt_api_key, mask_api_key
+from ..services.api_keys import load_api_keys
 from ..services.jobs import retry_dead
 from ..services.audit import audit, client_ip, hmac_email
 
@@ -133,7 +135,7 @@ async def create_api_key(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    valid_services = {"elevenlabs", "deepgram", "gemini", "openrouter", "speechmatics"}
+    valid_services = {"elevenlabs", "deepgram", "gemini", "openrouter", "speechmatics", "lm_studio"}
     if data.service not in valid_services:
         raise HTTPException(
             status_code=400,
@@ -202,6 +204,37 @@ async def delete_api_key(
                 service=key.service, key_id=key_id)
     await db.delete(key)
     return {"ok": True}
+
+
+@router.get("/lmstudio/test")
+async def test_lmstudio(admin: User = Depends(require_admin)):
+    """Проверка связи с локальной машиной LM Studio: GET {base_url}/models.
+
+    Токен ("lm_studio") берётся из зашифрованного хранилища, в ответ/логи не попадает.
+    """
+    keys = await load_api_keys()
+    token = keys.get("lm_studio")
+    if not token:
+        raise HTTPException(status_code=400, detail="LM Studio токен не задан или выключен")
+
+    base_url = settings.lmstudio_base_url
+    expected = [settings.lmstudio_ocr_model, settings.lmstudio_lift_model, settings.lmstudio_llm_model]
+    try:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=token, base_url=base_url, timeout=15)
+        models = await client.models.list()  # GET {base_url}/models, Authorization: Bearer
+        ids = sorted(m.id for m in models.data)
+    except Exception as e:
+        # Текст ошибки обрезаем; токен передаётся в заголовке, в сообщении его нет.
+        return {"ok": False, "base_url": base_url, "error": str(e)[:200]}
+
+    return {
+        "ok": True,
+        "base_url": base_url,
+        "models": ids,
+        "expected_present": {m: (m in ids) for m in expected},
+    }
 
 
 # --- Jobs (§16) ---

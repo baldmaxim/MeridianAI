@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     # Audit (§22): ключ HMAC для email в audit_log. Пусто → фолбэк на JWT_SECRET.
     audit_hmac_key: str = Field(default="", alias="AUDIT_HMAC_KEY")
 
+    # LM Studio — локальная машина с OpenAI-совместимым API (токен хранится
+    # зашифрованно в api_keys под сервисом "lm_studio"). Несекретные дефолты:
+    lmstudio_base_url: str = Field(
+        default="https://01.vibe.cloud-ip.cc/v1", alias="LMSTUDIO_BASE_URL"
+    )
+    lmstudio_ocr_model: str = Field(default="chandra-ocr-2", alias="LMSTUDIO_OCR_MODEL")
+    lmstudio_lift_model: str = Field(default="lift", alias="LMSTUDIO_LIFT_MODEL")
+    lmstudio_llm_model: str = Field(default="qwen36-27b-mtp", alias="LMSTUDIO_LLM_MODEL")
+
     # Keycloak OIDC (§9/§12). AUTH_MODE: local | keycloak | both (default local — деплой inert).
     auth_mode: str = Field(default="local", alias="AUTH_MODE")
     oidc_issuer: str = Field(default="", alias="OIDC_ISSUER")  # https://auth.su10.ru/realms/su10

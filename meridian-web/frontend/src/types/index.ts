@@ -141,6 +141,14 @@ export interface ApiKeyInfo {
   is_active: boolean;
 }
 
+export interface LMStudioTestResult {
+  ok: boolean;
+  base_url: string;
+  models?: string[];
+  expected_present?: Record<string, boolean>;
+  error?: string;
+}
+
 export interface TranscriptionRecord {
   id: number;
   filename: string;

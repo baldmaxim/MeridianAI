@@ -4,7 +4,7 @@ import type { ApiKeyInfo } from '../../types';
 import { theme } from '../../styles/theme';
 import { Select } from '../common';
 
-const SERVICES = ['openrouter', 'deepgram', 'elevenlabs', 'gemini', 'speechmatics'];
+const SERVICES = ['openrouter', 'deepgram', 'elevenlabs', 'gemini', 'speechmatics', 'lm_studio'];
 
 const SERVICE_COLORS: Record<string, string> = {
   openrouter: '#2EE59D',
@@ -12,6 +12,7 @@ const SERVICE_COLORS: Record<string, string> = {
   elevenlabs: '#F5A623',
   gemini: '#A78BFA',
   speechmatics: '#FF6B35',
+  lm_studio: '#2DD4BF',
 };
 
 export function ApiKeyManager() {

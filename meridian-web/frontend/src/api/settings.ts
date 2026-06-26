@@ -1,5 +1,5 @@
 import api from './client';
-import type { UserSettings, ApiKeyInfo } from '../types';
+import type { UserSettings, ApiKeyInfo, LMStudioTestResult } from '../types';
 
 export async function getSettings(): Promise<UserSettings> {
   const { data } = await api.get<UserSettings>('/settings');
@@ -39,4 +39,9 @@ export async function updateApiKey(id: number, updates: { api_key?: string; is_a
 
 export async function deleteApiKey(id: number): Promise<void> {
   await api.delete(`/admin/api-keys/${id}`);
+}
+
+export async function testLmStudio(): Promise<LMStudioTestResult> {
+  const { data } = await api.get<LMStudioTestResult>('/admin/lmstudio/test');
+  return data;
 }

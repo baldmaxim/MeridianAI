@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PageAccessConfig } from '../../types';
 import { listUsers, updateUser, deleteUser, type UserPatch } from '../../api/users';
-import { listApiKeys, createApiKey, updateApiKey, deleteApiKey } from '../../api/settings';
+import { listApiKeys, createApiKey, updateApiKey, deleteApiKey, testLmStudio } from '../../api/settings';
 import { getPageAccess, updatePageAccess } from '../../api/pageAccess';
 
 export const adminKeys = {
@@ -61,6 +61,10 @@ export function useDeleteApiKey() {
     mutationFn: (id: number) => deleteApiKey(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.apiKeys }),
   });
+}
+
+export function useTestLmStudio() {
+  return useMutation({ mutationFn: () => testLmStudio() });
 }
 
 // --- доступ к страницам ---

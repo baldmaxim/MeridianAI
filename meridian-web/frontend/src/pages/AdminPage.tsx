@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ApiKeyManager } from '../components/admin/ApiKeyManager';
+import { LMStudioTest } from '../components/admin/LMStudioTest';
 import { UserManager } from '../components/admin/UserManager';
 import { PageAccessMatrix } from '../components/admin/PageAccessMatrix';
 import { theme } from '../styles/theme';
@@ -93,6 +94,7 @@ export function AdminPage({ onBack, embedded }: Props) {
       {tab === 'keys' && (
         <div className="admin-section" style={styles.section}>
           <ApiKeyManager />
+          <LMStudioTest />
         </div>
       )}
 
