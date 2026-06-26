@@ -5,8 +5,8 @@
 # Запустить ОДИН РАЗ на сервере перед docker compose up
 # ====================================================
 
-DOMAIN=meridian.fvds.ru
-EMAIL=your-email@example.com   # <-- УКАЖИ СВОЙ EMAIL
+DOMAIN="${DOMAIN:-app.example.com}"   # <-- УКАЖИ СВОЙ ДОМЕН (или передай через env)
+EMAIL="${EMAIL:-your-email@example.com}"   # <-- УКАЖИ СВОЙ EMAIL
 DATA_PATH=./certbot
 RSA_KEY_SIZE=4096
 STAGING=0  # Поставь 1 для тестирования (без лимитов Let's Encrypt)

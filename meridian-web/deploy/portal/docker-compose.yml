@@ -1,6 +1,6 @@
 # Portal-scoped compose для Meridian (корп. стандарт §4, §19).
-# На VPS живёт в /opt/portals/meridian. Деплой этого проекта НЕ трогает
-# nginx, Keycloak и соседние сервисы (Xray/Supabase) — §19, corp-no-neighbor-damage.
+# На VPS живёт в /opt/portals/app. Деплой этого проекта НЕ трогает
+# nginx, Keycloak и другие сервисы на хосте — §19, corp-no-neighbor-damage.
 #
 # Образы — ТОЛЬКО из registry с immutable-тегом (${TAG}). Никаких build: на VPS.
 # Порты наружу не публикуются: ingress (TLS/80/443) — отдельный infra-nginx проект.

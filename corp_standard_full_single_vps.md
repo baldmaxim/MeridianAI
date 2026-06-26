@@ -36,8 +36,8 @@
 Пользователи
    ↓ HTTPS
 DNS A/AAAA records
-   ├─ auth.su10.ru
-   ├─ auth-admin.su10.ru
+   ├─ auth.example.com
+   ├─ auth-admin.example.com
    ├─ api.portal-a.ru
    ├─ api.portal-b.ru
    └─ api.portal-c.ru
@@ -110,10 +110,10 @@ Nginx выполняет:
 Пример маршрутизации:
 
 ```text
-auth.su10.ru
+auth.example.com
   → keycloak:8080
 
-auth-admin.su10.ru
+auth-admin.example.com
   → keycloak:8080
   → доступ только через VPN/IP allowlist
 
@@ -131,7 +131,7 @@ api.portal-b.ru
 - порты backend API, workers, Keycloak management port `9000` и PostgreSQL наружу не публикуются;
 - внутренние сервисы слушают localhost, private Docker network или private interface;
 - TLS-сертификаты выпускаются и обновляются контролируемо;
-- `auth-admin.su10.ru` ограничивается на уровне nginx и/или cloud security group;
+- `auth-admin.example.com` ограничивается на уровне nginx и/или cloud security group;
 - request body size, proxy timeout и upload timeout задаются явно;
 - для Keycloak передаются корректные proxy headers, чтобы issuer, redirect URI и secure cookies работали через публичный HTTPS-домен;
 - конфигурация nginx хранится в infra repository и версионируется.
@@ -232,7 +232,7 @@ GET /metrics
 - TypeScript;
 - Ant Design 5.
 
-Frontend взаимодействует с `auth.su10.ru` для login/logout flow и с backend API портала для бизнес-операций.
+Frontend взаимодействует с `auth.example.com` для login/logout flow и с backend API портала для бизнес-операций.
 
 Frontend не хранит долговременные секреты.
 
@@ -338,16 +338,16 @@ Keycloak используется как корпоративный Identity Pro
 Публичный домен:
 
 ```text
-auth.su10.ru
+auth.example.com
 ```
 
 Административный домен:
 
 ```text
-auth-admin.su10.ru
+auth-admin.example.com
 ```
 
-`auth-admin.su10.ru` доступен только через VPN или IP allowlist.
+`auth-admin.example.com` доступен только через VPN или IP allowlist.
 
 В single-VPS baseline Keycloak размещается на той же VPS/VM, что и backend-сервисы, но как отдельный инфраструктурный сервис:
 
@@ -413,7 +413,7 @@ Domain Controller во внутренней сети
 - LDAP bind мониторится;
 - алерты на недоступность AD обязательны.
 
-Сотрудник вводит доменный логин и пароль на `auth.su10.ru`. Keycloak проверяет пароль через AD и не хранит пароль сотрудника у себя.
+Сотрудник вводит доменный логин и пароль на `auth.example.com`. Keycloak проверяет пароль через AD и не хранит пароль сотрудника у себя.
 
 ---
 
@@ -478,7 +478,7 @@ Backend портала управляет:
 
 ```text
 Keycloak realm:
-  su10
+  your-realm
 
 Keycloak clients:
   passdesk
@@ -521,7 +521,7 @@ Standalone auth использует:
 - password reset;
 - local MFA, если используется.
 
-Для корпоративных порталов, подключенных к `auth.su10.ru`, локальный password login для внутренних сотрудников отключается.
+Для корпоративных порталов, подключенных к `auth.example.com`, локальный password login для внутренних сотрудников отключается.
 
 ---
 
@@ -554,7 +554,7 @@ Portal-to-portal интеграции используют machine-to-machine с
 Файловое хранилище:
 
 ```text
-cloud.ru S3
+S3-compatible storage
 или
 Cloudflare R2
 ```
@@ -677,7 +677,7 @@ Yandex Postbox допускается, если требуется:
 Рекомендуемый общий модуль:
 
 ```text
-@su10/mail
+@your-org/mail
 ```
 
 ---
@@ -870,7 +870,7 @@ Sentry используется как SaaS.
 Uptime checks:
 
 ```text
-https://auth.su10.ru/realms/su10/.well-known/openid-configuration
+https://auth.example.com/realms/your-realm/.well-known/openid-configuration
 https://api.portal-a.ru/health/live
 https://api.portal-a.ru/health/ready
 https://api.portal-b.ru/health/live
@@ -880,7 +880,7 @@ https://api.portal-b.ru/health/ready
 Для single-VPS baseline дополнительно рекомендуется проверять:
 
 ```text
-https://auth-admin.su10.ru/realms/master/.well-known/openid-configuration
+https://auth-admin.example.com/realms/master/.well-known/openid-configuration
 ```
 
 если проверка выполняется из VPN/IP allowlist и не раскрывает административный endpoint наружу.
@@ -983,7 +983,7 @@ CORS:
 
 ```text
 portal-template
-su10-shared packages
+your-org-shared packages
 infra-standards repository
 agent-skills, если используются AI-агенты
 ```
@@ -1005,14 +1005,14 @@ monitoring/
 Общие runtime-библиотеки:
 
 ```text
-@su10/config
-@su10/logger
-@su10/fastify-security
-@su10/oidc
-@su10/mail
-@su10/s3
-@su10/jobs
-@su10/observability
+@your-org/config
+@your-org/logger
+@your-org/fastify-security
+@your-org/oidc
+@your-org/mail
+@your-org/s3
+@your-org/jobs
+@your-org/observability
 ```
 
 Каждый пакет должен иметь:

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         default=[
             "http://localhost:5173",
             "http://localhost:3000",
-            "https://meridianai.ru",
+            "https://app.example.com",
         ],
         alias="CORS_ORIGINS",
     )
@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # LM Studio — локальная машина с OpenAI-совместимым API (токен хранится
     # зашифрованно в api_keys под сервисом "lm_studio"). Несекретные дефолты:
     lmstudio_base_url: str = Field(
-        default="https://01.vibe.cloud-ip.cc/v1", alias="LMSTUDIO_BASE_URL"
+        default="http://localhost:1234/v1", alias="LMSTUDIO_BASE_URL"
     )
     lmstudio_ocr_model: str = Field(default="chandra-ocr-2", alias="LMSTUDIO_OCR_MODEL")
     lmstudio_lift_model: str = Field(default="lift", alias="LMSTUDIO_LIFT_MODEL")
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # Keycloak OIDC (§9/§12). AUTH_MODE: local | keycloak | both (default local — деплой inert).
     auth_mode: str = Field(default="local", alias="AUTH_MODE")
-    oidc_issuer: str = Field(default="", alias="OIDC_ISSUER")  # https://auth.su10.ru/realms/su10
+    oidc_issuer: str = Field(default="", alias="OIDC_ISSUER")  # https://auth.example.com/realms/your-realm
     oidc_client_id: str = Field(default="", alias="OIDC_CLIENT_ID")
     oidc_client_secret: str = Field(default="", alias="OIDC_CLIENT_SECRET")
     oidc_redirect_uri: str = Field(default="", alias="OIDC_REDIRECT_URI")

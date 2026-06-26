@@ -1,6 +1,6 @@
 # MeridianAI — обзор MVP (v0.11.0)
 
-> **Версия:** 0.11.0 · **Стенд:** https://meridian.fvds.ru · **Статус:** MVP baseline (production-deployed)
+> **Версия:** 0.11.0 · **Стенд:** https://app.example.com · **Статус:** MVP baseline (production-deployed)
 >
 > Итоговый документ для разработчика и руководителя. Фиксирует текущее устройство продукта
 > в точке v0.11.0 — опорный baseline для дальнейшего развития.
@@ -305,8 +305,8 @@
   на vds `deploy-ghcr.sh` (pull образов, миграции, рестарт api/worker/frontend/edge).
   Сборка на проде запрещена (только готовые образы).
 - **Rollback.** Передеплой предыдущим immutable-тегом: `TAG=<prev-sha> ./deploy.sh`.
-- **Portal-scoped.** Деплой Meridian не трогает nginx, Keycloak и соседние сервисы VPS
-  (Xray/VPN/Supabase) — принцип no-neighbor-damage.
+- **Portal-scoped.** Деплой Meridian не трогает nginx, Keycloak и соседние сервисы на хосте
+  — принцип no-neighbor-damage.
 
 ---
 
@@ -319,7 +319,7 @@
 - **Smoke:** зелёный (см. `docs/SMOKE_HOTFIX_REPORT.md`).
 - **AI-output восстановлен:** возвращены вывод LLM-подсказок и персист транскрипта Deepgram
   (commit `5779e7b` — *fix(ai): restore LLM outputs and Deepgram transcript persistence*).
-- **Стенд:** https://meridian.fvds.ru (production-deployed).
+- **Стенд:** https://app.example.com (production-deployed).
 
 ---
 

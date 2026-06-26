@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Деплой Meridian на выделенный сервер (Selectel) из GHCR: pull готовых образов + migrate + up.
+# Деплой Meridian на выделенный сервер из GHCR: pull готовых образов + migrate + up.
 # БЕЗ сборки на сервере (§19). Ingress — отдельный проект infra-nginx (TLS :80/:443).
 # Образы собирает GitHub Actions. Запуск НА сервере или через:
-#   ssh selectel 'OWNER=baldmaxim TAG=<git-sha> bash /opt/portals/meridian/meridian-web/deploy/deploy-ghcr.sh'
+#   ssh "$DEPLOY_SSH" 'OWNER=your-org TAG=<git-sha> bash ${REMOTE_DIR:-/opt/portals/app}/meridian-web/deploy/deploy-ghcr.sh'
 #
-#   OWNER=baldmaxim TAG=<git-sha> bash deploy-ghcr.sh
+#   OWNER=your-org TAG=<git-sha> bash deploy-ghcr.sh
 #   (приватные пакеты: задать GHCR_USER + GHCR_TOKEN для docker login)
 set -euo pipefail
 
-OWNER="${OWNER:-baldmaxim}"
+OWNER="${OWNER:-your-org}"
 TAG="${TAG:-latest}"
-REMOTE_DIR="${REMOTE_DIR:-/opt/portals/meridian}"
+REMOTE_DIR="${REMOTE_DIR:-/opt/portals/app}"
 INFRA_DIR="${INFRA_DIR:-/opt/infra/nginx}"
-DOMAIN="${DOMAIN:-meridianai.ru}"
+DOMAIN="${DOMAIN:-app.example.com}"
 export REGISTRY="ghcr.io/$OWNER"
 export TAG
 

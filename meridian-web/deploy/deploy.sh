@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Portal-scoped деплой Meridian (корп. стандарт §19). Запускать на VPS в /opt/portals/meridian.
+# Portal-scoped деплой Meridian (корп. стандарт §19). Запускать на VPS в ${REMOTE_DIR:-/opt/portals/app}.
 #
 # Гарантии:
-#  - НЕ трогает nginx, Keycloak, Xray, Supabase и другие соседние сервисы (§19, no-neighbor-damage).
+#  - НЕ трогает ingress-nginx и другие сервисы, работающие на этом хосте (§19, no-neighbor-damage).
 #  - Образы только из registry с immutable-тегом (никаких build/git pull/npm на проде).
 #  - Миграции — отдельным шагом, под migration-пользователем (§8).
 #  - Health-gate: если API не поднялся — деплой прерывается, frontend не переключается.

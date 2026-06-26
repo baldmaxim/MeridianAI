@@ -1,12 +1,12 @@
-# FVDS-вариант portal-compose: сборка образов НА СЕРВЕРЕ (нет registry — отступление от §19,
+# Single-host вариант portal-compose: сборка образов НА СЕРВЕРЕ (нет registry — отступление от §19,
 # зафиксировано в CLAUDE.md). Edge-nginx публикуется на 127.0.0.1:8080 — host-nginx сайт
 # `meridian` проксирует сюда без изменений.
 #
 # БД: только Yandex Managed PostgreSQL. Локального postgres-контейнера НЕТ —
 # DATABASE_URL берётся из meridian.env (единый источник правды, §18).
 #
-# Запуск (из корня клона репо, /opt/portals/meridian):
-#   docker compose -p meridian -f meridian-web/deploy/portal/docker-compose.fvds.yml build
+# Запуск (из корня клона репо, /opt/portals/app):
+#   docker compose -p meridian -f meridian-web/deploy/portal/docker-compose.single-host.yml build
 #   docker compose -p meridian -f ... run --rm migrate
 #   docker compose -p meridian -f ... up -d api worker frontend edge
 

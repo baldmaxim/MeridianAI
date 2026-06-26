@@ -75,3 +75,23 @@ meridian-web/frontend/dist/
 dmypy.json
 
 keys.env
+
+# Операционные runbook'и и personal-infra скрипты (local-only, не для публичного git)
+/deploy.md
+/server-add-ssl.sh
+/server-diagnose.sh
+/server-fix.sh
+/server-setup-guide.md
+
+# Локальные значения деплоя (owner/domain/ssh/paths) — реальные значения не коммитим
+meridian-web/deploy/.deploy.env
+
+# Runtime uploads и записи переговоров — PII/конфиденциально, никогда не коммитить
+meridian-web/backend/uploads/*
+!meridian-web/backend/uploads/.gitkeep
+
+# Личные/черновые файлы в корне — не для публичного репо (остаются локально)
+/memory.md
+/profile.txt
+/lmstudio_three_models_skill.md
+/subpage-*.json

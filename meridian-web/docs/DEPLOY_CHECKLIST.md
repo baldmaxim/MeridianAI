@@ -34,6 +34,6 @@
 - [ ] Проверить `/api/health/deep`
 
 ## Заметки
-- Деплой Meridian не трогает Keycloak/nginx/Xray/Supabase
+- Деплой Meridian не трогает Keycloak/nginx и соседние сервисы на хосте
 - Worker — отдельный процесс; без него документы/финализация/обучение не выполняются
 - Зависшие job восстанавливаются при старте воркера и через `POST /api/health/jobs/recover-stale`
