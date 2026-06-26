@@ -13,7 +13,7 @@ from ..schemas.auth import UserResponse, AdminUserUpdate
 from ..schemas.settings import ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate
 from ..auth.dependencies import require_admin
 from ..auth.service import hash_password
-from ..config import settings
+from ..config import get_settings
 from ..services.encryption import encrypt_api_key, decrypt_api_key, mask_api_key
 from ..services.api_keys import load_api_keys
 from ..services.jobs import retry_dead
@@ -217,6 +217,7 @@ async def test_lmstudio(admin: User = Depends(require_admin)):
     if not token:
         raise HTTPException(status_code=400, detail="LM Studio токен не задан или выключен")
 
+    settings = get_settings()
     base_url = settings.lmstudio_base_url
     expected = [settings.lmstudio_ocr_model, settings.lmstudio_lift_model, settings.lmstudio_llm_model]
     try:
