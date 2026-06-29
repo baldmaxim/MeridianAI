@@ -14,7 +14,7 @@ class ApiKey(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     service: Mapped[str] = mapped_column(
         String(50), nullable=False
-    )  # elevenlabs, deepgram, gemini, openrouter
+    )  # elevenlabs, deepgram, speechmatics, openrouter, lm_studio
     encrypted_key: Mapped[str] = mapped_column(String(500), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))

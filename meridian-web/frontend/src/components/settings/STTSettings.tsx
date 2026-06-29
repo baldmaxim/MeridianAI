@@ -4,7 +4,6 @@ import { Select } from '../common';
 const PROVIDERS = [
   { value: 'deepgram', label: 'Deepgram (streaming + диаризация)' },
   { value: 'elevenlabs', label: 'ElevenLabs (streaming)' },
-  { value: 'gemini', label: 'Gemini (batch-based)' },
   { value: 'speechmatics', label: 'Speechmatics (streaming + диаризация)' },
 ];
 

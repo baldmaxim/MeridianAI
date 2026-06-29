@@ -25,7 +25,7 @@ logger = logging.getLogger("meridian.health")
 
 router = APIRouter()
 
-_STT_SERVICES = {"deepgram", "elevenlabs", "gemini"}
+_STT_SERVICES = {"deepgram", "elevenlabs", "speechmatics"}
 
 
 async def _active_services(db: AsyncSession) -> set[str]:

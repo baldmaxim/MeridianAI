@@ -551,15 +551,6 @@ class SessionManager:
                 on_error=self._on_stt_error,
                 audio_recorder=self.audio_recorder,
             )
-        if stt_provider == "gemini":
-            from ..core.transcription.gemini_streaming_service import (
-                GeminiStreamingTranscriptionService,
-            )
-            return GeminiStreamingTranscriptionService(
-                api_key=api_keys.get("gemini", ""),
-                audio_queue=self.audio_queue,
-                message_callback=self._on_legacy_transcript,
-            )
         if stt_provider == "speechmatics":
             from ..core.transcription.speechmatics_streaming_service import (
                 SpeechmaticsStreamingTranscriptionService,

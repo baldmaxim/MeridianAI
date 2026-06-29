@@ -67,7 +67,7 @@ class UserSettingsUpdate(BaseModel):
 
 
 class ApiKeyCreate(BaseModel):
-    service: str  # elevenlabs, deepgram, gemini, openrouter
+    service: str  # elevenlabs, deepgram, speechmatics, openrouter, lm_studio
     api_key: str
 
 

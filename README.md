@@ -28,7 +28,7 @@
 
 ## Возможности
 
-- 🎙 **Realtime-транскрипция** — потоковый STT (ElevenLabs / Deepgram / Gemini / Speechmatics) с диаризацией спикеров
+- 🎙 **Realtime-транскрипция** — потоковый STT (ElevenLabs / Deepgram / Speechmatics) с диаризацией спикеров
 - 💡 **LLM-подсказки** — авто- и ручные подсказки во время разговора, режим «усилить позицию»
 - 📄 **Контекст из документов** — PDF / DOCX / XLSX (договоры, ВОР, сметы): извлечение текста, чанкинг, RAG
 - ✉️ **RAG по письмам** — гибридный поиск по внешней базе переписки (pgvector)
@@ -46,7 +46,7 @@
 | **Backend** | FastAPI · SQLAlchemy (async) · PostgreSQL · Alembic |
 | **Frontend** | React 19 · TypeScript · Vite · Zustand v5 |
 | **Realtime** | WebSocket · Browser AudioWorklet (PCM 16 kHz Int16) |
-| **Транскрипция** | ElevenLabs · Deepgram · Gemini · Speechmatics |
+| **Транскрипция** | ElevenLabs · Deepgram · Speechmatics |
 | **LLM** | OpenRouter |
 | **Auth** | email + JWT (bcrypt) → Keycloak OIDC (`AUTH_MODE=local\|keycloak\|both`) |
 | **Хранилище** | S3-совместимое (presigned upload) |
@@ -56,7 +56,7 @@
 ```mermaid
 flowchart LR
   Mic["🎙 Browser AudioWorklet"] -->|"PCM 16 kHz · WS binary"| WS["FastAPI WS · /ws/meeting"]
-  WS --> STT["STT<br/>ElevenLabs / Deepgram / Gemini / Speechmatics"]
+  WS --> STT["STT<br/>ElevenLabs / Deepgram / Speechmatics"]
   STT -->|transcript| WS
   Docs["📄 PDF / DOCX / XLSX"] --> CTX["Context Pack + RAG"]
   Letters["✉️ Письма (pgvector)"] --> CTX
@@ -154,7 +154,7 @@ document/letter RAG.
 
 - **Backend:** FastAPI · SQLAlchemy (async) · PostgreSQL · Alembic
 - **Frontend:** React 19 · TypeScript · Vite · Zustand
-- **Realtime:** WebSocket, browser AudioWorklet (PCM 16 kHz) → STT (ElevenLabs / Deepgram / Gemini / Speechmatics) → LLM (OpenRouter)
+- **Realtime:** WebSocket, browser AudioWorklet (PCM 16 kHz) → STT (ElevenLabs / Deepgram / Speechmatics) → LLM (OpenRouter)
 
 See [Quickstart](#быстрый-старт-dev) to run it locally. API keys and secrets are user-provided and never committed.
 

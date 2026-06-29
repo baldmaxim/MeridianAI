@@ -4,13 +4,12 @@ import type { ApiKeyInfo } from '../../types';
 import { theme } from '../../styles/theme';
 import { Select } from '../common';
 
-const SERVICES = ['openrouter', 'deepgram', 'elevenlabs', 'gemini', 'speechmatics', 'lm_studio'];
+const SERVICES = ['openrouter', 'deepgram', 'elevenlabs', 'speechmatics', 'lm_studio'];
 
 const SERVICE_COLORS: Record<string, string> = {
   openrouter: '#2EE59D',
   deepgram: '#5B9CF6',
   elevenlabs: '#F5A623',
-  gemini: '#A78BFA',
   speechmatics: '#FF6B35',
   lm_studio: '#2DD4BF',
 };

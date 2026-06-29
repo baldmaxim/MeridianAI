@@ -43,7 +43,7 @@ MODE_TOKENS = {
     "deep":     {"auto": 600, "manual": 2200, "strengthen": 2600, "finalization": 8000},
 }
 
-STT_PROVIDERS = ("deepgram", "elevenlabs", "gemini")
+STT_PROVIDERS = ("deepgram", "elevenlabs", "speechmatics")
 LLM_PROVIDERS = ("openrouter",)
 _MODEL_RE = re.compile(r"^[A-Za-z0-9_.:/\-]{1,100}$")
 
@@ -313,7 +313,6 @@ def options_payload() -> dict:
         "available_stt_models": {
             "deepgram": ["nova-2", "nova-3"],
             "elevenlabs": ["scribe_v1"],
-            "gemini": ["gemini-live"],
         },
         "available_llm_providers": list(LLM_PROVIDERS),
         "available_llm_models": [

@@ -271,6 +271,13 @@ class MeetingRoom:
         # AI-снапшот тут — лишь fallback, когда у владельца провайдер не задан.
         if not room.settings.get("stt_provider") and ai_resolved.get("stt_provider"):
             room.settings["stt_provider"] = ai_resolved["stt_provider"]
+        # Робастность: ранее сохранённый/неизвестный STT-провайдер (напр. удалённый
+        # «gemini») → deepgram, иначе фабрика вернёт None и realtime не стартует.
+        _supported_stt = {"deepgram", "elevenlabs", "speechmatics"}
+        _stt = room.settings.get("stt_provider")
+        if _stt and _stt not in _supported_stt:
+            logger.info(f"[room {meeting_id}] STT-провайдер '{_stt}' не поддерживается → deepgram")
+            room.settings["stt_provider"] = "deepgram"
 
         openrouter_key = room.api_keys.get("openrouter", "")
         if openrouter_key:

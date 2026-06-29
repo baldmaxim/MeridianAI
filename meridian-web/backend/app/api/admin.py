@@ -135,7 +135,7 @@ async def create_api_key(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    valid_services = {"elevenlabs", "deepgram", "gemini", "openrouter", "speechmatics", "lm_studio"}
+    valid_services = {"elevenlabs", "deepgram", "openrouter", "speechmatics", "lm_studio"}
     if data.service not in valid_services:
         raise HTTPException(
             status_code=400,
