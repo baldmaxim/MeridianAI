@@ -181,10 +181,13 @@ async def test_finalization_disabled(db):
     owner = await _mk_user(db, "ai9@test.local")
     snap = ais.config_baseline(); snap["finalization_enabled"] = False
     m = await _mk_meeting(db, owner, snapshot=snap)
+    # snapshot-delta: не считаем Job глобально (в общей dev-Postgres остаются строки прошлых
+    # прогонов) — проверяем, что ЭТОТ вызох не создал новую задачу.
+    before = (await db.execute(select(func.count(Job.id)).where(Job.type == "meeting_finalize"))).scalar() or 0
     ok = await request_finalization(db, m.id)
     assert ok is False and m.finalization_status == "disabled"
-    jobs = (await db.execute(select(func.count(Job.id)).where(Job.type == "meeting_finalize"))).scalar()
-    assert jobs == 0
+    after = (await db.execute(select(func.count(Job.id)).where(Job.type == "meeting_finalize"))).scalar() or 0
+    assert after == before
 
 
 # ---------- 10: learning_extraction_enabled=false → disabled, без job ----------
@@ -193,10 +196,11 @@ async def test_learning_disabled(db):
     owner = await _mk_user(db, "ai10@test.local")
     snap = ais.config_baseline(); snap["learning_extraction_enabled"] = False
     m = await _mk_meeting(db, owner, snapshot=snap)
+    before = (await db.execute(select(func.count(Job.id)).where(Job.type == "learning_extract"))).scalar() or 0
     ok = await request_learning_extraction(db, m.id)
     assert ok is False and m.learning_status == "disabled"
-    jobs = (await db.execute(select(func.count(Job.id)).where(Job.type == "learning_extract"))).scalar()
-    assert jobs == 0
+    after = (await db.execute(select(func.count(Job.id)).where(Job.type == "learning_extract"))).scalar() or 0
+    assert after == before
 
 
 # ---------- 11: view-only не может менять настройки встречи ----------

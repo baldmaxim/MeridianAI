@@ -44,6 +44,7 @@ class BatchTranscriptionService:
         *,
         diarize: bool = True,
         keyterms: Optional[List[str]] = None,
+        request_timeout: Optional[float] = None,
     ) -> List[CommittedSegment]:
         """Run batch transcription. Returns CommittedSegments with real speaker IDs.
 
@@ -51,10 +52,13 @@ class BatchTranscriptionService:
             wav_bytes: WAV audio bytes
             diarize: Enable speaker diarization (mono recordings)
             keyterms: Domain-specific terms (max 100, 50 chars each)
+            request_timeout: HTTP request timeout (seconds). None → прежний дефолт (300s) для
+                production-финализации. Per-channel STT canary (Этап 19) передаёт короткий bounded
+                таймаут, чтобы HTTP-запрос не жил дольше asyncio-таймаута.
         """
         terms = keyterms or BOOSTED_KEYWORDS
         return await asyncio.to_thread(
-            self._transcribe_sync, wav_bytes, diarize, terms
+            self._transcribe_sync, wav_bytes, diarize, terms, request_timeout
         )
 
     def _transcribe_sync(
@@ -62,8 +66,10 @@ class BatchTranscriptionService:
         wav_bytes: bytes,
         diarize: bool,
         keyterms: List[str],
+        request_timeout: Optional[float] = None,
     ) -> List[CommittedSegment]:
         """Synchronous batch API call (run in thread)."""
+        http_timeout = request_timeout if request_timeout is not None else 300
         files = [
             ("audio", ("meeting.wav", wav_bytes, "audio/wav")),
             ("model_id", (None, self.model_id)),
@@ -78,16 +84,19 @@ class BatchTranscriptionService:
 
         try:
             response = self.session.post(
-                self.base_url, files=files, timeout=300
+                self.base_url, files=files, timeout=http_timeout
             )
             response.raise_for_status()
             data = response.json()
             return self._parse_response(data)
         except requests.exceptions.HTTPError as e:
-            logger.error(f"[Batch] HTTP error: {e} - {e.response.text if e.response else ''}")
+            # Этап 20: безопасная сводка вместо raw provider body (без ключей/headers/тела).
+            from .provider_error_safety import safe_provider_error_summary
+            logger.error("[Batch] HTTP error: %s", safe_provider_error_summary(e, provider="elevenlabs_batch"))
             raise
         except Exception as e:
-            logger.error(f"[Batch] Error: {e}")
+            from .provider_error_safety import safe_provider_error_summary
+            logger.error("[Batch] Error: %s", safe_provider_error_summary(e, provider="elevenlabs_batch"))
             raise
 
     def _parse_response(self, data: dict) -> List[CommittedSegment]:

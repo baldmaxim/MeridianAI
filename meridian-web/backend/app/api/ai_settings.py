@@ -178,8 +178,42 @@ async def patch_meeting_ai_settings(meeting_id: int, patch: MeetingAISettingsPat
         raise HTTPException(404, "Встреча не найдена")
     if not await can_record_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Недостаточно прав для изменения настроек встречи")
+    patch_dict = patch.model_dump(exclude_unset=True)
+    # Канареечное включение Signal Engine — логируем ТОЛЬКО имена ключей (без значений и текста).
+    signal_keys = sorted(k for k in patch_dict if k.startswith("signal_engine_"))
+    if signal_keys:
+        logger.info("[SignalCanary] meeting_id=%s user_id=%s changed_keys=%s",
+                    meeting_id, user.id, signal_keys)
+    # Source Reconciliation canary (Этап 11): логируем только имена ключей (без значений)
+    reconcile_keys = sorted(k for k in patch_dict if k.startswith("source_reconcile_"))
+    if reconcile_keys:
+        logger.info("[SourceReconcileCanary] meeting_id=%s user_id=%s changed_keys=%s",
+                    meeting_id, user.id, reconcile_keys)
+    # Per-channel STT canary (Этап 17): логируем только имена ключей (без значений)
+    stt_keys = sorted(k for k in patch_dict if k.startswith("audio_per_channel_stt_"))
+    if stt_keys:
+        logger.info("[AudioPerChannelSttCanary] meeting_id=%s user_id=%s changed_keys=%s",
+                    meeting_id, user.id, stt_keys)
+    # Per-channel STT provider canary (Этап 18): только имена ключей (без provider/model/language значений)
+    _stt_provider_suffixes = (
+        "provider", "timeout_seconds", "language_code", "model_id", "cache_enabled",
+        "cache_max_entries", "max_audio_seconds", "max_wav_bytes",
+        "max_provider_calls_per_meeting", "max_provider_audio_seconds_per_meeting")
+    stt_provider_keys = sorted(
+        k for k in stt_keys if k.removeprefix("audio_per_channel_stt_") in _stt_provider_suffixes)
+    if stt_provider_keys:
+        logger.info("[AudioPerChannelSttProviderCanary] meeting_id=%s user_id=%s changed_keys=%s",
+                    meeting_id, user.id, stt_provider_keys)
+    # Speaker Identity Hints (Этап 5): логируем только группы (без labels/значений/имён)
+    if "speaker_identity_hints" in patch_dict:
+        sih = patch_dict["speaker_identity_hints"]
+        cleared = sih is None
+        groups = sorted(k for k in (sih or {})
+                        if k in ("speaker_labels", "stable_ids", "audio_sources", "channel_labels"))
+        logger.info("[SpeakerIdentityHints] meeting_id=%s user_id=%s changed=true cleared=%s groups=%s",
+                    meeting_id, user.id, cleared, groups)
     try:
-        resolved = await ais.update_meeting_snapshot(db, meeting_id, patch.model_dump(exclude_unset=True))
+        resolved = await ais.update_meeting_snapshot(db, meeting_id, patch_dict)
     except ValueError as e:
         raise HTTPException(422, str(e))
     await db.flush()

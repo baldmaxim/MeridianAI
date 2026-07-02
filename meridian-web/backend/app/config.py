@@ -187,6 +187,52 @@ class Settings(BaseSettings):
     ai_audio_multichannel_shadow_max_channels: int = Field(default=8, alias="AI_AUDIO_MULTICHANNEL_SHADOW_MAX_CHANNELS")
     ai_audio_multichannel_shadow_max_frame_bytes: int = Field(default=524288, alias="AI_AUDIO_MULTICHANNEL_SHADOW_MAX_FRAME_BYTES")
 
+    # Per-channel STT source candidates (Этап 17): opt-in canary, который из Stage 16 v2 каналов
+    # делает per-channel STT → source candidates. По умолчанию ВЫКЛ и shadow — безопасно.
+    # channel_{index} — техническая зона записи, НЕ сторона. Не заменяет legacy mono STT.
+    ai_audio_per_channel_stt_enabled: bool = Field(default=False, alias="AI_AUDIO_PER_CHANNEL_STT_ENABLED")
+    ai_audio_per_channel_stt_shadow_mode: bool = Field(default=True, alias="AI_AUDIO_PER_CHANNEL_STT_SHADOW_MODE")
+    ai_audio_per_channel_stt_session_overrides_enabled: bool = Field(
+        default=True, alias="AI_AUDIO_PER_CHANNEL_STT_SESSION_OVERRIDES_ENABLED")
+    ai_audio_per_channel_stt_trace_enabled: bool = Field(default=True, alias="AI_AUDIO_PER_CHANNEL_STT_TRACE_ENABLED")
+    ai_audio_per_channel_stt_trace_sample_rate: float = Field(
+        default=1.0, alias="AI_AUDIO_PER_CHANNEL_STT_TRACE_SAMPLE_RATE")
+    ai_audio_per_channel_stt_max_channels: int = Field(default=2, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_CHANNELS")
+    ai_audio_per_channel_stt_min_rms: float = Field(default=0.012, alias="AI_AUDIO_PER_CHANNEL_STT_MIN_RMS")
+    ai_audio_per_channel_stt_min_dominance: float = Field(default=0.58, alias="AI_AUDIO_PER_CHANNEL_STT_MIN_DOMINANCE")
+    ai_audio_per_channel_stt_min_segment_ms: int = Field(default=700, alias="AI_AUDIO_PER_CHANNEL_STT_MIN_SEGMENT_MS")
+    ai_audio_per_channel_stt_end_silence_ms: int = Field(default=700, alias="AI_AUDIO_PER_CHANNEL_STT_END_SILENCE_MS")
+    ai_audio_per_channel_stt_max_segment_ms: int = Field(default=8000, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_SEGMENT_MS")
+    ai_audio_per_channel_stt_min_text_chars: int = Field(default=4, alias="AI_AUDIO_PER_CHANNEL_STT_MIN_TEXT_CHARS")
+    ai_audio_per_channel_stt_max_segments_per_minute: int = Field(
+        default=12, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_SEGMENTS_PER_MINUTE")
+    ai_audio_per_channel_stt_max_concurrent_transcribes: int = Field(
+        default=2, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_CONCURRENT_TRANSCRIBES")
+    # Per-channel STT provider adapter (Этап 18): реальный STT только для canary. default=noop
+    # (без внешних вызовов). API-ключи НЕ в snapshot — берутся из session._elevenlabs_key.
+    ai_audio_per_channel_stt_provider: str = Field(default="noop", alias="AI_AUDIO_PER_CHANNEL_STT_PROVIDER")
+    ai_audio_per_channel_stt_timeout_seconds: float = Field(
+        default=20.0, alias="AI_AUDIO_PER_CHANNEL_STT_TIMEOUT_SECONDS")
+    ai_audio_per_channel_stt_language_code: str = Field(default="ru", alias="AI_AUDIO_PER_CHANNEL_STT_LANGUAGE_CODE")
+    ai_audio_per_channel_stt_model_id: str = Field(default="", alias="AI_AUDIO_PER_CHANNEL_STT_MODEL_ID")
+    ai_audio_per_channel_stt_cache_enabled: bool = Field(default=True, alias="AI_AUDIO_PER_CHANNEL_STT_CACHE_ENABLED")
+    ai_audio_per_channel_stt_cache_max_entries: int = Field(
+        default=512, alias="AI_AUDIO_PER_CHANNEL_STT_CACHE_MAX_ENTRIES")
+    ai_audio_per_channel_stt_max_audio_seconds: float = Field(
+        default=12.0, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_AUDIO_SECONDS")
+    ai_audio_per_channel_stt_max_wav_bytes: int = Field(
+        default=1048576, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_WAV_BYTES")
+    ai_audio_per_channel_stt_max_provider_calls_per_meeting: int = Field(
+        default=60, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_PROVIDER_CALLS_PER_MEETING")
+    ai_audio_per_channel_stt_max_provider_audio_seconds_per_meeting: float = Field(
+        default=300.0, alias="AI_AUDIO_PER_CHANNEL_STT_MAX_PROVIDER_AUDIO_SECONDS_PER_MEETING")
+    # Provider error logging hardening (Этап 20): по умолчанию raw body НЕ логируется (только
+    # status/hash/chars). Preview включается явно и всё равно редактирует секреты.
+    transcription_provider_error_body_preview_enabled: bool = Field(
+        default=False, alias="TRANSCRIPTION_PROVIDER_ERROR_BODY_PREVIEW_ENABLED")
+    transcription_provider_error_body_preview_max_chars: int = Field(
+        default=0, alias="TRANSCRIPTION_PROVIDER_ERROR_BODY_PREVIEW_MAX_CHARS")
+
     # Multi-source ingest (Этап 9.3): единый server-side слой для всех аудиоисточников
     # встречи. Primary-поток продолжает идти в STT БЕЗ изменений, а параллельно (tap)
     # и secondary-чанки приводятся к общей server timeline и режутся на canonical frames
@@ -488,6 +534,50 @@ class Settings(BaseSettings):
     suggestion_evidence_required_for_high_confidence: bool = Field(
         default=True, alias="SUGGESTION_EVIDENCE_REQUIRED_FOR_HIGH_CONFIDENCE"
     )
+
+    # Signal Engine (Этап 1): контекстная классификация переговорной ситуации
+    ai_signal_engine_enabled: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_ENABLED")
+    ai_signal_engine_shadow_mode: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_SHADOW_MODE")
+    ai_signal_engine_allow_legacy_fallback: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_ALLOW_LEGACY_FALLBACK")
+    ai_signal_engine_min_confidence: float = Field(default=0.55, alias="AI_SIGNAL_ENGINE_MIN_CONFIDENCE")
+    ai_signal_engine_min_actionability: float = Field(default=0.55, alias="AI_SIGNAL_ENGINE_MIN_ACTIONABILITY")
+    ai_signal_engine_min_urgency: float = Field(default=0.45, alias="AI_SIGNAL_ENGINE_MIN_URGENCY")
+    # Signal Engine (Этап 2): наблюдаемость и таймаут. TRACE_INCLUDE_TEXT строго False по умолчанию.
+    ai_signal_engine_trace_enabled: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_TRACE_ENABLED")
+    ai_signal_engine_trace_include_text: bool = Field(default=False, alias="AI_SIGNAL_ENGINE_TRACE_INCLUDE_TEXT")
+    ai_signal_engine_trace_sample_rate: float = Field(default=1.0, alias="AI_SIGNAL_ENGINE_TRACE_SAMPLE_RATE")
+    ai_signal_engine_llm_timeout_seconds: float = Field(default=8.0, alias="AI_SIGNAL_ENGINE_LLM_TIMEOUT_SECONDS")
+    # Signal Engine (Этап 3): канареечный per-meeting override. По умолчанию overrides разрешены,
+    # но включить trace_include_text через meeting snapshot нельзя без явного глобального разрешения.
+    ai_signal_engine_session_overrides_enabled: bool = Field(
+        default=True, alias="AI_SIGNAL_ENGINE_SESSION_OVERRIDES_ENABLED")
+    ai_signal_engine_session_trace_text_override_allowed: bool = Field(
+        default=False, alias="AI_SIGNAL_ENGINE_SESSION_TRACE_TEXT_OVERRIDE_ALLOWED")
+
+    # Source Attribution Reconciliation (Этап 11): canary controls. SHADOW_MODE=true по умолчанию —
+    # candidates принимаются и трассируются, но source_attribution НЕ прикрепляется (безопасный rollout).
+    ai_source_reconcile_enabled: bool = Field(default=True, alias="AI_SOURCE_RECONCILE_ENABLED")
+    ai_source_reconcile_shadow_mode: bool = Field(default=True, alias="AI_SOURCE_RECONCILE_SHADOW_MODE")
+    ai_source_reconcile_session_overrides_enabled: bool = Field(
+        default=True, alias="AI_SOURCE_RECONCILE_SESSION_OVERRIDES_ENABLED")
+    ai_source_reconcile_min_candidate_confidence: float = Field(
+        default=0.55, alias="AI_SOURCE_RECONCILE_MIN_CANDIDATE_CONFIDENCE")
+    ai_source_reconcile_min_time_overlap: float = Field(
+        default=0.45, alias="AI_SOURCE_RECONCILE_MIN_TIME_OVERLAP")
+    ai_source_reconcile_min_text_similarity: float = Field(
+        default=0.78, alias="AI_SOURCE_RECONCILE_MIN_TEXT_SIMILARITY")
+    ai_source_reconcile_min_match_score: float = Field(
+        default=0.62, alias="AI_SOURCE_RECONCILE_MIN_MATCH_SCORE")
+    ai_source_reconcile_ambiguity_margin: float = Field(
+        default=0.08, alias="AI_SOURCE_RECONCILE_AMBIGUITY_MARGIN")
+    ai_source_reconcile_max_candidates: int = Field(
+        default=500, alias="AI_SOURCE_RECONCILE_MAX_CANDIDATES")
+    ai_source_reconcile_max_age_ms: int = Field(
+        default=120000, alias="AI_SOURCE_RECONCILE_MAX_AGE_MS")
+    ai_source_reconcile_trace_enabled: bool = Field(
+        default=True, alias="AI_SOURCE_RECONCILE_TRACE_ENABLED")
+    ai_source_reconcile_trace_sample_rate: float = Field(
+        default=1.0, alias="AI_SOURCE_RECONCILE_TRACE_SAMPLE_RATE")
 
     # Controlled auto-learning (Этап 7)
     learning_extraction_enabled: bool = Field(default=True, alias="LEARNING_EXTRACTION_ENABLED")

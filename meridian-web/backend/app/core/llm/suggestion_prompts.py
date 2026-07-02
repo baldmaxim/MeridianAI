@@ -67,6 +67,7 @@ def _prev_block(previous_meetings_context: str) -> list[str]:
     return ["", "===== " + previous_meetings_context]
 
 
+# legacy keyword-based (fallback). Новый путь — build_auto_cards_prompt_from_signal.
 def build_auto_cards_prompt(role_name: str, keyword: str, recent_dialog: str,
                             document_context: str, max_cards: int = 2,
                             knowledge_context: str = "", previous_meetings_context: str = "",
@@ -84,6 +85,82 @@ def build_auto_cards_prompt(role_name: str, keyword: str, recent_dialog: str,
         "",
         f"ЗАДАЧА: верни 0–{max_cards} карточки подсказок. Если полезного действия нет — верни {{\"cards\": []}}.",
         "Каждая карточка — отдельный тип. Сортируй по priority (1 — важнее).",
+        "",
+        _CARD_SCHEMA,
+    ]
+    return "\n".join(parts)
+
+
+def _sig(signal, name: str, default: str = "") -> str:
+    """Прочитать поле сигнала из pydantic-объекта или dict (без импорта signal_engine)."""
+    if isinstance(signal, dict):
+        val = signal.get(name, default)
+    else:
+        val = getattr(signal, name, default)
+    if isinstance(val, (list, tuple)):
+        return ", ".join(str(v) for v in val)
+    return "" if val is None else str(val)
+
+
+def _speaker_block(speaker_context: str) -> list[str]:
+    if speaker_context:
+        return ["", "Роли и стороны участников:", speaker_context]
+    return ["", "Роли и стороны участников:",
+            "Роли участников неизвестны. Не делай жёстких предположений о стороне говорящего."]
+
+
+def build_auto_cards_prompt_from_signal(role_name: str, signal, recent_dialog: str,
+                                        document_context: str, max_cards: int = 2,
+                                        knowledge_context: str = "",
+                                        previous_meetings_context: str = "",
+                                        letters_context: str = "",
+                                        speaker_context: str = "") -> str:
+    """Авто-подсказки от контекстного переговорного сигнала (Signal Engine).
+
+    signal: NegotiationSignal | dict. НЕ использует триггерные слова.
+    speaker_context — компактный текст ролей/сторон участников (Speaker Identity Graph).
+    """
+    parts = [
+        _rules(role_name),
+        "",
+        "Контекстный переговорный сигнал:",
+        f"- Тип ситуации: {_sig(signal, 'situation_type', 'none')}",
+        f"- Фаза: {_sig(signal, 'phase', 'unknown')}",
+        f"- Чья реплика: {_sig(signal, 'speaker_side', 'unknown')}",
+        f"- Намерение: {_sig(signal, 'intent') or '(не определено)'}",
+        f"- Уровень риска: {_sig(signal, 'risk_level', 'low')}",
+        f"- Рекомендуемые типы карточек: {_sig(signal, 'recommended_card_types') or '(на твоё усмотрение)'}",
+        f"- Обоснование: {_sig(signal, 'reasoning_summary') or '(нет)'}",
+    ]
+    parts += _speaker_block(speaker_context)
+    if document_context:
+        parts += ["", document_context]
+    parts += _letters_block(letters_context)
+    parts += _knowledge_block(knowledge_context)
+    parts += _prev_block(previous_meetings_context)
+    parts += [
+        "",
+        "Последние реплики (с таймкодами):",
+        recent_dialog or "(нет)",
+        "",
+        f"ЗАДАЧА: верни 0–{max_cards} карточки подсказок строго по сигналу выше.",
+        "- Если сигнал слабый или конкретное действие неочевидно — верни {\"cards\": []}.",
+        "- Карточки — короткие готовые фразы, пригодные произнести вслух.",
+        "- Подсказка ВСЕГДА адресована нашей стороне; не предлагай фразы от лица оппонента.",
+        "- Если speaker_side=unknown и роль говорящего неясна — предпочитай clarify/ask или fixation,"
+        " а не агрессивный counter.",
+        "- Если speaker_context построен из audio_channel/source hint — это зона записи (канал/источник),"
+        " а не гарантированная личность говорящего; не делай жёстких выводов о конкретном человеке.",
+        "- Если сторона определена только по audio_channel с confidence < 0.75 — избегай жёстких"
+        " обвинительных/агрессивных формулировок; предпочитай уточнение, фиксацию или нейтральный counter.",
+        "- Если speaker_context даёт низкую уверенность по стороне или unknown — карточка должна быть"
+        " в форме уточнения, фиксации или нейтрального counter, а не обвинения.",
+        "- Если говорит counterparty и просит уступку — предлагай обмен (trade_concession), не дарение.",
+        "- Если говорит our_side и раскрывает слабую позицию — осторожная фиксация/пауза/переформулировка.",
+        "- Любая уступка (trade_concession) — ТОЛЬКО в обмен на встречное условие.",
+        "- Не раскрывай слабость нашей позиции.",
+        "- Не выдумывай факты и документы. Нет доказательной опоры — needs_user_check=true.",
+        "Сортируй по priority (1 — важнее).",
         "",
         _CARD_SCHEMA,
     ]

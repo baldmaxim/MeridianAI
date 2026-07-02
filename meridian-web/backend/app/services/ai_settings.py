@@ -269,6 +269,77 @@ _INT_KEYS = {
 }
 _MODEL_KEYS = {"live_suggestion_model", "strengthen_model", "finalization_model", "learning_model", "stt_model"}
 
+# Скрытые per-meeting/canary override Signal Engine (Этап 3). НЕ профильные настройки,
+# НЕ замораживаются в config_baseline. Отсутствие ключа/None = «использовать global config».
+_SIGNAL_BOOL_KEYS = {
+    "signal_engine_enabled", "signal_engine_shadow_mode", "signal_engine_allow_legacy_fallback",
+    "signal_engine_trace_enabled", "signal_engine_trace_include_text",
+}
+_SIGNAL_FLOAT01_KEYS = {
+    "signal_engine_min_confidence", "signal_engine_min_actionability",
+    "signal_engine_min_urgency", "signal_engine_trace_sample_rate",
+}
+_SIGNAL_TIMEOUT_KEY = "signal_engine_llm_timeout_seconds"
+
+# Скрытые per-meeting canary override Source Reconciliation (Этап 11). НЕ в config_baseline.
+_RECONCILE_BOOL_KEYS = {
+    "source_reconcile_enabled", "source_reconcile_shadow_mode", "source_reconcile_trace_enabled",
+}
+_RECONCILE_FLOAT01_KEYS = {
+    "source_reconcile_min_candidate_confidence", "source_reconcile_min_time_overlap",
+    "source_reconcile_min_text_similarity", "source_reconcile_min_match_score",
+    "source_reconcile_trace_sample_rate",
+}
+_RECONCILE_MARGIN_KEY = "source_reconcile_ambiguity_margin"
+_RECONCILE_INT_KEYS = {  # key → (lo, hi)
+    "source_reconcile_max_candidates": (10, 5000),
+    "source_reconcile_max_age_ms": (1000, 600000),
+}
+
+# Скрытые per-meeting canary override Per-channel STT (Этап 17). НЕ в config_baseline.
+_PER_CHANNEL_STT_BOOL_KEYS = {
+    "audio_per_channel_stt_enabled", "audio_per_channel_stt_shadow_mode",
+    "audio_per_channel_stt_trace_enabled",
+}
+_PER_CHANNEL_STT_FLOAT01_KEYS = {
+    "audio_per_channel_stt_trace_sample_rate", "audio_per_channel_stt_min_rms",
+    "audio_per_channel_stt_min_dominance",
+}
+_PER_CHANNEL_STT_INT_KEYS = {  # key → (lo, hi)
+    "audio_per_channel_stt_max_channels": (1, 8),
+    "audio_per_channel_stt_min_segment_ms": (100, 10000),
+    "audio_per_channel_stt_end_silence_ms": (100, 5000),
+    "audio_per_channel_stt_max_segment_ms": (500, 30000),
+    "audio_per_channel_stt_min_text_chars": (0, 80),
+    "audio_per_channel_stt_max_segments_per_minute": (1, 120),
+    "audio_per_channel_stt_max_concurrent_transcribes": (1, 8),
+    # Provider adapter (Этап 18)
+    "audio_per_channel_stt_cache_max_entries": (0, 5000),
+    "audio_per_channel_stt_max_wav_bytes": (65536, 16777216),
+    "audio_per_channel_stt_max_provider_calls_per_meeting": (0, 1000),
+}
+# Provider adapter (Этап 18): bool/float/str/timeout
+_PER_CHANNEL_STT_BOOL_KEYS_V2 = {"audio_per_channel_stt_cache_enabled"}
+_PER_CHANNEL_STT_FLOAT_KEYS = {  # key → (lo, hi)
+    "audio_per_channel_stt_timeout_seconds": (1.0, 120.0),
+    "audio_per_channel_stt_max_audio_seconds": (1.0, 60.0),
+    "audio_per_channel_stt_max_provider_audio_seconds_per_meeting": (0.0, 7200.0),
+}
+_PER_CHANNEL_STT_STR_KEYS = {  # key → max_len
+    "audio_per_channel_stt_provider": 40,
+    "audio_per_channel_stt_language_code": 16,
+    "audio_per_channel_stt_model_id": 80,
+}
+
+
+def validate_speaker_identity_hints(value):
+    """Провалидировать/нормализовать speaker_identity_hints. None→None, dict→safe dict|None.
+
+    Делегирует в core-нормализатор (без PII, компактный формат). non-dict/non-None → ValueError.
+    """
+    from ..core.context.speaker_identity import normalize_identity_hints
+    return normalize_identity_hints(value)
+
 
 def validate_patch(patch: dict) -> dict:
     """Очистить patch (только известные ключи, валидные значения). Бросает ValueError при грубых ошибках."""
@@ -299,6 +370,53 @@ def validate_patch(patch: dict) -> dict:
     for k in _INT_KEYS:
         if k in patch and patch[k] is not None:
             out[k] = max(0, min(int(patch[k]), 100000))
+    # --- Signal Engine hidden overrides (Этап 3): None разрешён для очистки override ---
+    for k in _SIGNAL_BOOL_KEYS:
+        if k in patch:
+            out[k] = None if patch[k] is None else bool(patch[k])
+    for k in _SIGNAL_FLOAT01_KEYS:
+        if k in patch:
+            out[k] = None if patch[k] is None else max(0.0, min(1.0, float(patch[k])))
+    if _SIGNAL_TIMEOUT_KEY in patch:
+        v = patch[_SIGNAL_TIMEOUT_KEY]
+        out[_SIGNAL_TIMEOUT_KEY] = None if v is None else max(1.0, min(60.0, float(v)))
+    # Speaker Identity Hints (Этап 5): None очищает override; dict нормализуется (без PII)
+    if "speaker_identity_hints" in patch:
+        out["speaker_identity_hints"] = validate_speaker_identity_hints(patch["speaker_identity_hints"])
+    # Source Reconciliation canary overrides (Этап 11): None разрешён для очистки override
+    for k in _RECONCILE_BOOL_KEYS:
+        if k in patch:
+            out[k] = None if patch[k] is None else bool(patch[k])
+    for k in _RECONCILE_FLOAT01_KEYS:
+        if k in patch:
+            out[k] = None if patch[k] is None else max(0.0, min(1.0, float(patch[k])))
+    if _RECONCILE_MARGIN_KEY in patch:
+        v = patch[_RECONCILE_MARGIN_KEY]
+        out[_RECONCILE_MARGIN_KEY] = None if v is None else max(0.0, min(0.5, float(v)))
+    for k, (lo, hi) in _RECONCILE_INT_KEYS.items():
+        if k in patch:
+            out[k] = None if patch[k] is None else max(lo, min(hi, int(patch[k])))
+    # Per-channel STT canary overrides (Этап 17): None разрешён для очистки override
+    for k in _PER_CHANNEL_STT_BOOL_KEYS:
+        if k in patch:
+            out[k] = None if patch[k] is None else bool(patch[k])
+    for k in _PER_CHANNEL_STT_FLOAT01_KEYS:
+        if k in patch:
+            out[k] = None if patch[k] is None else max(0.0, min(1.0, float(patch[k])))
+    for k, (lo, hi) in _PER_CHANNEL_STT_INT_KEYS.items():
+        if k in patch:
+            out[k] = None if patch[k] is None else max(lo, min(hi, int(patch[k])))
+    # Per-channel STT provider adapter overrides (Этап 18)
+    for k in _PER_CHANNEL_STT_BOOL_KEYS_V2:
+        if k in patch:
+            out[k] = None if patch[k] is None else bool(patch[k])
+    for k, (lo, hi) in _PER_CHANNEL_STT_FLOAT_KEYS.items():
+        if k in patch:
+            out[k] = None if patch[k] is None else max(lo, min(hi, float(patch[k])))
+    for k, max_len in _PER_CHANNEL_STT_STR_KEYS.items():
+        if k in patch:
+            v = patch[k]
+            out[k] = None if v is None else " ".join(str(v).split()).strip()[:max_len]
     return out
 
 
@@ -326,5 +444,9 @@ def options_payload() -> dict:
             "meeting_finalization_enabled": get_settings().meeting_finalization_enabled,
             "learning_extraction_enabled": get_settings().learning_extraction_enabled,
             "previous_meetings_context_enabled": get_settings().previous_meetings_context_enabled,
+            # read-only диагностика Signal Engine (не редактируется через UI)
+            "signal_engine_enabled": get_settings().ai_signal_engine_enabled,
+            "signal_engine_shadow_mode": get_settings().ai_signal_engine_shadow_mode,
+            "signal_engine_session_overrides_enabled": get_settings().ai_signal_engine_session_overrides_enabled,
         },
     }

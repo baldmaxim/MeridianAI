@@ -96,6 +96,10 @@ class CommittedSegment:
     # None, если якорь старта стрима неизвестен (graceful — падаем на wall_clock/server_ts_ms).
     speech_start_ms: Optional[int] = None
     speech_end_ms: Optional[int] = None
+    # Этап 8: optional structured source attribution (зона записи: source/channel/isolated).
+    # Заполняется только pipeline'ом, который реально знает изолированный per-speaker источник.
+    # НЕ сторона и НЕ личность. None по умолчанию → старое поведение/сериализация не меняются.
+    source_attribution: Optional[dict] = None
 
     def __post_init__(self):
         if self.words:

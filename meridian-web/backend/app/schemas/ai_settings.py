@@ -1,6 +1,7 @@
 """Схемы AI-настроек (Этап 9): профили, resolved-настройки, options, patch встречи."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -102,6 +103,57 @@ class AISettingsResolved(BaseModel):
     previous_context_max_chars: int | None = None
     knowledge_context_max_items: int | None = None
     profile_id: int | None = None
+    # Скрытый per-meeting/canary override Signal Engine (НЕ профильная настройка, не для UI).
+    # None = использовать глобальный config. См. docs/signal_engine_canary.md.
+    signal_engine_enabled: bool | None = None
+    signal_engine_shadow_mode: bool | None = None
+    signal_engine_allow_legacy_fallback: bool | None = None
+    signal_engine_min_confidence: float | None = None
+    signal_engine_min_actionability: float | None = None
+    signal_engine_min_urgency: float | None = None
+    signal_engine_trace_enabled: bool | None = None
+    signal_engine_trace_include_text: bool | None = None
+    signal_engine_trace_sample_rate: float | None = None
+    signal_engine_llm_timeout_seconds: float | None = None
+    # Скрытый per-meeting маппинг speaker labels/sources/channels → сторона (Этап 5).
+    speaker_identity_hints: dict[str, Any] | None = None
+    # Скрытый per-meeting canary override Source Reconciliation (Этап 11).
+    source_reconcile_enabled: bool | None = None
+    source_reconcile_shadow_mode: bool | None = None
+    source_reconcile_min_candidate_confidence: float | None = None
+    source_reconcile_min_time_overlap: float | None = None
+    source_reconcile_min_text_similarity: float | None = None
+    source_reconcile_min_match_score: float | None = None
+    source_reconcile_ambiguity_margin: float | None = None
+    source_reconcile_max_candidates: int | None = None
+    source_reconcile_max_age_ms: int | None = None
+    source_reconcile_trace_enabled: bool | None = None
+    source_reconcile_trace_sample_rate: float | None = None
+    # Скрытый per-meeting canary override Per-channel STT (Этап 17). None = global config.
+    audio_per_channel_stt_enabled: bool | None = None
+    audio_per_channel_stt_shadow_mode: bool | None = None
+    audio_per_channel_stt_trace_enabled: bool | None = None
+    audio_per_channel_stt_trace_sample_rate: float | None = None
+    audio_per_channel_stt_max_channels: int | None = None
+    audio_per_channel_stt_min_rms: float | None = None
+    audio_per_channel_stt_min_dominance: float | None = None
+    audio_per_channel_stt_min_segment_ms: int | None = None
+    audio_per_channel_stt_end_silence_ms: int | None = None
+    audio_per_channel_stt_max_segment_ms: int | None = None
+    audio_per_channel_stt_min_text_chars: int | None = None
+    audio_per_channel_stt_max_segments_per_minute: int | None = None
+    audio_per_channel_stt_max_concurrent_transcribes: int | None = None
+    # Provider adapter (Этап 18). None = global config. API-ключи здесь НЕ хранятся.
+    audio_per_channel_stt_provider: str | None = None
+    audio_per_channel_stt_timeout_seconds: float | None = None
+    audio_per_channel_stt_language_code: str | None = None
+    audio_per_channel_stt_model_id: str | None = None
+    audio_per_channel_stt_cache_enabled: bool | None = None
+    audio_per_channel_stt_cache_max_entries: int | None = None
+    audio_per_channel_stt_max_audio_seconds: float | None = None
+    audio_per_channel_stt_max_wav_bytes: int | None = None
+    audio_per_channel_stt_max_provider_calls_per_meeting: int | None = None
+    audio_per_channel_stt_max_provider_audio_seconds_per_meeting: float | None = None
 
 
 class MeetingAISettingsOut(BaseModel):
@@ -137,3 +189,54 @@ class MeetingAISettingsPatch(BaseModel):
     previous_context_max_meetings: int | None = None
     previous_context_max_chars: int | None = None
     knowledge_context_max_items: int | None = None
+    # Скрытый per-meeting/canary override Signal Engine (НЕ профильная настройка, не для UI).
+    # None = очистить override / использовать глобальный config. См. docs/signal_engine_canary.md.
+    signal_engine_enabled: bool | None = None
+    signal_engine_shadow_mode: bool | None = None
+    signal_engine_allow_legacy_fallback: bool | None = None
+    signal_engine_min_confidence: float | None = None
+    signal_engine_min_actionability: float | None = None
+    signal_engine_min_urgency: float | None = None
+    signal_engine_trace_enabled: bool | None = None
+    signal_engine_trace_include_text: bool | None = None
+    signal_engine_trace_sample_rate: float | None = None
+    signal_engine_llm_timeout_seconds: float | None = None
+    # Скрытый per-meeting маппинг speaker labels/sources/channels → сторона (Этап 5).
+    speaker_identity_hints: dict[str, Any] | None = None
+    # Скрытый per-meeting canary override Source Reconciliation (Этап 11).
+    source_reconcile_enabled: bool | None = None
+    source_reconcile_shadow_mode: bool | None = None
+    source_reconcile_min_candidate_confidence: float | None = None
+    source_reconcile_min_time_overlap: float | None = None
+    source_reconcile_min_text_similarity: float | None = None
+    source_reconcile_min_match_score: float | None = None
+    source_reconcile_ambiguity_margin: float | None = None
+    source_reconcile_max_candidates: int | None = None
+    source_reconcile_max_age_ms: int | None = None
+    source_reconcile_trace_enabled: bool | None = None
+    source_reconcile_trace_sample_rate: float | None = None
+    # Скрытый per-meeting canary override Per-channel STT (Этап 17). None = global config.
+    audio_per_channel_stt_enabled: bool | None = None
+    audio_per_channel_stt_shadow_mode: bool | None = None
+    audio_per_channel_stt_trace_enabled: bool | None = None
+    audio_per_channel_stt_trace_sample_rate: float | None = None
+    audio_per_channel_stt_max_channels: int | None = None
+    audio_per_channel_stt_min_rms: float | None = None
+    audio_per_channel_stt_min_dominance: float | None = None
+    audio_per_channel_stt_min_segment_ms: int | None = None
+    audio_per_channel_stt_end_silence_ms: int | None = None
+    audio_per_channel_stt_max_segment_ms: int | None = None
+    audio_per_channel_stt_min_text_chars: int | None = None
+    audio_per_channel_stt_max_segments_per_minute: int | None = None
+    audio_per_channel_stt_max_concurrent_transcribes: int | None = None
+    # Provider adapter (Этап 18). None = global config. API-ключи здесь НЕ хранятся.
+    audio_per_channel_stt_provider: str | None = None
+    audio_per_channel_stt_timeout_seconds: float | None = None
+    audio_per_channel_stt_language_code: str | None = None
+    audio_per_channel_stt_model_id: str | None = None
+    audio_per_channel_stt_cache_enabled: bool | None = None
+    audio_per_channel_stt_cache_max_entries: int | None = None
+    audio_per_channel_stt_max_audio_seconds: float | None = None
+    audio_per_channel_stt_max_wav_bytes: int | None = None
+    audio_per_channel_stt_max_provider_calls_per_meeting: int | None = None
+    audio_per_channel_stt_max_provider_audio_seconds_per_meeting: float | None = None

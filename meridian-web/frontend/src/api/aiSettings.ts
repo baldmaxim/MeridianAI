@@ -54,6 +54,16 @@ export async function patchMeetingAISettings(
   return data;
 }
 
+// Этап 21: подтверждение ролей/сторон — PATCH только speaker_identity_hints (без прочих настроек).
+// hints=null очищает назначения. Тело/значения нормализует backend (без PII).
+export async function patchMeetingSpeakerIdentityHints(
+  meetingId: number, hints: Record<string, unknown> | null,
+): Promise<MeetingAISettings> {
+  const { data } = await api.patch<MeetingAISettings>(
+    `/meetings/${meetingId}/ai-settings`, { speaker_identity_hints: hints });
+  return data;
+}
+
 export async function applyProfileToMeeting(meetingId: number, profileId: number): Promise<MeetingAISettings> {
   const { data } = await api.post<MeetingAISettings>(
     `/meetings/${meetingId}/ai-settings/apply-profile/${profileId}`);
