@@ -179,6 +179,14 @@ class Settings(BaseSettings):
     secondary_audio_shadow_accept_pcm16: bool = Field(default=True, alias="SECONDARY_AUDIO_SHADOW_ACCEPT_PCM16")
     secondary_audio_shadow_accept_float32: bool = Field(default=False, alias="SECONDARY_AUDIO_SHADOW_ACCEPT_FLOAT32")
 
+    # Channel-aware capture v2 shadow (Этап 16): опциональный multichannel MAUD2-стрим — ТОЛЬКО
+    # диагностика, не STT и не attribution. Legacy mono 16k остаётся единственным live STT input.
+    ai_audio_multichannel_shadow_enabled: bool = Field(default=True, alias="AI_AUDIO_MULTICHANNEL_SHADOW_ENABLED")
+    ai_audio_multichannel_shadow_accept_frames: bool = Field(default=True, alias="AI_AUDIO_MULTICHANNEL_SHADOW_ACCEPT_FRAMES")
+    ai_audio_multichannel_shadow_trace_enabled: bool = Field(default=True, alias="AI_AUDIO_MULTICHANNEL_SHADOW_TRACE_ENABLED")
+    ai_audio_multichannel_shadow_max_channels: int = Field(default=8, alias="AI_AUDIO_MULTICHANNEL_SHADOW_MAX_CHANNELS")
+    ai_audio_multichannel_shadow_max_frame_bytes: int = Field(default=524288, alias="AI_AUDIO_MULTICHANNEL_SHADOW_MAX_FRAME_BYTES")
+
     # Multi-source ingest (Этап 9.3): единый server-side слой для всех аудиоисточников
     # встречи. Primary-поток продолжает идти в STT БЕЗ изменений, а параллельно (tap)
     # и secondary-чанки приводятся к общей server timeline и режутся на canonical frames

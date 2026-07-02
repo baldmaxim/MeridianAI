@@ -7,6 +7,7 @@ Each user gets their own SessionManager with independent state.
 import asyncio
 import json
 import logging
+import random
 import time
 import uuid
 from datetime import datetime
@@ -25,9 +26,46 @@ from ..core.transcription.models import (
     UNKNOWN_SPEAKER, SegmentOrigin,
 )
 from ..core.context.event_detector import EventDetector
+from ..core.context.signal_engine import SignalEngine
+from ..core.context.signal_policy import (
+    resolve_signal_runtime_config, evaluate_signal_decision,
+)
+from ..core.context.signal_trace import build_signal_trace_event, log_signal_trace
+from ..core.context.audio_capture_metadata import (
+    AudioCaptureMetadata, parse_audio_capture_metadata,
+)
+from ..core.context.multichannel_shadow_state import AudioMultichannelShadowIngest
+from ..core.context.audio_frame_v2 import parse_audio_frame_v2
+from ..core.context.per_channel_stt_policy import resolve_per_channel_stt_runtime_config
+from ..core.context.per_channel_stt_trace import (
+    build_per_channel_stt_trace_event, log_per_channel_stt_trace,
+)
+from ..core.audio.per_channel_stt import PerChannelSttPipeline
+from .speaker_identity_service import SpeakerIdentityService
+from ..core.context.speaker_audio_links import (
+    extract_audio_links_from_metadata, build_speaker_audio_link_map,
+)
+from ..core.context.speaker_audio_attribution import (
+    SpeakerAudioAttributionTracker, extract_speaker_audio_observations_from_payload,
+)
+from ..core.context.segment_source_attribution import (
+    build_observation_payload_from_segment,
+    build_segment_source_attribution_dict,
+    attach_source_attribution_to_committed_segment,
+)
+from ..core.context.source_attribution_reconciler import (
+    SourceAttributionReconciler, extract_source_candidate_from_payload,
+)
+from ..core.context.source_attribution_policy import (
+    resolve_source_reconcile_runtime_config, evaluate_source_reconcile_decision,
+)
+from ..core.context.source_reconcile_trace import (
+    build_source_reconcile_trace_event, log_source_reconcile_trace,
+)
 from ..core.context.meeting_memory import MeetingMemory
 from ..core.llm.suggestion_prompts import (
-    build_auto_cards_prompt, build_manual_cards_prompt, build_strengthen_prompt,
+    build_auto_cards_prompt, build_auto_cards_prompt_from_signal,
+    build_manual_cards_prompt, build_strengthen_prompt,
 )
 from .context_pack import assemble_live_context_pack
 from ..core.transcription.turn_assembler import TurnAssembler
@@ -154,6 +192,23 @@ class SessionManager:
         self.speaker_names: Dict[str, str] = {}  # speaker_label → имя (display_name)
         # Этап 8: segment-level коррекции диаризации (segment_id → {side, corrected_speaker_label})
         self.speaker_segment_corrections: Dict[str, dict] = {}
+        # Этап 6: structured speaker↔audio link (speaker_label → source_id / channel_label).
+        # Пусто по умолчанию; заполняется set_speaker_audio_metadata() (см. TODO ниже).
+        self.speaker_audio_source_map: Dict[str, str] = {}   # speaker_label → audio source id
+        self.speaker_channel_map: Dict[str, str] = {}        # speaker_label → channel label
+        # Этап 15: безопасная audio capture route metadata (техническая зона записи, НЕ сторона).
+        # Диагностика/телеметрия; НЕ создаёт source attribution и НЕ задаёт speaker_identity_hints.
+        self._audio_capture_metadata: Optional[AudioCaptureMetadata] = None
+        # Этап 16: channel-aware v2 shadow ingest (только агрегаты; не STT/не attribution/не сторона).
+        self._multichannel_shadow_ingest = AudioMultichannelShadowIngest()
+        self._mc_shadow_log_every = 50  # лог не на каждый кадр
+        # Этап 17: per-channel STT canary (opt-in, по умолчанию выкл/shadow). Не заменяет legacy STT.
+        self._per_channel_stt_pipeline: Optional[PerChannelSttPipeline] = None
+        self._per_channel_stt_adapter = None  # явная инъекция (тесты); None → строим по provider
+        self._per_channel_stt_provider_key = None  # (provider, model_id, language_code) для rebuild
+        self._per_channel_stt_semaphore: Optional[asyncio.Semaphore] = None
+        self._per_channel_stt_sem_size = 0
+        self._per_channel_stt_tasks: set = set()
 
         # Stored API keys for batch finalization
         self._elevenlabs_key: Optional[str] = None
@@ -168,8 +223,25 @@ class SessionManager:
         # Meeting memory (three-layer context for long meetings)
         self._meeting_memory = MeetingMemory()
 
-        # Event detector (rule-based negotiation events)
+        # Event detector (rule-based negotiation events) — legacy fallback
         self._event_detector = EventDetector()
+
+        # Signal Engine (Этап 1): контекстная классификация переговорной ситуации
+        self._signal_engine = SignalEngine()
+
+        # Speaker Identity Graph v1 (Этап 4): нормализация ролей/сторон спикеров
+        self._speaker_identity_service = SpeakerIdentityService()
+
+        # Этап 7: live speaker→audio attribution (link только при устойчивой attribution)
+        self._speaker_audio_attribution = SpeakerAudioAttributionTracker()
+
+        # Этап 10: reconciliation source candidate (source/channel) ↔ committed segment (speaker_label)
+        self._source_attribution_reconciler = SourceAttributionReconciler()
+        # Этап 11: аккумуляторы решений reconcile для SIGNAL_ENGINE_TRACE (агрегаты, без raw)
+        self._reconcile_would_attach = 0
+        self._reconcile_actual_attach = 0
+        self._reconcile_decision_reasons: Dict[str, int] = {}
+        self._reconcile_last_shadow: Optional[bool] = None
 
         # Prompt context builder (unified context assembly for 3 modes)
         self._ctx_builder = PromptContextBuilder(
@@ -632,6 +704,9 @@ class SessionManager:
         if self._hint_debounce_task and not self._hint_debounce_task.done():
             self._hint_debounce_task.cancel()
 
+        # Этап 17: дождаться in-flight per-channel STT задач, чтобы они не пережили teardown сессии.
+        await self.drain_per_channel_stt_tasks()
+
         await self._send_status("Прослушивание остановлено")
 
     # ---------------------------------------------------------------
@@ -656,6 +731,13 @@ class SessionManager:
 
         # Этап 9.8: speech-time метки (для атрибуции эпох) — момент речи, не прихода события
         segment.assign_speech_timestamps(self.listening_started_server_ms)
+
+        # Этап 10: попытка reconcile committed segment (speaker_label) с накопленным isolated
+        # source candidate (source/channel). Проставит source_attribution ДО committed-hook, если
+        # есть сильный НЕ-ambiguous match. Без кандидатов / при общем room-mic — no-op (прежнее
+        # поведение). Кандидаты копит observe_source_attribution_candidate (из MeetingRoom/ctx).
+        # Сторона здесь НЕ выводится; bridge/manual source_attribution не перезаписывается.
+        self.reconcile_source_attribution_for_segment(segment)
 
         # Store committed segment
         self._committed_segments.append(segment)
@@ -785,6 +867,423 @@ class SessionManager:
         """Этап 9: минимальный интервал между авто-подсказками."""
         return float(self._ai("auto_suggestion_min_interval_seconds", HINT_COOLDOWN_SEC))
 
+    def set_speaker_audio_metadata(self, *, source_map: Optional[dict] = None,
+                                   channel_map: Optional[dict] = None) -> None:
+        """Этап 6/7: задать manual structured speaker↔audio link для Signal Engine.
+
+        source_map: {speaker_label: source_id}; channel_map: {speaker_label: channel_label}.
+        Holders сохраняются как явная runtime-metadata (трактуются как стабильный link)."""
+        if source_map is not None:
+            self.speaker_audio_source_map = dict(source_map)
+        if channel_map is not None:
+            self.speaker_channel_map = dict(channel_map)
+
+    def set_audio_capture_metadata(self, payload: Any) -> bool:
+        """Этап 15: сохранить безопасную audio capture route metadata (диагностика/телеметрия).
+
+        Парсит payload в AudioCaptureMetadata (raw device label/id хэшируются, сырьё отбрасывается).
+        НЕ вызывает set_speaker_audio_metadata, НЕ создаёт source attribution, НЕ трогает
+        speaker_identity_hints и НЕ влияет на reconciliation. route/source_kind — техническая зона
+        записи, НЕ сторона. Логирует только агрегаты (route/pipeline/каналы), без raw labels/ids.
+        Возвращает True, если метаданные приняты."""
+        try:
+            meta = parse_audio_capture_metadata(payload)
+        except Exception:  # noqa: BLE001 — телеметрия не должна ломать поток
+            logger.warning("[AudioCapture] невалидный payload — проигнорирован")
+            return False
+        self._audio_capture_metadata = meta
+        logger.info(
+            "[AudioCapture] route=%s pipeline=%s source_kind=%s actual_channels=%s actual_sample_rate=%s",
+            meta.route, meta.capture_pipeline, meta.source_kind,
+            meta.actual_channel_count, meta.actual_sample_rate)
+        return True
+
+    def get_audio_capture_metadata(self) -> Optional[AudioCaptureMetadata]:
+        """Этап 15: текущая безопасная audio capture route metadata (или None)."""
+        return self._audio_capture_metadata
+
+    def ingest_audio_frame_v2_shadow(self, data: bytes) -> bool:
+        """Этап 16: принять MAUD2 v2 shadow-кадр (диагностика). Возвращает True, если принят.
+
+        НЕ вызывает STT, НЕ создаёт source attribution, НЕ трогает speaker_identity_hints, НЕ
+        кормит attribution observations. Только безопасные агрегаты. Raw audio не хранится/не логируется.
+        Управляется флагами ENABLED/ACCEPT_FRAMES. Лог — изредка, только агрегаты.
+        """
+        settings = get_settings()
+        if not getattr(settings, "ai_audio_multichannel_shadow_enabled", True):
+            return False
+        if not getattr(settings, "ai_audio_multichannel_shadow_accept_frames", True):
+            self._multichannel_shadow_ingest.note_dropped()
+            return False
+        accepted = self._multichannel_shadow_ingest.ingest_frame(data)
+        if accepted and self._multichannel_shadow_ingest.frame_count % self._mc_shadow_log_every == 1:
+            ing = self._multichannel_shadow_ingest
+            logger.info(
+                "[AudioV2Shadow] accepted=true frames=%s channels=%s sample_rate=%s gaps=%s errors=%s",
+                ing.frame_count, ing.last_channels, ing.last_sample_rate,
+                ing.sequence_gap_count, ing.parse_error_count)
+        # Этап 17: per-channel STT canary (opt-in). Stage 16 поведение выше не меняется. Ошибка
+        # per-channel STT не влияет на legacy mono STT и на v2 shadow stats.
+        if accepted:
+            try:
+                self._feed_per_channel_stt(data)
+            except Exception:  # noqa: BLE001 — per-channel STT никогда не ломает поток
+                logger.debug("[PerChannelStt] feed failed (ignored)", exc_info=False)
+        return accepted
+
+    def get_multichannel_shadow_stats(self):
+        """Этап 16: снимок безопасных агрегатов v2 shadow ingest."""
+        enabled = bool(getattr(get_settings(), "ai_audio_multichannel_shadow_enabled", True))
+        return self._multichannel_shadow_ingest.get_stats(enabled=enabled)
+
+    # --- Этап 17: per-channel STT canary ---
+
+    def _get_per_channel_stt_runtime_config(self):
+        """Resolve per-channel STT config (global + per-meeting canary override)."""
+        return resolve_per_channel_stt_runtime_config(get_settings(), self.ai_settings)
+
+    def _build_per_channel_stt_adapter(self, config):
+        """Этап 18: построить provider-адаптер по config.provider. API-ключ берётся из
+        session._elevenlabs_key (НЕ из ai_settings snapshot). provider=noop → no-op (без вызовов)."""
+        from ..core.audio.per_channel_stt_adapter import build_per_channel_stt_adapter
+        return build_per_channel_stt_adapter(config, api_key=self._elevenlabs_key)
+
+    def _ensure_per_channel_stt_pipeline(self, config):
+        """Создать/обновить pipeline + semaphore + provider-адаптер под текущий config."""
+        # Адаптер: явная инъекция (тесты) имеет приоритет, иначе строим по provider.
+        provider_key = (config.provider, config.model_id, config.language_code)
+        if self._per_channel_stt_pipeline is None:
+            adapter = self._per_channel_stt_adapter or self._build_per_channel_stt_adapter(config)
+            self._per_channel_stt_pipeline = PerChannelSttPipeline(config, adapter)
+            self._per_channel_stt_provider_key = provider_key
+        else:
+            self._per_channel_stt_pipeline.update_config(config)
+            # Пересобрать адаптер, если provider/model/language изменились (и нет явной инъекции).
+            if self._per_channel_stt_adapter is None and provider_key != self._per_channel_stt_provider_key:
+                self._per_channel_stt_pipeline.set_adapter(self._build_per_channel_stt_adapter(config))
+                self._per_channel_stt_provider_key = provider_key
+        if self._per_channel_stt_sem_size != config.max_concurrent_transcribes:
+            self._per_channel_stt_semaphore = asyncio.Semaphore(config.max_concurrent_transcribes)
+            self._per_channel_stt_sem_size = config.max_concurrent_transcribes
+        return self._per_channel_stt_pipeline
+
+    def _feed_per_channel_stt(self, data: bytes) -> None:
+        """Если per-channel STT canary включён — сегментировать v2 кадр и запланировать транскрипцию.
+
+        НЕ заменяет legacy STT. НЕ выводит сторону. channel_{index} — техническая зона записи.
+        """
+        config = self._get_per_channel_stt_runtime_config()
+        if not config.enabled:
+            return
+        try:
+            parsed = parse_audio_frame_v2(data)
+        except Exception:  # noqa: BLE001 — битый кадр уже учтён Stage 16 ingest
+            return
+        pipeline = self._ensure_per_channel_stt_pipeline(config)
+        segments = pipeline.ingest_frame(parsed)
+        for seg in segments:
+            self._schedule_per_channel_transcribe(seg, config)
+
+    def _schedule_per_channel_transcribe(self, segment, config) -> None:
+        """Запланировать async-транскрипцию сегмента (не блокирует WS-аудио). Без loop — пропуск."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self._per_channel_stt_transcribe_task(segment, config))
+        self._per_channel_stt_tasks.add(task)
+        task.add_done_callback(self._per_channel_stt_tasks.discard)
+
+    async def _per_channel_stt_transcribe_task(self, segment, config) -> None:
+        """Транскрибировать сегмент; в shadow — подавить кандидата, иначе отдать в reconciler.
+
+        Полностью защищена: ЛЮБАЯ ошибка (в т.ч. при teardown сессии) проглатывается и не ломает
+        legacy/v2 поток и не валит event loop. channel_{index} — техническая зона; сторона НЕ выводится.
+        """
+        try:
+            pipeline = self._per_channel_stt_pipeline
+            if pipeline is None:
+                return
+            sem = self._per_channel_stt_semaphore
+            if sem is not None:
+                async with sem:
+                    candidate = await pipeline.transcribe_segment(segment)
+            else:
+                candidate = await pipeline.transcribe_segment(segment)
+            if candidate is None:
+                return
+            if config.shadow_mode:
+                pipeline.mark_candidate_suppressed()
+                return
+            # active: source candidate → SourceAttributionReconciler (он сам решит shadow/attach).
+            # observe не создаёт attribution напрямую и не трогает speaker_identity_hints.
+            payload = pipeline.segment_to_source_candidate_payload(candidate)
+            self.observe_source_attribution_candidate(payload)
+            pipeline.mark_candidate_emitted()
+        except Exception:  # noqa: BLE001 — per-channel STT никогда не ломает поток/loop
+            logger.debug("[PerChannelStt] transcribe task failed (ignored)", exc_info=False)
+
+    def get_per_channel_stt_stats(self):
+        """Этап 17: снимок безопасных агрегатов per-channel STT (или None)."""
+        if self._per_channel_stt_pipeline is None:
+            return None
+        return self._per_channel_stt_pipeline.get_stats()
+
+    async def drain_per_channel_stt_tasks(self) -> None:
+        """Дождаться завершения запланированных per-channel STT задач (finalization/тесты)."""
+        if self._per_channel_stt_tasks:
+            await asyncio.gather(*list(self._per_channel_stt_tasks), return_exceptions=True)
+
+    def observe_speaker_audio_attribution(self, payload: Any) -> int:
+        """Этап 7: принять structured observations (speaker_label ↔ source/channel) из live-потока.
+
+        Извлекает observations (не парсит transcript text), кормит tracker. Возвращает число
+        принятых наблюдений. payload и raw labels/source ids НЕ логируются."""
+        try:
+            observations = extract_speaker_audio_observations_from_payload(payload)
+        except Exception:  # noqa: BLE001 — attribution не должна ломать поток
+            return 0
+        if not observations:
+            return 0
+        return self._speaker_audio_attribution.observe_many(observations)
+
+    def bridge_segment_source_attribution(
+        self, segment, *, audio_source_id: Optional[str] = None, channel_label: Optional[str] = None,
+        device_role: Optional[str] = None, route: Optional[str] = None,
+        attribution_confidence: Optional[float] = None, source_is_isolated: bool = False,
+        attribution_source: str = "unknown", source_kind: str = "unknown",
+        turn_index: Optional[int] = None,
+    ) -> bool:
+        """Этап 9 bridge: будущий isolated STT/diarization-путь зовёт это, чтобы безопасно
+        проставить source_attribution на committed segment. speaker_label/segment_id берутся
+        с самого сегмента. Возвращает True, если attribution безопасна (should_emit) и проставлена;
+        False для общего room-mic/без isolation. Сторона не выводится. Значения не логируются."""
+        if isinstance(segment, dict):
+            label, seg_id = segment.get("speaker_label"), segment.get("segment_id")
+        else:
+            label, seg_id = getattr(segment, "speaker_label", None), getattr(segment, "segment_id", None)
+        attribution = build_segment_source_attribution_dict(
+            speaker_label=label, audio_source_id=audio_source_id, channel_label=channel_label,
+            device_role=device_role, route=route, attribution_confidence=attribution_confidence,
+            source_is_isolated=source_is_isolated, attribution_source=attribution_source,
+            source_kind=source_kind, turn_index=turn_index,
+            segment_id=(str(seg_id) if seg_id else None))
+        if attribution is None:
+            return False
+        attach_source_attribution_to_committed_segment(segment, attribution)
+        return True
+
+    def _get_source_reconcile_runtime_config(self):
+        """Этап 11: resolve runtime config (global + per-meeting canary override)."""
+        return resolve_source_reconcile_runtime_config(get_settings(), self.ai_settings)
+
+    def observe_source_attribution_candidate(self, payload: Any) -> int:
+        """Этап 10/11: принять isolated/per-channel source candidate (source/channel ± text/time,
+        без speaker_label). enabled=false → 0 (старое поведение). Применяет runtime-пороги. raw
+        payload/text/source ids НЕ логируются. Список → каждый элемент."""
+        config = self._get_source_reconcile_runtime_config()
+        if not config.enabled:
+            return 0
+        self._source_attribution_reconciler.apply_runtime_config(config)
+        try:
+            if isinstance(payload, (list, tuple)):
+                return self._source_attribution_reconciler.observe_candidates(payload)
+            cand = extract_source_candidate_from_payload(payload)
+        except Exception:  # noqa: BLE001 — reconciliation не должна ломать поток
+            return 0
+        if cand is None:
+            return 0
+        return 1 if self._source_attribution_reconciler.observe_candidate(cand) else 0
+
+    def reconcile_source_attribution_for_segment(self, segment: Any) -> bool:
+        """Этап 10/11: сопоставить committed segment (speaker_label) с накопленным isolated source
+        candidate. Прикрепляет source_attribution ТОЛЬКО при decision.actual_attach (shadow_mode=
+        false). В shadow считает would_attach и пишет SOURCE_RECONCILE_TRACE, но НЕ прикрепляет.
+
+        Не перезаписывает уже заданный source_attribution (bridge/manual). Возвращает True если
+        реально прикрепили. Логи/trace — ТОЛЬКО агрегаты/категории, без raw text/labels/source ids.
+        Примечание: bridge_segment_source_attribution — это явный internal вызов и НЕ подчиняется
+        shadow reconcile (он намеренно ставит attribution напрямую)."""
+        config = self._get_source_reconcile_runtime_config()
+        self._reconcile_last_shadow = config.shadow_mode
+        if not config.enabled:
+            return False
+        self._source_attribution_reconciler.apply_runtime_config(config)
+        check_id = uuid.uuid4().hex[:12]
+        t0 = time.monotonic()
+        match = self._source_attribution_reconciler.reconcile_segment(segment)
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        decision = evaluate_source_reconcile_decision(match, config)
+
+        if decision.would_attach_without_shadow:
+            self._reconcile_would_attach += 1
+        if decision.actual_attach:
+            self._reconcile_actual_attach += 1
+        self._reconcile_decision_reasons[decision.reason] = \
+            self._reconcile_decision_reasons.get(decision.reason, 0) + 1
+
+        if config.trace_enabled and (
+            config.trace_sample_rate >= 1.0 or random.random() < config.trace_sample_rate
+        ):
+            ev = build_source_reconcile_trace_event(
+                check_id=check_id, config=config, match=match, decision=decision,
+                reconciler_stats=self._source_attribution_reconciler.get_stats(),
+                session_id=self.user_id, meeting_id=self.db_session_id, latency_ms=latency_ms)
+            log_source_reconcile_trace(logger, ev)
+
+        if decision.actual_attach and match.attribution_dict:
+            attach_source_attribution_to_committed_segment(segment, match.attribution_dict)
+            return True
+        return False
+
+    def _collect_speaker_audio_metadata(self, ctx: Optional[dict] = None):
+        """Собрать итоговый SpeakerAudioLinkMap из structured-источников (или None).
+
+        Объединяет: manual holders (set_speaker_audio_metadata), tracker.build_link_map()
+        (устойчивая live-attribution) и structured-контейнеры из ctx, если есть. Не парсит
+        transcript text. Если ничего нет — None."""
+        links = []
+        if self.speaker_audio_source_map or self.speaker_channel_map:
+            mlm = extract_audio_links_from_metadata(
+                audio_source_metadata=(self.speaker_audio_source_map or None),
+                channel_metadata=(self.speaker_channel_map or None))
+            links.extend(mlm.links_by_stable_id.values())
+        tlm = self._speaker_audio_attribution.build_link_map()
+        links.extend(tlm.links_by_stable_id.values())
+        if isinstance(ctx, dict):
+            container = {k: ctx[k] for k in (
+                "speaker_sources", "source_by_speaker", "speaker_channels",
+                "channel_by_speaker", "speaker_audio_links") if ctx.get(k)}
+            if container:
+                links.extend(
+                    extract_audio_links_from_metadata(
+                        audio_source_metadata=container).links_by_stable_id.values())
+        if not links:
+            return None
+        return build_speaker_audio_link_map(links)
+
+    async def _signal_flow(self, text: str, recent: str, doc_context: str,
+                           source_method: str = "", ctx: Optional[dict] = None) -> bool:
+        """Signal Engine (Этап 2). Возвращает True, если signal-слой обработал ситуацию
+        (вызывающий делает return); False — продолжить legacy event/keyword flow.
+
+        Инварианты:
+        - enabled=false → полностью старый flow (LLM не зовём).
+        - shadow_mode=true → только наблюдаем; старый flow продолжает работать.
+        - technical error + allow_legacy_fallback → старый flow может сработать.
+        - invalid/validation/should_prompt=false/weak в live → осознанное молчание (НЕ legacy).
+        """
+        config = resolve_signal_runtime_config(get_settings(), self.ai_settings)
+        if not config.enabled:
+            return False  # полностью старый flow
+
+        # Speaker Identity Graph v1: подтверждённые роли = manual_correction, остальное —
+        # метки из диалога (unknown). Без угадывания. Пустой граф → speaker_context="".
+        # Hidden per-meeting hints (Этап 5) из snapshot AI-настроек (dict или объект).
+        ai = self.ai_settings
+        identity_hints = (ai.get("speaker_identity_hints") if isinstance(ai, dict)
+                          else getattr(ai, "speaker_identity_hints", None))
+        # Этап 8/10: structured source candidates + per-segment attribution из ctx.
+        # transcript text не парсится как метаданные. Основной поток — observe/reconcile из
+        # MeetingRoom committed-hook; здесь — если ctx несёт structured candidates/segment.
+        if isinstance(ctx, dict):
+            for cand_key in ("source_candidates", "source_attribution_candidates",
+                             "multi_channel_candidates"):
+                cands = ctx.get(cand_key)
+                if cands:
+                    self.observe_source_attribution_candidate(cands)
+            for seg_key in ("current_segment", "committed_segment", "last_segment", "segment"):
+                seg = ctx.get(seg_key)
+                if seg is not None:
+                    self.reconcile_source_attribution_for_segment(seg)  # source_attribution до observe
+                    payload = build_observation_payload_from_segment(seg)
+                    if payload:
+                        self.observe_speaker_audio_attribution(payload)
+        audio_link_map = self._collect_speaker_audio_metadata(ctx)
+        speaker_map = self._speaker_identity_service.build_runtime_map(
+            manual_overrides=(self.speaker_roles or None),
+            recent_dialog=recent,
+            identity_hints=identity_hints,
+            audio_link_map=audio_link_map,
+        )
+        speaker_context = (self._speaker_identity_service.build_context_text(speaker_map)
+                           if speaker_map.speakers else "")
+
+        check_id = uuid.uuid4().hex[:12]
+        t0 = time.monotonic()
+        result = await self._signal_engine.classify(
+            llm_client=self.llm_client,
+            role_name=self._role_name(),
+            recent_dialog=recent,
+            current_text=text,
+            document_context=doc_context,
+            speaker_context=speaker_context,
+            timeout_seconds=config.llm_timeout_seconds,
+        )
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        sig = result.signal
+        decision = evaluate_signal_decision(sig, result, config)
+
+        # Безопасный structured trace (без текста переговоров/имён при include_text=false)
+        if config.trace_enabled and (
+            config.trace_sample_rate >= 1.0 or random.random() < config.trace_sample_rate
+        ):
+            event = build_signal_trace_event(
+                check_id=check_id, result=result, decision=decision,
+                shadow_mode=config.shadow_mode,
+                recent_dialog=recent, current_text=text, document_context=doc_context,
+                session_id=self.user_id, meeting_id=self.db_session_id,
+                source_method=source_method or None, latency_ms=latency_ms,
+                include_text=config.trace_include_text,
+                speaker_context=speaker_context, speaker_map=speaker_map,
+                audio_link_map=audio_link_map,
+                attribution_stats=self._speaker_audio_attribution.get_stats(),
+                source_reconcile_stats=self._source_attribution_reconciler.get_stats(),
+                source_reconcile_decision_stats={
+                    "shadow_mode": self._reconcile_last_shadow,
+                    "would_attach_count": self._reconcile_would_attach,
+                    "actual_attach_count": self._reconcile_actual_attach,
+                    "decision_reasons": dict(self._reconcile_decision_reasons),
+                },
+                audio_capture_metadata=self._audio_capture_metadata,
+                multichannel_shadow_stats=(
+                    self.get_multichannel_shadow_stats()
+                    if get_settings().ai_audio_multichannel_shadow_trace_enabled else None),
+                per_channel_stt_stats=self.get_per_channel_stt_stats(),
+            )
+            log_signal_trace(logger, event)
+
+        # Этап 17: отдельный PER_CHANNEL_STT_TRACE (только агрегаты), если canary включён.
+        pcfg = self._get_per_channel_stt_runtime_config()
+        if (pcfg.enabled and pcfg.trace_enabled and self._per_channel_stt_pipeline is not None
+                and (pcfg.trace_sample_rate >= 1.0 or random.random() < pcfg.trace_sample_rate)):
+            pcs_event = build_per_channel_stt_trace_event(
+                check_id=check_id, stats=self.get_per_channel_stt_stats(), config=pcfg,
+                session_id=self.user_id, meeting_id=self.db_session_id)
+            log_per_channel_stt_trace(logger, pcs_event)
+
+        # --- маппинг decision → поведение flow ---
+        if decision.legacy_fallback_allowed:
+            return False  # тех.сбой + allow_legacy → старый flow может сработать
+        if config.shadow_mode:
+            return False  # наблюдаем; старый flow работает как сейчас
+        if not decision.actual_should_prompt:
+            return True   # молчание (invalid/should_prompt_false/weak) — НЕ legacy
+
+        # live + actual_should_prompt=true
+        now = time.time()
+        key = decision.cooldown_key or f"signal:{sig.novelty_key}"
+        if now - self._auto_trigger_cooldown.get(key, 0) < self._auto_interval():
+            return True  # cooldown → молчание
+        self._auto_trigger_cooldown[key] = now
+
+        status = ("Обнаружен переговорный риск…" if sig.risk_level == "high"
+                  else "Анализирую переговорную ситуацию…")
+        await self._send_analysis_status(status)
+        await self._auto_suggestion_from_signal(sig, recent, doc_context, speaker_context=speaker_context)
+        await self._send_analysis_status(None)
+        return True
+
     async def _debounced_hint_check(self):
         """Wait for pause, then check buffered segments for events/keywords."""
         await asyncio.sleep(HINT_DEBOUNCE_SEC)
@@ -806,6 +1305,11 @@ class SessionManager:
         ctx = self._ctx_builder.build_reactive(batch_text)
         recent = ctx["recent_dialog"]
         doc_context = await self._augment_doc_context(ctx["document_context"], batch_text)
+
+        # --- Signal Engine (Этап 2): contextual classification ---
+        if await self._signal_flow(batch_text, recent, doc_context,
+                                   source_method="debounced_hint_check", ctx=ctx):
+            return
 
         # --- Event detection (priority over keywords) ---
         events = self._event_detector.detect(batch_text)
@@ -854,6 +1358,11 @@ class SessionManager:
         ctx = self._ctx_builder.build_reactive(text)
         recent = ctx["recent_dialog"]
         doc_context = await self._augment_doc_context(ctx["document_context"], text)
+
+        # --- Signal Engine (Этап 2): contextual classification ---
+        if await self._signal_flow(text, recent, doc_context,
+                                   source_method="check_legacy_auto_triggers", ctx=ctx):
+            return
 
         # --- Event detection (priority) ---
         events = self._event_detector.detect(text)
@@ -1293,6 +1802,31 @@ class SessionManager:
             letters_context=pack.text_for("letters"))
         raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "auto"))
         await self._emit_suggestion_cards(raw, "auto", trigger=keyword, doc_context_text=doc_combined)
+
+    async def _auto_suggestion_from_signal(self, signal, recent: str, doc_context: str,
+                                           speaker_context: str = ""):
+        """Авто-подсказка карточками от контекстного переговорного сигнала (Этап 1/4).
+
+        Аналог structured-ветки _auto_suggestion, но без keyword: контекст и промпт
+        строятся от NegotiationSignal + speaker_context (роли/стороны участников)."""
+        settings = get_settings()
+        extra = signal.intent or signal.reasoning_summary or signal.situation_type
+        query_text = (f"{recent}\n{extra}".strip()) if extra else (recent or "")
+        pack = await self._build_context_pack_for_prompt(
+            mode="auto", query_text=query_text, meeting_context_block="",
+            recent_dialog=recent, document_context=doc_context,
+            document_already_augmented=True,
+        )
+        doc_combined = pack.combined_documents_text()
+        max_cards = self._ai("max_auto_cards", settings.suggestion_max_cards_auto)
+        prompt = build_auto_cards_prompt_from_signal(
+            self._role_name(), signal, pack.text_for("recent_dialog"), doc_combined,
+            max_cards, knowledge_context=pack.text_for("knowledge"),
+            previous_meetings_context=pack.text_for("previous_meeting"),
+            letters_context=pack.text_for("letters"), speaker_context=speaker_context)
+        raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=_mode_tokens(self._mode(), "auto"))
+        await self._emit_suggestion_cards(
+            raw, "auto", trigger=f"signal:{signal.situation_type}", doc_context_text=doc_combined)
 
     async def _emit_suggestion_cards(self, raw, source_mode: str, trigger=None, doc_context_text=""):
         settings = get_settings()

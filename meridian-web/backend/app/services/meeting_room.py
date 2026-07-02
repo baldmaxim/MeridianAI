@@ -42,6 +42,13 @@ from ..models.meeting import (
     MeetingDocumentRecord,
 )
 from ..core.context.document_loader import MeetingDocument
+from ..core.context.audio_frame_v2 import is_audio_frame_v2
+from ..core.context.segment_source_attribution import (
+    extract_segment_source_attribution,
+    should_emit_speaker_audio_observation,
+    segment_source_attribution_to_observation_payload,
+)
+from .multi_channel_live_session import live_multi_channel_segment_to_source_candidate
 from .session_manager import SessionManager
 from .meeting_setup import (
     load_user_settings,
@@ -529,6 +536,11 @@ class MeetingRoom:
         secondary-устройство → shadow-буфер (БЕЗ STT, не меняет active_audio_source);
         иначе принимается ТОЛЬКО от активного источника и идёт в STT.
         """
+        # Этап 16: channel-aware v2 shadow frames (MAUD2) — диагностика, НЕ в legacy STT.
+        # Парсятся/агрегируются отдельно; ошибка парса не влияет на legacy mono поток.
+        if is_audio_frame_v2(data):
+            self.session.ingest_audio_frame_v2_shadow(data)
+            return
         conn = self.connections.get(connection_id)
         if conn is not None and conn.device_role == "secondary":
             await self._handle_shadow_frame(conn, data)
@@ -874,6 +886,18 @@ class MeetingRoom:
                 await self.cutover.persist_live_final(segment)
             except Exception:
                 logger.debug("[room %s] persist live final failed", self.meeting_id)
+            # Этап 10: per-channel сегмент = isolated source candidate (text+channel+source, БЕЗ
+            # speaker_label) → копим в reconciler. Сопоставление со speaker_label committed-сегмента
+            # делает SessionManager._on_committed (reconcile до Stage 8 hook). Сторону НЕ присваиваем,
+            # observe_speaker_audio_attribution напрямую не зовём (нет speaker_label). payload не логируем.
+            # TODO(stage10): когда появятся другие isolated-источники (secondary-shadow с STT) —
+            # так же звать session.observe_source_attribution_candidate с их candidate payload.
+            try:
+                payload = live_multi_channel_segment_to_source_candidate(segment)
+                if payload:
+                    self.session.observe_source_attribution_candidate(payload)
+            except Exception:
+                logger.debug("[room %s] source candidate observe failed", self.meeting_id)
         await self._schedule_multi_channel_reconciliation(reason="live_final")
 
     @staticmethod
@@ -1150,6 +1174,12 @@ class MeetingRoom:
                 await self._schedule_multi_channel_reconciliation(reason="role")
         elif t == "update_meeting_context":
             await self._update_context(message)
+        elif t == "audio_capture_metadata":
+            # Этап 15: безопасная capture route metadata (диагностика). Невалидный payload —
+            # тихо игнорируется, аудиопоток не прерывается. Без raw device label/id в логах.
+            payload = message.get("payload")
+            if payload is not None:
+                self.session.set_audio_capture_metadata(payload)
         elif t == "change_role":
             await self._change_role(message, connection_id)
         elif t == "change_settings":
@@ -1555,9 +1585,43 @@ class MeetingRoom:
             await self._broadcast_side_hint(segment)
         except Exception as e:
             logger.debug(f"[room {self.meeting_id}] side hint failed: {e}")
+        # Этап 7/8: live speaker→audio attribution — ТОЛЬКО при безопасной structured metadata
+        # (isolated/per-speaker source). Общий primary room-mic → no-op (не маппим всех на primary).
+        try:
+            payload = self._speaker_audio_attribution_payload(segment)
+            if payload:
+                self.session.observe_speaker_audio_attribution(payload)
+                logger.info("[SpeakerAudioAttribution] observation accepted=true source_kind=%s "
+                            "attribution_source=%s isolated=%s",
+                            payload.get("_source_kind"), payload.get("source"),
+                            payload.get("source_is_isolated"))
+        except Exception as e:
+            logger.debug(f"[room {self.meeting_id}] audio attribution observe failed: {e}")
         await self._on_committed_for_tree(segment, role)
         # Этап 9.7: новый committed primary → пересобрать reconciliation (если live идёт)
         await self._schedule_multi_channel_reconciliation(reason="committed")
+
+    def _speaker_audio_attribution_payload(self, segment) -> dict | None:
+        """Этап 8: structured per-speaker source/channel payload для observe (или None).
+
+        extract → should_emit → payload. Общий primary room-mic / generic-токен без isolation →
+        None (безопасно). НЕ использует device_role общего primary-подключения как per-speaker
+        source. dedupe_key = segment_id (одно наблюдение не считается дважды). Сторона не выводится.
+        TODO(stage8): чтобы payload реально появлялся, live-диаризация должна проставлять на
+        CommittedSegment.source_attribution (audio_source_id/channel_label/source_is_isolated/
+        attribution_confidence/attribution_source/source_kind) для изолированных per-speaker
+        источников (multi-channel STT / secondary shadow с диаризацией)."""
+        attr = extract_segment_source_attribution(segment)
+        if not should_emit_speaker_audio_observation(attr):
+            return None
+        payload = segment_source_attribution_to_observation_payload(attr)
+        if payload is None:
+            return None
+        seg_id = getattr(segment, "segment_id", None) or getattr(segment, "id", None)
+        if seg_id:
+            payload["segment_id"] = str(seg_id)  # dedupe across MeetingRoom + SessionManager
+        payload["_source_kind"] = attr.source_kind  # только для агрегированного лога (не для observe)
+        return payload
 
     async def _broadcast_side_hint(self, segment) -> None:
         """Подсказка стороны реплики из двух «быстрых» источников вокруг committed-сегмента:

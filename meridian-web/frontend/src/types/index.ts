@@ -1,3 +1,5 @@
+import type { AudioCaptureMetadataClient } from '../audio/audioCaptureTypes';
+
 export interface User {
   id: number;
   email: string;
@@ -634,7 +636,9 @@ export type WSMessageToServer =
   // Этап 9.8: production cutover (управление авторитетным источником)
   | { type: 'transcription_promote'; force?: boolean }
   | { type: 'transcription_fallback' }
-  | { type: 'get_transcription_authority' };
+  | { type: 'get_transcription_authority' }
+  // Этап 15: безопасная audio capture route metadata (диагностика; без raw label/id)
+  | { type: 'audio_capture_metadata'; payload: AudioCaptureMetadataClient };
 
 // --- Справочники (Этап 1 MVP) ---
 
@@ -804,12 +808,20 @@ export interface DocumentRecord {
   chunks_count: number;
 }
 
+export type DocumentUploadMode = 's3_presigned' | 'legacy_multipart';
+
 export interface DocumentUploadSession {
-  document_id: number;
-  file_id: number;
-  upload_url: string;
-  s3_key: string;
-  expires_in: number;
+  // Этап 22: mode-aware. legacy_multipart → грузим через legacy_upload_url; s3_presigned → PUT в S3.
+  // upload_mode бэкенд шлёт всегда (default s3_presigned); остальные s3-поля отсутствуют в legacy.
+  upload_mode: DocumentUploadMode;
+  document_id?: number;
+  file_id?: number;
+  upload_url?: string;
+  s3_key?: string;
+  expires_in?: number;
+  headers?: Record<string, string>;
+  max_upload_bytes?: number;
+  legacy_upload_url?: string;
 }
 
 export interface MeetingDocument {
@@ -1220,6 +1232,9 @@ export interface AISettingsResolved {
   previous_context_max_chars: number | null;
   knowledge_context_max_items: number | null;
   profile_id: number | null;
+  // Этап 21: скрытый per-meeting маппинг speaker labels/каналов → сторона (подтверждается оператором).
+  // Не профильная настройка, без PII. null = нет назначений. См. features/speakerIdentity.
+  speaker_identity_hints?: Record<string, unknown> | null;
 }
 
 export interface MeetingAISettings {

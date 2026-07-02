@@ -418,6 +418,18 @@ class MultiSourceIngest:
             })
         return out
 
+    def get_speaker_audio_attribution_payload(self) -> list[dict]:
+        """Этап 7: structured speaker→source observations для attribution tracker.
+
+        Сейчас ingest знает только track→role/side_hint, БЕЗ привязки к speaker_label
+        (диаризация живёт в primary STT-стриме). Поэтому безопасной связи speaker→source нет
+        → возвращаем []. НЕ выдумываем mapping (track.role 'primary'/'secondary' — это зона,
+        а не сторона и не личность).
+        TODO(stage7): когда появится связь speaker_label→track_id (напр. multi-channel STT
+        с per-track диаризацией), вернуть [{'speaker_label':..., 'audio_source_id': track_id,
+        'source_is_isolated': True, 'attribution_confidence':...}]."""
+        return []
+
     def snapshot_window(self, *, track_ids: list[str], start_index: int, end_index: int,
                         now_ms: int, clock_quality_by_track: dict | None = None
                         ) -> MultiSourceWindowSnapshot:

@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import type { AudioRecorderCaptureConfig } from '../hooks/useAudioRecorder';
+import { AudioPreflightPanel } from '../components/meeting/AudioPreflightPanel';
+import { SpeakerIdentityReviewPanel } from '../components/meeting/SpeakerIdentityReviewPanel';
+import { loadAudioSelection, loadMultichannelShadowEnabled, presetForRoute } from '../audio/audioCaptureMetadata';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings } from '../api/settings';
@@ -100,7 +104,29 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   const onAudioInterrupt = useCallback(() => {
     if (useMeetingStore.getState().isListening) setRecordingPaused(true);
   }, []);
-  const { start: startAudio, stop: stopAudio } = useAudioRecorder(sendAudioChunk, setLevel, onAudioInterrupt);
+  // Этап 15: текущий конфиг захвата (device/route). Инициализируем из localStorage, чтобы запись
+  // без открытия панели использовала сохранённый выбор. Панель обновляет ref через onConfigChange.
+  const audioCaptureRef = useRef<AudioRecorderCaptureConfig>({
+    deviceId: loadAudioSelection().deviceId,
+    preset: presetForRoute(loadAudioSelection().route),
+  });
+  const onAudioCaptureConfig = useCallback((cfg: AudioRecorderCaptureConfig) => {
+    audioCaptureRef.current = cfg;
+  }, []);
+  // Этап 16: v2 shadow-кадр уходит ТОЛЬКО если ws открыт и буфер не переполнен. Legacy mono
+  // (sendAudioChunk) никогда не дропается из-за shadow — приоритет у production STT.
+  const sendShadowFrame = useCallback((buf: ArrayBuffer) => {
+    const w = ws.current;
+    if (w?.readyState === WebSocket.OPEN && w.bufferedAmount < 1_000_000) sendBinary(buf);
+  }, [sendBinary, ws]);
+  const { start: startAudio, stop: stopAudio } = useAudioRecorder(
+    sendAudioChunk, setLevel, onAudioInterrupt,
+    {
+      getConfig: () => audioCaptureRef.current,
+      onCaptureMetadata: (m) => sendJSON({ type: 'audio_capture_metadata', payload: m }),
+      sendShadowFrame,
+    },
+  );
   const store = useMeetingStore();
 
   // Задача 5: при восстановлении WS (false→true) дослать накопленный офлайн-звук
@@ -637,6 +663,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         {topBar}
         <OfflineBanner />
         {recordingBanner}
+        <AudioPreflightPanel onConfigChange={onAudioCaptureConfig} />
         <HelperPanel />
         <DictaphoneView
           level={level}
@@ -655,6 +682,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       {topBar}
       <OfflineBanner />
       {recordingBanner}
+      <AudioPreflightPanel onConfigChange={onAudioCaptureConfig} />
       <HelperPanel />
       {/* Tab bar + бейдж участников справа */}
       <div className="meeting-tabs" style={styles.tabs}>
@@ -730,6 +758,13 @@ export function MeetingPage({ meetingId, onBack }: Props) {
                     && settings?.diarization
                       ? handleMaxSpeakersChange : undefined
                   }
+                />
+                <SpeakerIdentityReviewPanel
+                  meetingId={store.currentMeetingId}
+                  canEdit={store.canSendAudio}
+                  transcriptItems={store.messages}
+                  actualChannelCount={store.multiChannelLiveState?.channel_count ?? 0}
+                  multichannelShadowEnabled={loadMultichannelShadowEnabled()}
                 />
                 <ChatDisplay
                   onSetSpeakerRole={handleSetSpeakerSide}

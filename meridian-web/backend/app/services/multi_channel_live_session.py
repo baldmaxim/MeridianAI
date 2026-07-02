@@ -57,6 +57,44 @@ class LiveMultiChannelSegment:
     words: tuple = ()
 
 
+def live_multi_channel_segment_to_source_candidate(segment) -> dict | None:
+    """Этап 10: per-channel LiveMultiChannelSegment → source attribution candidate payload (или None).
+
+    Per-channel поток = изолированный source (одна дорожка = один канал/источник). Кандидат несёт
+    text (только для технического match) + channel/source + timestamps. `side`/side_hint НЕ
+    включаем (это не сторона переговоров). speaker_label здесь НЕТ — он придёт из committed-сегмента
+    при reconcile. Возвращает None, если нет source/channel или нет ни текста, ни таймстемпов."""
+    def _g(*names):
+        for n in names:
+            v = segment.get(n) if isinstance(segment, dict) else getattr(segment, n, None)
+            if v is not None:
+                return v
+        return None
+    text = _g("transcript", "text")
+    start_ms = _g("start_server_ms", "start_ms")
+    end_ms = _g("end_server_ms", "end_ms")
+    track = _g("track_id")
+    channel = _g("channel_label", "label")
+    if not track and not channel:
+        return None
+    if not (text and str(text).strip()) and (start_ms is None or end_ms is None):
+        return None
+    conf = _g("confidence")
+    return {
+        "text": text,
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "audio_source_id": track or channel,
+        "channel_label": channel,
+        "source_is_isolated": True,  # per-channel pipeline (не общий room-mic)
+        "source_kind": "multi_channel",
+        "attribution_source": "multi_source_segment",
+        "attribution_confidence": (conf if conf is not None else 0.75),
+        "candidate_id": _g("segment_id", "id"),
+        "candidate_pipeline": "multi_channel_live",
+    }
+
+
 @dataclass
 class MultiChannelLiveState:
     session_id: str
@@ -398,6 +436,15 @@ class MultiChannelLiveSession:
         start_ms = self.state.start_server_ms + round(max(0.0, r.start) * 1000)
         end_ms = self.state.start_server_ms + round(max(0.0, r.start + r.duration) * 1000)
         text = r.transcript
+        # TODO(stage9): этот per-channel сегмент несёт channel_label/track_id/source_kind
+        # (изолированный канал = реальный per-source pipeline), НО НЕ имеет диаризованного
+        # speaker_label (сегменты индексируются по каналу, не по спикеру). Когда канал начнёт
+        # давать speaker_label, можно строить source_attribution через
+        # build_segment_source_attribution_dict(speaker_label=..., channel_label=ch.label,
+        #   audio_source_id=ch.track_id, source_is_isolated=True,
+        #   attribution_source="multi_source_segment", source_kind="multi_channel",
+        #   attribution_confidence=r.confidence) и звать session.observe_speaker_audio_attribution.
+        # ch.side — это side_hint (НЕ сторона переговоров) — НЕ использовать как side.
         seg = LiveMultiChannelSegment(
             segment_id=_seg_id(self.session_id, r.channel_index, start_ms, end_ms, text),
             session_id=self.session_id, channel_index=r.channel_index,

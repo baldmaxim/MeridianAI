@@ -89,6 +89,40 @@ def chunk_duration_ms(payload_bytes: int, sample_rate: int, channels: int, codec
     return int(round(frames / sr * 1000.0))
 
 
+def secondary_shadow_segment_to_source_candidate(event) -> dict | None:
+    """Этап 10: secondary-shadow transcript-like event → source attribution candidate (или None).
+
+    Сейчас secondary shadow держит ТОЛЬКО raw audio + side_hint (нет STT/диаризации/speaker_label/
+    text) → как правило None. Если в будущем shadow начнёт давать сегмент с text + source/channel,
+    helper вернёт candidate (source_kind=secondary_shadow). side_hint НЕ включаем как сторону.
+    TODO(stage10): подключить вызов session.observe_source_attribution_candidate, когда secondary
+    shadow получит реальный transcript-сегмент со source/channel."""
+    def _g(*names):
+        for n in names:
+            v = event.get(n) if isinstance(event, dict) else getattr(event, n, None)
+            if v is not None:
+                return v
+        return None
+    text = _g("transcript", "text")
+    source = _g("audio_source_id", "source_id", "track_id", "connection_id")
+    channel = _g("channel_label", "channel")
+    if (not source and not channel) or not (text and str(text).strip()):
+        return None  # без source/channel или без текста — кандидат бесполезен
+    return {
+        "text": text,
+        "start_ms": _g("start_ms", "start_server_ms"),
+        "end_ms": _g("end_ms", "end_server_ms"),
+        "audio_source_id": source or "secondary",
+        "channel_label": channel,
+        "source_is_isolated": True,  # отдельный secondary pipeline
+        "source_kind": "secondary_shadow",
+        "attribution_source": "secondary_shadow_segment",
+        "attribution_confidence": _g("confidence") or 0.75,
+        "candidate_id": _g("segment_id", "id"),
+        "candidate_pipeline": "secondary_shadow",
+    }
+
+
 class SecondaryAudioShadow:
     """In-memory ring buffer аудио-чанков secondary-устройств одной встречи (эфемерно)."""
 
@@ -291,6 +325,17 @@ class SecondaryAudioShadow:
         if now_ms - t.last_server_ts_ms > STALE_AFTER_MS:
             return "stale"
         return "recording"
+
+    def get_speaker_audio_attribution_payload(self) -> list[dict]:
+        """Этап 8: structured speaker→source observations из secondary shadow (или []).
+
+        Shadow держит raw audio frames + side_hint по connection, БЕЗ диаризации/speaker_label.
+        Поэтому безопасной связи speaker→source здесь нет → []. side_hint НЕ прокидываем как сторону.
+        TODO(stage8): когда secondary shadow начнёт давать transcript-сегмент со speaker_label,
+        вернуть [{'speaker_label':..., 'audio_source_id': 'secondary', 'source_is_isolated': True,
+        'attribution_source': 'secondary_shadow_segment', 'source_kind': 'secondary_shadow',
+        'attribution_confidence': 0.75..0.9}]."""
+        return []
 
     def track_diag(self, connection_id: str, now_ms: int) -> dict | None:
         t = self.tracks.get(connection_id)

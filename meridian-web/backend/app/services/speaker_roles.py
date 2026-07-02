@@ -134,3 +134,27 @@ async def upsert_role(
     db.add(role)
     await db.flush()
     return role
+
+
+# --- Speaker Identity Graph v1 compatibility (Этап 4) -----------------------
+# Тонкий мост legacy self/opponent → новый внутренний граф. Существующий API/поля
+# (PUBLIC_SPEAKER_SIDES, to_public_side, get_roles_map, ...) НЕ меняются.
+
+def normalize_legacy_side(side: str | None) -> str:
+    """legacy self/opponent/... → SpeakerSide (our_side/counterparty/third_party/unknown)."""
+    from ..core.context.speaker_identity import normalize_side as _ns
+    return _ns(side)
+
+
+def to_speaker_identity_map(roles_map: dict[str, str] | None,
+                            *, assigned: bool = True):
+    """Свести {speaker_label: legacy_side} к SpeakerIdentityMap.
+
+    assigned=True — это подтверждённые пользователем назначения → source=manual_correction;
+    иначе трактуем как legacy_role. Имена/PII в граф не тянем (адресность по стороне/роли).
+    """
+    from .speaker_identity_service import SpeakerIdentityService
+    svc = SpeakerIdentityService()
+    if assigned:
+        return svc.build_runtime_map(manual_overrides=roles_map or {})
+    return svc.build_from_legacy_roles(roles_map or {})
