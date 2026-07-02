@@ -333,6 +333,36 @@ class Settings(BaseSettings):
     s3_document_prefix: str = Field(default="documents", alias="S3_DOCUMENT_PREFIX")
     s3_extracted_text_prefix: str = Field(default="documents_extracted", alias="S3_EXTRACTED_TEXT_PREFIX")
 
+    # Presigned S3 document upload — hardening (Этап 22). Наследует общий S3_* клиент/креды.
+    # DOCUMENT_S3_UPLOAD_ENABLED — kill-switch поверх s3_enabled; default True, чтобы не ломать
+    # прод (там presigned-документы уже активны при заданном S3_*). False → фронт уходит на legacy.
+    document_storage_backend: str = Field(default="local", alias="DOCUMENT_STORAGE_BACKEND")
+    document_s3_upload_enabled: bool = Field(default=True, alias="DOCUMENT_S3_UPLOAD_ENABLED")
+    document_s3_prefix: str = Field(default="documents", alias="DOCUMENT_S3_PREFIX")
+    document_s3_presign_expires_seconds: int = Field(default=900, alias="DOCUMENT_S3_PRESIGN_EXPIRES_SECONDS")
+    document_s3_max_upload_bytes: int = Field(default=52_428_800, alias="DOCUMENT_S3_MAX_UPLOAD_BYTES")
+    # Content-type allow-list. Расширен относительно спеки, чтобы покрыть ВСЕ разрешённые расширения
+    # (xlsx/csv/md/doc/xls), иначе валидные загрузки отклонялись бы. Расширение — авторитетная проверка.
+    document_s3_allowed_content_types: str = Field(
+        default=(
+            "application/pdf,text/plain,text/markdown,text/csv,"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
+            "application/msword,application/vnd.ms-excel"
+        ),
+        alias="DOCUMENT_S3_ALLOWED_CONTENT_TYPES",
+    )
+    document_s3_sse: str = Field(default="", alias="DOCUMENT_S3_SSE")
+    document_s3_kms_key_id: str = Field(default="", alias="DOCUMENT_S3_KMS_KEY_ID")
+    document_s3_complete_head_check_enabled: bool = Field(
+        default=True, alias="DOCUMENT_S3_COMPLETE_HEAD_CHECK_ENABLED")
+    # forward-compat: пусто = наследовать S3_* общего клиента; отдельный bucket/endpoint для
+    # документов потребует раздельного boto3-клиента (не в этом этапе, чтобы не трогать batch).
+    document_s3_bucket: str = Field(default="", alias="DOCUMENT_S3_BUCKET")
+    document_s3_region: str = Field(default="", alias="DOCUMENT_S3_REGION")
+    document_s3_endpoint_url: str = Field(default="", alias="DOCUMENT_S3_ENDPOINT_URL")
+    document_s3_force_path_style: bool = Field(default=False, alias="DOCUMENT_S3_FORCE_PATH_STYLE")
+
     @model_validator(mode="after")
     def _clamp_multi_channel_export(self):
         # Этап 9.4: защитное приведение лимитов экспорта к корректным диапазонам
@@ -395,6 +425,19 @@ class Settings(BaseSettings):
     @property
     def document_allowed_extensions_set(self) -> set[str]:
         return {e.strip().lower() for e in self.document_allowed_extensions.split(",") if e.strip()}
+
+    @property
+    def document_s3_upload_active(self) -> bool:
+        """Presigned-S3 путь для документов активен (S3 сконфигурирован И kill-switch включён)."""
+        return bool(self.s3_enabled and self.document_s3_upload_enabled)
+
+    @property
+    def document_s3_allowed_content_types_set(self) -> set[str]:
+        return {c.strip().lower() for c in self.document_s3_allowed_content_types.split(",") if c.strip()}
+
+    @property
+    def document_s3_prefix_effective(self) -> str:
+        return (self.document_s3_prefix or self.s3_document_prefix or "documents").strip()
 
     # Финализация встречи (Этап 5): фоновое формирование протокола через LLM
     meeting_finalization_enabled: bool = Field(default=True, alias="MEETING_FINALIZATION_ENABLED")

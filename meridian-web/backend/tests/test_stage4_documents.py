@@ -294,6 +294,19 @@ async def test_retrieval_meeting_isolation(db):
     assert res == []  # документ привязан к meeting_b, не к meeting_a
 
 
+def test_safe_processing_error_redacts_s3_details():
+    # Этап 23: processing_error уходит в API/логи → boto-детали (key/URL/подпись) должны вычищаться.
+    from app.services.document_processing import _safe_processing_error
+    raw = ("An error occurred (404) when calling the HeadObject operation on key "
+           "documents/secret_contract.pdf https://bucket.s3.amazonaws.com/documents/uuid.pdf?X-Amz-Signature=LEAKSIG0123456789ABCDEF")
+    safe = _safe_processing_error(Exception(raw))
+    for leak in ("secret_contract", "amazonaws", "X-Amz-Signature", "LEAKSIG", "documents/uuid.pdf"):
+        assert leak not in safe
+    # безопасное собственное сообщение сохраняется как есть
+    assert _safe_processing_error(ValueError("Не удалось извлечь текст (пустой документ)")) \
+        == "Не удалось извлечь текст (пустой документ)"
+
+
 def test_format_chunks_block_respects_max_chars():
     chunks = [
         {"document_id": 1, "document_name": "D", "chunk_id": i, "text": "x" * 5000,

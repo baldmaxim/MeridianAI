@@ -22,10 +22,13 @@ export async function createDocumentUploadSession(
   return data;
 }
 
-/** Шаг 2: прямой PUT в S3 по presigned URL (без auth, с прогрессом и поддержкой abort). */
+/** Шаг 2: прямой PUT в S3 по presigned URL (без auth, с прогрессом и поддержкой abort).
+ *  Этап 22: headers (Content-Type + опц. SSE x-amz-*) приходят из upload-session — их обязан
+ *  прислать браузер, если они подписаны. presigned URL НЕ логируем. */
 export function putFileToPresignedUrl(
   url: string,
   file: File,
+  headers?: Record<string, string>,
   onProgress?: (frac: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -33,14 +36,26 @@ export function putFileToPresignedUrl(
     if (signal?.aborted) { reject(new Error('Загрузка отменена')); return; }
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
+    if (headers) {
+      for (const [k, v] of Object.entries(headers)) {
+        try { xhr.setRequestHeader(k, v); } catch { /* недопустимый заголовок — игнор */ }
+      }
+    }
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
     };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
-    xhr.onerror = () => reject(new Error('Сбой сети при загрузке'));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }
+      // 403 обычно = права/подпись/CORS бакета; отдельный понятный текст оператору
+      if (xhr.status === 403) {
+        reject(new Error('Доступ к хранилищу отклонён (403). Проверьте права/CORS бакета.'));
+        return;
+      }
+      reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
+    };
+    // CORS-блок/сетевой сбой даёт onerror (часто status 0) — не логируем URL, даём безопасный текст
+    xhr.onerror = () =>
+      reject(new Error('Не удалось загрузить файл напрямую в хранилище. Проверьте CORS/доступ к бакету.'));
     xhr.onabort = () => reject(new Error('Загрузка отменена'));
     if (signal) {
       const onAbort = () => xhr.abort();
@@ -56,16 +71,22 @@ export async function confirmDocumentUpload(documentId: number, signal?: AbortSi
   await api.post(`/documents/${documentId}/confirm-upload`, undefined, { signal });
 }
 
-/** Новый основной путь (Этап 4): presigned S3 upload → confirm → job обработки. */
+/** Новый основной путь (Этап 4/22): presigned S3 upload → confirm → job обработки.
+ *  При upload_mode=legacy_multipart (S3 выключен) — падаем на legacy multipart /documents/upload. */
 export async function uploadDocumentPresigned(
   file: File,
   opts: DocumentUploadOpts = {},
   onProgress?: (frac: number) => void,
-): Promise<{ document_id: number }> {
+): Promise<{ document_id: number | null; mode: 's3_presigned' | 'legacy_multipart' }> {
   const session = await createDocumentUploadSession(file, opts);
-  await putFileToPresignedUrl(session.upload_url, file, onProgress);
+  if (session.upload_mode === 'legacy_multipart' || !session.upload_url || session.document_id == null) {
+    await uploadDocument(file, 'other');
+    onProgress?.(1);
+    return { document_id: null, mode: 'legacy_multipart' };
+  }
+  await putFileToPresignedUrl(session.upload_url, file, session.headers, onProgress);
   await confirmDocumentUpload(session.document_id);
-  return { document_id: session.document_id };
+  return { document_id: session.document_id, mode: 's3_presigned' };
 }
 
 export interface DocumentFilters {

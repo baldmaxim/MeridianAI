@@ -38,12 +38,21 @@ def object_key(user_id: int, purpose: str, filename: str) -> str:
     return f"meridian/{user_id}/{purpose}/{uuid.uuid4().hex}{ext}"
 
 
-def presign_put(key: str, ttl: int | None = None) -> str:
+def presign_put(key: str, ttl: int | None = None,
+                sse: str | None = None, kms_key_id: str | None = None) -> str:
+    """Presigned PUT. ContentType намеренно НЕ подписываем (проще CORS, нет рассинхрона).
+
+    Этап 22: опциональный server-side encryption. sse/kms передаём в подпись ТОЛЬКО если заданы —
+    тогда браузер обязан прислать совпадающие x-amz-server-side-encryption[-…] заголовки (см. CORS).
+    """
     s = get_settings()
+    params = {"Bucket": s.s3_bucket, "Key": key}
+    if sse:
+        params["ServerSideEncryption"] = sse
+        if kms_key_id:
+            params["SSEKMSKeyId"] = kms_key_id
     return _client().generate_presigned_url(
-        "put_object",
-        Params={"Bucket": s.s3_bucket, "Key": key},
-        ExpiresIn=ttl or s.s3_presign_ttl,
+        "put_object", Params=params, ExpiresIn=ttl or s.s3_presign_ttl,
     )
 
 

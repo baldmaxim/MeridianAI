@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  createDocumentUploadSession, putFileToPresignedUrl, confirmDocumentUpload,
+  createDocumentUploadSession, putFileToPresignedUrl, confirmDocumentUpload, uploadDocument,
 } from '../api/documents';
 import { attachMeetingDocument } from '../api/meetingDocuments';
 import { apiErrorMessage } from '../lib/apiError';
@@ -126,15 +126,35 @@ export function useDocumentUploadQueue(options: UseDocumentUploadQueueOptions) {
           ac.signal,
         );
         guard();
-        documentId = session.document_id;
-        patch(clientId, { documentId, status: 'uploading', progress: 0 });
 
-        await putFileToPresignedUrl(session.upload_url, start.file, (frac) => patch(clientId, { progress: frac }), ac.signal);
+        // Этап 22: S3 выключен/kill-switch → legacy multipart (in-memory session). Без S3-PUT,
+        // confirm/attach через documentId неприменимы: legacy сам привязывает к активной встрече.
+        if (session.upload_mode === 'legacy_multipart' || !session.upload_url || session.document_id == null) {
+          patch(clientId, { status: 'uploading', progress: 0 });
+          await uploadDocument(start.file, 'other');
+          guard();
+          await optsRef.current.onAttached?.();
+          patch(clientId, { status: 'done', progress: 1, finishedAt: Date.now() });
+          return;
+        }
+
+        // documentId фиксируем в состоянии очереди ТОЛЬКО после успешного confirm — иначе retry
+        // после сбоя PUT увидел бы documentId и перескочил бы на attach неотправленного файла.
+        const newDocId = session.document_id;
+        patch(clientId, { status: 'uploading', progress: 0 });
+
+        await putFileToPresignedUrl(
+          session.upload_url, start.file, session.headers,
+          (frac) => patch(clientId, { progress: frac }), ac.signal,
+        );
         guard();
 
         patch(clientId, { status: 'confirming', progress: 1 });
-        await confirmDocumentUpload(documentId, ac.signal);
+        await confirmDocumentUpload(newDocId, ac.signal);
         guard();
+
+        documentId = newDocId;
+        patch(clientId, { documentId });  // теперь retry-after-attach начнётся с attach
       }
 
       // attach — точка входа для retry, если ошибка была именно здесь.

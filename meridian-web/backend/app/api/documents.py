@@ -4,11 +4,11 @@
 Legacy multipart-загрузка (/upload, /session-docs*) сохранена для обратной совместимости.
 """
 
+import logging
 import os
 import shutil
-from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Response
 from sqlalchemy import select, func, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,8 +27,15 @@ from ..schemas.document import (
     DocumentConfirmResponse,
     DocumentResponse,
 )
-from ..services import s3
+from ..services import document_storage
 from ..services.jobs import enqueue
+
+logger = logging.getLogger("meridian.documents")
+
+
+def _safe_ct(content_type: str | None) -> str:
+    """Content-type для лога: не PII, но обрезаем и схлопываем пробелы (защита от мусора)."""
+    return " ".join(str(content_type or "-").split())[:80]
 from ..services.access import (
     user_can_access_object,
     user_can_access_document,
@@ -62,22 +69,30 @@ def _to_response(doc: DocumentRecord, chunks_count: int = 0) -> DocumentResponse
 @router.post("/upload-session", response_model=DocumentUploadSessionResponse)
 async def create_document_upload_session(
     data: DocumentUploadSessionRequest,
+    response: Response = None,  # FastAPI инжектит реальный Response; None только при прямом вызове в тестах
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     settings = get_settings()
-    if not settings.s3_enabled:
-        raise HTTPException(503, "S3-хранилище не настроено")
-
-    ext = Path(data.filename or "").suffix.lower()
-    if ext not in settings.document_allowed_extensions_set:
-        raise HTTPException(
-            400, f"Формат {ext or '?'} не поддерживается. Допустимые: "
-                 f"{', '.join(sorted(settings.document_allowed_extensions_set))}"
+    # ответ содержит presigned URL (AWS-подпись в query) → запрещаем кэширование (браузер/прокси/HAR)
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    # Этап 22: S3 выключен/kill-switch → отдаём mode=legacy_multipart (без 503), фронт грузит
+    # через /api/documents/upload. Так dev/local и misconfigured прод не ломаются.
+    if not document_storage.is_enabled():
+        # Этап 23: безопасный маркер для log-анализатора (только user_id, без PII/URL/ключей)
+        logger.info("[DocumentS3Upload] legacy_fallback user_id=%s", user.id)
+        return DocumentUploadSessionResponse(
+            upload_mode="legacy_multipart",
+            legacy_upload_url="/api/documents/upload",
+            max_upload_bytes=settings.document_max_upload_mb * 1024 * 1024,
         )
-    max_bytes = settings.document_max_upload_mb * 1024 * 1024
-    if data.size_bytes and data.size_bytes > max_bytes:
-        raise HTTPException(400, f"Файл слишком большой (макс. {settings.document_max_upload_mb} МБ)")
+
+    try:
+        ext = document_storage.validate_upload(data.filename, data.content_type, data.size_bytes)
+    except document_storage.DocumentStorageError as e:
+        raise HTTPException(400, str(e))
 
     # доступ к объекту + связка customer↔object
     if data.object_id is not None:
@@ -89,7 +104,7 @@ async def create_document_upload_session(
         if not await user_can_access_object(db, user.id, data.object_id):
             raise HTTPException(403, "Нет доступа к объекту")
 
-    key = s3.object_key(user.id, settings.s3_document_prefix, data.filename)
+    key = document_storage.build_object_key(user.id, data.filename)
     file_rec = FileRecord(
         user_id=user.id,
         object_key=key,
@@ -119,11 +134,17 @@ async def create_document_upload_session(
     db.add(doc)
     await db.flush()
 
-    upload_url = s3.presign_put(key)
+    upload_url, headers = document_storage.create_presigned_put(key, data.content_type)
     await db.commit()
+    # безопасный лог: без filename/URL/token/bucket-key (только тех.метаданные + hash-ref)
+    logger.info("[DocumentS3Upload] initiated user_id=%s meeting_id=%s content_type=%s size=%s ext=%s ref=%s",
+                user.id, None, _safe_ct(data.content_type), data.size_bytes or 0, ext,
+                document_storage.safe_storage_ref(key))
     return DocumentUploadSessionResponse(
+        upload_mode="s3_presigned",
         document_id=doc.id, file_id=file_rec.id, upload_url=upload_url,
-        s3_key=key, expires_in=settings.s3_presign_ttl,
+        s3_key=key, expires_in=document_storage.presign_expires(),
+        headers=headers, max_upload_bytes=document_storage.max_upload_bytes(),
     )
 
 
@@ -133,26 +154,41 @@ async def confirm_document_upload(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    settings = get_settings()
     doc = await db.get(DocumentRecord, document_id)
     if not doc or doc.created_by_user_id != user.id:
         raise HTTPException(404, "Документ не найден")
 
-    meta = await s3.head_object(doc.s3_key)
-    if not meta:
+    # HEAD-проверка (Этап 22): при наличии метаданных размер (≥0, ≤лимита) и content-type
+    # валидируются ВСЕГДА (спека: content-type/размер и на confirm). Флаг
+    # DOCUMENT_S3_COMPLETE_HEAD_CHECK_ENABLED лишь смягчает случай отсутствующего HEAD
+    # (eventual-consistent хранилище): при выключенном флаге допускаем meta=None.
+    meta = await document_storage.head_object(doc.s3_key)
+    if meta is not None:
+        try:
+            document_storage.validate_head(meta)
+        except document_storage.DocumentStorageError as e:
+            raise HTTPException(400, str(e))
+    elif settings.document_s3_complete_head_check_enabled:
         raise HTTPException(400, "Объект не загружен в хранилище")
 
     doc.status = "uploaded"
-    doc.file_size = meta["size"]
-    doc.mime_type = meta.get("content_type") or doc.mime_type
+    if meta:
+        doc.file_size = meta["size"]
+        doc.mime_type = meta.get("content_type") or doc.mime_type
     if doc.file_id:
         file_rec = await db.get(FileRecord, doc.file_id)
         if file_rec:
             file_rec.status = "active"
-            file_rec.size = meta["size"]
-            file_rec.mime = meta.get("content_type")
+            if meta:
+                file_rec.size = meta["size"]
+                file_rec.mime = meta.get("content_type")
 
     await enqueue(db, "document_process", {"document_id": doc.id})
     await db.commit()
+    logger.info("[DocumentS3Upload] completed user_id=%s meeting_id=%s size=%s ext=%s ref=%s",
+                user.id, None, doc.file_size or 0, doc.file_ext,
+                document_storage.safe_storage_ref(doc.s3_key))
     return DocumentConfirmResponse(document_id=doc.id, status=doc.status)
 
 

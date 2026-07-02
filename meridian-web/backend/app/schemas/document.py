@@ -14,11 +14,17 @@ class DocumentUploadSessionRequest(BaseModel):
 
 
 class DocumentUploadSessionResponse(BaseModel):
-    document_id: int
-    file_id: int
-    upload_url: str
-    s3_key: str
-    expires_in: int
+    # Этап 22: mode-aware. s3_presigned → поля upload_url/headers заполнены; legacy_multipart →
+    # только upload_mode + legacy_upload_url (dev/local/kill-switch fallback на /api/documents/upload).
+    upload_mode: str = "s3_presigned"
+    document_id: int | None = None
+    file_id: int | None = None
+    upload_url: str | None = None
+    s3_key: str | None = None
+    expires_in: int | None = None
+    headers: dict[str, str] = {}
+    max_upload_bytes: int | None = None
+    legacy_upload_url: str | None = None
 
 
 class DocumentConfirmResponse(BaseModel):

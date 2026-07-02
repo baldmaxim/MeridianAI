@@ -1,0 +1,19 @@
+{
+  "_comment": "Пример CORS-политики S3-бакета для presigned загрузки документов (Этап 22/23). Замените origins на реальные домены фронтенда. x-amz-server-side-encryption* нужны только если включён DOCUMENT_S3_SSE.",
+  "CORSRules": [
+    {
+      "AllowedMethods": ["PUT", "GET", "HEAD"],
+      "AllowedOrigins": [
+        "https://staging.meridianai.example",
+        "https://app.meridianai.example"
+      ],
+      "AllowedHeaders": [
+        "Content-Type",
+        "x-amz-server-side-encryption",
+        "x-amz-server-side-encryption-aws-kms-key-id"
+      ],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}

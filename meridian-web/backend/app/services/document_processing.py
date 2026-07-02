@@ -5,9 +5,7 @@
 """
 
 import logging
-import os
-import shutil
-import tempfile
+import re
 
 from sqlalchemy import select, delete
 
@@ -15,8 +13,26 @@ from ..config import get_settings
 from ..database import async_session
 from ..models.document import DocumentRecord, DocumentChunk
 from . import s3
+from . import document_storage
 
 logger = logging.getLogger("meridian.documents")
+
+# Санитайзеры сообщения ошибки обработки (Этап 23): processing_error уходит в API-ответ
+# (MeetingDocumentItem) и в логи → чистим presigned URL / x-amz / object key / длинные подписи,
+# чтобы boto-ошибка не утекла клиенту/в логи. Собственные (безопасные) сообщения сохраняются.
+_ERR_URL_RE = re.compile(r"https?://\S+")
+_ERR_XAMZ_RE = re.compile(r"(?i)x-amz-\S+")
+_ERR_KEY_RE = re.compile(r"(?i)\bkey\s+\S+")
+_ERR_LONGTOK_RE = re.compile(r"[A-Za-z0-9/_+\-]{40,}")
+
+
+def _safe_processing_error(exc: Exception) -> str:
+    msg = str(exc)
+    msg = _ERR_URL_RE.sub("[url]", msg)
+    msg = _ERR_XAMZ_RE.sub("[redacted]", msg)
+    msg = _ERR_KEY_RE.sub("key [redacted]", msg)
+    msg = _ERR_LONGTOK_RE.sub("[redacted]", msg)
+    return msg[:500]
 
 
 # --- извлечение текста по сегментам (page/sheet metadata) ---
@@ -136,7 +152,7 @@ def chunk_text(text: str, target_chars: int, overlap_chars: int) -> list[str]:
 async def handle_document_process(payload: dict) -> None:
     document_id = payload["document_id"]
     settings = get_settings()
-    tmpdir: str | None = None
+    local: str | None = None
     try:
         async with async_session() as db:
             doc = await db.get(DocumentRecord, document_id)
@@ -152,9 +168,8 @@ async def handle_document_process(payload: dict) -> None:
         if not s3_key:
             raise ValueError("Документ без s3_key")
 
-        tmpdir = tempfile.mkdtemp(prefix="meridian_doc_")
-        local = os.path.join(tmpdir, "src" + (ext or ""))
-        await s3.download_to(s3_key, local)
+        # secure temp download → extract → удалить в finally (§: no raw file persists)
+        local = await document_storage.download_to_tempfile(s3_key, ext or "")
 
         segments, page_count, sheet_count = _extract_segments(local, ext or "")
         full_chars = sum(len(s["text"]) for s in segments)
@@ -220,13 +235,13 @@ async def handle_document_process(payload: dict) -> None:
         logger.info("document %s processed: %d chunks, pages=%s sheets=%s",
                     document_id, len(chunk_rows), page_count, sheet_count)
     except Exception as e:
-        logger.error("document %s processing failed: %s", document_id, e)
+        safe_err = _safe_processing_error(e)
+        logger.error("document %s processing failed: %s", document_id, safe_err)
         async with async_session() as db:
             doc = await db.get(DocumentRecord, document_id)
             if doc:
                 doc.status = "error"
-                doc.processing_error = str(e)[:1000]
+                doc.processing_error = safe_err
                 await db.commit()
     finally:
-        if tmpdir:
-            shutil.rmtree(tmpdir, ignore_errors=True)
+        document_storage.cleanup_tempfile(local)
