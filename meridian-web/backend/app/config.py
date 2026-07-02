@@ -363,6 +363,27 @@ class Settings(BaseSettings):
     document_s3_endpoint_url: str = Field(default="", alias="DOCUMENT_S3_ENDPOINT_URL")
     document_s3_force_path_style: bool = Field(default=False, alias="DOCUMENT_S3_FORCE_PATH_STYLE")
 
+    # Privacy / retention / delete / export controls (Этап 25). Safe-by-default:
+    # export/delete-plan доступны; hard delete и retention cleanup ВЫКЛючены; cleanup сначала dry-run.
+    privacy_controls_enabled: bool = Field(default=True, alias="PRIVACY_CONTROLS_ENABLED")
+    privacy_hard_delete_enabled: bool = Field(default=False, alias="PRIVACY_HARD_DELETE_ENABLED")
+    privacy_export_enabled: bool = Field(default=True, alias="PRIVACY_EXPORT_ENABLED")
+    retention_cleanup_enabled: bool = Field(default=False, alias="RETENTION_CLEANUP_ENABLED")
+    retention_default_days: int = Field(default=180, alias="RETENTION_DEFAULT_DAYS")
+    retention_audio_days: int = Field(default=30, alias="RETENTION_AUDIO_DAYS")
+    retention_trace_days: int = Field(default=30, alias="RETENTION_TRACE_DAYS")
+    retention_document_days: int = Field(default=180, alias="RETENTION_DOCUMENT_DAYS")
+    retention_meeting_data_days: int = Field(default=180, alias="RETENTION_MEETING_DATA_DAYS")
+    privacy_delete_require_dry_run_first: bool = Field(default=True, alias="PRIVACY_DELETE_REQUIRE_DRY_RUN_FIRST")
+    privacy_delete_max_meetings_per_run: int = Field(default=50, alias="PRIVACY_DELETE_MAX_MEETINGS_PER_RUN")
+    # TTL и ключ подписи confirmation-token для delete-plan (fallback на jwt_secret).
+    privacy_confirmation_ttl_minutes: int = Field(default=30, alias="PRIVACY_CONFIRMATION_TTL_MINUTES")
+    privacy_confirmation_key: str = Field(default="", alias="PRIVACY_CONFIRMATION_KEY")
+
+    @property
+    def privacy_confirmation_key_effective(self) -> str:
+        return self.privacy_confirmation_key or self.jwt_secret
+
     @model_validator(mode="after")
     def _clamp_multi_channel_export(self):
         # Этап 9.4: защитное приведение лимитов экспорта к корректным диапазонам

@@ -48,6 +48,7 @@ from .api.context_preview import router as context_preview_router
 from .api.multi_channel_export import router as multi_channel_export_router
 from .api.multi_channel_batch_stt import router as multi_channel_batch_stt_router
 from .api.transcription_authority import router as transcription_authority_router
+from .api.privacy import router as privacy_router
 from .api.health import router as health_api_router
 from .ws.handler import router as ws_router
 
@@ -278,6 +279,7 @@ app.include_router(ai_settings_meeting_router, prefix="/api/meetings", tags=["ai
 app.include_router(multi_channel_export_router, prefix="/api/meetings", tags=["multi-channel-export"])
 app.include_router(multi_channel_batch_stt_router, prefix="/api/meetings", tags=["multi-channel-batch-stt"])
 app.include_router(transcription_authority_router, prefix="/api/meetings", tags=["transcription-authority"])
+app.include_router(privacy_router, prefix="/api/meetings", tags=["privacy"])
 app.include_router(health_api_router, prefix="/api/health", tags=["health"])
 app.include_router(ws_router)
 
