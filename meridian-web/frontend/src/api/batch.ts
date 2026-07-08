@@ -104,6 +104,18 @@ export async function deleteBatchJob(id: number): Promise<void> {
   await api.delete(`/batch/jobs/${id}`);
 }
 
+export interface BatchAudioUrl {
+  url: string;
+  content_type: string | null;
+  size: number | null;
+}
+
+/** Presigned-ссылка на исходное аудио задачи (проигрывание/скачивание). */
+export async function getBatchAudioUrl(id: number): Promise<BatchAudioUrl> {
+  const { data } = await api.get(`/batch/jobs/${id}/audio-url`);
+  return data;
+}
+
 export async function downloadBatchResult(id: number, type: string): Promise<void> {
   const { data, headers } = await api.get(`/batch/jobs/${id}/download/${type}`, {
     responseType: 'blob',

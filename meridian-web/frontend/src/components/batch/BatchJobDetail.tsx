@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { downloadBatchResult } from '../../api/batch';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { downloadBatchResult, getBatchAudioUrl } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
@@ -55,6 +55,10 @@ export function BatchJobDetail({ jobId }: Props) {
   const { data: job } = useBatchJob(jobId);
   const [tab, setTab] = useState<Tab | null>(null);
   const [query, setQuery] = useState('');
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [curTime, setCurTime] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const segments: BatchSegment[] = job?.segments ?? [];
   const q = query.trim().toLowerCase();
@@ -62,6 +66,42 @@ export function BatchJobDetail({ jobId }: Props) {
     () => (q ? segments.filter((s) => s.text.toLowerCase().includes(q)) : segments),
     [segments, q]
   );
+
+  // индекс активной реплики по позиции воспроизведения (последняя с start <= curTime)
+  const activeIdx = useMemo(() => {
+    let idx = -1;
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i].start <= curTime + 0.15) idx = i;
+      else break;
+    }
+    return idx;
+  }, [segments, curTime]);
+
+  // Подгрузить ссылку на аудио, когда задача готова и есть реплики
+  useEffect(() => {
+    let cancelled = false;
+    setAudioUrl(null);
+    if (job && job.status === 'done' && (job.segments?.length || job.transcription_text)) {
+      getBatchAudioUrl(jobId)
+        .then((d) => { if (!cancelled) setAudioUrl(d.url); })
+        .catch(() => { /* аудио могло быть удалено — плеер не показываем */ });
+    }
+    return () => { cancelled = true; };
+  }, [jobId, job?.status, job?.segments?.length]);
+
+  // Автопрокрутка активной реплики (только когда не идёт поиск)
+  useEffect(() => {
+    if (q || activeIdx < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-seg="${activeIdx}"]`) as HTMLElement | null;
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }, [activeIdx, q]);
+
+  const seekTo = (start: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    a.currentTime = start;
+    a.play().catch(() => {});
+  };
 
   if (!job) {
     return (
@@ -109,26 +149,49 @@ export function BatchJobDetail({ jobId }: Props) {
 
           {activeTab === 'transcript' && segments.length > 0 && (
             <>
+              {audioUrl && (
+                <audio
+                  ref={audioRef}
+                  src={audioUrl}
+                  controls
+                  preload="none"
+                  onTimeUpdate={(e) => setCurTime((e.target as HTMLAudioElement).currentTime)}
+                  style={styles.audio}
+                />
+              )}
               <div style={styles.searchRow}>
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Поиск по словам…"
+                  placeholder={audioUrl ? 'Поиск по словам… (клик по реплике — перемотка)' : 'Поиск по словам…'}
                   style={styles.search}
                 />
                 {q && <span style={styles.count}>{filtered.length} из {segments.length}</span>}
               </div>
-              <div style={styles.segList}>
-                {filtered.length === 0 && <div style={styles.empty}>Ничего не найдено</div>}
-                {filtered.map((seg, i) => (
-                  <div key={i} style={styles.segRow}>
-                    <div style={styles.segMeta}>
-                      <span style={{ ...styles.speaker, color: speakerColor(seg.speaker) }}>{seg.speaker}</span>
-                      <span style={styles.time}>{fmtTime(seg.start)}</span>
+              <div ref={listRef} style={styles.segList}>
+                {q && filtered.length === 0 && <div style={styles.empty}>Ничего не найдено</div>}
+                {segments.map((seg, i) => {
+                  if (q && !seg.text.toLowerCase().includes(q)) return null;
+                  const isActive = !q && i === activeIdx;
+                  return (
+                    <div
+                      key={i}
+                      data-seg={i}
+                      onClick={() => seekTo(seg.start)}
+                      style={{
+                        ...styles.segRow,
+                        ...(audioUrl ? styles.segRowClickable : {}),
+                        ...(isActive ? styles.segRowActive : {}),
+                      }}
+                    >
+                      <div style={styles.segMeta}>
+                        <span style={{ ...styles.speaker, color: speakerColor(seg.speaker) }}>{seg.speaker}</span>
+                        <span style={styles.time}>{fmtTime(seg.start)}</span>
+                      </div>
+                      <div style={styles.segText}>{highlight(seg.text, q)}</div>
                     </div>
-                    <div style={styles.segText}>{highlight(seg.text, q)}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}
@@ -150,6 +213,7 @@ export function BatchJobDetail({ jobId }: Props) {
             )}
             {job.protocol_markdown && <DownloadBtn onClick={() => downloadBatchResult(job.id, 'protocol_txt')} label="Протокол TXT" />}
             {job.protocol_json && <DownloadBtn onClick={() => downloadBatchResult(job.id, 'protocol_json')} label="Протокол JSON" />}
+            {audioUrl && <a href={audioUrl} style={styles.dlAudio}>{'⬇'} Аудио</a>}
           </div>
         </>
       )}
@@ -191,6 +255,10 @@ function DownloadBtn({ onClick, label }: { onClick: () => void; label: string })
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  audio: {
+    width: '100%',
+    height: 36,
+  },
   searchRow: {
     display: 'flex',
     alignItems: 'center',
@@ -225,6 +293,29 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: 12,
     alignItems: 'flex-start',
+    padding: '4px 8px',
+    borderRadius: 6,
+    borderLeft: '2px solid transparent',
+    transition: 'background 0.15s',
+  },
+  segRowClickable: {
+    cursor: 'pointer',
+  },
+  segRowActive: {
+    background: theme.accent.amberGlow,
+    borderLeft: `2px solid ${theme.accent.amber}`,
+  },
+  dlAudio: {
+    padding: '5px 12px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.amber}`,
+    borderRadius: 5,
+    color: theme.accent.amber,
+    textDecoration: 'none',
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    fontWeight: 500,
+    letterSpacing: '0.06em',
   },
   segMeta: {
     display: 'flex',

@@ -40,8 +40,20 @@ export async function uploadStashFile(
   return data;
 }
 
+export interface StashDownloadItem {
+  id: number;
+  original_name: string;
+  url: string;
+}
+
 export async function getStashFiles(): Promise<StashFile[]> {
   const { data } = await api.get('/stash');
+  return data;
+}
+
+/** Presigned-ссылки на все файлы разом (для «Скачать все» в выбранную папку). */
+export async function getStashDownloadUrls(): Promise<StashDownloadItem[]> {
+  const { data } = await api.get('/stash/download-urls');
   return data;
 }
 

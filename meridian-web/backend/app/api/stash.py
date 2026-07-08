@@ -24,6 +24,7 @@ from ..schemas.stash import (
     StashUploadSessionResponse,
     StashFileResponse,
     StashDownloadUrlResponse,
+    StashDownloadItem,
 )
 from ..services.jobs import enqueue
 from ..services import s3
@@ -118,6 +119,37 @@ async def list_files(
         .order_by(FileRecord.created_at.desc())
     )
     return result.scalars().all()
+
+
+@router.get("/download-urls", response_model=List[StashDownloadItem])
+async def get_all_download_urls(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Presigned GET на ВСЕ активные файлы пользователя (для «Скачать все» в папку)."""
+    settings = get_settings()
+    if not settings.s3_enabled:
+        raise HTTPException(503, "S3-хранилище не настроено")
+    rows = (
+        await db.execute(
+            select(FileRecord)
+            .where(
+                FileRecord.user_id == user.id,
+                FileRecord.purpose == PURPOSE,
+                FileRecord.status == "active",
+            )
+            .order_by(FileRecord.created_at.desc())
+        )
+    ).scalars().all()
+    # presigned URL — секреты, НЕ логировать
+    return [
+        StashDownloadItem(
+            id=r.id,
+            original_name=r.original_name,
+            url=s3.presign_get(r.object_key, download_name=_safe_download_name(r.original_name)),
+        )
+        for r in rows
+    ]
 
 
 @router.get("/{file_id}/download-url", response_model=StashDownloadUrlResponse)

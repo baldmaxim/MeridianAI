@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useStashFiles, useUploadStash, useDeleteStash } from '../hooks/queries/stash';
 import type { StashFile } from '../api/stash';
-import { downloadStashFile } from '../api/stash';
+import { downloadStashFile, getStashDownloadUrls } from '../api/stash';
 import { formatFileSize } from '../lib/documentFiles';
 import { theme } from '../styles/theme';
 
@@ -18,6 +18,20 @@ function expiryLabel(expires_at: string | null): string {
   return `удалится через ${days} дн.`;
 }
 
+/** Уникальное имя в папке: при коллизии дописывает « (2)», « (3)» перед расширением. */
+function uniqueName(name: string, used: Set<string>): string {
+  const clean = name || 'file';
+  if (!used.has(clean)) { used.add(clean); return clean; }
+  const dot = clean.lastIndexOf('.');
+  const base = dot > 0 ? clean.slice(0, dot) : clean;
+  const ext = dot > 0 ? clean.slice(dot) : '';
+  let i = 2;
+  while (used.has(`${base} (${i})${ext}`)) i++;
+  const final = `${base} (${i})${ext}`;
+  used.add(final);
+  return final;
+}
+
 export function StashPage({ onBack }: Props) {
   const { data: files = [] } = useStashFiles();
   const uploadMut = useUploadStash();
@@ -26,6 +40,7 @@ export function StashPage({ onBack }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [pct, setPct] = useState(0);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [dlProgress, setDlProgress] = useState<{ done: number; total: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const uploadFiles = useCallback(
@@ -79,7 +94,63 @@ export function StashPage({ onBack }: Props) {
     } catch { /* список обновится сам */ }
   };
 
+  const handleDownloadAll = async () => {
+    let items;
+    try {
+      items = await getStashDownloadUrls();
+    } catch {
+      alert('Не удалось получить список файлов');
+      return;
+    }
+    if (!items.length) return;
+
+    const picker = (window as any).showDirectoryPicker;
+    if (typeof picker === 'function') {
+      // Chromium: нативный выбор папки + запись файлов туда
+      let dir;
+      try {
+        dir = await picker.call(window, { mode: 'readwrite' });
+      } catch {
+        return; // пользователь отменил выбор папки
+      }
+      const used = new Set<string>();
+      setDlProgress({ done: 0, total: items.length });
+      try {
+        for (let i = 0; i < items.length; i++) {
+          const resp = await fetch(items[i].url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const name = uniqueName(items[i].original_name, used);
+          const fh = await dir.getFileHandle(name, { create: true });
+          const writable = await fh.createWritable();
+          if (resp.body) {
+            await resp.body.pipeTo(writable); // стрим на диск, без загрузки целиком в память
+          } else {
+            await writable.write(await resp.blob());
+            await writable.close();
+          }
+          setDlProgress({ done: i + 1, total: items.length });
+        }
+      } catch (e: any) {
+        alert('Ошибка при скачивании: ' + (e?.message || ''));
+      } finally {
+        setDlProgress(null);
+      }
+    } else {
+      // Firefox/Safari: по очереди в папку загрузок
+      for (const it of items) {
+        const a = document.createElement('a');
+        a.href = it.url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+  };
+
   const uploading = uploadMut.isPending;
+  const downloadingAll = dlProgress !== null;
 
   return (
     <div className="stash-page" style={styles.container}>
@@ -116,6 +187,15 @@ export function StashPage({ onBack }: Props) {
           Любой тип файла
         </div>
       </div>
+
+      {files.length > 0 && (
+        <div style={styles.listHeader}>
+          <span style={styles.listCount}>{files.length} файл(ов)</span>
+          <button onClick={handleDownloadAll} disabled={downloadingAll} style={styles.downloadAllBtn}>
+            {downloadingAll ? `Скачивание ${dlProgress!.done}/${dlProgress!.total}…` : '⬇ Скачать все'}
+          </button>
+        </div>
+      )}
 
       <div style={styles.list}>
         {files.length === 0 && (
@@ -197,6 +277,29 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.text.secondary,
     margin: 0,
     lineHeight: 1.5,
+  },
+  listHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 4,
+  },
+  listCount: {
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    color: theme.text.muted,
+  },
+  downloadAllBtn: {
+    padding: '6px 14px',
+    background: theme.accent.amberGlow,
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 6,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    letterSpacing: '0.06em',
   },
   list: {
     display: 'flex',

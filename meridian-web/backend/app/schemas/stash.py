@@ -29,3 +29,9 @@ class StashFileResponse(BaseModel):
 
 class StashDownloadUrlResponse(BaseModel):
     url: str
+
+
+class StashDownloadItem(BaseModel):
+    id: int
+    original_name: str
+    url: str

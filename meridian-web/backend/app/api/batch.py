@@ -293,6 +293,34 @@ async def delete_batch_job(
     return {"ok": True}
 
 
+@router.get("/jobs/{job_id}/audio-url")
+async def get_job_audio_url(
+    job_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Presigned GET на исходное аудио задачи — для проигрывания/скачивания в браузере.
+
+    Аудио в S3 поддерживает Range-запросы → плеер стримит и перематывает без полной загрузки.
+    """
+    settings = get_settings()
+    if not settings.s3_enabled:
+        raise HTTPException(503, "S3-хранилище не настроено")
+    result = await db.execute(
+        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+    )
+    job = result.scalar_one_or_none()
+    if not job or not job.file_path:
+        raise HTTPException(404, "Аудио недоступно")
+    meta = await s3.head_object(job.file_path)
+    if not meta:
+        raise HTTPException(404, "Аудио недоступно")
+    name = (job.original_filename or "audio").replace('"', "").replace("\r", "").replace("\n", "")
+    # presigned URL — секрет, НЕ логировать
+    url = s3.presign_get(job.file_path, download_name=name)
+    return {"url": url, "content_type": meta.get("content_type"), "size": meta.get("size")}
+
+
 @router.get("/jobs/{job_id}/download/{download_type}")
 async def download_batch_result(
     job_id: int,
