@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getBatchJobs, getBatchJob, uploadBatchAudio, deleteBatchJob } from '../../api/batch';
+import { getBatchJobs, getBatchJob, uploadBatchAudio, deleteBatchJob, createBatchFromStash } from '../../api/batch';
 
 export const batchKeys = {
   jobs: ['batch', 'jobs'] as const,
@@ -36,6 +36,14 @@ export function useDeleteBatchJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deleteBatchJob(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: batchKeys.jobs }),
+  });
+}
+
+export function useCreateBatchFromStash() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: number) => createBatchFromStash(fileId),
     onSuccess: () => qc.invalidateQueries({ queryKey: batchKeys.jobs }),
   });
 }

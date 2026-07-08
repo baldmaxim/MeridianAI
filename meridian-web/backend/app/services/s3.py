@@ -129,6 +129,23 @@ async def ping() -> tuple[bool, str]:
     return await asyncio.to_thread(_h)
 
 
+async def copy_object(src_key: str, dst_key: str) -> None:
+    """Серверная копия объекта в том же бакете (без скачивания байтов на backend).
+
+    Используется когда batch-задача берёт исходник из мини-облака (stash): копируем в
+    собственный batch_audio-ключ, чтобы удаление задачи/файла было независимым.
+    """
+    s = get_settings()
+
+    def _c():
+        _client().copy_object(
+            Bucket=s.s3_bucket, Key=dst_key,
+            CopySource={"Bucket": s.s3_bucket, "Key": src_key},
+        )
+
+    await asyncio.to_thread(_c)
+
+
 async def delete_object(key: str) -> None:
     """Идемпотентно (§15): удаление отсутствующего объекта = успех."""
     s = get_settings()

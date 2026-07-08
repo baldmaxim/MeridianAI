@@ -26,6 +26,10 @@ class BatchTranscriptionService:
 
     def _transcribe_sync(self, file_path: str, timeout: int) -> Optional[Dict[str, Any]]:
         try:
+            from ...config import get_settings
+            proxy = get_settings().elevenlabs_proxy_url
+            proxies = {"http": proxy, "https": proxy} if proxy else None
+
             headers = {"xi-api-key": self.api_key}
             data = {
                 "model_id": "scribe_v2",
@@ -44,6 +48,7 @@ class BatchTranscriptionService:
                             data=data,
                             files=files,
                             timeout=timeout,
+                            proxies=proxies,
                         )
                     if response.status_code not in RETRYABLE_STATUSES:
                         break

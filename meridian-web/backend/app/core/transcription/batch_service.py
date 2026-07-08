@@ -37,6 +37,11 @@ class BatchTranscriptionService:
         self.base_url = "https://api.elevenlabs.io/v1/speech-to-text"
         self.session = requests.Session()
         self.session.headers.update({"xi-api-key": api_key})
+        # ElevenLabs гео-блокирует РФ (IP прод-сервера) → egress через прокси в разрешённой стране.
+        from ...config import get_settings
+        _proxy = get_settings().elevenlabs_proxy_url
+        if _proxy:
+            self.session.proxies.update({"http": _proxy, "https": _proxy})
 
     async def transcribe(
         self,

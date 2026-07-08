@@ -162,6 +162,61 @@ async def confirm_upload(
     return job
 
 
+@router.post("/from-stash/{file_id}", response_model=BatchJobResponse)
+async def create_from_stash(
+    file_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Распознать уже загруженный в мини-облако (stash) аудиофайл.
+
+    Копируем объект в собственный batch_audio-ключ (независимое удаление задачи vs файла),
+    заводим FileRecord+BatchJob и ставим задачу транскрипции.
+    """
+    settings = get_settings()
+    if not settings.s3_enabled:
+        raise HTTPException(503, "S3-хранилище не настроено")
+
+    rec = (
+        await db.execute(
+            select(FileRecord).where(FileRecord.id == file_id, FileRecord.user_id == user.id)
+        )
+    ).scalar_one_or_none()
+    if not rec or rec.purpose != "stash" or rec.status != "active":
+        raise HTTPException(404, "Файл не найден")
+
+    ext = Path(rec.original_name or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"Не аудиофайл. Допустимые форматы: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
+
+    new_key = s3.object_key(user.id, "batch_audio", rec.original_name)
+    await s3.copy_object(rec.object_key, new_key)
+
+    file_rec = FileRecord(
+        user_id=user.id,
+        object_key=new_key,
+        original_name=rec.original_name,
+        size=rec.size,
+        mime=rec.mime,
+        purpose="batch_audio",
+        status="active",
+    )
+    db.add(file_rec)
+    job = BatchJob(
+        user_id=user.id,
+        status="uploaded",
+        original_filename=rec.original_name,
+        original_size=rec.size or 0,
+        file_path=new_key,
+    )
+    db.add(job)
+    await db.flush()
+    await enqueue(db, "batch_transcribe", {"batch_job_id": job.id})
+    await db.commit()
+    await db.refresh(job)
+    return job
+
+
 @router.get("/jobs", response_model=List[BatchJobResponse])
 async def list_batch_jobs(
     user: User = Depends(get_current_user),

@@ -76,6 +76,12 @@ export async function uploadBatchAudio(
   }
 }
 
+/** Распознать уже загруженный в мини-облако аудиофайл (без повторной загрузки). */
+export async function createBatchFromStash(fileId: number): Promise<BatchJob> {
+  const { data } = await api.post(`/batch/from-stash/${fileId}`);
+  return data;
+}
+
 export async function getBatchJobs(): Promise<BatchJob[]> {
   const { data } = await api.get('/batch/jobs');
   return data;
