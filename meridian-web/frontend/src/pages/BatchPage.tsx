@@ -23,7 +23,6 @@ export function BatchPage({ onBack }: Props) {
   const fromStashMut = useCreateBatchFromStash();
   const { data: stashFiles = [] } = useStashFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [wide, setWide] = useState(false);
 
   const audioStash = stashFiles.filter((f) => AUDIO_EXT.includes(getFileExtension(f.original_name)));
 
@@ -56,7 +55,7 @@ export function BatchPage({ onBack }: Props) {
   return (
     <div className="batch-page" style={styles.container}>
       {/* Left panel: upload + list */}
-      <div className="batch-left" style={{ ...styles.left, ...(wide && selectedId ? { display: 'none' } : {}) }}>
+      <div className="batch-left" style={styles.left}>
         <div style={styles.topBar}>
           <button onClick={onBack} style={styles.backBtn}>{'\u2190'} Назад</button>
           <h2 style={styles.title}>Оффлайн распознавание</h2>
@@ -82,14 +81,7 @@ export function BatchPage({ onBack }: Props) {
       {/* Right panel: detail */}
       <div className="batch-right" style={styles.right}>
         {selectedId ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-              <button onClick={() => setWide((w) => !w)} style={styles.wideToggle}>
-                {wide ? '⇤ Показать список' : '⛶ Во всю ширину'}
-              </button>
-            </div>
-            <BatchJobDetail jobId={selectedId} />
-          </>
+          <BatchJobDetail jobId={selectedId} />
         ) : (
           <div style={styles.placeholder}>
             Выберите задачу из списка
@@ -162,18 +154,10 @@ const styles: Record<string, React.CSSProperties> = {
   right: {
     flex: 1,
     padding: 20,
-    overflowY: 'auto',
-  },
-  wideToggle: {
-    padding: '5px 12px',
-    background: 'transparent',
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 6,
-    color: theme.text.secondary,
-    cursor: 'pointer',
-    fontFamily: theme.font.mono,
-    fontSize: 10,
-    letterSpacing: '0.06em',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
   },
   topBar: {
     display: 'flex',

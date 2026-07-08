@@ -219,7 +219,7 @@ export function BatchJobDetail({ jobId }: Props) {
   const isProcessing = !['done', 'error'].includes(job.status);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: theme.font.body, fontSize: 13, fontWeight: 600, color: theme.text.primary }}>
           {job.original_filename}
@@ -447,7 +447,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   segList: {
-    maxHeight: 460,
+    flex: 1,
+    minHeight: 0,
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
@@ -517,7 +518,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px 0',
   },
   flat: {
-    maxHeight: 500,
+    flex: 1,
+    minHeight: 0,
     overflowY: 'auto',
     padding: '12px 14px',
     borderRadius: 8,
@@ -530,7 +532,8 @@ const styles: Record<string, React.CSSProperties> = {
     wordBreak: 'break-word',
   },
   protocol: {
-    maxHeight: 520,
+    flex: 1,
+    minHeight: 0,
     overflowY: 'auto',
     padding: '14px 18px',
     borderRadius: 8,
