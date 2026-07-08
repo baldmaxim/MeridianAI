@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { downloadBatchResult, getBatchAudioUrl, downloadBatchClip, getBatchResultBlob } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
+import { MarkdownView } from './MarkdownView';
 import { theme } from '../../styles/theme';
 
 interface Props {
@@ -68,7 +69,7 @@ export function BatchJobDetail({ jobId }: Props) {
   const [query, setQuery] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioMime, setAudioMime] = useState<string | null>(null);
-  const [curTime, setCurTime] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(-1);
   const [clipStart, setClipStart] = useState<number | null>(null);
   const [clipEnd, setClipEnd] = useState<number | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
@@ -83,15 +84,17 @@ export function BatchJobDetail({ jobId }: Props) {
     [segments, q]
   );
 
-  // индекс активной реплики по позиции воспроизведения (последняя с start <= curTime)
-  const activeIdx = useMemo(() => {
+  // Активную реплику обновляем ТОЛЬКО при её смене (не на каждый timeupdate ~4×/сек) —
+  // иначе список из сотен реплик перерисовывается постоянно и залипают пауза/пуск.
+  const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const t = e.currentTarget.currentTime;
     let idx = -1;
     for (let i = 0; i < segments.length; i++) {
-      if (segments[i].start <= curTime + 0.15) idx = i;
+      if (segments[i].start <= t + 0.15) idx = i;
       else break;
     }
-    return idx;
-  }, [segments, curTime]);
+    setActiveIdx((prev) => (prev === idx ? prev : idx));
+  }, [segments]);
 
   // Подгрузить ссылку на аудио, когда задача готова и есть реплики
   useEffect(() => {
@@ -112,12 +115,12 @@ export function BatchJobDetail({ jobId }: Props) {
     if (el) el.scrollIntoView({ block: 'nearest' });
   }, [activeIdx, q]);
 
-  const seekTo = (start: number) => {
+  const seekTo = useCallback((start: number) => {
     const a = audioRef.current;
     if (!a) return;
     a.currentTime = start;
     a.play().catch(() => {});
-  };
+  }, []);
 
   const downloadFragment = async () => {
     if (clipStart == null || clipEnd == null || clipEnd <= clipStart) return;
@@ -173,6 +176,35 @@ export function BatchJobDetail({ jobId }: Props) {
       setBundleBusy(false);
     }
   };
+
+  // Мемоизированный список реплик: перерисовывается только при смене активной реплики/поиска,
+  // а не на каждый tick воспроизведения и не при кликах по кнопкам нарезки/скачивания.
+  const renderedSegments = useMemo(
+    () =>
+      segments.map((seg, i) => {
+        if (q && !seg.text.toLowerCase().includes(q)) return null;
+        const isActive = !q && i === activeIdx;
+        return (
+          <div
+            key={i}
+            data-seg={i}
+            onClick={() => seekTo(seg.start)}
+            style={{
+              ...styles.segRow,
+              ...(audioUrl ? styles.segRowClickable : {}),
+              ...(isActive ? styles.segRowActive : {}),
+            }}
+          >
+            <div style={styles.segMeta}>
+              <span style={{ ...styles.speaker, color: speakerColor(seg.speaker) }}>{seg.speaker}</span>
+              <span style={styles.time}>{fmtTime(seg.start)}</span>
+            </div>
+            <div style={styles.segText}>{highlight(seg.text, q)}</div>
+          </div>
+        );
+      }),
+    [segments, q, activeIdx, audioUrl, seekTo]
+  );
 
   if (!job) {
     return (
@@ -231,17 +263,17 @@ export function BatchJobDetail({ jobId }: Props) {
                   src={audioUrl}
                   controls
                   preload="none"
-                  onTimeUpdate={(e) => setCurTime((e.target as HTMLAudioElement).currentTime)}
+                  onTimeUpdate={handleTimeUpdate}
                   style={styles.audio}
                 />
               )}
               {audioUrl && (
                 <div style={styles.trimRow}>
                   <span style={styles.trimLabel}>Фрагмент:</span>
-                  <button onClick={() => setClipStart(curTime)} style={styles.trimBtn}>
+                  <button onClick={() => setClipStart(audioRef.current?.currentTime ?? 0)} style={styles.trimBtn}>
                     {'⟤'} Начало{clipStart != null ? ` ${fmtTime(clipStart)}` : ''}
                   </button>
-                  <button onClick={() => setClipEnd(curTime)} style={styles.trimBtn}>
+                  <button onClick={() => setClipEnd(audioRef.current?.currentTime ?? 0)} style={styles.trimBtn}>
                     Конец{clipEnd != null ? ` ${fmtTime(clipEnd)}` : ''} {'⟥'}
                   </button>
                   <button
@@ -267,28 +299,7 @@ export function BatchJobDetail({ jobId }: Props) {
               </div>
               <div ref={listRef} style={styles.segList}>
                 {q && filtered.length === 0 && <div style={styles.empty}>Ничего не найдено</div>}
-                {segments.map((seg, i) => {
-                  if (q && !seg.text.toLowerCase().includes(q)) return null;
-                  const isActive = !q && i === activeIdx;
-                  return (
-                    <div
-                      key={i}
-                      data-seg={i}
-                      onClick={() => seekTo(seg.start)}
-                      style={{
-                        ...styles.segRow,
-                        ...(audioUrl ? styles.segRowClickable : {}),
-                        ...(isActive ? styles.segRowActive : {}),
-                      }}
-                    >
-                      <div style={styles.segMeta}>
-                        <span style={{ ...styles.speaker, color: speakerColor(seg.speaker) }}>{seg.speaker}</span>
-                        <span style={styles.time}>{fmtTime(seg.start)}</span>
-                      </div>
-                      <div style={styles.segText}>{highlight(seg.text, q)}</div>
-                    </div>
-                  );
-                })}
+                {renderedSegments}
               </div>
             </>
           )}
@@ -297,8 +308,10 @@ export function BatchJobDetail({ jobId }: Props) {
             <div style={styles.flat}>{job.transcription_text}</div>
           )}
 
-          {activeTab === 'protocol' && (
-            <div style={styles.flat}>{job.protocol_markdown}</div>
+          {activeTab === 'protocol' && job.protocol_markdown && (
+            <div style={styles.protocol}>
+              <MarkdownView md={job.protocol_markdown} />
+            </div>
           )}
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -515,5 +528,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: theme.text.primary,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
+  },
+  protocol: {
+    maxHeight: 520,
+    overflowY: 'auto',
+    padding: '14px 18px',
+    borderRadius: 8,
+    background: theme.bg.tertiary,
   },
 };
