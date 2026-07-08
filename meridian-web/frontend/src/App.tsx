@@ -5,6 +5,7 @@ import { MeetingPage } from './pages/MeetingPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { MeetingDetailPage } from './pages/MeetingDetailPage';
 import { BatchPage } from './pages/BatchPage';
+import { StashPage } from './pages/StashPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { AISettingsPage } from './pages/AISettingsPage';
 import { ObjectsPage } from './pages/ObjectsPage';
@@ -24,10 +25,10 @@ import { meetingDisplayName } from './lib/meetingName';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
-  | 'knowledge' | 'letters' | 'project-links' | 'ai-settings' | 'settings';
+  | 'files' | 'knowledge' | 'letters' | 'project-links' | 'ai-settings' | 'settings';
 
 // Под-потоки, всегда доступные авторизованному (не входят в матрицу доступа).
-const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters', 'project-links'];
+const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters', 'project-links', 'files'];
 
 // Маршрут (URL) → внутренняя страница + выбранные сущности.
 function pageFromRoute(route: ReturnType<typeof parseRoute>): {
@@ -52,6 +53,8 @@ function pageFromRoute(route: ReturnType<typeof parseRoute>): {
       };
     case 'batch':
       return { page: 'batch', objectId: null, meetingId: null, detailReturn: 'history' };
+    case 'files':
+      return { page: 'files', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'knowledge':
       return { page: 'knowledge', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'letters':
@@ -205,6 +208,8 @@ function App() {
         );
       case 'batch':
         return <BatchPage onBack={() => navigate(paths.objects)} />;
+      case 'files':
+        return <StashPage onBack={() => navigate(paths.objects)} />;
       case 'knowledge':
         return <KnowledgePage onBack={() => navigate(paths.objects)} />;
       case 'letters':
@@ -253,6 +258,8 @@ function App() {
       showKnowledge={currentPage === 'knowledge'}
       onShowLetters={() => navigate(currentPage === 'letters' ? paths.objects : paths.letters)}
       showLetters={currentPage === 'letters'}
+      onShowFiles={() => navigate(currentPage === 'files' ? paths.objects : paths.files)}
+      showFiles={currentPage === 'files'}
       onShowAISettings={canAccess('ai-settings') ? () => navigate(currentPage === 'ai-settings' ? paths.objects : paths.aiSettings) : undefined}
       showAISettings={currentPage === 'ai-settings'}
       canSwitchRole={isAdmin}

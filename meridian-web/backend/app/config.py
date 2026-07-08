@@ -99,6 +99,11 @@ class Settings(BaseSettings):
     s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
     s3_presign_ttl: int = Field(default=900, alias="S3_PRESIGN_TTL")
 
+    # Мини-облако (обмен файлами между устройствами): личное временное хранилище на S3.
+    # Гейтится общим s3_enabled (отдельного флага нет). Файлы авто-удаляются через N дней.
+    stash_retention_days: int = Field(default=7, alias="STASH_RETENTION_DAYS")
+    stash_max_upload_mb: int = Field(default=512, alias="STASH_MAX_UPLOAD_MB")
+
     # Документы встречи (Этап 4): загрузка на S3, извлечение текста, чанкинг, контекст
     document_max_upload_mb: int = Field(default=50, alias="DOCUMENT_MAX_UPLOAD_MB")
     document_allowed_extensions: str = Field(

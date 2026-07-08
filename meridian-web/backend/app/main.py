@@ -30,6 +30,7 @@ from .api.meetings import router as meetings_router
 from .api.roles import router as roles_router
 from .api.history import router as history_router
 from .api.batch import router as batch_router
+from .api.stash import router as stash_router
 from .api.customers import router as customers_router
 from .api.objects import router as objects_router
 from .api.letters import router as letters_router
@@ -160,6 +161,14 @@ async def lifespan(app: FastAPI):
                     logger.info("[Cleanup] Removed %d expired batch-STT job(s)", m)
             except Exception:
                 logger.warning("[Cleanup] batch-STT cleanup failed", exc_info=False)
+            # Мини-облако: soft-delete истёкших stash-файлов + постановка физ. удаления из S3
+            try:
+                from .services.stash import sweep_expired_stash
+                k = await sweep_expired_stash()
+                if k:
+                    logger.info("[Cleanup] Expired %d stash file(s)", k)
+            except Exception:
+                logger.warning("[Cleanup] stash sweep failed", exc_info=False)
 
     cleanup_task = asyncio.create_task(_session_cleanup_loop())
 
@@ -258,6 +267,7 @@ app.include_router(meetings_router, prefix="/api/transcriptions", tags=["meeting
 app.include_router(roles_router, prefix="/api/roles", tags=["roles"])
 app.include_router(history_router, prefix="/api/meetings", tags=["meetings-history"])
 app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
+app.include_router(stash_router, prefix="/api/stash", tags=["stash"])
 # §12: page-access enforcement применяется per-endpoint в самих роутерах (require_page),
 # только на МУТАЦИИ — GET-списки справочников нужны общим потокам (модалка объекта,
 # фильтр истории, AI-настройки встречи), поэтому остаются открытыми.

@@ -54,6 +54,7 @@ export const paths = {
       ? `/meetings/${id}?from=object&obj=${objectId}`
       : `/meetings/${id}`,
   batch: '/batch',
+  files: '/files',
   knowledge: '/knowledge',
   letters: '/letters',
   projectLinks: '/project-links',
@@ -72,6 +73,7 @@ export type AppRoute =
   | { kind: 'history' }
   | { kind: 'meeting-detail'; meetingId: number; from: 'history' | 'object'; objectId?: number }
   | { kind: 'batch' }
+  | { kind: 'files' }
   | { kind: 'knowledge' }
   | { kind: 'letters' }
   | { kind: 'project-links' }
@@ -104,6 +106,7 @@ export function parseRoute(pathname: string): AppRoute {
     return { kind: 'meeting-detail', meetingId: Number(meetDetail[1]), from, objectId: obj ? Number(obj) : undefined };
   }
   if (/^\/batch\/?$/.test(pathname)) return { kind: 'batch' };
+  if (/^\/files\/?$/.test(pathname)) return { kind: 'files' };
   if (/^\/knowledge\/?$/.test(pathname)) return { kind: 'knowledge' };
   if (/^\/letters\/?$/.test(pathname)) return { kind: 'letters' };
   if (/^\/project-links\/?$/.test(pathname)) return { kind: 'project-links' };
