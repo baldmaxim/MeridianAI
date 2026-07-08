@@ -11,10 +11,18 @@ export interface BatchJob {
   updated_at: string;
 }
 
+export interface BatchSegment {
+  speaker: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface BatchJobDetail extends BatchJob {
   transcription_text: string | null;
   protocol_markdown: string | null;
   protocol_json: string | null;
+  segments: BatchSegment[];
 }
 
 /** Прямой PUT в S3 по presigned URL (§15) — без авторизации, с прогрессом. */

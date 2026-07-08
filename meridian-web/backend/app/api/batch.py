@@ -23,14 +23,23 @@ from ..models.file import FileRecord
 from ..schemas.batch import (
     BatchJobResponse,
     BatchJobDetailResponse,
+    BatchSegment,
     UploadSessionRequest,
     UploadSessionResponse,
     ConfirmUploadRequest,
 )
 from ..services.jobs import enqueue
 from ..services import s3
-from ..core.batch.utils import format_transcription_txt
+from ..core.batch.utils import format_transcription_txt, group_words_by_speaker
 from ..config import get_settings
+
+import re
+
+
+def _norm_speaker(raw: str) -> str:
+    """'Speaker_speaker_0' → 'Спикер 1' (диаризация ElevenLabs → человекочитаемо)."""
+    m = re.search(r"(\d+)\s*$", raw or "")
+    return f"Спикер {int(m.group(1)) + 1}" if m else (raw or "Спикер")
 
 logger = logging.getLogger("meridian.batch")
 
@@ -242,7 +251,19 @@ async def get_batch_job(
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Задача не найдена")
-    return job
+
+    resp = BatchJobDetailResponse.model_validate(job)
+    # Диаризация: реплики (спикер + таймкоды) из word-level transcription_json
+    if job.transcription_json:
+        try:
+            words = (json.loads(job.transcription_json) or {}).get("words") or []
+            resp.segments = [
+                BatchSegment(speaker=_norm_speaker(s.speaker), start=s.start, end=s.end, text=s.text)
+                for s in group_words_by_speaker(words)
+            ]
+        except Exception:
+            resp.segments = []
+    return resp
 
 
 @router.delete("/jobs/{job_id}")

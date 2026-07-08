@@ -1,8 +1,16 @@
 """Pydantic schemas for batch transcription jobs."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
+
+
+class BatchSegment(BaseModel):
+    """Реплика диаризации: спикер + таймкоды + текст (для просмотрщика транскрипта)."""
+    speaker: str
+    start: float
+    end: float
+    text: str
 
 
 class BatchJobResponse(BaseModel):
@@ -22,6 +30,7 @@ class BatchJobDetailResponse(BatchJobResponse):
     transcription_text: Optional[str] = None
     protocol_markdown: Optional[str] = None
     protocol_json: Optional[str] = None
+    segments: List[BatchSegment] = []
 
 
 class UploadSessionRequest(BaseModel):

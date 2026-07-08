@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     # шлём через egress в разрешённой стране (NL). Пусто → прямой вызов (без прокси).
     # URL вида http://host:port (IP-allowlist прокси, без креденшелов → не секрет).
     elevenlabs_proxy_url: str = Field(default="", alias="ELEVENLABS_PROXY_URL")
+    # OpenRouter тоже гео-блокирует РФ (403 «Access denied by security policy» с IP сервера) →
+    # тот же NL-прокси для генерации протокола (батч). Пусто → прямой вызов.
+    openrouter_proxy_url: str = Field(default="", alias="OPENROUTER_PROXY_URL")
 
     # Документы встречи (Этап 4): загрузка на S3, извлечение текста, чанкинг, контекст
     document_max_upload_mb: int = Field(default=50, alias="DOCUMENT_MAX_UPLOAD_MB")
