@@ -1,8 +1,11 @@
 """Batch audio transcription and protocol generation API."""
 
+import asyncio
 import json
 import logging
 import os
+import shutil
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -11,7 +14,8 @@ from typing import List
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
+from starlette.background import BackgroundTask
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +31,7 @@ from ..schemas.batch import (
     UploadSessionRequest,
     UploadSessionResponse,
     ConfirmUploadRequest,
+    ClipRequest,
 )
 from ..services.jobs import enqueue
 from ..services import s3
@@ -316,9 +321,67 @@ async def get_job_audio_url(
     if not meta:
         raise HTTPException(404, "Аудио недоступно")
     name = (job.original_filename or "audio").replace('"', "").replace("\r", "").replace("\n", "")
-    # presigned URL — секрет, НЕ логировать
-    url = s3.presign_get(job.file_path, download_name=name)
+    # presigned URL — секрет, НЕ логировать. Длинный TTL — чтобы перемотка не отваливалась.
+    url = s3.presign_get(job.file_path, ttl=settings.batch_audio_presign_ttl, download_name=name)
     return {"url": url, "content_type": meta.get("content_type"), "size": meta.get("size")}
+
+
+@router.post("/jobs/{job_id}/clip")
+async def clip_audio(
+    job_id: int,
+    data: ClipRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Серверная нарезка фрагмента через ffmpeg (быстрый seek по Range, без скачивания целого)."""
+    settings = get_settings()
+    if not settings.s3_enabled:
+        raise HTTPException(503, "S3-хранилище не настроено")
+    result = await db.execute(
+        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+    )
+    job = result.scalar_one_or_none()
+    if not job or not job.file_path:
+        raise HTTPException(404, "Аудио недоступно")
+
+    start = max(0.0, float(data.start))
+    end = float(data.end)
+    if not (end > start):
+        raise HTTPException(400, "Некорректный интервал")
+    dur = min(end - start, float(settings.batch_clip_max_seconds))
+
+    meta = await s3.head_object(job.file_path)
+    if not meta:
+        raise HTTPException(404, "Аудио недоступно")
+
+    src_url = s3.presign_get(job.file_path, ttl=1800)  # НЕ логировать
+    tmpdir = tempfile.mkdtemp(prefix="meridian_clip_")
+    out_path = os.path.join(tmpdir, "clip.mp3")
+    args = [
+        "ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", src_url, "-t", f"{dur:.3f}",
+        "-vn", "-ac", "1", "-c:a", "libmp3lame", "-q:a", "5", out_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=settings.batch_clip_timeout_seconds)
+    except asyncio.TimeoutError:
+        proc.kill()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise HTTPException(504, "Нарезка заняла слишком долго")
+
+    if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+        logger.error("ffmpeg clip failed rc=%s: %s", proc.returncode, (stderr or b"")[:300])
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise HTTPException(500, "Не удалось вырезать фрагмент")
+
+    stem = Path(job.original_filename or "audio").stem
+    fname = f"{stem}_{int(start)}-{int(end)}.mp3".replace('"', "").replace("\r", "").replace("\n", "")
+    return FileResponse(
+        out_path, media_type="audio/mpeg", filename=fname,
+        background=BackgroundTask(shutil.rmtree, tmpdir, ignore_errors=True),
+    )
 
 
 @router.get("/jobs/{job_id}/download/{download_type}")

@@ -49,3 +49,8 @@ class UploadSessionResponse(BaseModel):
 class ConfirmUploadRequest(BaseModel):
     meeting_id: Optional[int] = None
     kind: Optional[str] = None
+
+
+class ClipRequest(BaseModel):
+    start: float
+    end: float

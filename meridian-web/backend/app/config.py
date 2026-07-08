@@ -112,6 +112,12 @@ class Settings(BaseSettings):
     # тот же NL-прокси для генерации протокола (батч). Пусто → прямой вызов.
     openrouter_proxy_url: str = Field(default="", alias="OPENROUTER_PROXY_URL")
 
+    # Батч-аудио: presigned TTL для проигрывания (длинная сессия → перемотка не должна отваливаться),
+    # и лимиты серверной нарезки фрагмента через ffmpeg.
+    batch_audio_presign_ttl: int = Field(default=21600, alias="BATCH_AUDIO_PRESIGN_TTL")  # 6ч
+    batch_clip_max_seconds: int = Field(default=3600, alias="BATCH_CLIP_MAX_SECONDS")
+    batch_clip_timeout_seconds: int = Field(default=120, alias="BATCH_CLIP_TIMEOUT_SECONDS")
+
     # Документы встречи (Этап 4): загрузка на S3, извлечение текста, чанкинг, контекст
     document_max_upload_mb: int = Field(default=50, alias="DOCUMENT_MAX_UPLOAD_MB")
     document_allowed_extensions: str = Field(

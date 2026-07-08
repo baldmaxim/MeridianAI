@@ -19,8 +19,10 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...config import get_settings
 from ...database import async_session
 from ...models.batch_job import BatchJob
+from ...models.file import FileRecord
 from ...models.meeting import MeetingSession, TranscriptSegmentRecord
 from ...services.api_keys import load_api_keys
 from ...services import s3
@@ -95,22 +97,26 @@ async def handle_batch_transcribe(payload: dict) -> None:
             if job.status == "done":
                 return  # идемпотентность
 
+            settings = get_settings()
             # Транскрипция (с предшествующими download + compress) — только если ещё нет
             if not job.transcription_json:
                 tmpdir = tempfile.mkdtemp(prefix="meridian_batch_")
                 # file_path = локальный путь (fallback) ИЛИ S3-ключ (presigned)
-                if os.path.exists(job.file_path):
-                    local_audio = job.file_path
-                else:
+                from_s3 = not os.path.exists(job.file_path)
+                if from_s3:
                     local_audio = os.path.join(
                         tmpdir, os.path.basename(job.original_filename) or "audio"
                     )
                     await s3.download_to(job.file_path, local_audio)
+                else:
+                    local_audio = job.file_path
                 file_to_transcribe = local_audio
 
-                # сжатие (опционально, в temp)
+                # Сжатие в opus ДО распознавания. Сжатую версию храним в S3 ВМЕСТО оригинала
+                # (оригинал не нужен после первичной загрузки — экономим место). Idempotent:
+                # на повторном прогоне compressed_size уже задан → не пере-сжимаем.
                 ext = Path(job.original_filename).suffix.lower()
-                if ext not in {".ogg", ".opus"}:
+                if ext not in {".ogg", ".opus"} and not job.compressed_size:
                     compressor = AudioCompressor()
                     if compressor.is_available:
                         job.status = "compressing"
@@ -120,7 +126,25 @@ async def handle_batch_transcribe(payload: dict) -> None:
                             compressed_path, _, compressed_size = res
                             job.compressed_size = compressed_size
                             file_to_transcribe = compressed_path
-                            await db.commit()
+                            # Заменить S3-объект на сжатый, оригинал удалить (§ хранить только сжатое)
+                            if from_s3 and settings.s3_enabled:
+                                old_key = job.file_path
+                                new_key = s3.object_key(job.user_id, "batch_audio", "audio.ogg")
+                                await s3.upload_file(compressed_path, new_key, content_type="audio/ogg")
+                                rec = (
+                                    await db.execute(
+                                        select(FileRecord).where(FileRecord.object_key == old_key)
+                                    )
+                                ).scalar_one_or_none()
+                                if rec:
+                                    rec.object_key = new_key
+                                    rec.size = compressed_size
+                                    rec.mime = "audio/ogg"
+                                job.file_path = new_key
+                                await db.commit()
+                                await s3.delete_object(old_key)
+                            else:
+                                await db.commit()
                     else:
                         logger.info("FFmpeg недоступен — пропуск сжатия")
 

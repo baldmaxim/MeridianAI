@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { downloadBatchResult, getBatchAudioUrl } from '../../api/batch';
+import { downloadBatchResult, getBatchAudioUrl, downloadBatchClip, getBatchResultBlob } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
@@ -17,6 +17,17 @@ function speakerColor(speaker: string): string {
   const m = speaker.match(/(\d+)/);
   const i = m ? parseInt(m[1], 10) : 0;
   return SPEAKER_PALETTE[i % SPEAKER_PALETTE.length];
+}
+
+function mimeExt(mime: string | null): string {
+  switch (mime) {
+    case 'audio/mpeg': return '.mp3';
+    case 'audio/wav': case 'audio/x-wav': return '.wav';
+    case 'audio/mp4': case 'audio/x-m4a': case 'audio/m4a': return '.m4a';
+    case 'audio/flac': return '.flac';
+    case 'audio/webm': return '.webm';
+    default: return '.ogg';
+  }
 }
 
 function fmtTime(sec: number): string {
@@ -56,7 +67,12 @@ export function BatchJobDetail({ jobId }: Props) {
   const [tab, setTab] = useState<Tab | null>(null);
   const [query, setQuery] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioMime, setAudioMime] = useState<string | null>(null);
   const [curTime, setCurTime] = useState(0);
+  const [clipStart, setClipStart] = useState<number | null>(null);
+  const [clipEnd, setClipEnd] = useState<number | null>(null);
+  const [clipBusy, setClipBusy] = useState(false);
+  const [bundleBusy, setBundleBusy] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +99,7 @@ export function BatchJobDetail({ jobId }: Props) {
     setAudioUrl(null);
     if (job && job.status === 'done' && (job.segments?.length || job.transcription_text)) {
       getBatchAudioUrl(jobId)
-        .then((d) => { if (!cancelled) setAudioUrl(d.url); })
+        .then((d) => { if (!cancelled) { setAudioUrl(d.url); setAudioMime(d.content_type); } })
         .catch(() => { /* аудио могло быть удалено — плеер не показываем */ });
     }
     return () => { cancelled = true; };
@@ -101,6 +117,61 @@ export function BatchJobDetail({ jobId }: Props) {
     if (!a) return;
     a.currentTime = start;
     a.play().catch(() => {});
+  };
+
+  const downloadFragment = async () => {
+    if (clipStart == null || clipEnd == null || clipEnd <= clipStart) return;
+    setClipBusy(true);
+    try {
+      await downloadBatchClip(jobId, clipStart, clipEnd);
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Не удалось вырезать фрагмент');
+    } finally {
+      setClipBusy(false);
+    }
+  };
+
+  const downloadAllBundle = async () => {
+    if (!job) return;
+    const stem = (job.original_filename || 'запись').replace(/\.[^.]+$/, '');
+    const parts: Array<{ name: string; getBlob: () => Promise<Blob> }> = [];
+    if (job.transcription_text || job.segments?.length) {
+      parts.push({ name: `${stem}_транскрипт.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'transcript_txt')).blob });
+      parts.push({ name: `${stem}_транскрипт.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'transcript_json')).blob });
+    }
+    if (job.protocol_markdown) parts.push({ name: `${stem}_протокол.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_txt')).blob });
+    if (job.protocol_json) parts.push({ name: `${stem}_протокол.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_json')).blob });
+    if (audioUrl) parts.push({ name: `${stem}_аудио${mimeExt(audioMime)}`, getBlob: async () => await (await fetch(audioUrl)).blob() });
+    if (!parts.length) return;
+
+    setBundleBusy(true);
+    try {
+      const picker = (window as any).showDirectoryPicker;
+      if (typeof picker === 'function') {
+        let dir;
+        try { dir = await picker.call(window, { mode: 'readwrite' }); } catch { setBundleBusy(false); return; }
+        for (const p of parts) {
+          const blob = await p.getBlob();
+          const fh = await dir.getFileHandle(p.name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(blob);
+          await w.close();
+        }
+      } else {
+        for (const p of parts) {
+          const blob = await p.getBlob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = p.name; a.click();
+          URL.revokeObjectURL(url);
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+    } catch (e: any) {
+      alert('Ошибка при скачивании: ' + (e?.message || ''));
+    } finally {
+      setBundleBusy(false);
+    }
   };
 
   if (!job) {
@@ -122,6 +193,11 @@ export function BatchJobDetail({ jobId }: Props) {
           {job.original_filename}
         </span>
         <BatchStatusBadge status={job.status} />
+        {(hasTranscript || job.protocol_markdown) && (
+          <button onClick={downloadAllBundle} disabled={bundleBusy} style={styles.bundleBtn}>
+            {bundleBusy ? 'Скачивание…' : '⬇ Скачать всё'}
+          </button>
+        )}
       </div>
 
       {job.error_message && (
@@ -158,6 +234,27 @@ export function BatchJobDetail({ jobId }: Props) {
                   onTimeUpdate={(e) => setCurTime((e.target as HTMLAudioElement).currentTime)}
                   style={styles.audio}
                 />
+              )}
+              {audioUrl && (
+                <div style={styles.trimRow}>
+                  <span style={styles.trimLabel}>Фрагмент:</span>
+                  <button onClick={() => setClipStart(curTime)} style={styles.trimBtn}>
+                    {'⟤'} Начало{clipStart != null ? ` ${fmtTime(clipStart)}` : ''}
+                  </button>
+                  <button onClick={() => setClipEnd(curTime)} style={styles.trimBtn}>
+                    Конец{clipEnd != null ? ` ${fmtTime(clipEnd)}` : ''} {'⟥'}
+                  </button>
+                  <button
+                    onClick={downloadFragment}
+                    disabled={clipBusy || clipStart == null || clipEnd == null || (clipEnd ?? 0) <= (clipStart ?? 0)}
+                    style={styles.trimDownload}
+                  >
+                    {clipBusy ? 'Режем…' : '⬇ Скачать фрагмент'}
+                  </button>
+                  {(clipStart != null || clipEnd != null) && (
+                    <button onClick={() => { setClipStart(null); setClipEnd(null); }} style={styles.trimReset}>{'✕'}</button>
+                  )}
+                </div>
               )}
               <div style={styles.searchRow}>
                 <input
@@ -258,6 +355,61 @@ const styles: Record<string, React.CSSProperties> = {
   audio: {
     width: '100%',
     height: 36,
+  },
+  bundleBtn: {
+    marginLeft: 'auto',
+    padding: '5px 12px',
+    background: theme.accent.amberGlow,
+    border: `1px solid ${theme.accent.amber}`,
+    borderRadius: 6,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    letterSpacing: '0.06em',
+  },
+  trimRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  trimLabel: {
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    color: theme.text.muted,
+  },
+  trimBtn: {
+    padding: '5px 10px',
+    background: theme.bg.card,
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 5,
+    color: theme.text.secondary,
+    cursor: 'pointer',
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    letterSpacing: '0.04em',
+  },
+  trimDownload: {
+    padding: '5px 12px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.amber}`,
+    borderRadius: 5,
+    color: theme.accent.amber,
+    cursor: 'pointer',
+    fontFamily: theme.font.mono,
+    fontSize: 10,
+    letterSpacing: '0.06em',
+  },
+  trimReset: {
+    padding: '5px 8px',
+    background: 'transparent',
+    border: `1px solid ${theme.border.default}`,
+    borderRadius: 5,
+    color: theme.text.muted,
+    cursor: 'pointer',
+    fontFamily: theme.font.mono,
+    fontSize: 10,
   },
   searchRow: {
     display: 'flex',
