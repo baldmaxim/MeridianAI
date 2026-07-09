@@ -47,6 +47,22 @@ if [ "$ok" != 1 ]; then
   echo "API НЕ healthy — ABORT. Логи:"; $DC logs --tail=50 api || true; exit 1
 fi
 
+echo "== очистка старых образов Meridian (оставляем текущий TAG + ${KEEP_RECENT:-2} последних) =="
+prune_old_images() {
+  local repo="$1" keep="${KEEP_RECENT:-2}"
+  local cur; cur="$(docker images -q "$repo:$TAG" | head -1)"
+  # ID по убыванию даты создания, без дублей, без текущего тега; удаляем всё после первых $keep
+  docker images "$repo" --format '{{.CreatedAt}}\t{{.ID}}' \
+    | sort -r | awk '{print $NF}' | awk '!seen[$0]++' \
+    | { [ -n "$cur" ] && grep -v "^${cur}$" || cat; } \
+    | tail -n +"$((keep + 1))" \
+    | xargs -r docker rmi 2>/dev/null || true
+}
+prune_old_images "$REGISTRY/meridian-api"
+prune_old_images "$REGISTRY/meridian-frontend"
+docker image prune -f >/dev/null 2>&1 || true
+df -h / | awk 'NR==1 || /\/$/ {print}'
+
 echo "== ingress infra-nginx: reload (resolver сам переразрешает IP; reload нужен лишь при смене meridian.conf) =="
 if [ -d "$INFRA_DIR" ]; then
   ( cd "$INFRA_DIR" && docker compose exec -T nginx nginx -t && docker compose exec -T nginx nginx -s reload ) \
