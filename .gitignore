@@ -98,3 +98,20 @@ meridian-web/backend/uploads/*
 
 # Внутренний корпоративный стандарт — не для публичного репо (остаётся локально)
 /corp_standard_full_single_vps.md
+
+# Личные VPN/infra скрипты и заметки в docs/ — не для публичного репо
+/docs/agg-xray-log.awk
+/docs/vpn-usage-2026-07.md
+/docs/xray-peruser-outbounds.py
+/docs/xray-testleg.sh
+/docs/deploy-*-meridianai.md
+
+# Рабочие планировочные файлы агента (корп. стандарт)
+/.ai/
+
+# Разовые артефакты проверок
+meridian-web/staging_evidence/
+
+# VPN-конфиги с ключами — никогда не коммитить
+/amnezia_*.conf
+/*amnezia*.conf
