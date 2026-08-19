@@ -15,6 +15,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from ..config import get_settings
+from ..core.http_files import content_disposition
 
 _NOT_FOUND = {"404", "NoSuchKey", "NotFound"}
 
@@ -60,7 +61,8 @@ def presign_get(key: str, ttl: int | None = None, download_name: str | None = No
     s = get_settings()
     params = {"Bucket": s.s3_bucket, "Key": key}
     if download_name:
-        params["ResponseContentDisposition"] = f'attachment; filename="{download_name}"'
+        # latin-1 в HTTP-заголовках: кириллицу отдаём через filename*=UTF-8''
+        params["ResponseContentDisposition"] = content_disposition(download_name)
     return _client().generate_presigned_url(
         "get_object", Params=params, ExpiresIn=ttl or s.s3_presign_ttl
     )

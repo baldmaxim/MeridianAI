@@ -36,6 +36,7 @@ from ..schemas.batch import (
 from ..services.jobs import enqueue
 from ..services import s3
 from ..core.batch.utils import format_transcription_txt, group_words_by_speaker
+from ..core.http_files import content_disposition, safe_download_name
 from ..config import get_settings
 
 import re
@@ -320,7 +321,7 @@ async def get_job_audio_url(
     meta = await s3.head_object(job.file_path)
     if not meta:
         raise HTTPException(404, "Аудио недоступно")
-    name = (job.original_filename or "audio").replace('"', "").replace("\r", "").replace("\n", "")
+    name = safe_download_name(job.original_filename or "audio")
     # presigned URL — секрет, НЕ логировать. Длинный TTL — чтобы перемотка не отваливалась.
     url = s3.presign_get(job.file_path, ttl=settings.batch_audio_presign_ttl, download_name=name)
     return {"url": url, "content_type": meta.get("content_type"), "size": meta.get("size")}
@@ -377,7 +378,7 @@ async def clip_audio(
         raise HTTPException(500, "Не удалось вырезать фрагмент")
 
     stem = Path(job.original_filename or "audio").stem
-    fname = f"{stem}_{int(start)}-{int(end)}.mp3".replace('"', "").replace("\r", "").replace("\n", "")
+    fname = safe_download_name(f"{stem}_{int(start)}-{int(end)}.mp3")
     return FileResponse(
         out_path, media_type="audio/mpeg", filename=fname,
         background=BackgroundTask(shutil.rmtree, tmpdir, ignore_errors=True),
@@ -398,7 +399,7 @@ async def download_batch_result(
     if not job:
         raise HTTPException(404, "Задача не найдена")
 
-    stem = Path(job.original_filename).stem
+    stem = Path(job.original_filename or "audio").stem
 
     if download_type == "transcript_txt":
         if not job.transcription_json:
@@ -408,7 +409,7 @@ async def download_batch_result(
         return Response(
             content=content.encode("utf-8"),
             media_type="text/plain; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{stem}_transcript.txt"'},
+            headers={"Content-Disposition": content_disposition(f"{stem}_transcript.txt")},
         )
 
     elif download_type == "transcript_json":
@@ -417,7 +418,7 @@ async def download_batch_result(
         return Response(
             content=job.transcription_json.encode("utf-8"),
             media_type="application/json; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{stem}_transcript.json"'},
+            headers={"Content-Disposition": content_disposition(f"{stem}_transcript.json")},
         )
 
     elif download_type == "protocol_txt":
@@ -426,7 +427,7 @@ async def download_batch_result(
         return Response(
             content=job.protocol_markdown.encode("utf-8"),
             media_type="text/plain; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{stem}_protocol.txt"'},
+            headers={"Content-Disposition": content_disposition(f"{stem}_protocol.txt")},
         )
 
     elif download_type == "protocol_json":
@@ -435,7 +436,7 @@ async def download_batch_result(
         return Response(
             content=job.protocol_json.encode("utf-8"),
             media_type="application/json; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{stem}_protocol.json"'},
+            headers={"Content-Disposition": content_disposition(f"{stem}_protocol.json")},
         )
 
     raise HTTPException(400, f"Неизвестный тип: {download_type}")

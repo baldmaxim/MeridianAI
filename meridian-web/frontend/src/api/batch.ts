@@ -1,4 +1,5 @@
 import api from './client';
+import { filenameFromDisposition, saveBlob } from './download';
 
 export interface BatchJob {
   id: number;
@@ -121,37 +122,19 @@ export async function downloadBatchClip(id: number, start: number, end: number):
   const { data, headers } = await api.post(
     `/batch/jobs/${id}/clip`, { start, end }, { responseType: 'blob' }
   );
-  const blob = new Blob([data]);
-  const disposition = headers['content-disposition'] || '';
-  const match = disposition.match(/filename="(.+?)"/);
-  const filename = match ? match[1] : 'clip.mp3';
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  saveBlob(new Blob([data]), filenameFromDisposition(headers['content-disposition'], 'clip.mp3'));
 }
 
 /** Blob результата задачи (для «Скачать всё» в папку). */
 export async function getBatchResultBlob(id: number, type: string): Promise<{ blob: Blob; filename: string }> {
   const { data, headers } = await api.get(`/batch/jobs/${id}/download/${type}`, { responseType: 'blob' });
-  const disposition = headers['content-disposition'] || '';
-  const match = disposition.match(/filename="(.+?)"/);
-  return { blob: new Blob([data]), filename: match ? match[1] : type };
+  return {
+    blob: new Blob([data]),
+    filename: filenameFromDisposition(headers['content-disposition'], type),
+  };
 }
 
 export async function downloadBatchResult(id: number, type: string): Promise<void> {
-  const { data, headers } = await api.get(`/batch/jobs/${id}/download/${type}`, {
-    responseType: 'blob',
-  });
-  const blob = new Blob([data]);
-  const disposition = headers['content-disposition'] || '';
-  const match = disposition.match(/filename="(.+?)"/);
-  const filename = match ? match[1] : `download_${type}`;
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  const { blob, filename } = await getBatchResultBlob(id, type);
+  saveBlob(blob, filename);
 }

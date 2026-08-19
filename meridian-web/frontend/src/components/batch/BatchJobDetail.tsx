@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { downloadBatchResult, getBatchAudioUrl, downloadBatchClip, getBatchResultBlob } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
+import { errorTextFromBlob, saveBlob } from '../../api/download';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from './MarkdownView';
@@ -122,13 +123,22 @@ export function BatchJobDetail({ jobId }: Props) {
     a.play().catch(() => {});
   }, []);
 
+  /** Любое скачивание: ошибки показываем, иначе кнопка молча «не работает». */
+  const runDownload = async (fn: () => Promise<void>, fallback: string) => {
+    try {
+      await fn();
+    } catch (e: any) {
+      alert(await errorTextFromBlob(e, fallback));
+    }
+  };
+
   const downloadFragment = async () => {
     if (clipStart == null || clipEnd == null || clipEnd <= clipStart) return;
     setClipBusy(true);
     try {
       await downloadBatchClip(jobId, clipStart, clipEnd);
     } catch (e: any) {
-      alert(e?.response?.data?.detail || 'Не удалось вырезать фрагмент');
+      alert(await errorTextFromBlob(e, 'Не удалось вырезать фрагмент'));
     } finally {
       setClipBusy(false);
     }
@@ -148,30 +158,33 @@ export function BatchJobDetail({ jobId }: Props) {
     if (!parts.length) return;
 
     setBundleBusy(true);
+    const failed: string[] = [];
     try {
       const picker = (window as any).showDirectoryPicker;
+      let dir: any = null;
       if (typeof picker === 'function') {
-        let dir;
         try { dir = await picker.call(window, { mode: 'readwrite' }); } catch { setBundleBusy(false); return; }
-        for (const p of parts) {
+      }
+      for (const p of parts) {
+        // одна недоступная часть (например, аудио из S3) не должна ронять весь пакет
+        try {
           const blob = await p.getBlob();
-          const fh = await dir.getFileHandle(p.name, { create: true });
-          const w = await fh.createWritable();
-          await w.write(blob);
-          await w.close();
-        }
-      } else {
-        for (const p of parts) {
-          const blob = await p.getBlob();
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = p.name; a.click();
-          URL.revokeObjectURL(url);
-          await new Promise((r) => setTimeout(r, 300));
+          if (dir) {
+            const fh = await dir.getFileHandle(p.name, { create: true });
+            const w = await fh.createWritable();
+            await w.write(blob);
+            await w.close();
+          } else {
+            saveBlob(blob, p.name);
+            await new Promise((r) => setTimeout(r, 300));
+          }
+        } catch {
+          failed.push(p.name);
         }
       }
+      if (failed.length) alert('Не удалось скачать: ' + failed.join(', '));
     } catch (e: any) {
-      alert('Ошибка при скачивании: ' + (e?.message || ''));
+      alert(await errorTextFromBlob(e, 'Ошибка при скачивании'));
     } finally {
       setBundleBusy(false);
     }
@@ -317,12 +330,12 @@ export function BatchJobDetail({ jobId }: Props) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {hasTranscript && (
               <>
-                <DownloadBtn onClick={() => downloadBatchResult(job.id, 'transcript_txt')} label="TXT" />
-                <DownloadBtn onClick={() => downloadBatchResult(job.id, 'transcript_json')} label="JSON" />
+                <DownloadBtn onClick={() => runDownload(() => downloadBatchResult(job.id, 'transcript_txt'), 'Не удалось скачать файл')} label="TXT" />
+                <DownloadBtn onClick={() => runDownload(() => downloadBatchResult(job.id, 'transcript_json'), 'Не удалось скачать файл')} label="JSON" />
               </>
             )}
-            {job.protocol_markdown && <DownloadBtn onClick={() => downloadBatchResult(job.id, 'protocol_txt')} label="Протокол TXT" />}
-            {job.protocol_json && <DownloadBtn onClick={() => downloadBatchResult(job.id, 'protocol_json')} label="Протокол JSON" />}
+            {job.protocol_markdown && <DownloadBtn onClick={() => runDownload(() => downloadBatchResult(job.id, 'protocol_txt'), 'Не удалось скачать файл')} label="Протокол TXT" />}
+            {job.protocol_json && <DownloadBtn onClick={() => runDownload(() => downloadBatchResult(job.id, 'protocol_json'), 'Не удалось скачать файл')} label="Протокол JSON" />}
             {audioUrl && <a href={audioUrl} style={styles.dlAudio}>{'⬇'} Аудио</a>}
           </div>
         </>
