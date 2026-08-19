@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { downloadBatchResult, getBatchAudioUrl, downloadBatchClip, getBatchResultBlob } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
-import { errorTextFromBlob, fetchBlob, saveBlob, saveUrl, withTimeout } from '../../api/download';
+import { errorTextFromBlob, fetchBlob, saveBlob } from '../../api/download';
+import { createZip } from '../../lib/zip';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from './MarkdownView';
@@ -150,85 +151,41 @@ export function BatchJobDetail({ jobId }: Props) {
     }
   };
 
+  /** Все материалы задачи — одним ZIP: пачку отдельных загрузок браузер блокирует. */
   const downloadAllBundle = async () => {
     if (!job) return;
     const stem = (job.original_filename || 'запись').replace(/\.[^.]+$/, '');
-    const parts: Array<{ name: string; getBlob: () => Promise<Blob>; directUrl?: string }> = [];
+    const parts: Array<{ name: string; getBlob: () => Promise<Blob> }> = [];
     if (job.transcription_text || job.segments?.length) {
       parts.push({ name: `${stem}_транскрипт.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'transcript_txt')).blob });
       parts.push({ name: `${stem}_транскрипт.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'transcript_json')).blob });
     }
     if (job.protocol_markdown) parts.push({ name: `${stem}_протокол.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_txt')).blob });
     if (job.protocol_json) parts.push({ name: `${stem}_протокол.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_json')).blob });
-    if (audioUrl) parts.push({
-      name: `${stem}_аудио${mimeExt(audioMime)}`,
-      directUrl: audioUrl,
-      getBlob: () => fetchBlob(audioUrl),
-    });
+    if (audioUrl) parts.push({ name: `${stem}_аудио${mimeExt(audioMime)}`, getBlob: () => fetchBlob(audioUrl) });
     if (!parts.length) return;
 
     setBundleBusy(true);
     const failed: string[] = [];
     try {
-      const picker = (window as any).showDirectoryPicker;
-      let dir: any = null;
-      if (typeof picker === 'function') {
-        try {
-          dir = await picker.call(window, { mode: 'readwrite' });
-        } catch {
-          setBundleStep(null); setBundleBusy(false); return; // пользователь закрыл диалог
-        }
-        // Chrome спрашивает разрешение на запись отдельным промптом. Без явного запроса
-        // это делает createWritable() — и висит, пока пользователь не заметит окно.
-        if (typeof dir?.requestPermission === 'function') {
-          try {
-            const perm = await withTimeout(
-              dir.requestPermission({ mode: 'readwrite' }), 60_000, 'Доступ к папке'
-            );
-            if (perm !== 'granted') dir = null; // нет прав — качаем обычным способом
-          } catch {
-            dir = null;
-          }
-        }
-      }
+      const entries = [];
       for (let i = 0; i < parts.length; i++) {
         const p = parts[i];
         setBundleStep(`${i + 1}/${parts.length}`);
-        // одна недоступная часть (например, аудио из S3) не должна ронять весь пакет
+        // одна недоступная часть (например, аудио) не должна ронять весь архив
         try {
-          if (dir) {
-            const blob = await p.getBlob();
-            await withTimeout((async () => {
-              const fh = await dir.getFileHandle(safeFileName(p.name), { create: true });
-              const w = await fh.createWritable();
-              await w.write(blob);
-              await w.close();
-            })(), 120_000, 'Запись в папку');
-          } else if (p.directUrl) {
-            saveUrl(p.directUrl, p.name); // качает сам браузер, с прогрессом в панели загрузок
-            await new Promise((r) => setTimeout(r, 300));
-          } else {
-            saveBlob(await p.getBlob(), p.name);
-            await new Promise((r) => setTimeout(r, 300));
-          }
+          entries.push({ name: safeFileName(p.name), blob: await p.getBlob() });
         } catch {
           failed.push(p.name);
         }
       }
-      if (failed.length === parts.length && dir) {
-        // папка недоступна для записи — повторяем обычными загрузками браузера
-        failed.length = 0;
-        for (const p of parts) {
-          try {
-            if (p.directUrl) saveUrl(p.directUrl, p.name);
-            else saveBlob(await p.getBlob(), p.name);
-            await new Promise((r) => setTimeout(r, 300));
-          } catch {
-            failed.push(p.name);
-          }
-        }
+      if (!entries.length) {
+        alert('Не удалось скачать материалы задачи');
+        return;
       }
-      if (failed.length) alert('Не удалось скачать: ' + failed.join(', '));
+      setBundleStep('архив');
+      saveBlob(await createZip(entries), safeFileName(`${stem}_материалы.zip`));
+      if (failed.length) alert('В архив не попало: ' + failed.join(', '));
     } catch (e: any) {
       alert(await errorTextFromBlob(e, 'Ошибка при скачивании'));
     } finally {
