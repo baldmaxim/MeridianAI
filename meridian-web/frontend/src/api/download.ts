@@ -41,3 +41,35 @@ export async function errorTextFromBlob(e: any, fallback: string): Promise<strin
   }
   return data?.detail || e?.message || fallback;
 }
+
+/** Скачать URL в blob с таймаутом (cross-origin S3 может «зависнуть» без него). */
+export async function fetchBlob(url: string, timeoutMs = 180_000): Promise<Blob> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`Хранилище ответило ${r.status}`);
+    return await r.blob();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Скачать по прямой ссылке силами браузера (без буферизации файла в памяти). */
+export function saveUrl(url: string, filename: string): void {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename; // для cross-origin имя задаёт Content-Disposition сервера
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Ограничить ожидание промиса: зависший шаг не должен блокировать UI навсегда. */
+export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: превышено время ожидания`)), ms);
+    p.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}

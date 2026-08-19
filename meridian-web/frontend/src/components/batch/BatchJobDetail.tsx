@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { downloadBatchResult, getBatchAudioUrl, downloadBatchClip, getBatchResultBlob } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
-import { errorTextFromBlob, saveBlob } from '../../api/download';
+import { errorTextFromBlob, fetchBlob, saveBlob, saveUrl, withTimeout } from '../../api/download';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from './MarkdownView';
@@ -19,6 +19,11 @@ function speakerColor(speaker: string): string {
   const m = speaker.match(/(\d+)/);
   const i = m ? parseInt(m[1], 10) : 0;
   return SPEAKER_PALETTE[i % SPEAKER_PALETTE.length];
+}
+
+/** Имя файла для File System Access API: без символов, запрещённых в ФС. */
+function safeFileName(name: string): string {
+  return name.replace(/[\/:*?"<>|]/g, '_').slice(0, 150);
 }
 
 function mimeExt(mime: string | null): string {
@@ -75,6 +80,7 @@ export function BatchJobDetail({ jobId }: Props) {
   const [clipEnd, setClipEnd] = useState<number | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
   const [bundleBusy, setBundleBusy] = useState(false);
+  const [bundleStep, setBundleStep] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -147,14 +153,18 @@ export function BatchJobDetail({ jobId }: Props) {
   const downloadAllBundle = async () => {
     if (!job) return;
     const stem = (job.original_filename || 'запись').replace(/\.[^.]+$/, '');
-    const parts: Array<{ name: string; getBlob: () => Promise<Blob> }> = [];
+    const parts: Array<{ name: string; getBlob: () => Promise<Blob>; directUrl?: string }> = [];
     if (job.transcription_text || job.segments?.length) {
       parts.push({ name: `${stem}_транскрипт.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'transcript_txt')).blob });
       parts.push({ name: `${stem}_транскрипт.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'transcript_json')).blob });
     }
     if (job.protocol_markdown) parts.push({ name: `${stem}_протокол.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_txt')).blob });
     if (job.protocol_json) parts.push({ name: `${stem}_протокол.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_json')).blob });
-    if (audioUrl) parts.push({ name: `${stem}_аудио${mimeExt(audioMime)}`, getBlob: async () => await (await fetch(audioUrl)).blob() });
+    if (audioUrl) parts.push({
+      name: `${stem}_аудио${mimeExt(audioMime)}`,
+      directUrl: audioUrl,
+      getBlob: () => fetchBlob(audioUrl),
+    });
     if (!parts.length) return;
 
     setBundleBusy(true);
@@ -163,29 +173,66 @@ export function BatchJobDetail({ jobId }: Props) {
       const picker = (window as any).showDirectoryPicker;
       let dir: any = null;
       if (typeof picker === 'function') {
-        try { dir = await picker.call(window, { mode: 'readwrite' }); } catch { setBundleBusy(false); return; }
+        try {
+          dir = await picker.call(window, { mode: 'readwrite' });
+        } catch {
+          setBundleStep(null); setBundleBusy(false); return; // пользователь закрыл диалог
+        }
+        // Chrome спрашивает разрешение на запись отдельным промптом. Без явного запроса
+        // это делает createWritable() — и висит, пока пользователь не заметит окно.
+        if (typeof dir?.requestPermission === 'function') {
+          try {
+            const perm = await withTimeout(
+              dir.requestPermission({ mode: 'readwrite' }), 60_000, 'Доступ к папке'
+            );
+            if (perm !== 'granted') dir = null; // нет прав — качаем обычным способом
+          } catch {
+            dir = null;
+          }
+        }
       }
-      for (const p of parts) {
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        setBundleStep(`${i + 1}/${parts.length}`);
         // одна недоступная часть (например, аудио из S3) не должна ронять весь пакет
         try {
-          const blob = await p.getBlob();
           if (dir) {
-            const fh = await dir.getFileHandle(p.name, { create: true });
-            const w = await fh.createWritable();
-            await w.write(blob);
-            await w.close();
+            const blob = await p.getBlob();
+            await withTimeout((async () => {
+              const fh = await dir.getFileHandle(safeFileName(p.name), { create: true });
+              const w = await fh.createWritable();
+              await w.write(blob);
+              await w.close();
+            })(), 120_000, 'Запись в папку');
+          } else if (p.directUrl) {
+            saveUrl(p.directUrl, p.name); // качает сам браузер, с прогрессом в панели загрузок
+            await new Promise((r) => setTimeout(r, 300));
           } else {
-            saveBlob(blob, p.name);
+            saveBlob(await p.getBlob(), p.name);
             await new Promise((r) => setTimeout(r, 300));
           }
         } catch {
           failed.push(p.name);
         }
       }
+      if (failed.length === parts.length && dir) {
+        // папка недоступна для записи — повторяем обычными загрузками браузера
+        failed.length = 0;
+        for (const p of parts) {
+          try {
+            if (p.directUrl) saveUrl(p.directUrl, p.name);
+            else saveBlob(await p.getBlob(), p.name);
+            await new Promise((r) => setTimeout(r, 300));
+          } catch {
+            failed.push(p.name);
+          }
+        }
+      }
       if (failed.length) alert('Не удалось скачать: ' + failed.join(', '));
     } catch (e: any) {
       alert(await errorTextFromBlob(e, 'Ошибка при скачивании'));
     } finally {
+      setBundleStep(null);
       setBundleBusy(false);
     }
   };
@@ -240,7 +287,7 @@ export function BatchJobDetail({ jobId }: Props) {
         <BatchStatusBadge status={job.status} />
         {(hasTranscript || job.protocol_markdown) && (
           <button onClick={downloadAllBundle} disabled={bundleBusy} style={styles.bundleBtn}>
-            {bundleBusy ? 'Скачивание…' : '⬇ Скачать всё'}
+            {bundleBusy ? `Скачивание ${bundleStep ?? ''}…` : '⬇ Скачать всё'}
           </button>
         )}
       </div>

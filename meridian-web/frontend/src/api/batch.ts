@@ -120,14 +120,18 @@ export async function getBatchAudioUrl(id: number): Promise<BatchAudioUrl> {
 /** Скачать вырезанный фрагмент (mp3) — серверная нарезка ffmpeg. */
 export async function downloadBatchClip(id: number, start: number, end: number): Promise<void> {
   const { data, headers } = await api.post(
-    `/batch/jobs/${id}/clip`, { start, end }, { responseType: 'blob' }
+    `/batch/jobs/${id}/clip`, { start, end }, { responseType: 'blob', timeout: 180_000 }
   );
   saveBlob(new Blob([data]), filenameFromDisposition(headers['content-disposition'], 'clip.mp3'));
 }
 
 /** Blob результата задачи (для «Скачать всё» в папку). */
 export async function getBatchResultBlob(id: number, type: string): Promise<{ blob: Blob; filename: string }> {
-  const { data, headers } = await api.get(`/batch/jobs/${id}/download/${type}`, { responseType: 'blob' });
+  // таймаут: без него зависший запрос держит кнопку в состоянии «Скачивание…» бесконечно
+  const { data, headers } = await api.get(`/batch/jobs/${id}/download/${type}`, {
+    responseType: 'blob',
+    timeout: 120_000,
+  });
   return {
     blob: new Blob([data]),
     filename: filenameFromDisposition(headers['content-disposition'], type),
