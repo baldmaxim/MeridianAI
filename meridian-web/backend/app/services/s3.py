@@ -14,10 +14,25 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+from urllib.parse import urlsplit
+
 from ..config import get_settings
 from ..core.http_files import content_disposition
 
 _NOT_FOUND = {"404", "NoSuchKey", "NotFound"}
+
+
+def _public(url: str) -> str:
+    """Переписать presigned URL на публичный базис (ingress → S3).
+
+    Подпись SigV4 считается по хосту S3, поэтому прокси обязан слать
+    `Host: <хост S3>` — тогда ссылка остаётся валидной. Путь и query не трогаем.
+    """
+    base = get_settings().s3_public_base_url.rstrip("/")
+    if not base:
+        return url
+    parts = urlsplit(url)
+    return f"{base}{parts.path}" + (f"?{parts.query}" if parts.query else "")
 
 
 @lru_cache
@@ -52,20 +67,24 @@ def presign_put(key: str, ttl: int | None = None,
         params["ServerSideEncryption"] = sse
         if kms_key_id:
             params["SSEKMSKeyId"] = kms_key_id
-    return _client().generate_presigned_url(
+    return _public(_client().generate_presigned_url(
         "put_object", Params=params, ExpiresIn=ttl or s.s3_presign_ttl,
-    )
+    ))
 
 
-def presign_get(key: str, ttl: int | None = None, download_name: str | None = None) -> str:
+def presign_get(key: str, ttl: int | None = None, download_name: str | None = None,
+                public: bool = True) -> str:
+    """Presigned GET. public=False — прямая ссылка на S3 (для серверных потребителей,
+    например ffmpeg внутри контейнера: им ходить через ingress незачем)."""
     s = get_settings()
     params = {"Bucket": s.s3_bucket, "Key": key}
     if download_name:
         # latin-1 в HTTP-заголовках: кириллицу отдаём через filename*=UTF-8''
         params["ResponseContentDisposition"] = content_disposition(download_name)
-    return _client().generate_presigned_url(
+    url = _client().generate_presigned_url(
         "get_object", Params=params, ExpiresIn=ttl or s.s3_presign_ttl
     )
+    return _public(url) if public else url
 
 
 async def head_object(key: str) -> dict | None:

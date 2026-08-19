@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     s3_access_key: str = Field(default="", alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
     s3_presign_ttl: int = Field(default=900, alias="S3_PRESIGN_TTL")
+    # Публичный базис для presigned-ссылок (ingress проксирует его на S3_ENDPOINT).
+    # Нужен, когда хранилище недоступно из сети клиента: браузер ходит на свой домен.
+    # Пусто → отдаём прямые ссылки на S3.
+    s3_public_base_url: str = Field(default="", alias="S3_PUBLIC_BASE_URL")
 
     # Мини-облако (обмен файлами между устройствами): личное временное хранилище на S3.
     # Гейтится общим s3_enabled (отдельного флага нет). Файлы авто-удаляются через N дней.

@@ -355,7 +355,7 @@ async def clip_audio(
     if not meta:
         raise HTTPException(404, "Аудио недоступно")
 
-    src_url = s3.presign_get(job.file_path, ttl=1800)  # НЕ логировать
+    src_url = s3.presign_get(job.file_path, ttl=1800, public=False)  # НЕ логировать
     tmpdir = tempfile.mkdtemp(prefix="meridian_clip_")
     out_path = os.path.join(tmpdir, "clip.mp3")
     args = [
