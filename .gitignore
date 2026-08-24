@@ -115,3 +115,6 @@ meridian-web/staging_evidence/
 # VPN-конфиги с ключами — никогда не коммитить
 /amnezia_*.conf
 /*amnezia*.conf
+
+# Мини-проект «Генератор подписи СУ-10» (su10info.meridianai.ru) — ведётся локально, не для публичного репо
+/010 SignatureGenerator/
