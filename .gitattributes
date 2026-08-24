@@ -1,0 +1,3 @@
+# Скрипты уезжают на Linux-хосты (YC, ноды) — CRLF ломает shebang
+*.py text eol=lf
+*.sh text eol=lf
