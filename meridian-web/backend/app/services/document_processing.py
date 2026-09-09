@@ -15,6 +15,8 @@ from ..models.document import DocumentRecord, DocumentChunk
 from . import s3
 from . import document_storage
 
+from .document_text_quality import assess_extracted_text
+
 logger = logging.getLogger("meridian.documents")
 
 # Санитайзеры сообщения ошибки обработки (Этап 23): processing_error уходит в API-ответ
@@ -175,6 +177,16 @@ async def handle_document_process(payload: dict) -> None:
         full_chars = sum(len(s["text"]) for s in segments)
         if full_chars == 0:
             raise ValueError("Не удалось извлечь текст (пустой или сканированный документ)")
+
+        # Текст извлёкся, но может быть нечитаемым (PDF без таблицы ToUnicode). Такой
+        # документ нельзя пускать в контекст подсказок: поиск по нему не находит ничего,
+        # и LLM отвечает общими словами. Лучше честная ошибка «нужен OCR».
+        joined_text = "\n".join(seg["text"] for seg in segments)
+        quality = assess_extracted_text(joined_text)
+        logger.info("document %s: букв=%s смешанный_регистр=%s кириллица=%s",
+                    document_id, quality.letters, quality.mixed_case_share, quality.cyrillic_share)
+        if not quality.ok:
+            raise ValueError(quality.message)
 
         # чанкинг по сегментам с метаданными
         chunk_rows: list[dict] = []
