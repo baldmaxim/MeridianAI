@@ -28,6 +28,8 @@ from ..schemas.batch import (
     BatchJobResponse,
     BatchJobDetailResponse,
     BatchSegment,
+    BatchToMeetingRequest,
+    BatchToMeetingResponse,
     UploadSessionRequest,
     UploadSessionResponse,
     ConfirmUploadRequest,
@@ -270,6 +272,53 @@ async def get_batch_job(
         except Exception:
             resp.segments = []
     return resp
+
+
+@router.post("/jobs/{job_id}/to-meeting", response_model=BatchToMeetingResponse)
+async def batch_to_meeting(
+    job_id: int,
+    data: BatchToMeetingRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сделать встречу из готовой записи: перенести транскрипт и запустить финализацию.
+
+    Без этого запись остаётся «батчем»: markdown-протокол внутри задачи есть, а решений,
+    поручений, рисков и кандидатов в базу знаний нет — их наполняет только финализация встречи.
+    """
+    job = (await db.execute(
+        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+    )).scalar_one_or_none()
+    if not job:
+        raise HTTPException(404, "Задача не найдена")
+
+    from ..services.ai_settings import get_or_create_default_profile
+    from ..services.batch_to_meeting import (
+        BatchToMeetingError,
+        create_meeting_from_batch,
+        transcription_segments,
+    )
+    from ..services.meeting_finalize import request_finalization
+
+    profile = await get_or_create_default_profile(db, user.id)
+    try:
+        meeting = await create_meeting_from_batch(
+            db, job, user.id,
+            customer_id=data.customer_id, object_id=data.object_id, title=data.title,
+            ai_settings_profile_id=profile.id,
+        )
+    except BatchToMeetingError as e:
+        raise HTTPException(400, str(e))
+
+    added = len(transcription_segments(
+        json.loads(job.transcription_json) if job.transcription_json
+        else {"text": job.transcription_text or ""}))
+    queued = await request_finalization(db, meeting.id)
+    await db.commit()
+    return BatchToMeetingResponse(
+        meeting_id=meeting.id, title=meeting.title,
+        segments_added=added, finalization_queued=bool(queued),
+    )
 
 
 @router.delete("/jobs/{job_id}")

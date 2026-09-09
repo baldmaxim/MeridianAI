@@ -7,6 +7,8 @@ import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from './MarkdownView';
 import { theme } from '../../styles/theme';
+import { BatchToMeetingModal } from './BatchToMeetingModal';
+import { navTo, paths } from '../../lib/navigation';
 
 interface Props {
   jobId: number;
@@ -73,6 +75,8 @@ function highlight(text: string, q: string): React.ReactNode {
 export function BatchJobDetail({ jobId }: Props) {
   const { data: job } = useBatchJob(jobId);
   const [tab, setTab] = useState<Tab | null>(null);
+  const [toMeetingOpen, setToMeetingOpen] = useState(false);
+  const [createdMeetingId, setCreatedMeetingId] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioMime, setAudioMime] = useState<string | null>(null);
@@ -233,6 +237,9 @@ export function BatchJobDetail({ jobId }: Props) {
 
   const hasTranscript = !!(job.transcription_text || segments.length);
   const activeTab: Tab = tab ?? (job.protocol_markdown && !hasTranscript ? 'protocol' : 'transcript');
+  // Встреча из записи: пока запись «батч», у неё есть только markdown-протокол —
+  // решения/поручения/риски и кандидаты в базу знаний даёт только финализация встречи.
+  const meetingId = job.meeting_id ?? createdMeetingId;
   const isProcessing = !['done', 'error'].includes(job.status);
 
   return (
@@ -247,7 +254,29 @@ export function BatchJobDetail({ jobId }: Props) {
             {bundleBusy ? `Скачивание ${bundleStep ?? ''}…` : '⬇ Скачать всё'}
           </button>
         )}
+        {hasTranscript && meetingId == null && (
+          <button onClick={() => setToMeetingOpen(true)} style={styles.toMeetingBtn}>
+            → Сделать встречу
+          </button>
+        )}
+        {meetingId != null && (
+          <button
+            type="button"
+            style={styles.meetingLink}
+            {...navTo(paths.meetingDetail(meetingId))}
+          >
+            Встреча создана — открыть
+          </button>
+        )}
       </div>
+
+      <BatchToMeetingModal
+        jobId={jobId}
+        defaultTitle={job.original_filename}
+        open={toMeetingOpen}
+        onClose={() => setToMeetingOpen(false)}
+        onDone={(r) => setCreatedMeetingId(r.meeting_id)}
+      />
 
       {job.error_message && (
         <div style={{ padding: '8px 12px', borderRadius: 6, background: theme.accent.redDim, color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 }}>
@@ -382,6 +411,15 @@ function DownloadBtn({ onClick, label }: { onClick: () => void; label: string })
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  toMeetingBtn: {
+    padding: '5px 11px', background: theme.accent.amber, color: '#080A0F', border: 'none',
+    borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: theme.font.body,
+  },
+  meetingLink: {
+    padding: '5px 11px', background: theme.bg.elevated, color: theme.accent.green,
+    border: `1px solid ${theme.border.default}`, borderRadius: 6, fontSize: 11.5,
+    textDecoration: 'none', fontFamily: theme.font.body,
+  },
   audio: {
     width: '100%',
     height: 36,

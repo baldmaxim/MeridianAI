@@ -12,8 +12,6 @@ import logging
 import os
 import shutil
 import tempfile
-import uuid
-from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -23,13 +21,14 @@ from ...config import get_settings
 from ...database import async_session
 from ...models.batch_job import BatchJob
 from ...models.file import FileRecord
-from ...models.meeting import MeetingSession, TranscriptSegmentRecord
+from ...models.meeting import MeetingSession
+from ...services.batch_to_meeting import merge_transcription_into_meeting
 from ...services.api_keys import load_api_keys
 from ...services import s3
 from .audio_compressor import AudioCompressor
 from .transcription_service import BatchTranscriptionService
 from .protocol_generator import ProtocolGenerator
-from .utils import split_protocol_output, group_words_by_speaker, TranscriptionSegment
+from .utils import split_protocol_output
 
 logger = logging.getLogger("meridian.batch")
 
@@ -48,37 +47,10 @@ async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None
     if owner is not None and user_id is not None and owner != user_id:
         logger.warning("gap_fill: user != owner — слияние во встречу %s пропущено", meeting_id)
         return 0
-
-    words = transcription.get("words") or []
-    segments = group_words_by_speaker(words) if words else []
-    if not segments and (transcription.get("text") or "").strip():
-        segments = [TranscriptionSegment(speaker="Speaker_1", start=0.0, end=0.0,
-                                         text=transcription["text"].strip())]
-    if not segments:
-        return 0
-
-    wall = datetime.utcnow()
-    added = 0
-    for i, seg in enumerate(segments):
-        text = (seg.text or "").strip()
-        if not text:
-            continue
-        if i == 0:
-            text = "[восстановлено после обрыва связи] " + text
-        db.add(TranscriptSegmentRecord(
-            session_id=meeting_id,
-            segment_id=uuid.uuid4().hex[:12],
-            text=text,
-            start_time=float(seg.start or 0),
-            end_time=float(seg.end or 0),
-            wall_clock=wall,
-            speaker_id=(seg.speaker or "unknown_speaker")[:50],
-            speaker_label=(seg.speaker or None),
-            origin="batch_finalized",
-            word_count=len(text.split()),
-        ))
-        added += 1
-    return added
+    return await merge_transcription_into_meeting(
+        db, meeting_id, transcription,
+        first_segment_prefix="[восстановлено после обрыва связи] ",
+    )
 
 
 async def handle_batch_transcribe(payload: dict) -> None:

@@ -22,6 +22,8 @@ class BatchJobResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    # Встреча, сделанная из этой записи (если сделана) — чтобы не импортировать дважды.
+    meeting_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -54,3 +56,20 @@ class ConfirmUploadRequest(BaseModel):
 class ClipRequest(BaseModel):
     start: float
     end: float
+
+class BatchToMeetingRequest(BaseModel):
+    """Превратить готовую запись во встречу.
+
+    customer_id важен не для красоты: без заказчика при извлечении знаний особенности
+    контрагента отбрасываются (их некуда привязать).
+    """
+    customer_id: Optional[int] = None
+    object_id: Optional[int] = None
+    title: Optional[str] = None
+
+
+class BatchToMeetingResponse(BaseModel):
+    meeting_id: int
+    title: Optional[str] = None
+    segments_added: int
+    finalization_queued: bool

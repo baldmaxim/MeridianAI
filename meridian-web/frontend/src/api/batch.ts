@@ -10,6 +10,28 @@ export interface BatchJob {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+  /** Встреча, сделанная из этой записи (если сделана). */
+  meeting_id: number | null;
+}
+
+export interface BatchToMeetingResult {
+  meeting_id: number;
+  title: string | null;
+  segments_added: number;
+  finalization_queued: boolean;
+}
+
+/**
+ * Сделать встречу из готовой записи: транскрипт переносится во встречу и запускается
+ * финализация — только она наполняет решения, поручения, риски и открытые вопросы.
+ * Заказчик важен: без него особенности контрагента при извлечении знаний отбрасываются.
+ */
+export async function batchToMeeting(
+  jobId: number,
+  payload: { customer_id?: number | null; object_id?: number | null; title?: string | null },
+): Promise<BatchToMeetingResult> {
+  const { data } = await api.post(`/batch/jobs/${jobId}/to-meeting`, payload);
+  return data;
 }
 
 export interface BatchSegment {
