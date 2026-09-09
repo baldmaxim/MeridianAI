@@ -220,8 +220,14 @@ async def handle_learning_extract(payload: dict) -> None:
                                    settings.learning_extraction_max_candidates)
         raw = await client.get_suggestion_async(prompt, max_tokens=4000)
 
+        if not raw:
+            # Пустой ответ = сбой транспорта/авторизации (клиент гасит исключение и
+            # возвращает None). Раньше это подписывалось как «невалидный JSON» и
+            # уводило диагностику не туда — причина видна только в логах meridian.llm.
+            await _set_status(meeting_id, "error", "LLM не ответила (сбой запроса — см. логи)")
+            return
         data = _parse(raw)
-        if data is None and settings.learning_extraction_repair_enabled and raw:
+        if data is None and settings.learning_extraction_repair_enabled:
             repaired = await client.get_suggestion_async(build_repair_prompt(raw), max_tokens=4000)
             data = _parse(repaired)
         if data is None:
