@@ -23,6 +23,12 @@ from sqlalchemy import select, update
 from ..config import get_settings
 from ..database import async_session
 from .observer_diarization import ObserverDiarization
+from .online_capture_sides import (
+    HINT_SOURCE as ONLINE_CAPTURE_HINT_SOURCE,
+    OnlineCaptureSideVoter,
+    clamp_level,
+    virtual_device_ids,
+)
 from .secondary_audio_shadow import SecondaryAudioShadow
 from .multi_source_ingest import MultiSourceIngest, ROLE_PRIMARY, ROLE_SECONDARY
 from .device_clock import ClockSyncReport, classify_quality
@@ -157,6 +163,15 @@ class MeetingRoom:
         self._tree_dirty = False
         # Этап 9: observer-диаризация (метрики уровня звука вторых устройств)
         self.observer = ObserverDiarization(get_settings())
+        # Онлайн-встреча: desktop-соединения, приславшие уровни двух источников
+        # (микрофон = мы, звук вкладки/экрана = оппонент). Для них сторона реплики
+        # считается тем же observer-расчётом, но по двум виртуальным устройствам.
+        self._online_capture_conns: set[str] = set()
+        _s = get_settings()
+        self._online_side_voter = OnlineCaptureSideVoter(
+            min_votes=_s.online_capture_side_min_votes,
+            min_ratio=_s.online_capture_side_min_ratio,
+        )
         # Этап 9.2: secondary audio shadow (аудио-чанки вторых устройств БЕЗ STT)
         self.shadow = SecondaryAudioShadow(get_settings())
         # Этап 9.3: единый ingest-слой (общая server timeline для всех источников)
@@ -417,6 +432,11 @@ class MeetingRoom:
         if not conn:
             return
         self.observer.remove_device(connection_id)  # Этап 9: чистим метрики observer
+        if connection_id in self._online_capture_conns:
+            # Онлайн-захват: снять оба виртуальных устройства этого соединения
+            self._online_capture_conns.discard(connection_id)
+            for vid in virtual_device_ids(connection_id):
+                self.observer.remove_device(vid)
         self.ingest.remove_track(connection_id)  # Этап 9.3: чистим ingest-трек устройства
         if conn.device_role == "secondary":
             self.shadow.remove_track(connection_id)  # Этап 9.2: чистим shadow-трек
@@ -1161,6 +1181,9 @@ class MeetingRoom:
             has_name = "display_name" in message
             display_name = message.get("display_name")
             if name:
+                # Пользователь главнее авто-определения: забываем авто-решение по метке,
+                # иначе следующая порция подсказок вернёт нашу сторону обратно.
+                self._online_side_voter.forget(name)
                 self.session.set_speaker_role(name, side)
                 if has_name:
                     self.session.set_speaker_name(name, display_name)
@@ -1214,11 +1237,20 @@ class MeetingRoom:
                         connection_id,
                         rms=message.get("rms", 0.0), peak=message.get("peak"),
                         vad=bool(message.get("vad", False)), seq=message.get("seq"),
-                        client_ts_ms=client_ts_ms, server_ts=datetime.utcnow(),
+                        # datetime.now(), а не utcnow(): подсказка стороны сопоставляется с
+                        # segment.wall_clock, который весь STT-пайплайн пишет через now().
+                        # На хосте не в UTC utcnow() промахивался мимо окна и подсказка
+                        # стороны не срабатывала вообще.
+                        client_ts_ms=client_ts_ms, server_ts=datetime.now(),
                         server_ts_ms=server_ts_ms,
                     )
                 except Exception:
                     pass
+        elif t == "audio_source_levels":
+            # Онлайн-встреча: уровни микрофона и звука встречи с ОДНОГО desktop-соединения
+            # (числа, не аудио). Только от того, кто реально пишет звук.
+            if conn and conn.can_record:
+                self._handle_audio_source_levels(connection_id, message, server_receive_ms)
         elif t == "observer_side":
             if conn and conn.device_role == "observer":
                 self.observer.set_side_hint(connection_id, message.get("side"))
@@ -1623,6 +1655,95 @@ class MeetingRoom:
         payload["_source_kind"] = attr.source_kind  # только для агрегированного лога (не для observe)
         return payload
 
+    def _handle_audio_source_levels(self, connection_id: str, message: dict,
+                                    server_receive_ms: int) -> None:
+        """Онлайн-встреча: уровни двух источников → метрики двух виртуальных устройств.
+
+        Микрофон = «мы», звук вкладки/экрана = «оппонент». Сторону реплики дальше считает
+        тот же ObserverDiarization, что и для второго телефона, — отдельный расчёт не заводим.
+
+        Если захват встречи не активен (обычная очная запись с одного микрофона), устройства
+        снимаются: иначе каждая реплика получала бы сторону «мы» на пустом месте.
+        """
+        if not self.observer.enabled:
+            return
+        try:
+            conn = self.connections.get(connection_id)
+            self_id, opponent_id = virtual_device_ids(connection_id)
+            system_active = bool(message.get("system_active"))
+
+            if not system_active:
+                if connection_id in self._online_capture_conns:
+                    self._online_capture_conns.discard(connection_id)
+                    self.observer.remove_device(self_id)
+                    self.observer.remove_device(opponent_id)
+                return
+
+            if connection_id not in self._online_capture_conns:
+                user_id = conn.user_id if conn else None
+                self.observer.register_device(self_id, user_id, "online_mic", side_hint="self")
+                self.observer.register_device(opponent_id, user_id, "online_meeting",
+                                              side_hint="opponent")
+                self._online_capture_conns.add(connection_id)
+
+            client_ts_ms = message.get("client_ts_ms")
+            server_ts_ms = (conn.to_server_ms(client_ts_ms)
+                            if conn is not None and client_ts_ms is not None
+                            else float(server_receive_ms))
+            # см. комментарий в обработчике audio_level: сравниваем с segment.wall_clock (now())
+            now = datetime.now()
+            seq = message.get("seq")
+            vad_floor = self.observer.min_rms
+            for device_id, rms_key, peak_key in (
+                (self_id, "mic_rms", "mic_peak"),
+                (opponent_id, "system_rms", "system_peak"),
+            ):
+                rms = clamp_level(message.get(rms_key))
+                self.observer.add_metric(
+                    device_id, rms=rms, peak=clamp_level(message.get(peak_key)),
+                    vad=rms >= vad_floor, seq=seq, client_ts_ms=client_ts_ms,
+                    server_ts=now, server_ts_ms=server_ts_ms,
+                )
+        except Exception as e:
+            # Диагностика стороны никогда не должна ронять аудиопоток встречи.
+            logger.debug(f"[room {self.meeting_id}] audio_source_levels ignored: {e}")
+
+    def _only_online_capture_devices(self) -> bool:
+        """Все observer-устройства комнаты — виртуальные дорожки онлайн-захвата.
+
+        Если к встрече дополнительно подключён observer-телефон, подсказка могла прийти
+        от него: там сторона задаётся вручную и авто-применение намеренно выключено.
+        """
+        if not self._online_capture_conns:
+            return False
+        virtual: set[str] = set()
+        for cid in self._online_capture_conns:
+            virtual.update(virtual_device_ids(cid))
+        return bool(self.observer.devices) and set(self.observer.devices) <= virtual
+
+    async def _auto_assign_online_side(self, segment, hint) -> None:
+        """Закрепить сторону за меткой спикера, когда подсказок по ней набралось достаточно.
+
+        Ручное назначение пользователя не перетираем. Решение принимается один раз на метку
+        (см. OnlineCaptureSideVoter) — БД и UI не дёргаются на каждой реплике.
+        """
+        label = (getattr(segment, "speaker_label", None) or getattr(segment, "speaker_id", None)
+                 or getattr(segment, "speaker", None) or "")
+        label = str(label).strip()
+        if not label:
+            return
+        existing = self.session.speaker_roles.get(label)
+        if existing and not self._online_side_voter.is_auto_assigned(label):
+            return  # сторону назначил человек — он главнее
+        decided = self._online_side_voter.record(label, hint.side, hint.confidence)
+        if not decided or decided == existing:
+            return
+        self.session.set_speaker_role(label, decided)
+        await self._persist_speaker_role(label, decided, None)
+        await self.broadcast(self._speaker_roles_payload())
+        logger.info("[room %s] сторона спикера определена по источнику звука: %s",
+                    self.meeting_id, decided)
+
     async def _broadcast_side_hint(self, segment) -> None:
         """Подсказка стороны реплики из двух «быстрых» источников вокруг committed-сегмента:
         observer-устройства (числовые метрики) И shadow-треки (rms аудио-чанков второго
@@ -1652,6 +1773,13 @@ class MeetingRoom:
                     hint, source = sh, "shadow"
         if hint is None:
             return
+        auto_apply = self.observer.auto_apply
+        online = source == "observer" and self._only_online_capture_devices()
+        if online:
+            # Источник — не второй телефон в комнате, а разделённые дорожки онлайн-встречи:
+            # наш голос физически не попадает в захват вкладки, поэтому сторона надёжна.
+            source = ONLINE_CAPTURE_HINT_SOURCE
+            auto_apply = get_settings().online_capture_side_auto_apply
         await self.broadcast({
             "type": "segment_side_hint",
             "meeting_id": self.meeting_id,
@@ -1662,8 +1790,10 @@ class MeetingRoom:
             "source": source,
             "device_count": hint.device_count,
             "window_ms": hint.window_ms,
-            "auto_apply": self.observer.auto_apply,
+            "auto_apply": auto_apply,
         })
+        if online and auto_apply:
+            await self._auto_assign_online_side(segment, hint)
 
     async def _on_committed_for_tree(self, segment, role: str | None) -> None:
         """Conversation Tree: пометить дерево «грязным» и запланировать LLM-экстракцию.

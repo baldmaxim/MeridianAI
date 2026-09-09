@@ -1,10 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
-import type { AudioRecorderCaptureConfig } from '../hooks/useAudioRecorder';
+import type { AudioRecorderCaptureConfig, AudioSourceLevels, SystemAudioState } from '../hooks/useAudioRecorder';
 import { AudioPreflightPanel } from '../components/meeting/AudioPreflightPanel';
+import { OnlineAudioPanel } from '../components/meeting/OnlineAudioPanel';
+import {
+  SystemAudioError,
+  SYSTEM_AUDIO_ERROR_TEXT,
+  captureSystemAudio,
+  isSystemAudioSupported,
+  stopSystemAudio,
+} from '../audio/systemAudio';
 import { SpeakerIdentityReviewPanel } from '../components/meeting/SpeakerIdentityReviewPanel';
-import { loadAudioSelection, loadMultichannelShadowEnabled, presetForRoute } from '../audio/audioCaptureMetadata';
+import {
+  loadAudioSelection,
+  loadMultichannelShadowEnabled,
+  loadOnlineMeetingAudioEnabled,
+  presetForRoute,
+  saveOnlineMeetingAudioEnabled,
+} from '../audio/audioCaptureMetadata';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings } from '../api/settings';
@@ -119,12 +133,58 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     const w = ws.current;
     if (w?.readyState === WebSocket.OPEN && w.bufferedAmount < 1_000_000) sendBinary(buf);
   }, [sendBinary, ws]);
+  // Онлайн-встреча: захват звука вкладки/экрана. Держим и в ref — getConfig() читается
+  // на каждом start(), а AudioPreflightPanel перезаписывает audioCaptureRef целиком.
+  const [onlineAudio, setOnlineAudio] = useState(() => loadOnlineMeetingAudioEnabled());
+  const onlineAudioRef = useRef(onlineAudio);
+  onlineAudioRef.current = onlineAudio;
+  const [systemAudioState, setSystemAudioState] = useState<SystemAudioState | null>(null);
+  const [sourceLevels, setSourceLevels] = useState<AudioSourceLevels | null>(null);
+  const sourceLevelsSeq = useRef(0);
+  const handleOnlineAudioToggle = useCallback((next: boolean) => {
+    setOnlineAudio(next);
+    saveOnlineMeetingAudioEnabled(next);
+    if (!next) { setSystemAudioState(null); setSourceLevels(null); }
+  }, []);
+  // Уровни двух источников (~150 мс): по ним backend помечает, чья это реплика.
+  // Числа, не аудио. Шлём только во время записи и только при живом WS.
+  const sourceLevelsWasActive = useRef(false);
+  const handleSourceLevels = useCallback((levels: AudioSourceLevels) => {
+    setSourceLevels(levels);
+    // На очной встрече (захват выключен) слать нечего: сторону по одному микрофону
+    // не определить. Один кадр после отключения нужен, чтобы backend снял виртуальные
+    // устройства и перестал считать сторону по устаревшим уровням.
+    const wasActive = sourceLevelsWasActive.current;
+    sourceLevelsWasActive.current = levels.systemActive;
+    if (!levels.systemActive && !wasActive) return;
+    sendJSON({
+      type: 'audio_source_levels',
+      mic_rms: levels.micRms,
+      mic_peak: levels.micPeak,
+      system_rms: levels.systemRms,
+      system_peak: levels.systemPeak,
+      system_active: levels.systemActive,
+      seq: ++sourceLevelsSeq.current,
+      client_ts_ms: Date.now(),
+    });
+  }, [sendJSON]);
+  const handleSystemAudioState = useCallback((state: SystemAudioState) => {
+    setSystemAudioState(state);
+    if (state.error && state.message) showToast(state.message, 'error');
+    else if (!state.active && !state.error) showToast('Доступ к звуку встречи прекращён — пишем только микрофон', 'error');
+  }, [showToast]);
+
   const { start: startAudio, stop: stopAudio } = useAudioRecorder(
     sendAudioChunk, setLevel, onAudioInterrupt,
     {
-      getConfig: () => audioCaptureRef.current,
+      getConfig: () => ({
+        ...audioCaptureRef.current,
+        systemAudioEnabled: onlineAudioRef.current,
+      }),
       onCaptureMetadata: (m) => sendJSON({ type: 'audio_capture_metadata', payload: m }),
       sendShadowFrame,
+      onSourceLevels: handleSourceLevels,
+      onSystemAudioState: handleSystemAudioState,
     },
   );
   const store = useMeetingStore();
@@ -398,28 +458,43 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       store.setError('Источник аудио занят (идёт запись с устройства)');
       return;
     }
+    // Звук встречи запрашиваем ДО любых await: getDisplayMedia работает только по свежему
+    // клику, а ниже мы можем успеть создать встречу и дождаться WS. Отказ не отменяет запись.
+    let systemStream: MediaStream | null = null;
+    if (onlineAudioRef.current && isSystemAudioSupported()) {
+      try {
+        systemStream = await captureSystemAudio();
+      } catch (err) {
+        const code = err instanceof SystemAudioError ? err.code : 'failed';
+        handleSystemAudioState({ active: false, error: code, message: SYSTEM_AUDIO_ERROR_TEXT[code] });
+      }
+    }
+    const abort = (message: string) => {
+      stopSystemAudio(systemStream);
+      store.setError(message);
+    };
     // Встреча создаётся вручную при первом старте записи (не при заходе на портал).
     if (st.currentMeetingId == null || !st.isConnected) {
       const id = await startSession(false);
-      if (id == null) { store.setError('Не удалось создать встречу'); return; }
+      if (id == null) { abort('Не удалось создать встречу'); return; }
       const ok = await waitForConnected();
-      if (!ok) { store.setError('Не удалось подключиться к встрече'); return; }
+      if (!ok) { abort('Не удалось подключиться к встрече'); return; }
       st = useMeetingStore.getState();
       if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-        store.setError('Источник аудио занят (идёт запись с устройства)');
+        abort('Источник аудио занят (идёт запись с устройства)');
         return;
       }
     }
     try {
-      await startAudio();
+      await startAudio(systemStream);
       void wakeLock.request();
       setRecordingPaused(false);
       sendJSON({ type: 'start_audio' });
       store.setListening(true);
     } catch {
-      store.setError('Не удалось получить доступ к микрофону');
+      abort('Не удалось получить доступ к микрофону');
     }
-  }, [startAudio, sendJSON, startSession, waitForConnected, store, wakeLock]);
+  }, [startAudio, sendJSON, startSession, waitForConnected, store, wakeLock, handleSystemAudioState]);
 
   const handleStopListening = useCallback(() => {
     stopAudio();
@@ -664,6 +739,13 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         <OfflineBanner />
         {recordingBanner}
         <AudioPreflightPanel onConfigChange={onAudioCaptureConfig} />
+        <OnlineAudioPanel
+          enabled={onlineAudio}
+          onToggle={handleOnlineAudioToggle}
+          state={systemAudioState}
+          levels={sourceLevels}
+          isListening={store.isListening}
+        />
         <HelperPanel />
         <DictaphoneView
           level={level}
@@ -683,6 +765,13 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       <OfflineBanner />
       {recordingBanner}
       <AudioPreflightPanel onConfigChange={onAudioCaptureConfig} />
+      <OnlineAudioPanel
+        enabled={onlineAudio}
+        onToggle={handleOnlineAudioToggle}
+        state={systemAudioState}
+        levels={sourceLevels}
+        isListening={store.isListening}
+      />
       <HelperPanel />
       {/* Tab bar + бейдж участников справа */}
       <div className="meeting-tabs" style={styles.tabs}>

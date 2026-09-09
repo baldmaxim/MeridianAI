@@ -194,6 +194,15 @@ class Settings(BaseSettings):
     observer_diarization_min_confidence: float = Field(default=0.65, alias="OBSERVER_DIARIZATION_MIN_CONFIDENCE")
     observer_diarization_max_metrics_per_device: int = Field(default=600, alias="OBSERVER_DIARIZATION_MAX_METRICS_PER_DEVICE")
 
+    # Онлайн-встреча (Zoom/Teams/Meet): браузер шлёт уровни двух источников одного
+    # соединения — микрофон (наша сторона) и звук вкладки/экрана (сторона оппонента).
+    # Сторона тут почти достоверна (наш голос в захват встречи не попадает), поэтому,
+    # в отличие от observer-телефона, авто-применение включено по умолчанию.
+    # Ручное назначение стороны пользователем всегда главнее.
+    online_capture_side_auto_apply: bool = Field(default=True, alias="ONLINE_CAPTURE_SIDE_AUTO_APPLY")
+    online_capture_side_min_votes: int = Field(default=3, alias="ONLINE_CAPTURE_SIDE_MIN_VOTES")
+    online_capture_side_min_ratio: float = Field(default=0.75, alias="ONLINE_CAPTURE_SIDE_MIN_RATIO")
+
     # Secondary audio shadow (Этап 9.2): дополнительное устройство стримит аудио-чанки
     # для будущего multi-channel. Чанки буферизуются in-memory и НЕ идут в STT, НЕ меняют
     # active_audio_source. Это отдельный режим от observer (тот шлёт только RMS/peak/VAD).
@@ -564,7 +573,11 @@ class Settings(BaseSettings):
 
     # Signal Engine (Этап 1): контекстная классификация переговорной ситуации
     ai_signal_engine_enabled: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_ENABLED")
-    ai_signal_engine_shadow_mode: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_SHADOW_MODE")
+    # shadow_mode=false: решения Signal Engine реально управляют автоподсказками.
+    # При true классификатор работает «в стол», а подсказки триггерит legacy-поиск
+    # по 10 ключевым словам — для переговоров это бесполезно. Технический сбой
+    # классификатора по-прежнему падает в legacy (ai_signal_engine_allow_legacy_fallback).
+    ai_signal_engine_shadow_mode: bool = Field(default=False, alias="AI_SIGNAL_ENGINE_SHADOW_MODE")
     ai_signal_engine_allow_legacy_fallback: bool = Field(default=True, alias="AI_SIGNAL_ENGINE_ALLOW_LEGACY_FALLBACK")
     ai_signal_engine_min_confidence: float = Field(default=0.55, alias="AI_SIGNAL_ENGINE_MIN_CONFIDENCE")
     ai_signal_engine_min_actionability: float = Field(default=0.55, alias="AI_SIGNAL_ENGINE_MIN_ACTIONABILITY")

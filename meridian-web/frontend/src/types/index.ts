@@ -638,7 +638,19 @@ export type WSMessageToServer =
   | { type: 'transcription_fallback' }
   | { type: 'get_transcription_authority' }
   // Этап 15: безопасная audio capture route metadata (диагностика; без raw label/id)
-  | { type: 'audio_capture_metadata'; payload: AudioCaptureMetadataClient };
+  | { type: 'audio_capture_metadata'; payload: AudioCaptureMetadataClient }
+  // Онлайн-встреча: уровни микрофона (мы) и звука вкладки/экрана (оппонент). Числа, не аудио —
+  // по ним backend помечает сторону реплики.
+  | {
+      type: 'audio_source_levels';
+      mic_rms: number;
+      mic_peak: number;
+      system_rms: number;
+      system_peak: number;
+      system_active: boolean;
+      seq: number;
+      client_ts_ms: number;
+    };
 
 // --- Справочники (Этап 1 MVP) ---
 

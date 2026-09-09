@@ -55,6 +55,9 @@ AI-ассистент для помощи в переговорах в стро�
 - **Auth:** email + пароль, JWT (python-jose, HS256), bcrypt; целевой путь — Keycloak OIDC
 - **Realtime:** WebSocket для аудио/транскрипции/подсказок
 - **Аудио:** Browser AudioWorklet → PCM 16kHz Int16 → WS binary frames
+- **Онлайн-встречи:** микрофон + `getDisplayMedia` (звук вкладки/экрана) микшируются в тот же
+  mono-поток; уровни двух источников (`audio_source_levels`) дают сторону реплики —
+  микрофон = «мы», звук встречи = «оппонент». Захват экрана опционален, очный сценарий не ломается
 
 ## Структура
 
@@ -131,7 +134,8 @@ npm run preview    # предпросмотр прод-сборки
 ..\.venv\Scripts\python.exe -m alembic upgrade head                        # применить миграции
 ..\.venv\Scripts\python.exe -m alembic revision --autogenerate -m "..."    # новая миграция
 ```
-> Тестов нет (`pytest` в requirements, но `tests/` отсутствует). Линтера (ruff/black/mypy) нет.
+> Тесты: `TEST_DATABASE_URL="sqlite+aiosqlite:///:memory:" ..\.venv\Scripts\python.exe -m pytest -q`
+> (без переменной идёт в Postgres из `DATABASE_URL`). Линтера (ruff/black/mypy) нет.
 > Alembic — async engine; `migration_database_url` = юзер `meridian_migration` (DDL), runtime = `meridian_runtime` (DML). Роли создаёт `backend/db/init/01-users.sql`.
 
 ### Deploy (meridian-web/deploy)
@@ -170,6 +174,10 @@ GET    /health/live, /health/ready   # (фаза 2)
 - **API client:** `baseURL` включает `/api` prefix, endpoints без дублирования
 - **Download:** Query token auth (`?token=jwt`) вместо Bearer header (для прямых ссылок)
 - **Audio feedback:** Silent GainNode предотвращает проигрывание микрофона в колонки
+- **Signal Engine:** `AI_SIGNAL_ENGINE_SHADOW_MODE=false` — иначе автоподсказки триггерит
+  legacy-поиск по 10 ключевым словам, а LLM-классификатор работает «в стол»
+- **Часы подсказок стороны:** метрики уровня пишутся `datetime.now()`, как и `segment.wall_clock`
+  (раньше был `utcnow()` — вне UTC-хоста окно сопоставления не совпадало и подсказка не срабатывала)
 
 ## Тестовый пользователь
 
@@ -281,4 +289,6 @@ Breakpoints:
 - ✅ Batch: 500MB в RAM / гибель при рестарте — пофикшено (фаза 4 jobs + фаза 5 presigned S3, аудио мимо backend)
 - ✅ WS `?token=` в access-логах — пофикшено (фаза 2, `--no-access-log` + редакция)
 - ☐ Документы (`/api/documents/upload`) пока multipart (маленькие, traversal закрыт). Перевод на presigned S3 — под-шаг фазы 5 позже
-- ☐ Нет автотестов (backend/frontend) и линтеров (ruff/black/mypy) — добавить отдельной фазой
+- ☐ Нет тестов фронтенда и линтеров бэкенда (ruff/black/mypy) — добавить отдельной фазой
+- ☐ Захват звука встречи умеют только Chrome/Edge; в Firefox/Safari остаётся микрофон.
+  Через колонки (без наушников) голос оппонента попадает и в микрофон — сторона определяется хуже

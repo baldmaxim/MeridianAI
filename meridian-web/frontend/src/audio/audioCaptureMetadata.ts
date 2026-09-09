@@ -16,6 +16,7 @@ import type {
 
 const STORAGE_KEY = 'meridian_audio_selection_v1';
 const MC_SHADOW_KEY = 'meridian_audio_multichannel_shadow_enabled_v1';
+const ONLINE_AUDIO_KEY = 'meridian_online_meeting_audio_enabled_v1';
 
 /** Угадать route по label устройства — ТОЛЬКО UI-подсказка, не вывод стороны. */
 export function guessRouteFromLabel(label: string | undefined | null): AudioCaptureRoute {
@@ -139,6 +140,25 @@ export function saveMultichannelShadowEnabled(enabled: boolean): void {
   try {
     if (typeof localStorage === 'undefined') return;
     localStorage.setItem(MC_SHADOW_KEY, enabled ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Захват звука онлайн-встречи (вкладка/экран). Выбор запоминаем между встречами. */
+export function loadOnlineMeetingAudioEnabled(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(ONLINE_AUDIO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveOnlineMeetingAudioEnabled(enabled: boolean): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(ONLINE_AUDIO_KEY, enabled ? '1' : '0');
   } catch {
     /* ignore */
   }
