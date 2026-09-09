@@ -17,16 +17,23 @@ function putToS3(url: string, file: File, onProgress?: (frac: number) => void): 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
     };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }
+      // 413 = лимит тела запроса на прокси перед хранилищем, а не проблема файла
+      if (xhr.status === 413) {
+        reject(new Error('Файл отклонён прокси хранилища (413): превышен лимит размера запроса.'));
+        return;
+      }
+      reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
+    };
     xhr.onerror = () => reject(new Error('Сбой сети при загрузке'));
     xhr.send(file);
   });
 }
 
-/** Загрузить файл в мини-облако: session → прямой PUT в S3 → confirm. */
+/** Загрузить файл в мини-облако: session → прямой PUT в S3 → confirm.
+ *  При сбое PUT/confirm убираем pending-запись, иначе она висит в БД навсегда
+ *  (в списке её не видно — list отдаёт только active). */
 export async function uploadStashFile(
   file: File,
   onProgress?: (frac: number) => void
@@ -35,9 +42,14 @@ export async function uploadStashFile(
     filename: file.name,
     size: file.size,
   });
-  await putToS3(session.upload_url, file, onProgress);
-  const { data } = await api.post(`/stash/confirm/${session.file_id}`);
-  return data;
+  try {
+    await putToS3(session.upload_url, file, onProgress);
+    const { data } = await api.post(`/stash/confirm/${session.file_id}`);
+    return data;
+  } catch (err) {
+    await deleteStashFile(session.file_id).catch(() => { /* уборка best-effort */ });
+    throw err;
+  }
 }
 
 export interface StashDownloadItem {

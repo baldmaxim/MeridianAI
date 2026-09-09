@@ -108,6 +108,10 @@ class Settings(BaseSettings):
     stash_retention_days: int = Field(default=7, alias="STASH_RETENTION_DAYS")
     stash_max_upload_mb: int = Field(default=512, alias="STASH_MAX_UPLOAD_MB")
 
+    # Брошенные upload-сессии (PUT не дошёл, confirm не пришёл): через сколько часов
+    # закрывать pending-записи files. С запасом относительно presign TTL (6 ч максимум).
+    pending_upload_ttl_hours: int = Field(default=24, alias="PENDING_UPLOAD_TTL_HOURS")
+
     # ElevenLabs REST через прокси: ElevenLabs гео-блокирует РФ (IP прод-сервера) → батч-STT
     # шлём через egress в разрешённой стране (NL). Пусто → прямой вызов (без прокси).
     # URL вида http://host:port (IP-allowlist прокси, без креденшелов → не секрет).

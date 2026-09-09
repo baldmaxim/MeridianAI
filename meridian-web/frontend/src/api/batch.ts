@@ -34,10 +34,15 @@ function putToS3(url: string, file: File, onProgress?: (frac: number) => void): 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
     };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }
+      // 413 = лимит тела запроса на прокси перед хранилищем, а не проблема файла
+      if (xhr.status === 413) {
+        reject(new Error('Файл отклонён прокси хранилища (413): превышен лимит размера запроса.'));
+        return;
+      }
+      reject(new Error(`Ошибка загрузки в хранилище (${xhr.status})`));
+    };
     xhr.onerror = () => reject(new Error('Сбой сети при загрузке'));
     xhr.send(file);
   });

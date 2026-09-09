@@ -169,6 +169,14 @@ async def lifespan(app: FastAPI):
                     logger.info("[Cleanup] Expired %d stash file(s)", k)
             except Exception:
                 logger.warning("[Cleanup] stash sweep failed", exc_info=False)
+            # Брошенные upload-сессии (PUT упал / вкладку закрыли) — иначе pending копится
+            try:
+                from .services.files import sweep_abandoned_pending
+                p = await sweep_abandoned_pending()
+                if p:
+                    logger.info("[Cleanup] Closed %d abandoned upload session(s)", p)
+            except Exception:
+                logger.warning("[Cleanup] pending upload sweep failed", exc_info=False)
 
     cleanup_task = asyncio.create_task(_session_cleanup_loop())
 
