@@ -197,6 +197,14 @@ async def handle_batch_transcribe(payload: dict) -> None:
                     job.protocol_markdown = markdown
                     if json_data:
                         job.protocol_json = json.dumps(json_data, ensure_ascii=False)
+                    job.error_message = None
+                else:
+                    # Транскрипт готов и ценен сам по себе — статус остаётся done,
+                    # но молчать о пропавшем протоколе нельзя: так батчи месяцами
+                    # числились выполненными с пустым протоколом.
+                    job.error_message = ("Транскрипт готов, протокол не сгенерирован: "
+                                         "LLM не ответила (см. логи).")
+                    logger.error("job %s: протокол не сгенерирован (LLM не ответила)", job_id)
 
             job.status = "done"
             await db.commit()
