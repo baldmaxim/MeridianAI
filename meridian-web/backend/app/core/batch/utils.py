@@ -102,6 +102,37 @@ def format_transcription_txt(transcription_data: Dict[str, Any]) -> str:
     return transcription_data.get("text", "")
 
 
+def build_translation_json(translations: Dict[int, str],
+                           segments: List[TranscriptionSegment]) -> str:
+    """Упаковать переводы реплик для batch_jobs.transcription_translation_json."""
+    items = [
+        {"i": i, "start": round(segments[i].start, 2), "text_ru": text}
+        for i, text in sorted(translations.items())
+        if 0 <= i < len(segments)
+    ]
+    return json.dumps({"v": 1, "items": items}, ensure_ascii=False)
+
+
+def parse_translation_map(raw: Optional[str]) -> Dict[int, str]:
+    """Распаковать переводы: {индекс реплики: русский текст}. Битые данные → пусто."""
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw) or {}
+        items = data.get("items") or []
+    except (json.JSONDecodeError, ValueError, AttributeError) as e:
+        logger.warning(f"Failed to parse translation JSON: {e}")
+        return {}
+    out: Dict[int, str] = {}
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        i, text = it.get("i"), it.get("text_ru")
+        if isinstance(i, int) and isinstance(text, str) and text.strip():
+            out[i] = text.strip()
+    return out
+
+
 def split_protocol_output(text: str) -> Tuple[str, Optional[dict]]:
     pattern = r'```json\s*\n(.*?)```'
     match = re.search(pattern, text, re.DOTALL)

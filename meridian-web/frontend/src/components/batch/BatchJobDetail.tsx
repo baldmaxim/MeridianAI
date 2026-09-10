@@ -203,7 +203,9 @@ export function BatchJobDetail({ jobId }: Props) {
   const renderedSegments = useMemo(
     () =>
       segments.map((seg, i) => {
-        if (q && !seg.text.toLowerCase().includes(q)) return null;
+        // Поиск идёт и по переводу: искать турецкую реплику по-русски — нормальное желание
+        if (q && !seg.text.toLowerCase().includes(q) && !seg.text_ru?.toLowerCase().includes(q))
+          return null;
         const isActive = !q && i === activeIdx;
         return (
           <div
@@ -220,7 +222,15 @@ export function BatchJobDetail({ jobId }: Props) {
               <span style={{ ...styles.speaker, color: speakerColor(seg.speaker) }}>{seg.speaker}</span>
               <span style={styles.time}>{fmtTime(seg.start)}</span>
             </div>
-            <div style={styles.segText}>{highlight(seg.text, q)}</div>
+            <div style={styles.segBody}>
+              <div style={styles.segText}>{highlight(seg.text, q)}</div>
+              {seg.text_ru && (
+                <div style={styles.segTextRu}>
+                  <span style={styles.ruTag}>RU</span>
+                  <span>{highlight(seg.text_ru, q)}</span>
+                </div>
+              )}
+            </div>
           </div>
         );
       }),
@@ -556,14 +566,41 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     color: theme.text.muted,
   },
-  segText: {
+  segBody: {
     flex: 1,
+    minWidth: 0,
+  },
+  segText: {
     fontFamily: theme.font.body,
     fontSize: 13,
     lineHeight: 1.6,
     color: theme.text.primary,
     minWidth: 0,
     wordBreak: 'break-word',
+  },
+  // Перевод под оригиналом: приглушён, чтобы не спорить с исходной репликой
+  segTextRu: {
+    display: 'flex',
+    gap: 6,
+    alignItems: 'baseline',
+    marginTop: 3,
+    fontFamily: theme.font.body,
+    fontSize: 12.5,
+    lineHeight: 1.55,
+    color: theme.text.secondary,
+    minWidth: 0,
+    wordBreak: 'break-word',
+  },
+  ruTag: {
+    flexShrink: 0,
+    fontFamily: theme.font.mono,
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    color: theme.accent.blue,
+    border: `1px solid ${theme.accent.blue}44`,
+    borderRadius: 4,
+    padding: '0 4px',
   },
   empty: {
     color: theme.text.muted,

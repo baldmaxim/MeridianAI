@@ -34,6 +34,10 @@ class BatchJob(Base):
 
     transcription_text: Mapped[str | None] = mapped_column(Text)
     transcription_json: Mapped[str | None] = mapped_column(Text)
+    # Русский перевод иноязычных реплик: {"v":1,"items":[{"i":3,"start":12.3,"text_ru":"..."}]}.
+    # Индекс i — позиция реплики в group_words_by_speaker(words); words после распознавания
+    # не меняются, поэтому нумерация стабильна. start дублируется для сверки.
+    transcription_translation_json: Mapped[str | None] = mapped_column(Text)
 
     protocol_markdown: Mapped[str | None] = mapped_column(Text)
     protocol_json: Mapped[str | None] = mapped_column(Text)

@@ -4,6 +4,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> =
   uploaded: { label: 'Загружено', color: theme.text.secondary, bg: 'rgba(136,150,179,0.1)' },
   compressing: { label: 'Сжатие...', color: theme.accent.blue, bg: 'rgba(91,156,246,0.1)' },
   transcribing: { label: 'Транскрипция...', color: theme.accent.amber, bg: theme.accent.amberGlow },
+  translating: { label: 'Перевод...', color: theme.accent.amber, bg: theme.accent.amberGlow },
   generating_protocol: { label: 'Протокол...', color: theme.accent.amber, bg: theme.accent.amberGlow },
   done: { label: 'Готово', color: theme.accent.green, bg: theme.accent.greenDim },
   error: { label: 'Ошибка', color: theme.accent.red, bg: theme.accent.redDim },
@@ -28,7 +29,7 @@ export function BatchStatusBadge({ status }: { status: string }) {
         border: `1px solid ${info.color}33`,
       }}
     >
-      {(status === 'compressing' || status === 'transcribing' || status === 'generating_protocol') && (
+      {['compressing', 'transcribing', 'translating', 'generating_protocol'].includes(status) && (
         <span
           style={{
             width: 5,

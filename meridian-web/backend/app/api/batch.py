@@ -37,7 +37,9 @@ from ..schemas.batch import (
 )
 from ..services.jobs import enqueue
 from ..services import s3
-from ..core.batch.utils import format_transcription_txt, group_words_by_speaker
+from ..core.batch.utils import (
+    format_transcription_txt, group_words_by_speaker, parse_translation_map,
+)
 from ..core.http_files import content_disposition, safe_download_name
 from ..config import get_settings
 
@@ -265,9 +267,11 @@ async def get_batch_job(
     if job.transcription_json:
         try:
             words = (json.loads(job.transcription_json) or {}).get("words") or []
+            translations = parse_translation_map(job.transcription_translation_json)
             resp.segments = [
-                BatchSegment(speaker=_norm_speaker(s.speaker), start=s.start, end=s.end, text=s.text)
-                for s in group_words_by_speaker(words)
+                BatchSegment(speaker=_norm_speaker(s.speaker), start=s.start, end=s.end,
+                             text=s.text, text_ru=translations.get(i))
+                for i, s in enumerate(group_words_by_speaker(words))
             ]
         except Exception:
             resp.segments = []

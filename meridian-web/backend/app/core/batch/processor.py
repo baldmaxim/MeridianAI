@@ -22,19 +22,21 @@ from ...database import async_session
 from ...models.batch_job import BatchJob
 from ...models.file import FileRecord
 from ...models.meeting import MeetingSession
-from ...services.batch_to_meeting import merge_transcription_into_meeting
+from ...services.batch_to_meeting import merge_transcription_into_meeting, transcription_segments
 from ...services.api_keys import load_api_keys
 from ...services import s3
 from .audio_compressor import AudioCompressor
 from .transcription_service import BatchTranscriptionService
 from .protocol_generator import ProtocolGenerator
+from .segment_translator import SegmentTranslator, needs_translation
+from .utils import build_translation_json, parse_translation_map
 from .utils import split_protocol_output
 
 logger = logging.getLogger("meridian.batch")
 
 
 async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None,
-                          transcription: dict) -> int:
+                          transcription: dict, translations: dict[int, str] | None = None) -> int:
     """Задача 5: влить сегменты офлайн-дозаписи в транскрипт встречи (без commit — коммитит вызывающий).
 
     Дозапись вливается ТОЛЬКО в свою встречу. Тайминги приблизительные (offset'ы внутри дыры),
@@ -50,7 +52,37 @@ async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None
     return await merge_transcription_into_meeting(
         db, meeting_id, transcription,
         first_segment_prefix="[восстановлено после обрыва связи] ",
+        translations=translations,
     )
+
+
+async def _translate_segments(db: AsyncSession, job: BatchJob, transcription: dict,
+                              openrouter_key: str | None) -> None:
+    """Перевести иноязычные реплики на русский. Сбой перевода не роняет задачу.
+
+    Транскрипт ценен сам по себе: если перевод не получился, чекпоинт не ставим —
+    следующий прогон попробует снова, а пользователь пока видит оригинал.
+    """
+    segments = transcription_segments(transcription)
+    if not segments:
+        return
+    if not any(needs_translation(s.text) for s in segments):
+        job.transcription_translation_json = build_translation_json({}, segments)
+        await db.commit()
+        return
+    if not openrouter_key:
+        logger.info("job %s: нет ключа OpenRouter, перевод реплик пропущен", job.id)
+        return
+
+    job.status = "translating"
+    await db.commit()
+    translations = await SegmentTranslator(openrouter_key).translate([s.text for s in segments])
+    if not translations:
+        logger.warning("job %s: перевод реплик не получен (см. логи)", job.id)
+        return
+    job.transcription_translation_json = build_translation_json(translations, segments)
+    await db.commit()
+    logger.info("job %s: переведено %s реплик из %s", job.id, len(translations), len(segments))
 
 
 async def handle_batch_transcribe(payload: dict) -> None:
@@ -142,11 +174,19 @@ async def handle_batch_transcribe(payload: dict) -> None:
             else:
                 transcription = json.loads(job.transcription_json)
 
+            # Перевод иноязычных реплик на русский. Отдельный чекпоинт:
+            # NULL — не пробовали, {"items": []} — переводить было нечего.
+            if job.transcription_translation_json is None:
+                await _translate_segments(db, job, transcription, api_keys.get("openrouter"))
+
             # Задача 5: офлайн-дозапись «дыры» — влить сегменты в встречу, протокол НЕ генерируем
             if job.kind == "gap_fill":
                 added = 0
                 if job.meeting_id:
-                    added = await _merge_gap_fill(db, job.meeting_id, job.user_id, transcription)
+                    added = await _merge_gap_fill(
+                        db, job.meeting_id, job.user_id, transcription,
+                        parse_translation_map(job.transcription_translation_json),
+                    )
                 job.status = "done"
                 await db.commit()
                 logger.info("job %s: gap_fill влито %s сегментов во встречу %s",

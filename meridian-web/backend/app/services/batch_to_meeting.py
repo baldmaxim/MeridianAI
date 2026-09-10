@@ -20,7 +20,9 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.batch.utils import TranscriptionSegment, group_words_by_speaker
+from ..core.batch.utils import (
+    TranscriptionSegment, group_words_by_speaker, parse_translation_map,
+)
 from ..models.batch_job import BatchJob
 from ..models.directory import MeetingParticipant
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord
@@ -45,10 +47,14 @@ def transcription_segments(transcription: dict) -> list[TranscriptionSegment]:
 async def merge_transcription_into_meeting(
     db: AsyncSession, meeting_id: int, transcription: dict,
     *, first_segment_prefix: str | None = None,
+    translations: dict[int, str] | None = None,
 ) -> int:
     """Влить реплики распознавания в транскрипт встречи. Коммитит вызывающий.
 
     first_segment_prefix — пометка на первой реплике (дозапись помечает обрыв связи).
+    translations — русский перевод иноязычных реплик по индексу. Во встречу переносим
+    перевод: финализация и извлечение знаний работают по-русски, иначе турецкие реплики
+    осядут в базе знаний как есть и не найдутся поиском. Оригинал остаётся в батче.
     """
     segments = transcription_segments(transcription)
     if not segments:
@@ -56,7 +62,7 @@ async def merge_transcription_into_meeting(
     wall = datetime.utcnow()
     added = 0
     for i, seg in enumerate(segments):
-        text = (seg.text or "").strip()
+        text = ((translations or {}).get(i) or seg.text or "").strip()
         if not text:
             continue
         if i == 0 and first_segment_prefix:
@@ -123,7 +129,10 @@ async def create_meeting_from_batch(
     await db.flush()
 
     db.add(MeetingParticipant(meeting_id=meeting.id, user_id=user_id, role="owner"))
-    added = await merge_transcription_into_meeting(db, meeting.id, transcription)
+    added = await merge_transcription_into_meeting(
+        db, meeting.id, transcription,
+        translations=parse_translation_map(job.transcription_translation_json),
+    )
     if not added:
         raise BatchToMeetingError("Не удалось перенести реплики записи")
 

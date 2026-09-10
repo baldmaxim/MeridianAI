@@ -39,6 +39,8 @@ export interface BatchSegment {
   start: number;
   end: number;
   text: string;
+  /** Русский перевод, если реплика прозвучала на другом языке. Оригинал остаётся в text. */
+  text_ru?: string | null;
 }
 
 export interface BatchJobDetail extends BatchJob {

@@ -11,6 +11,9 @@ class BatchSegment(BaseModel):
     start: float
     end: float
     text: str
+    # Русский перевод, если реплика прозвучала на другом языке. None — реплика русская
+    # либо перевод не выполнялся. Оригинал в text остаётся всегда.
+    text_ru: str | None = None
 
 
 class BatchJobResponse(BaseModel):
