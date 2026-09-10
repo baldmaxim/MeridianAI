@@ -8,19 +8,11 @@ from ..database import async_session
 from ..models.user import User
 from ..models.role import NegotiationRole
 from ..schemas.role import RoleCreate, RoleUpdate, RoleResponse
+# Роль новому пользователю берём из того же словаря, что уходит в системный промпт
+# fallback'ом — раньше это были две копии и они разъехались по смыслу.
+from ..core.llm.prompts import DEFAULT_ROLE_DATA as DEFAULT_ROLE
 
 router = APIRouter()
-
-DEFAULT_ROLE = {
-    "name": "Генподрядчик",
-    "description": "Генеральный подрядчик в строительной отрасли",
-    "interests": "Максимизация прибыли, защита от рисков, контроль качества и сроков",
-    "opponents": "Заказчики и субподрядчики",
-    "custom_instructions": (
-        "Не выдумывай номера договоров, пунктов, статей или документов. "
-        "Давай только общие рекомендации, основанные на реальном контексте разговора."
-    ),
-}
 
 
 async def _ensure_default_role(user_id: int) -> None:
