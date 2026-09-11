@@ -115,6 +115,14 @@ export async function deleteDocumentRecord(id: number): Promise<void> {
   await api.delete(`/documents/${id}`);
 }
 
+/**
+ * Обработать документ заново — например, распознать скан после настройки OCR.
+ * Документ, упавший с «нужен OCR» до появления распознавания, сам не переобработается.
+ */
+export async function reprocessDocument(id: number): Promise<void> {
+  await api.post(`/documents/${id}/reprocess`);
+}
+
 // --- Legacy (DEPRECATED) in-memory session docs ---
 
 export async function uploadDocument(file: File, docType: string): Promise<DocumentInfo> {

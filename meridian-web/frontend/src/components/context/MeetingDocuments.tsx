@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { theme } from '../../styles/theme';
-import { listDocumentRecords } from '../../api/documents';
+import { listDocumentRecords, reprocessDocument } from '../../api/documents';
 import { listMeetingDocuments, attachMeetingDocument, patchMeetingDocument, detachMeetingDocument } from '../../api/meetingDocuments';
 import { apiErrorMessage } from '../../lib/apiError';
 import type { MeetingDocument, DocumentRecord } from '../../types';
@@ -140,6 +140,15 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось открепить')); }
   }
 
+  // Скан, упавший с «нужен OCR», сам не переобработается — перезапуск явный.
+  async function reprocess(d: MeetingDocument) {
+    setError('');
+    try {
+      await reprocessDocument(d.document_id);
+      await load();
+    } catch (e) { setError(apiErrorMessage(e, 'Не удалось запустить повторную обработку')); }
+  }
+
   const attachedIds = new Set(docs.map((d) => d.document_id));
   const available = existing.filter((d) => !attachedIds.has(d.id) && d.status === 'ready');
 
@@ -222,6 +231,8 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
             source={documentToContextSourceViewModel(d)}
             onToggleIncluded={() => toggleIncluded(d)}
             onRemove={() => detach(d)}
+            primaryActionLabel={d.status === 'error' ? 'Распознать заново' : undefined}
+            onPrimaryAction={d.status === 'error' ? () => reprocess(d) : undefined}
           />
         ))}
       </div>

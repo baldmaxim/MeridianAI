@@ -239,6 +239,33 @@ async def get_document(
     return _to_response(doc, cc or 0)
 
 
+@router.post("/{document_id}/reprocess")
+async def reprocess_document(
+    document_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обработать документ заново (например, распознать скан после настройки OCR).
+
+    Обработчик пропускает документы в статусе ready — это защита от двойной обработки.
+    Но договор-скан мог стать ready раньше с мусорным текстом, а скан без текста — error
+    до того, как появилось распознавание. Поэтому статус сбрасывается явно.
+    """
+    doc = await db.get(DocumentRecord, document_id)
+    if not doc:
+        raise HTTPException(404, "Документ не найден")
+    if not await user_can_manage_document(db, user.id, document_id):
+        raise HTTPException(403, "Недостаточно прав для обработки документа")
+    if doc.status not in ("ready", "error"):
+        raise HTTPException(409, "Документ ещё обрабатывается")
+
+    doc.status = "uploaded"
+    doc.processing_error = None
+    await enqueue(db, "document_process", {"document_id": doc.id})
+    await db.commit()
+    return {"ok": True, "status": doc.status}
+
+
 @router.delete("/{document_id}")
 async def delete_document(
     document_id: int,

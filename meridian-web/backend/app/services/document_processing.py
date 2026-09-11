@@ -4,6 +4,7 @@
 Логируем только метаданные/размеры — НЕ полный текст документа (§: no-secrets/PII).
 """
 
+import json
 import logging
 import re
 
@@ -149,6 +150,38 @@ def chunk_text(text: str, target_chars: int, overlap_chars: int) -> list[str]:
     return chunks
 
 
+# --- проверка текста и OCR ---
+
+EMPTY_TEXT_MESSAGE = "Не удалось извлечь текст (пустой или сканированный документ)"
+
+
+def _text_layer_problem(document_id: int, segments: list[dict]) -> str | None:
+    """None — текст годится в контекст подсказок; иначе причина, почему нет.
+
+    Нечитаемый текст (PDF без таблицы ToUnicode) нельзя пускать в контекст: поиск по нему не
+    находит ничего, и LLM отвечает общими словами. Лучше честная ошибка, чем немой документ.
+    """
+    if sum(len(s["text"]) for s in segments) == 0:
+        return EMPTY_TEXT_MESSAGE
+    quality = assess_extracted_text("\n".join(seg["text"] for seg in segments))
+    logger.info("document %s: букв=%s смешанный_регистр=%s кириллица=%s",
+                document_id, quality.letters, quality.mixed_case_share, quality.cyrillic_share)
+    return None if quality.ok else quality.message
+
+
+async def _ocr_pdf_or_explain(document_id: int, path: str, problem: str) -> tuple[list[dict], int]:
+    """Распознать скан или упасть с объяснением, почему автоматическое распознавание не прошло."""
+    from .document_ocr import OcrFailed, OcrUnavailable, ocr_pdf
+    logger.info("document %s: текстовый слой непригоден, запускаю OCR", document_id)
+    try:
+        return await ocr_pdf(path)
+    except OcrUnavailable as e:
+        # OCR не настроен / документ слишком большой — исходная проблема плюс причина.
+        raise ValueError(f"{problem} Автоматическое распознавание не запущено: {e}.") from e
+    except OcrFailed as e:
+        raise ValueError(f"Распознавание скана не удалось: {e}. Повторите позже.") from e
+
+
 # --- job handler ---
 
 async def handle_document_process(payload: dict) -> None:
@@ -174,19 +207,15 @@ async def handle_document_process(payload: dict) -> None:
         local = await document_storage.download_to_tempfile(s3_key, ext or "")
 
         segments, page_count, sheet_count = _extract_segments(local, ext or "")
-        full_chars = sum(len(s["text"]) for s in segments)
-        if full_chars == 0:
-            raise ValueError("Не удалось извлечь текст (пустой или сканированный документ)")
-
-        # Текст извлёкся, но может быть нечитаемым (PDF без таблицы ToUnicode). Такой
-        # документ нельзя пускать в контекст подсказок: поиск по нему не находит ничего,
-        # и LLM отвечает общими словами. Лучше честная ошибка «нужен OCR».
-        joined_text = "\n".join(seg["text"] for seg in segments)
-        quality = assess_extracted_text(joined_text)
-        logger.info("document %s: букв=%s смешанный_регистр=%s кириллица=%s",
-                    document_id, quality.letters, quality.mixed_case_share, quality.cyrillic_share)
-        if not quality.ok:
-            raise ValueError(quality.message)
+        text_source = "text_layer"
+        problem = _text_layer_problem(document_id, segments)
+        if problem and (ext or "").lower() == ".pdf":
+            # Скан или битый текстовый слой — распознаём страницы через LM Studio.
+            segments, page_count = await _ocr_pdf_or_explain(document_id, local, problem)
+            text_source = "ocr"
+            problem = _text_layer_problem(document_id, segments)
+        if problem:
+            raise ValueError(problem)
 
         # чанкинг по сегментам с метаданными
         chunk_rows: list[dict] = []
@@ -243,9 +272,11 @@ async def handle_document_process(payload: dict) -> None:
             doc.sheet_count = sheet_count
             doc.extracted_text_s3_key = extracted_key
             doc.processing_error = None
+            # откуда текст: текстовый слой файла или OCR — видно при разборе качества поиска
+            doc.summary_json = json.dumps({"text_source": text_source}, ensure_ascii=False)
             await db.commit()
-        logger.info("document %s processed: %d chunks, pages=%s sheets=%s",
-                    document_id, len(chunk_rows), page_count, sheet_count)
+        logger.info("document %s processed: %d chunks, pages=%s sheets=%s, source=%s",
+                    document_id, len(chunk_rows), page_count, sheet_count, text_source)
     except Exception as e:
         safe_err = _safe_processing_error(e)
         logger.error("document %s processing failed: %s", document_id, safe_err)

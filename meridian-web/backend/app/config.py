@@ -65,6 +65,16 @@ class Settings(BaseSettings):
     lmstudio_ocr_model: str = Field(default="chandra-ocr-2", alias="LMSTUDIO_OCR_MODEL")
     lmstudio_lift_model: str = Field(default="lift", alias="LMSTUDIO_LIFT_MODEL")
     lmstudio_llm_model: str = Field(default="qwen36-27b-mtp", alias="LMSTUDIO_LLM_MODEL")
+    # OCR сканов через LM Studio (chandra-ocr-2). Включается, только если заданы и base_url,
+    # и токен lm_studio в админке; иначе документ-скан честно падает с «нужен OCR».
+    document_ocr_enabled: bool = Field(default=True, alias="DOCUMENT_OCR_ENABLED")
+    # 200 DPI — обычные документы; 300 — мелкий текст и плохие сканы (дороже по времени).
+    lmstudio_ocr_dpi: int = Field(default=200, alias="LMSTUDIO_OCR_DPI")
+    # Сервер запущен с Parallel requests: 4 — больше не даём, иначе встанем в очередь сервера.
+    lmstudio_ocr_concurrency: int = Field(default=4, alias="LMSTUDIO_OCR_CONCURRENCY")
+    lmstudio_ocr_timeout_seconds: int = Field(default=300, alias="LMSTUDIO_OCR_TIMEOUT_SECONDS")
+    # Потолок страниц: воркер обрабатывает задачи последовательно, огромный скан занял бы его надолго.
+    document_ocr_max_pages: int = Field(default=150, alias="DOCUMENT_OCR_MAX_PAGES")
 
     # Keycloak OIDC (§9/§12). AUTH_MODE: local | keycloak | both (default local — деплой inert).
     auth_mode: str = Field(default="local", alias="AUTH_MODE")
