@@ -25,8 +25,11 @@ RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
 # Реплик в одном запросе: длинная встреча не должна упираться в лимит ответа модели.
 CHUNK_SIZE = 60
-# Доля кириллицы, ниже которой реплика считается иноязычной.
-CYRILLIC_RATIO = 0.5
+# Доля кириллицы, ниже которой ДЛИННАЯ реплика считается иноязычной.
+CYRILLIC_RATIO = 0.25
+# Короче этого (букв) доля недостоверна: «Вот technoflex.» — русская фраза, а кириллицы в
+# ней меньше четверти. В коротких репликах опираемся на сам факт кириллицы.
+SHORT_LETTERS = 20
 
 _CYRILLIC = re.compile(r"[а-яёА-ЯЁ]")
 _LETTER = re.compile(r"[^\W\d_]", re.UNICODE)
@@ -45,15 +48,24 @@ SYSTEM_PROMPT = """Ты — переводчик деловых перегово
 
 
 def needs_translation(text: str) -> bool:
-    """Реплика иноязычная? Считаем по доле кириллицы среди букв.
+    """Реплика иноязычная? Считаем по кириллице среди букв.
 
-    Дешевле и надёжнее внешнего детектора языка: нам не нужно знать, ЧТО за язык —
-    достаточно понять, что это не русский.
+    Нам не нужно знать, ЧТО за язык — достаточно понять, что это не русский, поэтому
+    внешний детектор языка избыточен. Но одной доли кириллицы мало: в стройке сплошь
+    латинские названия («Вот technoflex», «Larus это IBIM, да?»), и в короткой русской
+    реплике они перевешивают. Поэтому:
+      - нет кириллицы вовсе → иноязычная («Evet.»);
+      - короткая реплика с кириллицей → русская, доля недостоверна;
+      - длинная → решает доля кириллицы.
     """
     letters = _LETTER.findall(text or "")
     if not letters:
         return False
     cyr = len(_CYRILLIC.findall(text))
+    if cyr == 0:
+        return True
+    if len(letters) < SHORT_LETTERS:
+        return False
     return (cyr / len(letters)) < CYRILLIC_RATIO
 
 
@@ -116,14 +128,18 @@ class SegmentTranslator:
                                  response.status_code, response.text[:200])
                 return {}
             content = (response.json().get("choices") or [{}])[0].get("message", {}).get("content")
-            return self._parse(content, {i for i, _ in items})
+            return self._parse(content, dict(items))
         except Exception as e:
             logger.error("[Translate] ошибка перевода: %s", e)
             return {}
 
     @staticmethod
-    def _parse(content: Optional[str], allowed: set[int]) -> Dict[int, str]:
-        """Разобрать ответ модели. Лишние/битые ключи молча отбрасываем."""
+    def _parse(content: Optional[str], originals: Dict[int, str]) -> Dict[int, str]:
+        """Разобрать ответ модели. Лишние/битые ключи молча отбрасываем.
+
+        Перевод, совпавший с оригиналом, тоже отбрасываем: модель так помечает реплику,
+        которая и была русской — показывать её второй строкой незачем.
+        """
         if not content:
             return {}
         raw = content.strip()
@@ -144,8 +160,12 @@ class SegmentTranslator:
                 idx = int(k)
             except (TypeError, ValueError):
                 continue
-            if idx in allowed and isinstance(v, str) and v.strip():
-                out[idx] = v.strip()
+            if idx not in originals or not isinstance(v, str) or not v.strip():
+                continue
+            text = v.strip()
+            if text.casefold() == (originals[idx] or "").strip().casefold():
+                continue
+            out[idx] = text
         return out
 
     def _request_with_retry(self, headers: dict, payload: dict, timeout: int):

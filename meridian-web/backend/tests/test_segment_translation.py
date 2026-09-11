@@ -31,6 +31,28 @@ def test_russian_speech_left_alone(text):
     assert needs_translation(text) is False
 
 
+@pytest.mark.parametrize("text", [
+    "Вот technoflex.",
+    "Ну, Claude и ChatGPT, да.",
+    "А, Signal.",
+    "Larus это IBIM, да?",
+])
+def test_russian_with_latin_brand_not_translated(text):
+    """Реальные реплики с прода: в стройке сплошь латинские названия.
+
+    По доле кириллицы такие короткие фразы выглядят иноязычными — раньше они уезжали
+    в перевод и возвращались лишней строкой под оригиналом.
+    """
+    assert needs_translation(text) is False
+
+
+def test_long_foreign_text_with_russian_word_still_translated():
+    """Длинная иноязычная реплика с одним русским словом — всё ещё иноязычная."""
+    text = ("Bizim teklifimiz avans olmadan mümkün değil, çünkü malzeme fiyatları "
+            "her ay artıyor ve tedarikçi график sıkıştırıyor")
+    assert needs_translation(text) is True
+
+
 @pytest.mark.parametrize("text", ["", "   ", "2 500 000", "15:30"])
 def test_textless_segments_not_translated(text):
     """Цифры и пустые реплики переводить нечего — иначе жжём токены впустую."""
@@ -63,12 +85,19 @@ def test_broken_storage_degrades_to_empty(raw):
 def test_model_answer_parsed_and_filtered():
     """Модель иногда оборачивает JSON в ```json; чужие индексы отбрасываем."""
     fenced = '```json\n{"0": "Цена высокая", "9": "чужая реплика"}\n```'
-    assert SegmentTranslator._parse(fenced, {0, 3}) == {0: "Цена высокая"}
+    assert SegmentTranslator._parse(fenced, {0: "Fiyat yüksek", 3: "Evet"}) == {0: "Цена высокая"}
+
+
+def test_echoed_original_dropped():
+    """Модель вернула реплику без изменений → она была русской, второй строки не надо."""
+    originals = {0: "Вот technoflex.", 1: "Fiyat yüksek"}
+    answer = '{"0": "Вот technoflex.", "1": "Цена высокая"}'
+    assert SegmentTranslator._parse(answer, originals) == {1: "Цена высокая"}
 
 
 def test_model_garbage_answer_yields_nothing():
-    assert SegmentTranslator._parse("извините, не могу", {0}) == {}
-    assert SegmentTranslator._parse(None, {0}) == {}
+    assert SegmentTranslator._parse("извините, не могу", {0: "Evet"}) == {}
+    assert SegmentTranslator._parse(None, {0: "Evet"}) == {}
 
 
 @pytest.mark.asyncio
