@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ApiKeyManager } from '../components/admin/ApiKeyManager';
 import { LMStudioTest } from '../components/admin/LMStudioTest';
+import { OcrAgentManager } from '../components/admin/OcrAgentManager';
 import { UserManager } from '../components/admin/UserManager';
 import { PageAccessMatrix } from '../components/admin/PageAccessMatrix';
 import { theme } from '../styles/theme';
@@ -95,6 +96,7 @@ export function AdminPage({ onBack, embedded }: Props) {
         <div className="admin-section" style={styles.section}>
           <ApiKeyManager />
           <LMStudioTest />
+          <OcrAgentManager />
         </div>
       )}
 

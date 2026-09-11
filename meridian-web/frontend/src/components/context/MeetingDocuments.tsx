@@ -88,9 +88,10 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
   onUploadActivityChangeRef.current = onUploadActivityChange;
   useEffect(() => { onUploadActivityChangeRef.current?.(queue.activeCount); }, [queue.activeCount]);
 
-  // поллинг, пока есть документы в обработке
+  // поллинг, пока есть документы в обработке. Скан, ждущий агента распознавания, не опрашиваем:
+  // компьютер с LM Studio может быть выключен часами.
   useEffect(() => {
-    const pendingExists = docs.some((d) => d.status !== 'ready' && d.status !== 'error');
+    const pendingExists = docs.some((d) => !['ready', 'error', 'awaiting_ocr'].includes(d.status));
     if (!pendingExists || meetingId == null) return;
     const t = setInterval(load, 3000);
     return () => clearInterval(t);

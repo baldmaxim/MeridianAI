@@ -169,17 +169,30 @@ def _text_layer_problem(document_id: int, segments: list[dict]) -> str | None:
     return None if quality.ok else quality.message
 
 
-async def _ocr_pdf_or_explain(document_id: int, path: str, problem: str) -> tuple[list[dict], int]:
-    """Распознать скан или упасть с объяснением, почему автоматическое распознавание не прошло."""
-    from .document_ocr import OcrFailed, OcrUnavailable, ocr_pdf
-    logger.info("document %s: текстовый слой непригоден, запускаю OCR", document_id)
-    try:
-        return await ocr_pdf(path)
-    except OcrUnavailable as e:
-        # OCR не настроен / документ слишком большой — исходная проблема плюс причина.
-        raise ValueError(f"{problem} Автоматическое распознавание не запущено: {e}.") from e
-    except OcrFailed as e:
-        raise ValueError(f"Распознавание скана не удалось: {e}. Повторите позже.") from e
+async def _ocr_result(document_id: int) -> tuple[list[dict], int] | None:
+    """Готовый текст от агента распознавания, если скан уже распознан."""
+    from .ocr_queue import ocr_segments
+    async with async_session() as db:
+        return await ocr_segments(db, document_id)
+
+
+async def _queue_for_ocr(document_id: int, page_count: int | None, problem: str) -> None:
+    """Поставить скан в очередь агенту на компьютере пользователя.
+
+    Сервер до локальной модели не достучится, поэтому не ждёт и не падает: документ
+    получает статус «ждёт распознавания», а агент заберёт его сам, когда компьютер включён.
+    """
+    settings = get_settings()
+    if page_count and page_count > settings.document_ocr_max_pages:
+        raise ValueError(f"{problem} Распознавание не запущено: в документе {page_count} стр. — "
+                         f"больше лимита {settings.document_ocr_max_pages}.")
+    from .ocr_queue import request_ocr
+    async with async_session() as db:
+        doc = await db.get(DocumentRecord, document_id)
+        if doc is None:
+            return
+        await request_ocr(db, doc)
+        await db.commit()
 
 
 # --- job handler ---
@@ -203,17 +216,23 @@ async def handle_document_process(payload: dict) -> None:
         if not s3_key:
             raise ValueError("Документ без s3_key")
 
-        # secure temp download → extract → удалить в finally (§: no raw file persists)
-        local = await document_storage.download_to_tempfile(s3_key, ext or "")
+        ocr = await _ocr_result(document_id)
+        if ocr is not None:
+            # Скан уже распознан агентом — текстовый слой файла больше не нужен.
+            segments, page_count = ocr
+            sheet_count, text_source = None, "ocr"
+        else:
+            # secure temp download → extract → удалить в finally (§: no raw file persists)
+            local = await document_storage.download_to_tempfile(s3_key, ext or "")
+            segments, page_count, sheet_count = _extract_segments(local, ext or "")
+            text_source = "text_layer"
 
-        segments, page_count, sheet_count = _extract_segments(local, ext or "")
-        text_source = "text_layer"
         problem = _text_layer_problem(document_id, segments)
-        if problem and (ext or "").lower() == ".pdf":
-            # Скан или битый текстовый слой — распознаём страницы через LM Studio.
-            segments, page_count = await _ocr_pdf_or_explain(document_id, local, problem)
-            text_source = "ocr"
-            problem = _text_layer_problem(document_id, segments)
+        if (problem and text_source == "text_layer" and (ext or "").lower() == ".pdf"
+                and settings.document_ocr_enabled):
+            await _queue_for_ocr(document_id, page_count, problem)
+            logger.info("document %s: текстовый слой непригоден, ждёт агента распознавания", document_id)
+            return
         if problem:
             raise ValueError(problem)
 

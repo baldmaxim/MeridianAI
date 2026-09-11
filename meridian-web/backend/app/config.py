@@ -65,16 +65,20 @@ class Settings(BaseSettings):
     lmstudio_ocr_model: str = Field(default="chandra-ocr-2", alias="LMSTUDIO_OCR_MODEL")
     lmstudio_lift_model: str = Field(default="lift", alias="LMSTUDIO_LIFT_MODEL")
     lmstudio_llm_model: str = Field(default="qwen36-27b-mtp", alias="LMSTUDIO_LLM_MODEL")
-    # OCR сканов через LM Studio (chandra-ocr-2). Включается, только если заданы и base_url,
-    # и токен lm_studio в админке; иначе документ-скан честно падает с «нужен OCR».
+    # OCR сканов агентом на компьютере пользователя (LM Studio + chandra-ocr-2 за NAT).
+    # Сервер до модели не достучится, поэтому документ ставится в очередь, а агент сам
+    # забирает задачу по HTTPS. Рендер страниц, DPI и параллельность — настройки агента.
     document_ocr_enabled: bool = Field(default=True, alias="DOCUMENT_OCR_ENABLED")
-    # 200 DPI — обычные документы; 300 — мелкий текст и плохие сканы (дороже по времени).
-    lmstudio_ocr_dpi: int = Field(default=200, alias="LMSTUDIO_OCR_DPI")
-    # Сервер запущен с Parallel requests: 4 — больше не даём, иначе встанем в очередь сервера.
-    lmstudio_ocr_concurrency: int = Field(default=4, alias="LMSTUDIO_OCR_CONCURRENCY")
-    lmstudio_ocr_timeout_seconds: int = Field(default=300, alias="LMSTUDIO_OCR_TIMEOUT_SECONDS")
-    # Потолок страниц: воркер обрабатывает задачи последовательно, огромный скан занял бы его надолго.
+    # Потолок страниц на документ: огромный скан надолго занял бы домашний компьютер.
     document_ocr_max_pages: int = Field(default=150, alias="DOCUMENT_OCR_MAX_PAGES")
+    # Аренда задачи. Каждая сданная страница её продлевает, поэтому срок — на одну
+    # страницу с запасом, а не на весь документ: выключенный ПК отпустит задачу быстро.
+    ocr_agent_lease_seconds: int = Field(default=600, alias="OCR_AGENT_LEASE_SECONDS")
+    ocr_agent_max_attempts: int = Field(default=3, alias="OCR_AGENT_MAX_ATTEMPTS")
+    # Ссылка на PDF для агента: живёт, пока агент качает файл, а не весь срок распознавания.
+    ocr_agent_pdf_url_ttl_seconds: int = Field(default=900, alias="OCR_AGENT_PDF_URL_TTL_SECONDS")
+    # Агент «на связи», если отмечался не позже этого срока (он стучится раз в минуту).
+    ocr_agent_online_seconds: int = Field(default=180, alias="OCR_AGENT_ONLINE_SECONDS")
 
     # Keycloak OIDC (§9/§12). AUTH_MODE: local | keycloak | both (default local — деплой inert).
     auth_mode: str = Field(default="local", alias="AUTH_MODE")

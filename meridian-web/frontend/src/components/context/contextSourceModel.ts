@@ -23,6 +23,7 @@ export type ContextSourceUiStatus =
   | 'ready'
   | 'processing'
   | 'pending'
+  | 'awaiting'
   | 'error'
   | 'disabled';
 
@@ -52,6 +53,7 @@ const UI_STATUS_LABELS: Record<ContextSourceUiStatus, string> = {
   ready: 'готов',
   processing: 'обработка…',
   pending: 'ожидание',
+  awaiting: 'ждёт распознавания',
   error: 'ошибка',
   disabled: 'недоступно',
 };
@@ -60,6 +62,7 @@ function documentUiStatus(s: DocumentStatus): ContextSourceUiStatus {
   if (s === 'ready') return 'ready';
   if (s === 'error') return 'error';
   if (s === 'pending') return 'pending';
+  if (s === 'awaiting_ocr') return 'awaiting';
   // uploaded / processing → идёт обработка
   return 'processing';
 }
@@ -81,7 +84,11 @@ function joinMeta(...parts: (string | null | undefined)[]): string | undefined {
 
 export function documentToContextSourceViewModel(doc: MeetingDocument): ContextSourceViewModel {
   const status = documentUiStatus(doc.status);
-  const subtitle = status === 'error' ? (doc.processing_error ?? undefined) : undefined;
+  const subtitle = status === 'error'
+    ? (doc.processing_error ?? undefined)
+    : status === 'awaiting'
+      ? 'Скан распознаётся на компьютере с LM Studio — текст появится, когда он включён'
+      : undefined;
   const meta = status === 'ready' && doc.chunks_count ? `${doc.chunks_count} фрагм.` : undefined;
   return {
     id: `doc-${doc.id}`,

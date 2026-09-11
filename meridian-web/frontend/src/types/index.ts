@@ -798,7 +798,8 @@ export interface RecorderState {
 
 // --- Этап 4: документы встречи на S3 ---
 
-export type DocumentStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'error';
+// awaiting_ocr — скан ждёт агента распознавания на компьютере с LM Studio (может ждать часами).
+export type DocumentStatus = 'pending' | 'uploaded' | 'processing' | 'awaiting_ocr' | 'ready' | 'error';
 
 export interface DocumentRecord {
   id: number;

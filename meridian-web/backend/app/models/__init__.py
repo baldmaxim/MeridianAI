@@ -20,6 +20,7 @@ from .directory import (
     MeetingParticipant,
 )
 from .document import DocumentRecord, DocumentChunk
+from .ocr import OcrAgent, DocumentOcrTask, DocumentOcrPage
 from .protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from .knowledge import (
     LearningCandidate, GlossaryTerm, TriggerPhrase,
@@ -37,6 +38,9 @@ __all__ = [
     "User",
     "ApiKey",
     "UserSettings",
+    "OcrAgent",
+    "DocumentOcrTask",
+    "DocumentOcrPage",
     "MeetingSession",
     "TranscriptSegmentRecord",
     "MeetingSuggestion",

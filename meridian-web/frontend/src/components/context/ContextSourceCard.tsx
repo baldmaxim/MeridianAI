@@ -28,6 +28,7 @@ function statusColor(s: ContextSourceUiStatus): string {
   if (s === 'ready') return theme.accent.green;
   if (s === 'error') return theme.accent.red;
   if (s === 'processing') return theme.accent.amber;
+  if (s === 'awaiting') return theme.accent.blue;
   return theme.text.muted;
 }
 
