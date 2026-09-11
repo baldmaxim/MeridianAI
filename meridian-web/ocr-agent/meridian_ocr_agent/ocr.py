@@ -34,6 +34,36 @@ class ModelUnavailable(Exception):
     """LM Studio не запущен или нужная модель не загружена — задачу брать нельзя."""
 
 
+_OVERFLOW_MARKERS = ("context", "n_ctx", "too many tokens", "token limit", "exceeds")
+
+
+class LmStudioError(Exception):
+    """LM Studio ответил ошибкой. Хранит код и текст ответа — без них причину не понять."""
+
+    def __init__(self, status: int, detail: str):
+        self.status = status
+        self.detail = detail
+        super().__init__(f"LM Studio {status}: {detail}")
+
+    @property
+    def context_overflow(self) -> bool:
+        """Запрос не влез в контекст модели — помогает только картинка поменьше."""
+        low = self.detail.lower()
+        return self.status in (400, 413, 422, 500) and any(m in low for m in _OVERFLOW_MARKERS)
+
+
+def _error_detail(response: httpx.Response) -> str:
+    try:
+        data = response.json()
+        error = data.get("error") if isinstance(data, dict) else None
+        if isinstance(error, dict):
+            error = error.get("message") or error
+        text = str(error or data)
+    except ValueError:
+        text = response.text
+    return " ".join(text.split())[:300] or "пустой ответ"
+
+
 def page_count(pdf_bytes: bytes) -> int:
     import pypdfium2 as pdfium
 
@@ -123,7 +153,8 @@ async def recognize_page(client: httpx.AsyncClient, config: Config, png: bytes) 
     }
     response = await client.post(f"{config.lmstudio_base_url}/chat/completions", json=body,
                                   headers=_headers(config), timeout=config.page_timeout_seconds)
-    response.raise_for_status()
+    if response.status_code >= 400:
+        raise LmStudioError(response.status_code, _error_detail(response))
     choices = response.json().get("choices") or []
     message = (choices[0].get("message") if choices else None) or {}
     return clean_ocr_text(message.get("content"))

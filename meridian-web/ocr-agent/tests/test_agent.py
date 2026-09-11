@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 
@@ -44,7 +45,7 @@ class World:
     """Подменённый мир: что пришло на сервер и в LM Studio."""
 
     def __init__(self, *, pages=3, models=("chandra-ocr-2",), lm_fail_calls=(), page_409=False,
-                 pdf_bytes=None, token_ok=True, task=None):
+                 pdf_bytes=None, token_ok=True, task=None, overflow_wider_than=None, lm_error=None):
         self.pdf = pdf_bytes if pdf_bytes is not None else make_pdf(pages)
         self.models = list(models)
         self.lm_fail = set(lm_fail_calls)
@@ -56,6 +57,10 @@ class World:
         self.pages: dict[int, str] = {}
         self.calls: list[str] = []
         self.failed: list[str] = []
+        # картинка шире порога → LM Studio «не влезает в контекст» (как при делёжке контекста слотами)
+        self.overflow_wider_than = overflow_wider_than
+        self.lm_error = lm_error  # (код, тело) — LM Studio всегда отвечает этой ошибкой
+        self.widths: list[int] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
@@ -65,7 +70,17 @@ class World:
             return httpx.Response(200, json={"data": [{"id": m} for m in self.models]})
         if url == f"{LM}/chat/completions":
             self.lm_calls += 1
-            self.lm_bodies.append(json.loads(request.content))
+            body = json.loads(request.content)
+            self.lm_bodies.append(body)
+            url_part = next(p for p in body["messages"][0]["content"] if p["type"] == "image_url")
+            png = base64.b64decode(url_part["image_url"]["url"].split(",", 1)[1])
+            width = int.from_bytes(png[16:20], "big")  # IHDR: ширина картинки
+            self.widths.append(width)
+            if self.lm_error:
+                return httpx.Response(self.lm_error[0], json=self.lm_error[1])
+            if self.overflow_wider_than and width > self.overflow_wider_than:
+                return httpx.Response(400, json={"error": "The number of tokens to keep from the "
+                                                          "initial prompt is greater than the context length"})
             if self.lm_calls in self.lm_fail:
                 return httpx.Response(500, json={"error": "boom"})
             fence = "`" * 3
@@ -231,3 +246,38 @@ def test_config_reads_bom_and_clamps(tmp_path):
     cfg = load(path)
     assert cfg.concurrency == 8 and cfg.dpi == 72
     assert cfg.api == "https://meridianai.ru/api/ocr-agent"
+
+
+# ---------- ошибки LM Studio ----------
+
+def test_dpi_steps_go_down_but_not_too_low():
+    assert agent.dpi_steps(200) == [200, 150, 110]
+    assert agent.dpi_steps(150) == [150, 110]
+    assert agent.dpi_steps(100) == [100]
+
+
+async def test_context_overflow_retries_page_at_lower_dpi():
+    """Плотная страница в 200 DPI не влезла в контекст слота — повтор мельче, а не провал."""
+    world = World(pages=1, overflow_wider_than=1300)
+    async with world.client() as client:
+        outcome = await agent.process_task(client, config(dpi=200), task())
+    assert "распознано 1 стр." in outcome
+    assert world.widths[0] > 1300 and world.widths[-1] <= 1300
+    assert world.lm_calls == 2  # переполнение не повторяется тем же размером
+
+
+async def test_lmstudio_error_text_reaches_server():
+    """Причина уходит на сервер с кодом и текстом — её видно без доступа к компьютеру."""
+    world = World(pages=1, lm_error=(500, {"error": {"message": "Model crashed: out of memory"}}))
+    async with world.client() as client:
+        await agent.process_task(client, config(concurrency=1), task())
+    assert "LM Studio 500: Model crashed: out of memory" in world.failed[0]
+    assert world.lm_calls == 2  # не переполнение — обычный один повтор, без смены DPI
+
+
+async def test_overflow_even_at_smallest_dpi_reports_context():
+    world = World(pages=1, overflow_wider_than=10)
+    async with world.client() as client:
+        await agent.process_task(client, config(dpi=200), task())
+    assert "context length" in world.failed[0]
+    assert world.lm_calls == 3  # 200, 150, 110 — по разу

@@ -19,7 +19,14 @@ import httpx
 
 from meridian_ocr_agent import VERSION, log
 from meridian_ocr_agent.config import Config, load
-from meridian_ocr_agent.ocr import ModelUnavailable, ensure_model, page_count, recognize_page, render_page
+from meridian_ocr_agent.ocr import (
+    LmStudioError,
+    ModelUnavailable,
+    ensure_model,
+    page_count,
+    recognize_page,
+    render_page,
+)
 
 logger = logging.getLogger("meridian_ocr_agent")
 
@@ -84,18 +91,7 @@ async def process_task(client: httpx.AsyncClient, config: Config, task: dict[str
 
     async def one(number: int) -> None:
         async with semaphore:  # сначала слот, потом рендер — картинки не копятся в памяти
-            png = await asyncio.to_thread(render_page, pdf, number - 1, config.dpi)
-            last: Exception | None = None
-            for attempt in range(1, PAGE_RETRIES + 1):
-                try:
-                    text = await recognize_page(client, config, png)
-                    break
-                except httpx.HTTPError as cause:
-                    last = cause
-                    logger.warning("«%s» стр. %s, попытка %s: %s", name, number, attempt,
-                                   type(cause).__name__)
-            else:
-                raise RuntimeError(f"страница {number} не распозналась: {type(last).__name__}")
+            text = await _recognize_with_fallback(client, config, pdf, number, name)
             await server_post(client, config, f"/tasks/{task_id}/pages",
                               {"page_number": number, "pages_total": pages, "text": text, **hello})
 
@@ -113,6 +109,40 @@ async def process_task(client: httpx.AsyncClient, config: Config, task: dict[str
 
     await server_post(client, config, f"/tasks/{task_id}/complete")
     return f"«{name}»: распознано {pages} стр."
+
+
+def dpi_steps(dpi: int) -> list[int]:
+    """Разрешения для повторов при переполнении контекста: заданное, затем всё мельче.
+
+    Картинка — основная часть запроса к модели. LM Studio с несколькими параллельными
+    запросами делит контекст между ними, и плотная страница в 200 DPI может не влезть.
+    Ниже 110 DPI мелкий текст договора уже теряется — дальше не опускаемся.
+    """
+    steps = [dpi] + [d for d in (150, 110) if d < dpi]
+    return steps
+
+
+async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pdf: bytes,
+                                   number: int, name: str) -> str:
+    """Распознать страницу: обычный повтор при сбое, меньшее разрешение при переполнении контекста."""
+    last: Exception | None = None
+    for dpi in dpi_steps(config.dpi):
+        png = await asyncio.to_thread(render_page, pdf, number - 1, dpi)
+        for attempt in range(1, PAGE_RETRIES + 1):
+            try:
+                return await recognize_page(client, config, png)
+            except LmStudioError as cause:
+                last = cause
+                logger.warning("«%s» стр. %s, %s DPI, попытка %s: %s", name, number, dpi, attempt, cause)
+                if cause.context_overflow:
+                    break  # повтор того же размера бесполезен — сразу мельче
+            except httpx.HTTPError as cause:
+                last = cause
+                logger.warning("«%s» стр. %s, попытка %s: %s", name, number, attempt, type(cause).__name__)
+        else:
+            break  # обе попытки упали не из-за размера — уменьшение не поможет
+    # В причину — код и текст ответа LM Studio: она уходит на сервер, и её видно без доступа к ПК.
+    raise RuntimeError(f"страница {number} не распозналась: {last}")
 
 
 async def _fail(client: httpx.AsyncClient, config: Config, task_id: int, reason: str) -> None:
