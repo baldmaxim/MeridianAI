@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import sys
+import time
 from typing import Any
 
 import httpx
@@ -88,10 +90,11 @@ async def process_task(client: httpx.AsyncClient, config: Config, task: dict[str
     todo = [n for n in range(1, pages + 1) if n not in done]
     logger.info("«%s»: %s стр., распознать %s", name, pages, len(todo))
     semaphore = asyncio.Semaphore(config.concurrency)
+    pace = Pace(config.concurrency)
 
     async def one(number: int) -> None:
         async with semaphore:  # сначала слот, потом рендер — картинки не копятся в памяти
-            text = await _recognize_with_fallback(client, config, pdf, number, name)
+            text = await _recognize_with_fallback(client, config, pdf, number, name, pace)
             await server_post(client, config, f"/tasks/{task_id}/pages",
                               {"page_number": number, "pages_total": pages, "text": text, **hello})
 
@@ -122,27 +125,87 @@ def dpi_steps(dpi: int) -> list[int]:
     return steps
 
 
+class Pace:
+    """Темп запросов к LM Studio на один документ.
+
+    Параллельные запросы быстрее, только если LM Studio действительно держит несколько слотов.
+    Если сервер обрабатывает по одному, остальные запросы стоят в его очереди и истекают по
+    таймауту, так и не начав работу. Первый таймаут снижает лимит до одного запроса: новые
+    ждут, пока не завершатся все уже отправленные, — иначе повтор снова столкнулся бы с ними.
+    """
+
+    def __init__(self, limit: int = 1) -> None:
+        self.limit = max(1, limit)
+        self.active = 0
+        self._changed = asyncio.Condition()
+
+    @property
+    def serial(self) -> bool:
+        return self.limit == 1
+
+    def slow_down(self) -> None:
+        self.limit = 1
+
+    @contextlib.asynccontextmanager
+    async def slot(self):
+        async with self._changed:
+            await self._changed.wait_for(lambda: self.active < self.limit)
+            self.active += 1
+        try:
+            yield
+        finally:
+            async with self._changed:
+                self.active -= 1
+                self._changed.notify_all()
+
+
+def describe(error: BaseException | None) -> str:
+    """Причина для сервера: у сетевых исключений httpx текст часто пустой — тип обязателен."""
+    if error is None:
+        return "неизвестная ошибка"
+    text = str(error).strip()
+    if isinstance(error, LmStudioError):
+        return text
+    return f"{type(error).__name__}: {text}" if text else type(error).__name__
+
+
 async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pdf: bytes,
-                                   number: int, name: str) -> str:
-    """Распознать страницу: обычный повтор при сбое, меньшее разрешение при переполнении контекста."""
-    last: Exception | None = None
+                                   number: int, name: str, pace: Pace) -> str:
+    """Распознать страницу: повтор при сбое, меньшее разрешение при переполнении контекста,
+    последовательный режим при таймауте."""
+    last: BaseException | None = None
     for dpi in dpi_steps(config.dpi):
         png = await asyncio.to_thread(render_page, pdf, number - 1, dpi)
-        for attempt in range(1, PAGE_RETRIES + 1):
+        attempt = 0
+        while attempt < PAGE_RETRIES:
+            attempt += 1
+            started = time.monotonic()
             try:
-                return await recognize_page(client, config, png)
+                async with pace.slot():
+                    return await recognize_page(client, config, png)
             except LmStudioError as cause:
                 last = cause
                 logger.warning("«%s» стр. %s, %s DPI, попытка %s: %s", name, number, dpi, attempt, cause)
                 if cause.context_overflow:
                     break  # повтор того же размера бесполезен — сразу мельче
+            except httpx.TimeoutException as cause:
+                last = cause
+                spent = int(time.monotonic() - started)
+                if not pace.serial:
+                    # Запрос мог простоять в очереди LM Studio за соседними — дело не в странице.
+                    pace.slow_down()
+                    attempt -= 1  # переход в последовательный режим попыткой не считаем
+                    logger.warning("«%s» стр. %s: таймаут через %s с — LM Studio не успевает "
+                                   "параллельно, дальше страницы идут по одной", name, number, spent)
+                    continue
+                logger.warning("«%s» стр. %s, попытка %s: таймаут через %s с", name, number, attempt, spent)
             except httpx.HTTPError as cause:
                 last = cause
-                logger.warning("«%s» стр. %s, попытка %s: %s", name, number, attempt, type(cause).__name__)
+                logger.warning("«%s» стр. %s, попытка %s: %s", name, number, attempt, describe(cause))
         else:
-            break  # обе попытки упали не из-за размера — уменьшение не поможет
-    # В причину — код и текст ответа LM Studio: она уходит на сервер, и её видно без доступа к ПК.
-    raise RuntimeError(f"страница {number} не распозналась: {last}")
+            break  # попытки упали не из-за размера — уменьшение не поможет
+    # Причина уходит на сервер: её видно в админке без доступа к компьютеру.
+    raise RuntimeError(f"страница {number} не распозналась: {describe(last)}")
 
 
 async def _fail(client: httpx.AsyncClient, config: Config, task_id: int, reason: str) -> None:

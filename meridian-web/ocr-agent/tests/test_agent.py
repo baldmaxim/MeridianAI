@@ -281,3 +281,57 @@ async def test_overflow_even_at_smallest_dpi_reports_context():
         await agent.process_task(client, config(dpi=200), task())
     assert "context length" in world.failed[0]
     assert world.lm_calls == 3  # 200, 150, 110 — по разу
+
+
+# ---------- таймаут: LM Studio фактически обрабатывает по одному ----------
+
+class SingleSlotLmStudio:
+    """LM Studio с одним слотом: второй одновременный запрос стоит в очереди и истекает."""
+
+    def __init__(self, pdf: bytes):
+        self.pdf = pdf
+        self.in_flight = 0
+        self.timeouts = 0
+        self.max_in_flight = 0
+        self.pages: dict[int, str] = {}
+        self.failed: list[str] = []
+
+    async def handler(self, request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == PDF_URL:
+            return httpx.Response(200, content=self.pdf)
+        if url == f"{LM}/chat/completions":
+            if self.in_flight >= 1:
+                self.timeouts += 1
+                raise httpx.ReadTimeout("", request=request)
+            self.in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self.in_flight)
+            try:
+                await __import__("asyncio").sleep(0.02)
+                return httpx.Response(200, json={"choices": [{"message": {"content": "текст страницы"}}]})
+            finally:
+                self.in_flight -= 1
+        path = url[len(SERVER) + len("/api/ocr-agent"):]
+        data = json.loads(request.content or b"{}")
+        if path.endswith("/pages"):
+            self.pages[data["page_number"]] = data["text"]
+            return httpx.Response(200, json={"ok": True, "pages_done": len(self.pages)})
+        if path.endswith("/fail"):
+            self.failed.append(data["error"])
+        return httpx.Response(200, json={"ok": True})
+
+
+async def test_timeout_switches_document_to_serial_mode():
+    """Параллельные запросы истекают в очереди LM Studio — документ всё равно распознаётся."""
+    lm = SingleSlotLmStudio(make_pdf(4))
+    async with _RealAsyncClient(transport=httpx.MockTransport(lm.handler)) as client:
+        outcome = await agent.process_task(client, config(concurrency=4), task())
+    assert "распознано 4 стр." in outcome, lm.failed
+    assert sorted(lm.pages) == [1, 2, 3, 4]
+    assert lm.timeouts >= 1 and not lm.failed
+
+
+def test_empty_network_error_still_has_a_reason():
+    """У таймаута httpx пустой текст — причина на сервере не должна быть пустой."""
+    assert agent.describe(httpx.ReadTimeout("")) == "ReadTimeout"
+    assert agent.describe(httpx.ConnectError("refused")) == "ConnectError: refused"
