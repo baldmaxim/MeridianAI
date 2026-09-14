@@ -22,6 +22,7 @@ from ..config import get_settings
 from ..models.document import DocumentRecord
 from ..models.ocr import DocumentOcrPage, DocumentOcrTask, OcrAgent
 from .jobs import enqueue
+from .ocr_text import ocr_markup_to_text
 
 logger = logging.getLogger("meridian.ocr_queue")
 
@@ -129,8 +130,13 @@ async def ocr_segments(db: AsyncSession, document_id: int) -> tuple[list[dict], 
         select(DocumentOcrPage).where(DocumentOcrPage.task_id == task.id)
         .order_by(DocumentOcrPage.page_number)
     )).scalars().all()
-    segments = [{"text": p.text, "page_number": p.page_number, "sheet_name": None}
-                for p in pages if (p.text or "").strip()]
+    # Сырой ответ модели храним как есть, а в поиск отдаём текст без HTML-вёрстки OCR:
+    # правило очистки можно поменять и переобработать документ без повторного распознавания.
+    segments = []
+    for p in pages:
+        text = ocr_markup_to_text(p.text)
+        if text:
+            segments.append({"text": text, "page_number": p.page_number, "sheet_name": None})
     return segments, task.pages_total or len(pages)
 
 

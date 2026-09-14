@@ -45,7 +45,8 @@ class World:
     """Подменённый мир: что пришло на сервер и в LM Studio."""
 
     def __init__(self, *, pages=3, models=("chandra-ocr-2",), lm_fail_calls=(), page_409=False,
-                 pdf_bytes=None, token_ok=True, task=None, overflow_wider_than=None, lm_error=None):
+                 pdf_bytes=None, token_ok=True, task=None, overflow_wider_than=None, lm_error=None,
+                 empty_wider_than=None):
         self.pdf = pdf_bytes if pdf_bytes is not None else make_pdf(pages)
         self.models = list(models)
         self.lm_fail = set(lm_fail_calls)
@@ -61,6 +62,7 @@ class World:
         self.overflow_wider_than = overflow_wider_than
         self.lm_error = lm_error  # (код, тело) — LM Studio всегда отвечает этой ошибкой
         self.widths: list[int] = []
+        self.empty_wider_than = empty_wider_than  # модель молчит на крупной картинке
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
@@ -81,6 +83,8 @@ class World:
             if self.overflow_wider_than and width > self.overflow_wider_than:
                 return httpx.Response(400, json={"error": "The number of tokens to keep from the "
                                                           "initial prompt is greater than the context length"})
+            if self.empty_wider_than is not None and width > self.empty_wider_than:
+                return httpx.Response(200, json={"choices": [{"message": {"content": ""}}]})
             if self.lm_calls in self.lm_fail:
                 return httpx.Response(500, json={"error": "boom"})
             fence = "`" * 3
@@ -335,3 +339,24 @@ def test_empty_network_error_still_has_a_reason():
     """У таймаута httpx пустой текст — причина на сервере не должна быть пустой."""
     assert agent.describe(httpx.ReadTimeout("")) == "ReadTimeout"
     assert agent.describe(httpx.ConnectError("refused")) == "ConnectError: refused"
+
+
+# ---------- пустой ответ модели ----------
+
+async def test_empty_answer_is_retried_at_lower_dpi():
+    """Модель промолчала на титуле договора — повтор в другом разрешении, а не пустая страница."""
+    world = World(pages=1, empty_wider_than=1300)
+    async with world.client() as client:
+        outcome = await agent.process_task(client, config(dpi=200), task())
+    assert "распознано 1 стр." in outcome
+    assert world.pages[1].startswith("Страница текст")
+    assert world.widths[0] > 1300 and world.widths[-1] <= 1300
+
+
+async def test_truly_blank_page_is_accepted_empty():
+    """Пусто при всех разрешениях — пустой лист, документ из-за него не валится."""
+    world = World(pages=1, empty_wider_than=0)
+    async with world.client() as client:
+        outcome = await agent.process_task(client, config(dpi=200), task())
+    assert "распознано 1 стр." in outcome and world.pages[1] == ""
+    assert world.lm_calls == 3 and not world.failed

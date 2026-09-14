@@ -174,6 +174,7 @@ async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pd
     """Распознать страницу: повтор при сбое, меньшее разрешение при переполнении контекста,
     последовательный режим при таймауте."""
     last: BaseException | None = None
+    got_empty = False
     for dpi in dpi_steps(config.dpi):
         png = await asyncio.to_thread(render_page, pdf, number - 1, dpi)
         attempt = 0
@@ -182,7 +183,14 @@ async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pd
             started = time.monotonic()
             try:
                 async with pace.slot():
-                    return await recognize_page(client, config, png)
+                    text = await recognize_page(client, config, png)
+                if text.strip():
+                    return text
+                # Модель иногда молчит на странице с текстом (на реальном договоре — титул с
+                # номером, датой и сторонами). Другое разрешение обычно помогает.
+                got_empty = True
+                logger.warning("«%s» стр. %s: пустой ответ модели при %s DPI", name, number, dpi)
+                break
             except LmStudioError as cause:
                 last = cause
                 logger.warning("«%s» стр. %s, %s DPI, попытка %s: %s", name, number, dpi, attempt, cause)
@@ -204,6 +212,8 @@ async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pd
                 logger.warning("«%s» стр. %s, попытка %s: %s", name, number, attempt, describe(cause))
         else:
             break  # попытки упали не из-за размера — уменьшение не поможет
+    if got_empty and last is None:
+        return ""  # пусто при всех разрешениях — страница и правда без текста (оборот, пустой лист)
     # Причина уходит на сервер: её видно в админке без доступа к компьютеру.
     raise RuntimeError(f"страница {number} не распозналась: {describe(last)}")
 
