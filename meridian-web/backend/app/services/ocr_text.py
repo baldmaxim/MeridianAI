@@ -21,6 +21,7 @@ _BLOCK = {"div", "p", "section", "article", "header", "footer", "h1", "h2", "h3"
 _SKIP = {"script", "style", "img", "svg", "math"}
 _TAG_HINT = re.compile(r"<\s*(div|p|h[1-6]|table|tr|td|li|span|br)\b", re.IGNORECASE)
 _DOUBLE_BULLET = re.compile(r"^-\s+[-–—•·]\s+")
+_LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
 
 
 class _TextExtractor(HTMLParser):
@@ -72,7 +73,9 @@ class _TextExtractor(HTMLParser):
 
 def ocr_markup_to_text(raw: str | None) -> str:
     """Текст страницы без HTML-вёрстки OCR. Обычный текст и Markdown не трогает."""
-    text = raw or ""
+    # Иногда модель вставляет служебный список блоков с координатами вместо текста:
+    # [{"label": "Text", "bbox": "149 57 926 96"}, ...] — в поиске это чистый шум.
+    text = _LAYOUT_JSON.sub(" ", raw or "")
     if not _TAG_HINT.search(text):
         return text.strip()
     parser = _TextExtractor()

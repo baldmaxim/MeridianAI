@@ -58,6 +58,18 @@ def test_entities_are_decoded():
     assert ocr_markup_to_text("<p>ООО &laquo;Балчуг&raquo; &amp; партнёры</p>") == "ООО «Балчуг» & партнёры"
 
 
+def test_layout_json_is_dropped():
+    """Реальный случай со стр. 53 договора: вместо текста — служебный список блоков."""
+    raw = ('[{"label": "Text", "bbox": "149 57 926 96"}, {"label": "List-Group", "bbox": "208 103 887 366"}]'
+           '<div data-bbox="1 2 3 4" data-label="Text"><p>13.2. Оплата производится ежемесячно.</p></div>')
+    text = ocr_markup_to_text(raw)
+    assert text == "13.2. Оплата производится ежемесячно."
+
+
+def test_brackets_in_contract_text_survive():
+    assert ocr_markup_to_text("<p>Срок [в календарных днях] — 30</p>") == "Срок [в календарных днях] — 30"
+
+
 def test_empty_input():
     assert ocr_markup_to_text(None) == ""
     assert ocr_markup_to_text('<div data-bbox="1 1 1 1" data-label="Picture"><img src="x"/></div>') == ""
