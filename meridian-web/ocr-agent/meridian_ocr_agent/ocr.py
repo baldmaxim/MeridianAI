@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 import threading
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -138,7 +140,25 @@ async def ensure_model(client: httpx.AsyncClient, config: Config) -> None:
                                f"доступны: {', '.join(i for i in ids if i) or 'нет моделей'}")
 
 
+# Куда сборки LM Studio складывают «размышления» модели. У vision-модели, чей шаблон
+# открывает <think>, весь ответ может уехать сюда, а content останется пустым.
+REASONING_FIELDS = ("reasoning_content", "reasoning", "thinking")
+_THINK_TAG = re.compile(r"</?think>", re.IGNORECASE)
+
+
+@dataclass(frozen=True, slots=True)
+class PageAnswer:
+    text: str
+    source: str  # content | reasoning_content | … | пусто
+    diagnostics: str
+
+
 async def recognize_page(client: httpx.AsyncClient, config: Config, png: bytes) -> str:
+    return (await recognize_page_detailed(client, config, png)).text
+
+
+async def recognize_page_detailed(client: httpx.AsyncClient, config: Config, png: bytes) -> PageAnswer:
+    """Распознать страницу и объяснить, откуда взят текст — или почему его нет."""
     data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     body: dict[str, Any] = {
         "model": config.model,
@@ -155,6 +175,23 @@ async def recognize_page(client: httpx.AsyncClient, config: Config, png: bytes) 
                                   headers=_headers(config), timeout=config.page_timeout_seconds)
     if response.status_code >= 400:
         raise LmStudioError(response.status_code, _error_detail(response))
-    choices = response.json().get("choices") or []
-    message = (choices[0].get("message") if choices else None) or {}
-    return clean_ocr_text(message.get("content"))
+    data = response.json()
+    choices = data.get("choices") or []
+    choice = choices[0] if choices else {}
+    message = choice.get("message") or {}
+
+    text, source = clean_ocr_text(message.get("content")), "content"
+    if not text:
+        source = "пусто"
+        for field in REASONING_FIELDS:
+            alt = clean_ocr_text(_THINK_TAG.sub("", str(message.get(field) or "")))
+            if alt:
+                text, source = alt, field
+                break
+
+    usage = data.get("usage") or {}
+    lengths = ", ".join(f"{f}={len(str(message.get(f) or ''))}" for f in ("content",) + REASONING_FIELDS
+                        if f in message)
+    diagnostics = (f"finish_reason={choice.get('finish_reason')}; поля ответа: {lengths or 'нет'}; "
+                   f"completion_tokens={usage.get('completion_tokens')}; текст взят из: {source}")
+    return PageAnswer(text=text, source=source, diagnostics=diagnostics)

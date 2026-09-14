@@ -26,7 +26,7 @@ from meridian_ocr_agent.ocr import (
     ModelUnavailable,
     ensure_model,
     page_count,
-    recognize_page,
+    recognize_page_detailed,
     render_page,
 )
 
@@ -94,9 +94,11 @@ async def process_task(client: httpx.AsyncClient, config: Config, task: dict[str
 
     async def one(number: int) -> None:
         async with semaphore:  # сначала слот, потом рендер — картинки не копятся в памяти
-            text = await _recognize_with_fallback(client, config, pdf, number, name, pace)
-            await server_post(client, config, f"/tasks/{task_id}/pages",
-                              {"page_number": number, "pages_total": pages, "text": text, **hello})
+            text, note = await _recognize_with_fallback(client, config, pdf, number, name, pace)
+            payload = {"page_number": number, "pages_total": pages, "text": text, **hello}
+            if note:
+                payload["note"] = note  # диагностика необычного ответа модели — видна в логах сервера
+            await server_post(client, config, f"/tasks/{task_id}/pages", payload)
 
     try:
         async with asyncio.TaskGroup() as group:
@@ -170,11 +172,12 @@ def describe(error: BaseException | None) -> str:
 
 
 async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pdf: bytes,
-                                   number: int, name: str, pace: Pace) -> str:
+                                   number: int, name: str, pace: Pace) -> tuple[str, str | None]:
     """Распознать страницу: повтор при сбое, меньшее разрешение при переполнении контекста,
-    последовательный режим при таймауте."""
+    последовательный режим при таймауте. Возвращает (текст, заметка для сервера или None)."""
     last: BaseException | None = None
     got_empty = False
+    empty_notes: list[str] = []
     for dpi in dpi_steps(config.dpi):
         png = await asyncio.to_thread(render_page, pdf, number - 1, dpi)
         attempt = 0
@@ -183,13 +186,20 @@ async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pd
             started = time.monotonic()
             try:
                 async with pace.slot():
-                    text = await recognize_page(client, config, png)
-                if text.strip():
-                    return text
+                    answer = await recognize_page_detailed(client, config, png)
+                if answer.text.strip():
+                    if answer.source != "content":
+                        # Текст нашёлся в поле рассуждений, а не в ответе — сообщаем серверу.
+                        note = f"стр. {number}, {dpi} DPI: {answer.diagnostics}"
+                        logger.warning("«%s» %s", name, note)
+                        return answer.text, note
+                    return answer.text, None
                 # Модель иногда молчит на странице с текстом (на реальном договоре — титул с
                 # номером, датой и сторонами). Другое разрешение обычно помогает.
                 got_empty = True
-                logger.warning("«%s» стр. %s: пустой ответ модели при %s DPI", name, number, dpi)
+                empty_notes.append(f"{dpi} DPI: {answer.diagnostics}")
+                logger.warning("«%s» стр. %s: пустой ответ модели при %s DPI (%s)",
+                               name, number, dpi, answer.diagnostics)
                 break
             except LmStudioError as cause:
                 last = cause
@@ -213,7 +223,9 @@ async def _recognize_with_fallback(client: httpx.AsyncClient, config: Config, pd
         else:
             break  # попытки упали не из-за размера — уменьшение не поможет
     if got_empty and last is None:
-        return ""  # пусто при всех разрешениях — страница и правда без текста (оборот, пустой лист)
+        # Пусто при всех разрешениях: пустой лист — или модель молчит на странице с текстом.
+        # Различить отсюда нельзя, поэтому страница принимается, а сервер получает диагностику.
+        return "", f"стр. {number} пустая при всех разрешениях — " + " | ".join(empty_notes)
     # Причина уходит на сервер: её видно в админке без доступа к компьютеру.
     raise RuntimeError(f"страница {number} не распозналась: {describe(last)}")
 

@@ -361,7 +361,8 @@ async def test_agent_api_requires_token_and_serves_claim(sm, monkeypatch):
             assert task["file_name"] == "Договор ГП.pdf"
 
             r = await client.post(f"/api/ocr-agent/tasks/{task['task_id']}/pages", headers=auth,
-                                  json={"page_number": 1, "pages_total": 1, "text": PAGE_1})
+                                  json={"page_number": 1, "pages_total": 1, "text": PAGE_1,
+                                        "note": "finish_reason=stop; текст взят из: reasoning_content"})
             assert r.status_code == 200 and r.json()["pages_done"] == 1
             r = await client.post(f"/api/ocr-agent/tasks/{task['task_id']}/complete", headers=auth)
             assert r.status_code == 200

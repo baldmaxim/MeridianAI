@@ -46,7 +46,7 @@ class World:
 
     def __init__(self, *, pages=3, models=("chandra-ocr-2",), lm_fail_calls=(), page_409=False,
                  pdf_bytes=None, token_ok=True, task=None, overflow_wider_than=None, lm_error=None,
-                 empty_wider_than=None):
+                 empty_wider_than=None, reasoning_only=False):
         self.pdf = pdf_bytes if pdf_bytes is not None else make_pdf(pages)
         self.models = list(models)
         self.lm_fail = set(lm_fail_calls)
@@ -63,6 +63,8 @@ class World:
         self.lm_error = lm_error  # (код, тело) — LM Studio всегда отвечает этой ошибкой
         self.widths: list[int] = []
         self.empty_wider_than = empty_wider_than  # модель молчит на крупной картинке
+        self.reasoning_only = reasoning_only  # ответ уехал в reasoning_content
+        self.notes: dict[int, str] = {}
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
@@ -83,6 +85,10 @@ class World:
             if self.overflow_wider_than and width > self.overflow_wider_than:
                 return httpx.Response(400, json={"error": "The number of tokens to keep from the "
                                                           "initial prompt is greater than the context length"})
+            if self.reasoning_only:
+                return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+                    "content": "", "reasoning_content": "<think>ДОГОВОР №1-ГП/САД</think>"}}],
+                    "usage": {"completion_tokens": 12}})
             if self.empty_wider_than is not None and width > self.empty_wider_than:
                 return httpx.Response(200, json={"choices": [{"message": {"content": ""}}]})
             if self.lm_calls in self.lm_fail:
@@ -104,6 +110,8 @@ class World:
                 if self.page_409:
                     return httpx.Response(409, json={"detail": "задача не арендована этим агентом"})
                 self.pages[data["page_number"]] = data["text"]
+                if data.get("note"):
+                    self.notes[data["page_number"]] = data["note"]
                 return httpx.Response(200, json={"ok": True, "pages_done": len(self.pages)})
             if path.endswith("/complete"):
                 return httpx.Response(200, json={"ok": True})
@@ -360,3 +368,32 @@ async def test_truly_blank_page_is_accepted_empty():
         outcome = await agent.process_task(client, config(dpi=200), task())
     assert "распознано 1 стр." in outcome and world.pages[1] == ""
     assert world.lm_calls == 3 and not world.failed
+
+
+# ---------- диагностика ответа модели ----------
+
+async def test_answer_hidden_in_reasoning_field_is_used_and_reported():
+    """LM Studio положил ответ vision-модели в reasoning_content, content пуст."""
+    world = World(pages=1, reasoning_only=True)
+    async with world.client() as client:
+        await agent.process_task(client, config(dpi=200), task())
+    assert world.pages[1] == "ДОГОВОР №1-ГП/САД"
+    assert "текст взят из: reasoning_content" in world.notes[1]
+    assert world.lm_calls == 1
+
+
+async def test_blank_page_sends_diagnostics_to_server():
+    """Пустая страница уходит с диагностикой — иначе причину не увидеть без доступа к ПК."""
+    world = World(pages=1, empty_wider_than=0)
+    async with world.client() as client:
+        await agent.process_task(client, config(dpi=200), task())
+    note = world.notes[1]
+    assert "пустая при всех разрешениях" in note
+    assert note.count("finish_reason=") == 3 and "200 DPI" in note and "110 DPI" in note
+
+
+async def test_normal_page_sends_no_note():
+    world = World(pages=1)
+    async with world.client() as client:
+        await agent.process_task(client, config(), task())
+    assert world.notes == {}

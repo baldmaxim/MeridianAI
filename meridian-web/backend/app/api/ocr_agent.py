@@ -97,11 +97,19 @@ class PageIn(BaseModel):
     pages_total: int = Field(ge=1)
     text: str = ""
     model: str | None = Field(default=None, max_length=200)
+    # Диагностика необычного ответа модели (пустая страница, текст из поля рассуждений).
+    # Только служебные поля ответа, без текста документа — можно писать в журнал.
+    note: str | None = Field(default=None, max_length=2000)
 
 
 @agent_router.post("/tasks/{task_id}/pages")
 async def put_page(task_id: int, payload: PageIn, agent: Agent, db: AsyncSession = Depends(get_db)):
     """Сдать одну распознанную страницу. Продлевает аренду."""
+    if payload.note:
+        # Компьютер с моделью недоступен снаружи — журнал сервера единственное место,
+        # где видно, почему модель промолчала на странице.
+        logger.warning("OCR-агент %s, задача %s, стр. %s: %s",
+                       agent.id, task_id, payload.page_number, payload.note[:2000])
     try:
         done = await submit_page(db, agent, task_id, page_number=payload.page_number,
                                  pages_total=payload.pages_total, text=payload.text,
