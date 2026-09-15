@@ -28,8 +28,14 @@ _ABBREVIATIONS = {
     "доп": "дополнительный", "допник": "дополнительное соглашение",
     "дс": "дополнительное соглашение", "рд": "рабочая документация",
     "техзаказчик": "технический заказчик", "ид": "исполнительная документация",
+    "раб": "рабочих",
 }
+_REFERENCE_WORDS = frozenset({"п", "пп", "пункт", "пункта", "пунктом", "пункту", "пункты", "пунктам",
+                              "пунктах", "стр", "страница", "раздел"})
 _GROUNDED_CONFIDENCE_CAP = 0.6
+# Сколько текста после номера пункта считаем его содержимым.
+_CLAUSE_WINDOW = 1500
+_CLAUSE_SEGMENT_MIN_SHINGLES = 3
 
 
 def extract_json_from_text(text: str | None) -> str | None:
@@ -106,6 +112,8 @@ def parse_suggestion_response(text: str | None, source_mode: str = "auto",
 def _stem_words(text: str) -> list[str]:
     stems = []
     for word in _WORD_RE.findall((text or "").lower().replace("ё", "е")):
+        if word in _REFERENCE_WORDS:
+            continue  # «п. 13.1.4», «стр. 57» — служебная обвязка ссылки, не текст пункта
         stems += [w[:5] for w in _ABBREVIATIONS.get(word, word).split()]
     return stems
 
@@ -157,7 +165,41 @@ def ungrounded_reasons(card: SuggestionCard, doc_context_text: str) -> list[str]
         share = quote_grounding(quote, ctx_shingles)
         if share is not None and share < _QUOTE_GROUNDING_MIN:
             reasons.append(f"цитата не совпадает с текстом документа ({share:.0%})")
+        misattributed = [c for c in _misattributed_clauses(quote, ctx) if c not in missing]
+        if misattributed:
+            reasons.append("текст цитаты не из пункта: " + ", ".join(misattributed))
     return reasons
+
+
+def _misattributed_clauses(quote: str, ctx: str) -> list[str]:
+    """«п. 13.1.4: гарантийное удержание 3%» — номер есть, текст есть, но из другого пункта.
+
+    Текст после номера в цитате должен стоять в документе рядом с этим номером.
+    """
+    marks = list(_CLAUSE_RE.finditer(quote))
+    # «п. 14.15 и 14.17 Технический заказчик…» — текст общий на оба номера.
+    groups: list[tuple[list[str], str]] = []
+    clauses: list[str] = []
+    for i, mark in enumerate(marks):
+        clauses.append(mark.group(0))
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(quote)
+        segment = quote[mark.end():end]
+        if i + 1 < len(marks) and len(_stem_words(segment)) <= 1:
+            continue
+        groups.append((clauses, segment))
+        clauses = []
+    wrong = []
+    for group, segment in groups:
+        if len(_shingles(_stem_words(_ELLIPSIS_RE.sub(" ", segment)))) < _CLAUSE_SEGMENT_MIN_SHINGLES:
+            continue  # «п. 13.1.4: оплата 15 раб. дней» — слишком коротко, чтобы судить
+        windows: set[tuple[str, ...]] = set()
+        for clause in group:
+            for found in re.finditer(rf"(?<![\d.]){re.escape(clause)}(?!\d)", ctx):
+                windows |= _shingles(_stem_words(ctx[found.start():found.end() + _CLAUSE_WINDOW]))
+        share = quote_grounding(segment, windows) if windows else None
+        if share is not None and share < _QUOTE_GROUNDING_MIN:
+            wrong += group
+    return wrong
 
 
 def apply_safety_checks(cards: list[SuggestionCard], doc_context_text: str = "") -> list[SuggestionCard]:
