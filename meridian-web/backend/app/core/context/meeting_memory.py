@@ -42,6 +42,16 @@ FACT_TYPE_LABELS = {
     "document_request": "Фиксация",
 }
 
+# Сторона хода в тексте диалога — те же метки, что ставит PromptContextBuilder по метке спикера.
+SIDE_TAGS = {"self": "МЫ", "opponent": "НЕ МЫ"}
+
+
+def speaker_with_side(turn: "UtteranceTurn") -> str:
+    """«SM_0 [НЕ МЫ]» — если сторона хода известна по источнику звука, иначе метка как есть."""
+    tag = SIDE_TAGS.get(getattr(turn, "side", None) or "")
+    return f"{turn.speaker} [{tag}]" if tag else turn.speaker
+
+
 SUMMARY_PROMPT = (
     "Сократи следующий диалог до 5-8 предложений. "
     "Сохрани: кто и что предложил, какие суммы/сроки озвучены, ключевые решения.\n\n"
@@ -84,7 +94,15 @@ class MeetingMemory:
     # ------------------------------------------------------------------
 
     def ingest_turn(self, turn: "UtteranceTurn") -> None:
-        """Add a finalized turn: store it, extract facts, bump summary counter."""
+        """Add a finalized turn: store it, extract facts, bump summary counter.
+
+        Дописанный ход приходит тем же объектом повторно — второй раз его не добавляем,
+        иначе окно последних реплик забивается копиями одного хода (распознавание фиксирует
+        текст кусками, вплоть до отдельных слов).
+        """
+        if any(t is turn for t in self._all_turns[-self._live_window_size:]):
+            self._extract_facts(turn)
+            return
         self._all_turns.append(turn)
         self._turns_since_summary += 1
         self._extract_facts(turn)
@@ -109,7 +127,7 @@ class MeetingMemory:
                     fact = PinnedFact(
                         fact_type=fact_type,
                         text=snippet,
-                        speaker=turn.speaker,
+                        speaker=speaker_with_side(turn),
                         timestamp=turn.wall_clock,
                         source_turn_id=turn.turn_id,
                     )
@@ -154,7 +172,7 @@ class MeetingMemory:
             snippet = t.text[:150].rstrip()
             if len(t.text) > 150:
                 snippet += "…"
-            lines.append(f"{t.speaker}: {snippet}")
+            lines.append(f"{speaker_with_side(t)}: {snippet}")
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
@@ -169,7 +187,7 @@ class MeetingMemory:
         lines = []
         for t in recent:
             ts = t.wall_clock.strftime("%H:%M:%S")
-            lines.append(f"[{ts}] {t.speaker}: {t.text}")
+            lines.append(f"[{ts}] {speaker_with_side(t)}: {t.text}")
         return "\n".join(lines)
 
     def get_pinned_facts_text(self) -> str:
@@ -210,7 +228,7 @@ class MeetingMemory:
         lines = []
         for t in self._all_turns:
             ts = t.wall_clock.strftime("%H:%M:%S")
-            lines.append(f"[{ts}] {t.speaker}: {t.text}")
+            lines.append(f"[{ts}] {speaker_with_side(t)}: {t.text}")
         return "\n".join(lines)
 
     @property

@@ -154,6 +154,7 @@ class MeetingRoom:
         # STT/LLM-движок этой встречи; вывод → broadcast
         self.session = SessionManager(owner_user_id or 0)
         self.session.db_session_id = meeting_id
+        self.session.set_segment_side_provider(self._online_segment_side)
         # Conversation Tree (дерево общения)
         self._tree_enabled = True
         self._tree_version = 0
@@ -1720,6 +1721,16 @@ class MeetingRoom:
         for cid in self._online_capture_conns:
             virtual.update(virtual_device_ids(cid))
         return bool(self.observer.devices) and set(self.observer.devices) <= virtual
+
+    def _online_segment_side(self, segment_key: str, wall_clock: datetime) -> str | None:
+        """Сторона реплики для диалога подсказок — только по дорожкам онлайн-захвата.
+
+        Второй телефон в комнате сюда не идёт: там сторона — ручная, авто-применение выключено.
+        """
+        if not get_settings().online_capture_side_in_prompt or not self._only_online_capture_devices():
+            return None
+        hint = self.observer.compute_segment_hint(segment_key, wall_clock)
+        return hint.side if hint is not None else None
 
     async def _auto_assign_online_side(self, segment, hint) -> None:
         """Закрепить сторону за меткой спикера, когда подсказок по ней набралось достаточно.

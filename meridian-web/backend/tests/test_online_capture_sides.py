@@ -211,3 +211,71 @@ async def test_observer_phone_in_room_disables_auto_apply(monkeypatch):
     hints = [m for m in sink if m.get("type") == "segment_side_hint"]
     assert hints and hints[0]["source"] == "observer"
     assert hints[0]["auto_apply"] is False
+
+
+# ---------- сторона каждой реплики в диалоге подсказок ----------
+
+from app.core.context.meeting_memory import MeetingMemory
+from app.core.transcription.turn_assembler import TurnAssembler
+
+
+def test_side_change_starts_new_turn_under_same_label():
+    """Распознавание без диаризации: одна метка на всех, стороны различаются по звуку."""
+    ta = TurnAssembler()
+    now = datetime.now()
+    first, _ = ta.push("unknown_speaker", "Дайте скидку", 0.0, 1.0, now, side="opponent")
+    ta.push("unknown_speaker", "десять процентов", 1.2, 2.0, now, side="opponent")
+    ours, is_new = ta.push("unknown_speaker", "Только в обмен на аванс", 2.3, 3.0, now, side="self")
+    assert is_new and ours is not first
+    assert first.text == "Дайте скидку десять процентов" and first.side == "opponent"
+    assert ours.side == "self"
+
+
+def test_unknown_side_does_not_split_turn():
+    ta = TurnAssembler()
+    now = datetime.now()
+    turn, _ = ta.push("SM_0", "Срок", 0.0, 1.0, now, side="opponent")
+    same, is_new = ta.push("SM_0", "сдвигаем", 1.1, 2.0, now, side=None)
+    assert same is turn and not is_new and turn.side == "opponent"
+
+
+def test_live_window_tags_sides_and_has_no_copies_of_extended_turn():
+    ta, mem = TurnAssembler(), MeetingMemory()
+    now = datetime.now()
+    for text, start, side in (("Начислим", 0.0, "opponent"), ("неустойку", 0.5, "opponent"),
+                              ("с завтрашнего дня", 1.0, "opponent"), ("На каком основании?", 2.0, "self")):
+        turn, _ = ta.push("unknown_speaker", text, start, start + 0.4, now, side=side)
+        mem.ingest_turn(turn)
+    lines = mem.get_live_window().split("\n")
+    assert len(lines) == 2
+    assert lines[0].endswith("unknown_speaker [НЕ МЫ]: Начислим неустойку с завтрашнего дня")
+    assert lines[1].endswith("unknown_speaker [МЫ]: На каком основании?")
+
+
+def test_committed_segment_gets_side_from_meeting_audio(monkeypatch):
+    room, conn, _ = _room_with_recorder()
+    monkeypatch.setattr(room.session, "_schedule_hint_check", lambda seg: None)
+    for _ in range(6):
+        room._handle_audio_source_levels(conn.connection_id, _levels(0.004, 0.30), 1000)
+    room.session._on_committed(CommittedSegment(
+        text="Эти работы входят в вашу смету", segment_id="seg-1",
+        speaker_id="unknown_speaker", wall_clock=datetime.now()))
+    assert "unknown_speaker [НЕ МЫ]: Эти работы входят в вашу смету" in room.session._meeting_memory.get_live_window()
+
+
+def test_in_person_meeting_has_no_side_tags(monkeypatch):
+    """Без захвата звука встречи сторона не выдумывается."""
+    room, conn, _ = _room_with_recorder()
+    monkeypatch.setattr(room.session, "_schedule_hint_check", lambda seg: None)
+    room.session._on_committed(CommittedSegment(
+        text="Обсудим сроки", segment_id="seg-2", speaker_id="SM_0", wall_clock=datetime.now()))
+    assert "[" not in room.session._meeting_memory.get_live_window().split("] ", 1)[1]
+
+
+def test_side_in_prompt_can_be_switched_off(monkeypatch):
+    from app.config import get_settings
+    room, conn, _ = _room_with_recorder()
+    for _ in range(6):
+        room._handle_audio_source_levels(conn.connection_id, _levels(0.004, 0.30), 1000)
+    monkeypatch.setattr(get_settings(), "online_capture_side_in_prompt", False)
+    assert room._online_segment_side("seg-3", datetime.now()) is None

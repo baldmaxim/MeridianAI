@@ -20,6 +20,8 @@ class UtteranceTurn:
     end_time: float = 0.0
     wall_clock: datetime = field(default_factory=datetime.now)
     segment_count: int = 1
+    # Сторона по источнику звука онлайн-встречи ("self" / "opponent"), если известна.
+    side: Optional[str] = None
 
     def to_wire(self) -> dict:
         return {
@@ -53,17 +55,24 @@ class TurnAssembler:
         start_time: float,
         end_time: float,
         wall_clock: datetime,
+        side: Optional[str] = None,
     ) -> Tuple[UtteranceTurn, bool]:
-        """Feed a new final segment. Returns (turn, is_new_turn)."""
+        """Feed a new final segment. Returns (turn, is_new_turn).
+
+        Известная и другая сторона начинает новый ход даже при той же метке: распознавание
+        без диаризации даёт всем одну метку, и реплики сторон иначе склеились бы в одну.
+        """
         if (
             self._open is not None
             and self._open.speaker == speaker
             and (start_time - self._open.end_time) < self._max_gap
+            and not (side and self._open.side and side != self._open.side)
         ):
             # Extend current turn
             self._open.text = f"{self._open.text} {text}".strip()
             self._open.end_time = end_time
             self._open.segment_count += 1
+            self._open.side = self._open.side or side
             return self._open, False
 
         # Close previous open turn (already in _turns) and start new
@@ -73,6 +82,7 @@ class TurnAssembler:
             start_time=start_time,
             end_time=end_time,
             wall_clock=wall_clock,
+            side=side,
         )
         self._turns.append(turn)
         self._open = turn

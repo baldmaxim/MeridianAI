@@ -216,6 +216,9 @@ class Settings(BaseSettings):
     online_capture_side_auto_apply: bool = Field(default=True, alias="ONLINE_CAPTURE_SIDE_AUTO_APPLY")
     online_capture_side_min_votes: int = Field(default=3, alias="ONLINE_CAPTURE_SIDE_MIN_VOTES")
     online_capture_side_min_ratio: float = Field(default=0.75, alias="ONLINE_CAPTURE_SIDE_MIN_RATIO")
+    # Сторона каждой реплики — прямо в диалог подсказок («Speaker [НЕ МЫ]: …»), не только через
+    # сторону метки спикера. Нужна, когда распознавание не делит голоса (одна метка на всех).
+    online_capture_side_in_prompt: bool = Field(default=True, alias="ONLINE_CAPTURE_SIDE_IN_PROMPT")
 
     # Secondary audio shadow (Этап 9.2): дополнительное устройство стримит аудио-чанки
     # для будущего multi-channel. Чанки буферизуются in-memory и НЕ идут в STT, НЕ меняют
