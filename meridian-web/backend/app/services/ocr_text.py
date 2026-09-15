@@ -24,7 +24,10 @@ _TAG_HINT = re.compile(r"<\s*(div|p|h[1-6]|table|tr|td|li|span|br)\b", re.IGNORE
 _DOUBLE_BULLET = re.compile(r"^-\s+[-–—•·]\s+")
 _LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
 _JSON_SKIP_ROLES = {"Page-Header", "Page-Footer"}
-_JSON_ROLE_START = re.compile(r'\[\s*\{\s*"role"\s*:')
+_YOD_IN_WORD = re.compile(r"(?<=[а-яё])י+(?=[а-яё])", re.IGNORECASE)
+_MIXED_WORD = re.compile(r"\b(?=\w*[а-яё])(?=\w*[a-z])\w+\b", re.IGNORECASE)
+_LATIN_TO_CYRILLIC = str.maketrans("aAeEoOpPcCxXyYkKmMTHBr", "аАеЕоОрРсСхХуУкКмМТНВр")
+_JSON_ROLE_START =re.compile(r'\[\s*\{\s*"role"\s*:')
 _JSON_BLOCK_SPLIT = re.compile(r'\}\s*,\s*\{')
 _JSON_ROLE = re.compile(r'\s*"role"\s*:\s*"([^"]*)"\s*,?')
 _JSON_VALUE_KEY = re.compile(r'"(?:text|list)"\s*:\s*\[?')
@@ -125,11 +128,25 @@ def _broken_json_blocks_text(raw: str) -> str | None:
     return "\n".join(texts) if texts else None
 
 
+def _fix_alphabet_mixups(text: str) -> str:
+    """«Застроייщик» → «Застройщик», «видеокamer» → «видеокамер».
+
+    Модель путает похожие буквы чужих алфавитов, и поиск по слову их не находит.
+    Меняем только внутри русских слов — английские термины и коды не трогаем.
+    """
+    text = _YOD_IN_WORD.sub("й", text)
+    return _MIXED_WORD.sub(lambda m: m.group(0).translate(_LATIN_TO_CYRILLIC), text)
+
+
 def ocr_markup_to_text(raw: str | None) -> str:
     """Текст страницы без HTML-вёрстки OCR. Обычный текст и Markdown не трогает."""
+    return _fix_alphabet_mixups(_markup_to_text(raw))
+
+
+def _markup_to_text(raw: str | None) -> str:
     blocks_text = _json_blocks_text(raw or "")
     if blocks_text is not None:
-        return ocr_markup_to_text(blocks_text) if _TAG_HINT.search(blocks_text) else blocks_text
+        return _markup_to_text(blocks_text) if _TAG_HINT.search(blocks_text) else blocks_text
     # Иногда модель вставляет служебный список блоков с координатами вместо текста:
     # [{"label": "Text", "bbox": "149 57 926 96"}, ...] — в поиске это чистый шум.
     text = _LAYOUT_JSON.sub(" ", raw or "")

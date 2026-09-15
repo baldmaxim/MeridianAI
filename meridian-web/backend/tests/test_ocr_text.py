@@ -93,6 +93,12 @@ def test_broken_list_block_keeps_items():
                                        "- либо направляется требование о выполнении заново Работ.")
 
 
+def test_foreign_letters_inside_russian_words_fixed():
+    """Реальные огрехи договора: йуд из иврита вместо «й», латиница в русском слове."""
+    raw = "<p>оплате Застроייщиком, установка видеокamer; ГОСТ Р 21.101, формат PDF и DWG</p>"
+    assert ocr_markup_to_text(raw) == "оплате Застройщиком, установка видеокамер; ГОСТ Р 21.101, формат PDF и DWG"
+
+
 def test_brackets_in_contract_text_survive():
     assert ocr_markup_to_text("<p>Срок [в календарных днях] — 30</p>") == "Срок [в календарных днях] — 30"
 
