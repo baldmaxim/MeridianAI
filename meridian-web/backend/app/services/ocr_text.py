@@ -24,6 +24,11 @@ _TAG_HINT = re.compile(r"<\s*(div|p|h[1-6]|table|tr|td|li|span|br)\b", re.IGNORE
 _DOUBLE_BULLET = re.compile(r"^-\s+[-–—•·]\s+")
 _LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
 _JSON_SKIP_ROLES = {"Page-Header", "Page-Footer"}
+_JSON_ROLE_START = re.compile(r'\[\s*\{\s*"role"\s*:')
+_JSON_BLOCK_SPLIT = re.compile(r'\}\s*,\s*\{')
+_JSON_ROLE = re.compile(r'\s*"role"\s*:\s*"([^"]*)"\s*,?')
+_JSON_VALUE_KEY = re.compile(r'"(?:text|list)"\s*:\s*\[?')
+_JSON_STRING_SEP = re.compile(r'"\s*\]?\s*,\s*\[?\s*"')
 
 
 class _TextExtractor(HTMLParser):
@@ -84,12 +89,40 @@ def _json_blocks_text(raw: str) -> str | None:
     try:
         blocks = json.loads(stripped)
     except ValueError:
-        return None
+        return _broken_json_blocks_text(stripped)
     if not isinstance(blocks, list) or not all(isinstance(b, dict) for b in blocks):
         return None
-    texts = [str(b.get("text") or "").strip() for b in blocks
-             if str(b.get("role") or b.get("label") or "") not in _JSON_SKIP_ROLES]
+    texts = []
+    for b in blocks:
+        if str(b.get("role") or b.get("label") or "") in _JSON_SKIP_ROLES:
+            continue
+        value = b.get("text") if b.get("text") is not None else b.get("list")
+        items = value if isinstance(value, list) else [value]
+        texts += [str(item or "").strip() for item in items]
     return "\n".join(t for t in texts if t)
+
+
+def _broken_json_blocks_text(raw: str) -> str | None:
+    """Тот же список блоков, но невалидный JSON.
+
+    Модель не экранирует кавычки внутри текста («штампом "В производство работ"») и путает
+    скобки в списках. Режем по границам блоков и вынимаем из каждого все строки.
+    """
+    if not _JSON_ROLE_START.match(raw):
+        return None
+    texts = []
+    for piece in _JSON_BLOCK_SPLIT.split(raw.strip()[1:-1].strip().strip("{}")):
+        role = _JSON_ROLE.match(piece)
+        if role is None:
+            continue
+        if role.group(1) in _JSON_SKIP_ROLES:
+            continue
+        rest = _JSON_VALUE_KEY.sub("", piece[role.end():])
+        for part in _JSON_STRING_SEP.split(rest):
+            part = part.strip().strip('[]"').strip()
+            if part:
+                texts.append(part)
+    return "\n".join(texts) if texts else None
 
 
 def ocr_markup_to_text(raw: str | None) -> str:
