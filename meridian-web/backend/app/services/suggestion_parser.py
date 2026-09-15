@@ -12,6 +12,25 @@ logger = logging.getLogger("meridian.suggestions")
 _CATEGORICAL = ("обязан", "по договору", "согласно договор", "по закону", "по контракт", "по закон")
 _CONDITIONAL = ("если", "при услови", "в обмен", "взамен", "одновременно фиксир", "при этом фиксир")
 
+# Номер пункта договора: 5.1, 13.2.1, 20.7.1.13. Даты (01.09.2025) не подходят.
+_CLAUSE_RE = re.compile(r"(?<![\d.])\d{1,2}(?:\.\d{1,3}){1,4}(?!\d)(?!\.\d)")
+_WORD_RE = re.compile(r"[a-zа-я0-9]+")
+_ELLIPSIS_RE = re.compile(r"\.\.\.|…")
+_BRACKET_RE = re.compile(r"\[([^\]]+)\]")
+# Цитата считается взятой из документа, если хотя бы такая доля её трёхсловных
+# кусков стоит в документе дословно (по основам слов). Пересказ близко к тексту проходит,
+# пересказ «по мотивам» и додуманный текст — нет.
+_QUOTE_GROUNDING_MIN = 0.2
+# Модель сокращает цитату («ГП выполнил доп. работы») — без разворота верный пересказ
+# выглядел бы выдумкой. Разворачиваем одинаково в цитате и в документе.
+_ABBREVIATIONS = {
+    "гп": "генеральный подрядчик", "генподрядчик": "генеральный подрядчик",
+    "доп": "дополнительный", "допник": "дополнительное соглашение",
+    "дс": "дополнительное соглашение", "рд": "рабочая документация",
+    "техзаказчик": "технический заказчик", "ид": "исполнительная документация",
+}
+_GROUNDED_CONFIDENCE_CAP = 0.6
+
 
 def extract_json_from_text(text: str | None) -> str | None:
     if not text:
@@ -84,6 +103,63 @@ def parse_suggestion_response(text: str | None, source_mode: str = "auto",
     return SuggestionResponse(cards=cards, raw_text=text, model=model, degraded=False)
 
 
+def _stem_words(text: str) -> list[str]:
+    stems = []
+    for word in _WORD_RE.findall((text or "").lower().replace("ё", "е")):
+        stems += [w[:5] for w in _ABBREVIATIONS.get(word, word).split()]
+    return stems
+
+
+def _shingles(words: list[str]) -> set[tuple[str, ...]]:
+    return {tuple(words[i:i + 3]) for i in range(len(words) - 2)}
+
+
+def _clause_in_context(clause: str, ctx: str) -> bool:
+    return re.search(rf"(?<![\d.]){re.escape(clause)}(?!\d)", ctx) is not None
+
+
+def quote_grounding(quote: str, ctx_shingles: set[tuple[str, ...]]) -> float | None:
+    """Доля трёхсловных кусков цитаты, дословно найденных в документе. None — цитата
+    слишком короткая, чтобы судить. Номера пунктов не считаем: их сверяет отдельная проверка."""
+    pieces = _ELLIPSIS_RE.split(_CLAUSE_RE.sub(" ", _BRACKET_RE.sub(" ", quote or "")))
+    shingles: set[tuple[str, ...]] = set()
+    for piece in pieces:
+        shingles |= _shingles(_stem_words(piece))
+    if len(shingles) < 2:
+        return None
+    return len(shingles & ctx_shingles) / len(shingles)
+
+
+def ungrounded_reasons(card: SuggestionCard, doc_context_text: str) -> list[str]:
+    """Что в карточке не подтверждается текстом документов, переданных модели.
+
+    Модель уверенно цитирует договор, но может сослаться на пункт, которого нет, или
+    дописать обрывок страницы своими словами («[подлежат возврату]») — и поставить
+    needs_user_check=false. Сверяем с тем, что она реально видела.
+    """
+    ctx = doc_context_text or ""
+    doc_quotes = [e.text or "" for e in card.evidence if e.source == "document"]
+    reasons = []
+    cited = set(_CLAUSE_RE.findall(card.text or ""))
+    for quote in doc_quotes:
+        cited |= set(_CLAUSE_RE.findall(quote))
+    missing = sorted(c for c in cited if not _clause_in_context(c, ctx))
+    if missing:
+        reasons.append("пункт не найден в документах: " + ", ".join(missing))
+    if not doc_quotes or not ctx:
+        return reasons
+    ctx_low = ctx.lower()
+    ctx_shingles = _shingles(_stem_words(ctx))
+    for quote in doc_quotes:
+        guessed = [b for b in _BRACKET_RE.findall(quote) if b.strip().lower() not in ctx_low]
+        if guessed:
+            reasons.append("цитата дописана моделью: [" + "], [".join(guessed) + "]")
+        share = quote_grounding(quote, ctx_shingles)
+        if share is not None and share < _QUOTE_GROUNDING_MIN:
+            reasons.append(f"цитата не совпадает с текстом документа ({share:.0%})")
+    return reasons
+
+
 def apply_safety_checks(cards: list[SuggestionCard], doc_context_text: str = "") -> list[SuggestionCard]:
     """Детерминированные guard'ы против галлюцинаций (Этап 6, §18)."""
     settings = get_settings()
@@ -118,5 +194,12 @@ def apply_safety_checks(cards: list[SuggestionCard], doc_context_text: str = "")
         # 5) пустой evidence → флаг проверки (§2)
         if not has_evidence:
             c.needs_user_check = True
+
+        # 6) номер пункта или цитата не подтверждаются текстом документов → проверить
+        reasons = ungrounded_reasons(c, doc_context_text)
+        if reasons:
+            c.needs_user_check = True
+            c.confidence = min(c.confidence, _GROUNDED_CONFIDENCE_CAP)
+            logger.info("карточка «%s» требует проверки: %s", (c.title or "")[:60], "; ".join(reasons))
 
     return cards
