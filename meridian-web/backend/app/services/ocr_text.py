@@ -12,6 +12,7 @@ chandra-ocr-2 отдаёт не Markdown, а HTML-вёрстку с коорди
 """
 
 import html
+import json
 import re
 from html.parser import HTMLParser
 
@@ -22,6 +23,7 @@ _SKIP = {"script", "style", "img", "svg", "math"}
 _TAG_HINT = re.compile(r"<\s*(div|p|h[1-6]|table|tr|td|li|span|br)\b", re.IGNORECASE)
 _DOUBLE_BULLET = re.compile(r"^-\s+[-–—•·]\s+")
 _LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
+_JSON_SKIP_ROLES = {"Page-Header", "Page-Footer"}
 
 
 class _TextExtractor(HTMLParser):
@@ -71,8 +73,30 @@ class _TextExtractor(HTMLParser):
             self.parts.append(re.sub(r"\s+", " ", data))
 
 
+def _json_blocks_text(raw: str) -> str | None:
+    """Страница целиком в виде [{"role": "Text", "text": "..."}, ...] → текст блоков.
+
+    Колонтитулы (номер страницы) отбрасываем. None — это не такой формат.
+    """
+    stripped = raw.strip()
+    if not (stripped.startswith("[") and stripped.endswith("]")):
+        return None
+    try:
+        blocks = json.loads(stripped)
+    except ValueError:
+        return None
+    if not isinstance(blocks, list) or not all(isinstance(b, dict) for b in blocks):
+        return None
+    texts = [str(b.get("text") or "").strip() for b in blocks
+             if str(b.get("role") or b.get("label") or "") not in _JSON_SKIP_ROLES]
+    return "\n".join(t for t in texts if t)
+
+
 def ocr_markup_to_text(raw: str | None) -> str:
     """Текст страницы без HTML-вёрстки OCR. Обычный текст и Markdown не трогает."""
+    blocks_text = _json_blocks_text(raw or "")
+    if blocks_text is not None:
+        return ocr_markup_to_text(blocks_text) if _TAG_HINT.search(blocks_text) else blocks_text
     # Иногда модель вставляет служебный список блоков с координатами вместо текста:
     # [{"label": "Text", "bbox": "149 57 926 96"}, ...] — в поиске это чистый шум.
     text = _LAYOUT_JSON.sub(" ", raw or "")

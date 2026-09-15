@@ -1,12 +1,14 @@
 """DocumentContextService (Этап 4): подбор релевантных чанков документов встречи
-для LLM-подсказок. MVP — лексический keyword-scoring по DocumentChunk.
+для LLM-подсказок. MVP — лексический BM25 по основам слов DocumentChunk.
 
 Готово к будущему переходу на embeddings/vector search: интерфейс
 get_relevant_chunks_for_meeting() стабилен, меняется только реализация scoring.
 """
 
 import logging
+import math
 import re
+from collections import Counter
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,10 +21,52 @@ from ..models.document import DocumentRecord, DocumentChunk
 logger = logging.getLogger("meridian.documents")
 
 _TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
+_STEM_LEN = 5
+# Разговорные и служебные слова реплики: в договоре они случайно совпадают с чем угодно.
+_STOP_WORDS = frozenset(
+    "это эти этот эта этом этого того тем том там тут как так что чтобы если или либо для при "
+    "про над под без через после перед между также тоже уже еще все всех весь вся всего каждый "
+    "каждого каждой был была были будет будем будут есть нет них ним нам вам вас ваш вашу ваша "
+    "ваше наш нашу наша они она оно его ему мне меня себя свой свою своих который которые "
+    "которая только очень даже можно нужно надо сейчас завтра сегодня вчера здесь тогда когда "
+    "пока".split()
+)
+# BM25: насыщение частоты слова и поправка на длину фрагмента.
+_BM25_K1 = 1.2
+_BM25_B = 0.75
 
 
-def _tokens(text: str) -> set[str]:
-    return {t for t in _TOKEN_RE.findall((text or "").lower()) if len(t) >= 3}
+def _stems(text: str) -> list[str]:
+    """Основы слов: «удерживать», «удержание», «удерживает» → «удерж».
+
+    Русские окончания иначе ломают совпадение: реплика «будем удерживать» не находила
+    пункт договора «Застроитель ежемесячно удерживает 3%». Грубое усечение вместо
+    морфологии — без новых зависимостей, коллизии гасит вес редкости слова.
+    """
+    words = _TOKEN_RE.findall((text or "").lower().replace("ё", "е"))
+    return [w[:_STEM_LEN] for w in words if len(w) >= 3 and w not in _STOP_WORDS]
+
+
+def _bm25_scores(query_text: str, texts: list[str]) -> list[float]:
+    """BM25 по основам слов. Учитывает, сколько раз слово стоит во фрагменте:
+    пункт, целиком посвящённый удержанию, важнее страницы, где оно упомянуто вскользь.
+    Частые слова договора («работ», «договор») почти ничего не весят.
+    """
+    query = set(_stems(query_text))
+    docs = [Counter(_stems(t)) for t in texts]
+    if not query or not docs:
+        return [0.0] * len(texts)
+    n = len(docs)
+    avg_len = (sum(sum(d.values()) for d in docs) / n) or 1.0
+    idf = {}
+    for term in query:
+        df = sum(term in d for d in docs)
+        idf[term] = math.log(1 + (n - df + 0.5) / (df + 0.5))
+    scores = []
+    for d in docs:
+        norm = _BM25_K1 * (1 - _BM25_B + _BM25_B * sum(d.values()) / avg_len)
+        scores.append(sum(idf[t] * d[t] * (_BM25_K1 + 1) / (d[t] + norm) for t in query if d[t]))
+    return scores
 
 
 async def get_relevant_chunks_for_meeting(
@@ -59,19 +103,18 @@ async def get_relevant_chunks_for_meeting(
     if not rows:
         return []
 
-    q = _tokens(query_text)
+    has_query = bool(_stems(query_text))
+    bm25 = _bm25_scores(query_text, [r.text for r in rows]) if has_query else []
     scored: list[tuple[float, object]] = []
-    for r in rows:
+    for i, r in enumerate(rows):
         priority_boost = (r.priority or 100) / 100000.0  # лёгкий приоритетный буст
-        if not q:
+        if not has_query:
             # пустой запрос → начало документов (по приоритету и порядку)
             score = priority_boost - r.chunk_index / 1_000_000.0
         else:
-            ct = _tokens(r.text)
-            overlap = len(q & ct)
-            if overlap == 0:
+            if bm25[i] <= 0:
                 continue
-            score = overlap / len(q) + priority_boost
+            score = bm25[i] + priority_boost
             # бонус за вхождение фразы (биграммы запроса)
             low = r.text.lower()
             ql = query_text.lower()

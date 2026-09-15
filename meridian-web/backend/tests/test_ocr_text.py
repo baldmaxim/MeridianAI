@@ -66,6 +66,15 @@ def test_layout_json_is_dropped():
     assert text == "13.2. Оплата производится ежемесячно."
 
 
+def test_page_as_json_blocks_keeps_text():
+    """Реальный случай со стр. 29: вся страница — JSON-список блоков с текстом."""
+    raw = ('[{"role": "Text", "text": "6.10. Работы не прошли испытания."}, '
+           '{"role": "Text", "text": "Генеральный подрядчик обязан провести повторные Испытания."}, '
+           '{"role": "Page-Footer", "text": "29"}]')
+    assert ocr_markup_to_text(raw) == ("6.10. Работы не прошли испытания.\n"
+                                       "Генеральный подрядчик обязан провести повторные Испытания.")
+
+
 def test_brackets_in_contract_text_survive():
     assert ocr_markup_to_text("<p>Срок [в календарных днях] — 30</p>") == "Срок [в календарных днях] — 30"
 

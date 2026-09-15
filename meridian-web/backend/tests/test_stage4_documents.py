@@ -294,6 +294,22 @@ async def test_retrieval_meeting_isolation(db):
     assert res == []  # документ привязан к meeting_b, не к meeting_a
 
 
+async def test_retrieval_matches_word_forms_and_prefers_rare_terms(db):
+    """«будем удерживать» находит «удерживает 3%», а не страницу, где только частые слова."""
+    owner = await _mk_user(db, "ret-stem@test.local")
+    meeting = await _mk_meeting(db, owner)
+    doc = await _mk_document(db, owner, status="ready")
+    common = "Заказчик обязан принять работы по договору и произвести платежи по договору."
+    for i in range(6):  # частые слова стоят почти на каждой странице договора
+        await _mk_chunk(db, doc, i, f"{i}. {common}")
+    await _mk_chunk(db, doc, 6, "13.2.2 Застроитель ежемесячно удерживает 3% от стоимости работ.")
+    db.add(MeetingDocumentRecord(session_id=meeting.id, document_id=doc.id, included=True, priority=100))
+    await db.flush()
+    res = await get_relevant_chunks_for_meeting(
+        db, meeting.id, "Заказчик: будем удерживать десять процентов от каждого платежа по договору", limit=1)
+    assert "13.2.2" in res[0]["text"]
+
+
 def test_safe_processing_error_redacts_s3_details():
     # Этап 23: processing_error уходит в API/логи → boto-детали (key/URL/подпись) должны вычищаться.
     from app.services.document_processing import _safe_processing_error
