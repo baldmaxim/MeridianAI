@@ -46,7 +46,8 @@ class World:
 
     def __init__(self, *, pages=3, models=("chandra-ocr-2",), lm_fail_calls=(), page_409=False,
                  pdf_bytes=None, token_ok=True, task=None, overflow_wider_than=None, lm_error=None,
-                 empty_wider_than=None, reasoning_only=False):
+                 empty_wider_than=None, reasoning_only=False, layout_wider_than=None,
+                 reasoning_preamble=False):
         self.pdf = pdf_bytes if pdf_bytes is not None else make_pdf(pages)
         self.models = list(models)
         self.lm_fail = set(lm_fail_calls)
@@ -64,6 +65,8 @@ class World:
         self.widths: list[int] = []
         self.empty_wider_than = empty_wider_than  # модель молчит на крупной картинке
         self.reasoning_only = reasoning_only  # ответ уехал в reasoning_content
+        self.layout_wider_than = layout_wider_than  # крупная картинка → только координаты блоков
+        self.reasoning_preamble = reasoning_preamble  # перед разметкой — рассуждения модели
         self.notes: dict[int, str] = {}
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -85,6 +88,13 @@ class World:
             if self.overflow_wider_than and width > self.overflow_wider_than:
                 return httpx.Response(400, json={"error": "The number of tokens to keep from the "
                                                           "initial prompt is greater than the context length"})
+            if self.reasoning_preamble:
+                return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+                    "content": "", "reasoning_content": "The user wants me to recognize the text in "
+                    "the image." + chr(10) + "<p>Генерального подрядчика неустойки подлежат возврату.</p>"}}]})
+            if self.layout_wider_than is not None and width > self.layout_wider_than:
+                return httpx.Response(200, json={"choices": [{"message": {"content":
+                    '[{"label": "Text", "bbox": "149 57 926 96"}, {"label": "Page-Footer", "bbox": "5 9 5 9"}]'}}]})
             if self.reasoning_only:
                 return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
                     "content": "", "reasoning_content": "<think>ДОГОВОР №1-ГП/САД</think>"}}],
@@ -397,3 +407,21 @@ async def test_normal_page_sends_no_note():
     async with world.client() as client:
         await agent.process_task(client, config(), task())
     assert world.notes == {}
+
+
+async def test_layout_only_answer_is_retried_at_lower_dpi():
+    """Реальная стр. 53 договора: вместо текста — список блоков с координатами."""
+    world = World(pages=1, layout_wider_than=1300)
+    async with world.client() as client:
+        outcome = await agent.process_task(client, config(dpi=200), task())
+    assert "распознано 1 стр." in outcome
+    assert world.pages[1].startswith("Страница текст")
+    assert world.widths[0] > 1300 and world.widths[-1] <= 1300
+
+
+async def test_reasoning_preamble_is_cut_before_page_markup():
+    """Реальная стр. 74: в поле рассуждений перед текстом — рассуждение модели по-английски."""
+    world = World(pages=1, reasoning_preamble=True)
+    async with world.client() as client:
+        await agent.process_task(client, config(dpi=200), task())
+    assert world.pages[1] == "<p>Генерального подрядчика неустойки подлежат возврату.</p>"

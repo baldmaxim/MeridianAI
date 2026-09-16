@@ -103,6 +103,13 @@ def render_page(pdf_bytes: bytes, index: int, dpi: int) -> bytes:
             pdf.close()
 
 
+_CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+_LETTER = re.compile(r"[А-Яа-яЁёA-Za-z]")
+_HTML_TAG = re.compile(r"<[^>]*>")
+_LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
+MIN_PAGE_LETTERS = 3  # в ответе из одних координат блоков после снятия разметки букв нет
+
+
 def clean_ocr_text(text: str | None) -> str:
     """Снять markdown-обёртку ```…```, если модель завернула в неё ответ."""
     t = (text or "").strip()
@@ -112,6 +119,29 @@ def clean_ocr_text(text: str | None) -> str:
         if t.rstrip().endswith("```"):
             t = t.rstrip()[:-3]
     return t.strip()
+
+
+def strip_reasoning_preamble(text: str) -> str:
+    """«The user wants me to recognize the text…<p>Текст» → «<p>Текст».
+
+    В поле рассуждений перед разметкой страницы модель пишет, что собирается делать. Режем
+    только нерусский кусок перед первым тегом — сам текст договора не трогаем.
+    """
+    tag = text.find("<")
+    if tag > 0 and not _CYRILLIC.search(text[:tag]):
+        return text[tag:].strip()
+    return text
+
+
+def has_page_text(text: str) -> bool:
+    """Есть ли в ответе текст страницы, а не одна разметка блоков.
+
+    На реальном договоре модель вернула для стр. 53 только список блоков с координатами
+    ([{"label": "Text", "bbox": "149 57 926 96"}, …]) — это не распознанная страница, её надо
+    повторить в другом разрешении, как пустой ответ.
+    """
+    stripped = _HTML_TAG.sub(" ", _LAYOUT_JSON.sub(" ", text or ""))
+    return len(_LETTER.findall(stripped)) >= MIN_PAGE_LETTERS
 
 
 def _headers(config: Config) -> dict[str, str]:
@@ -184,10 +214,12 @@ async def recognize_page_detailed(client: httpx.AsyncClient, config: Config, png
     if not text:
         source = "пусто"
         for field in REASONING_FIELDS:
-            alt = clean_ocr_text(_THINK_TAG.sub("", str(message.get(field) or "")))
+            alt = strip_reasoning_preamble(clean_ocr_text(_THINK_TAG.sub("", str(message.get(field) or ""))))
             if alt:
                 text, source = alt, field
                 break
+    if text and not has_page_text(text):
+        text, source = "", f"{source}, но только разметка блоков без текста"
 
     usage = data.get("usage") or {}
     lengths = ", ".join(f"{f}={len(str(message.get(f) or ''))}" for f in ("content",) + REASONING_FIELDS

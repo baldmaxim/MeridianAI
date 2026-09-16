@@ -24,10 +24,11 @@ _TAG_HINT = re.compile(r"<\s*(div|p|h[1-6]|table|tr|td|li|span|br)\b", re.IGNORE
 _DOUBLE_BULLET = re.compile(r"^-\s+[-–—•·]\s+")
 _LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
 _JSON_SKIP_ROLES = {"Page-Header", "Page-Footer"}
+_CYRILLIC = re.compile(r"[А-Яа-яЁё]")
 _YOD_IN_WORD = re.compile(r"(?<=[а-яё])י+(?=[а-яё])", re.IGNORECASE)
 _MIXED_WORD = re.compile(r"\b(?=\w*[а-яё])(?=\w*[a-z])\w+\b", re.IGNORECASE)
 _LATIN_TO_CYRILLIC = str.maketrans("aAeEoOpPcCxXyYkKmMTHBr", "аАеЕоОрРсСхХуУкКмМТНВр")
-_JSON_ROLE_START =re.compile(r'\[\s*\{\s*"role"\s*:')
+_JSON_ROLE_START = re.compile(r'\[\s*\{\s*"role"\s*:')
 _JSON_BLOCK_SPLIT = re.compile(r'\}\s*,\s*\{')
 _JSON_ROLE = re.compile(r'\s*"role"\s*:\s*"([^"]*)"\s*,?')
 _JSON_VALUE_KEY = re.compile(r'"(?:text|list)"\s*:\s*\[?')
@@ -150,6 +151,10 @@ def _markup_to_text(raw: str | None) -> str:
     # Иногда модель вставляет служебный список блоков с координатами вместо текста:
     # [{"label": "Text", "bbox": "149 57 926 96"}, ...] — в поиске это чистый шум.
     text = _LAYOUT_JSON.sub(" ", raw or "")
+    first_tag = _TAG_HINT.search(text)
+    if first_tag and first_tag.start() > 0 and not _CYRILLIC.search(text[:first_tag.start()]):
+        # Ответ из поля рассуждений: «The user wants me to recognize the text…» перед разметкой.
+        text = text[first_tag.start():]
     if not _TAG_HINT.search(text):
         return text.strip()
     parser = _TextExtractor()

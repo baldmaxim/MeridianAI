@@ -106,3 +106,16 @@ def test_brackets_in_contract_text_survive():
 def test_empty_input():
     assert ocr_markup_to_text(None) == ""
     assert ocr_markup_to_text('<div data-bbox="1 1 1 1" data-label="Picture"><img src="x"/></div>') == ""
+
+
+def test_reasoning_preamble_before_markup_is_dropped():
+    """Реальная стр. 74: агент взял ответ из поля рассуждений вместе с рассуждением модели."""
+    raw = ("The user wants me to recognize the text in the image and preserve its structure. "
+           "I need to read it carefully." + chr(10) +
+           "<p>Генерального подрядчика неустойки подлежат возврату.</p>")
+    assert ocr_markup_to_text(raw) == "Генерального подрядчика неустойки подлежат возврату."
+
+
+def test_russian_text_before_markup_is_kept():
+    raw = "Приложение №2" + chr(10) + "<p>Структура цены.</p>"
+    assert ocr_markup_to_text(raw) == "Приложение №2" + chr(10) + "Структура цены."
