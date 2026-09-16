@@ -1722,15 +1722,26 @@ class MeetingRoom:
             virtual.update(virtual_device_ids(cid))
         return bool(self.observer.devices) and set(self.observer.devices) <= virtual
 
-    def _online_segment_side(self, segment_key: str, wall_clock: datetime) -> str | None:
+    def _online_segment_side(self, segment_key: str, wall_clock: datetime,
+                             speech_start_ms: int | None = None,
+                             speech_end_ms: int | None = None) -> str | None:
         """Сторона реплики для диалога подсказок — только по дорожкам онлайн-захвата.
 
         Второй телефон в комнате сюда не идёт: там сторона — ручная, авто-применение выключено.
         """
         if not get_settings().online_capture_side_in_prompt or not self._only_online_capture_devices():
             return None
-        hint = self.observer.compute_segment_hint(segment_key, wall_clock)
+        hint = self._online_capture_hint(segment_key, wall_clock, speech_start_ms, speech_end_ms)
         return hint.side if hint is not None else None
+
+    def _online_capture_hint(self, segment_key: str, wall_clock: datetime | None,
+                             speech_start_ms: int | None, speech_end_ms: int | None):
+        """По интервалу речи, если он известен и в нём есть замеры; иначе — окно вокруг фиксации."""
+        if speech_start_ms is not None and speech_end_ms is not None:
+            hint = self.observer.compute_speech_interval_hint(segment_key, speech_start_ms, speech_end_ms)
+            if hint is not None:
+                return hint
+        return self.observer.compute_segment_hint(segment_key, wall_clock) if wall_clock else None
 
     async def _auto_assign_online_side(self, segment, hint) -> None:
         """Закрепить сторону за меткой спикера, когда подсказок по ней набралось достаточно.
@@ -1766,9 +1777,13 @@ class MeetingRoom:
         center = getattr(segment, "wall_clock", None)
         hint = None
         source = None
-        # 1) observer (datetime-окно)
+        # 1) observer (datetime-окно; для онлайн-захвата — интервал самой речи)
         if self.observer.enabled and center is not None:
-            hint = self.observer.compute_segment_hint(seg_key, center)
+            if self._only_online_capture_devices():
+                hint = self._online_capture_hint(seg_key, center, getattr(segment, "speech_start_ms", None),
+                                                 getattr(segment, "speech_end_ms", None))
+            else:
+                hint = self.observer.compute_segment_hint(seg_key, center)
             if hint is not None:
                 source = "observer"
         # 2) shadow (epoch-ms окно), переиспользуем пороги observer

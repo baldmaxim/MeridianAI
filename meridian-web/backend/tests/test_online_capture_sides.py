@@ -279,3 +279,42 @@ def test_side_in_prompt_can_be_switched_off(monkeypatch):
         room._handle_audio_source_levels(conn.connection_id, _levels(0.004, 0.30), 1000)
     monkeypatch.setattr(get_settings(), "online_capture_side_in_prompt", False)
     assert room._online_segment_side("seg-3", datetime.now()) is None
+
+
+# ---------- сторона по интервалу самой речи, а не по окну вокруг фиксации ----------
+
+def _speak_then_answer(room, conn):
+    """Заказчик говорит 10.0–11.5 с, мы отвечаем 12.0–18.0 с (ответ громче и дольше)."""
+    for ms in range(10_000, 11_500, 100):
+        room._handle_audio_source_levels(conn.connection_id, _levels(0.004, 0.30), ms)
+    for ms in range(12_000, 18_000, 100):
+        room._handle_audio_source_levels(conn.connection_id, _levels(0.35, 0.004), ms)
+
+
+def test_side_uses_speech_interval_not_commit_window():
+    room, conn, _ = _room_with_recorder()
+    _speak_then_answer(room, conn)
+    now = datetime.now()
+    # окно вокруг момента фиксации видит наш громкий ответ
+    assert room.observer.compute_segment_hint("seg", now).side == "self"
+    # интервал самой фразы — заказчика
+    assert room._online_segment_side("seg", now, 10_000, 11_500) == "opponent"
+    assert room._online_segment_side("seg", now, 12_000, 14_000) == "self"
+
+
+def test_side_falls_back_to_commit_window_when_interval_has_no_levels():
+    """Часы распознавания и замеров не совпали — интервал пуст, берём окно вокруг фиксации."""
+    room, conn, _ = _room_with_recorder()
+    _speak_then_answer(room, conn)
+    assert room._online_segment_side("seg", datetime.now(), 500_000, 501_000) == "self"
+
+
+async def test_committed_segment_side_uses_speech_time(monkeypatch):
+    room, conn, _ = _room_with_recorder()
+    monkeypatch.setattr(room.session, "_schedule_hint_check", lambda seg: None)
+    _speak_then_answer(room, conn)
+    room.session.listening_started_server_ms = 0
+    room.session._on_committed(CommittedSegment(
+        text="Срок сдвигаем на месяц", segment_id="seg-9", speaker_id="unknown_speaker",
+        start_time=10.0, end_time=11.5, wall_clock=datetime.now()))
+    assert "unknown_speaker [НЕ МЫ]: Срок сдвигаем на месяц" in room.session._meeting_memory.get_live_window()

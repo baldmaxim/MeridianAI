@@ -297,18 +297,20 @@ class SessionManager:
         self._committed_hook = hook
 
     def set_segment_side_provider(self, provider: Optional[Callable]):
-        """Сторона реплики в момент фиксации: fn(segment_key, wall_clock) -> "self"|"opponent"|None.
+        """Сторона реплики в момент фиксации:
+        fn(segment_key, wall_clock, speech_start_ms, speech_end_ms) -> "self"|"opponent"|None.
 
         Попадает в ход разговора и дальше в диалог подсказок с меткой [МЫ]/[НЕ МЫ].
         """
         self._segment_side_provider = provider
 
-    def _live_segment_side(self, segment_key, wall_clock) -> Optional[str]:
+    def _live_segment_side(self, segment_key, wall_clock, speech_start_ms=None,
+                           speech_end_ms=None) -> Optional[str]:
         provider = getattr(self, "_segment_side_provider", None)
         if provider is None or wall_clock is None:
             return None
         try:
-            side = provider(str(segment_key or ""), wall_clock)
+            side = provider(str(segment_key or ""), wall_clock, speech_start_ms, speech_end_ms)
         except Exception:
             return None  # сторона — подсказка; сбой расчёта не должен ронять транскрипт
         return side if side in ("self", "opponent") else None
@@ -812,7 +814,8 @@ class SessionManager:
             start_time=segment.start_time,
             end_time=segment.end_time,
             wall_clock=segment.wall_clock,
-            side=self._live_segment_side(segment.segment_id, segment.wall_clock),
+            side=self._live_segment_side(segment.segment_id, segment.wall_clock,
+                                         segment.speech_start_ms, segment.speech_end_ms),
         )
         if self._ws_send:
             asyncio.create_task(self._send_turn_update(turn))

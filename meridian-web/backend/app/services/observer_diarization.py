@@ -156,6 +156,28 @@ class ObserverDiarization:
         win = window_ms or self.window_ms
         lo = center_ts - timedelta(milliseconds=win)
         hi = center_ts + timedelta(milliseconds=win)
+        return self._hint(segment_key, lambda m: lo <= m.server_ts <= hi, win)
+
+    def compute_speech_interval_hint(
+        self, segment_key: str, speech_start_ms: int, speech_end_ms: int, pad_ms: int = 300,
+    ) -> SegmentSideHint | None:
+        """Сторона по громкости источников ровно в тот момент, когда фразу произносили.
+
+        Окно вокруг момента фиксации реплики ловит не саму фразу: длинная фраза фиксируется
+        уже после того, как человек замолчал, и в окно попадает ответ собеседника.
+        None — в интервале нет замеров (часы источников не совпали) — вызывающий
+        берёт окно вокруг фиксации.
+        """
+        if not self.enabled or speech_end_ms < speech_start_ms:
+            return None
+        lo, hi = speech_start_ms - pad_ms, speech_end_ms + pad_ms
+        return self._hint(
+            segment_key,
+            lambda m: m.server_ts_ms is not None and lo <= m.server_ts_ms <= hi,
+            int(hi - lo),
+        )
+
+    def _hint(self, segment_key: str, in_window, win: int) -> SegmentSideHint | None:
         energy = {"self": 0.0, "opponent": 0.0, "unknown": 0.0}
         max_rms = 0.0
         device_count = 0
@@ -163,7 +185,7 @@ class ObserverDiarization:
             d = self.devices.get(cid)
             if d is None or not d.enabled:
                 continue
-            relevant = [m for m in dq if lo <= m.server_ts <= hi]
+            relevant = [m for m in dq if in_window(m)]
             if not relevant:
                 continue
             device_count += 1
