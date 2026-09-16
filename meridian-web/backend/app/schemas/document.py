@@ -66,6 +66,11 @@ class MeetingDocumentItem(BaseModel):
     page_count: int | None
     sheet_count: int | None
     processing_error: str | None
+    # Скан ждёт распознавания: что именно происходит (идёт / компьютер не на связи N ч).
+    ocr_note: str | None = None
+    # Готовый скан: какие страницы сверить (распознавание могло потерять текст).
+    quality_note: str | None = None
+    ocr_missing_pages: list[int] = []
 
 
 class MeetingDocumentPatch(BaseModel):

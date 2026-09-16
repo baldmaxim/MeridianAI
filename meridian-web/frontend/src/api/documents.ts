@@ -119,8 +119,9 @@ export async function deleteDocumentRecord(id: number): Promise<void> {
  * Обработать документ заново — например, распознать скан после настройки OCR.
  * Документ, упавший с «нужен OCR» до появления распознавания, сам не переобработается.
  */
-export async function reprocessDocument(id: number): Promise<void> {
-  await api.post(`/documents/${id}/reprocess`);
+export async function reprocessDocument(id: number, opts?: { missingPages?: boolean }): Promise<void> {
+  await api.post(`/documents/${id}/reprocess`, null,
+    opts?.missingPages ? { params: { missing_pages: true } } : undefined);
 }
 
 // --- Legacy (DEPRECATED) in-memory session docs ---

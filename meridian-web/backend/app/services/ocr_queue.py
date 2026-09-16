@@ -118,6 +118,34 @@ async def request_ocr(db: AsyncSession, document: DocumentRecord) -> DocumentOcr
     return task
 
 
+async def request_missing_pages(db: AsyncSession, document: DocumentRecord) -> list[int]:
+    """Вернуть агенту только страницы, где модель не дала текста. Документ остаётся «готов».
+
+    Ранние версии агента теряли ответ модели (он лежал в поле рассуждений), и страница
+    сохранялась пустой. Распознавать заново весь договор ради четырёх страниц долго, а убирать
+    договор из подсказок на это время незачем: агент досдаст страницы, и документ пересоберётся
+    (complete_task ставит обработку).
+    """
+    task = (await db.execute(
+        select(DocumentOcrTask).where(DocumentOcrTask.document_id == document.id,
+                                      DocumentOcrTask.status == "done")
+    )).scalar_one_or_none()
+    if task is None:
+        return []
+    pages = (await db.execute(
+        select(DocumentOcrPage).where(DocumentOcrPage.task_id == task.id)
+    )).scalars().all()
+    empty = [p for p in pages if not ocr_markup_to_text(p.text)]
+    if not empty:
+        return []
+    await db.execute(delete(DocumentOcrPage).where(DocumentOcrPage.id.in_([p.id for p in empty])))
+    task.status, task.attempts, task.lease_until, task.agent_id = "pending", 0, None, None
+    task.last_error, task.completed_at = None, None
+    numbers = sorted(p.page_number for p in empty)
+    logger.info("document %s: дораспознать стр. %s", document.id, numbers)
+    return numbers
+
+
 async def ocr_segments(db: AsyncSession, document_id: int) -> tuple[list[dict], int] | None:
     """Готовый распознанный текст документа по страницам или None, если его ещё нет."""
     task = (await db.execute(
@@ -290,6 +318,60 @@ async def fail_task(db: AsyncSession, agent: OcrAgent, task_id: int, error: str)
 
 
 # ── состояние для админки ─────────────────────────────────────────────────
+
+
+def _silence(seconds: float) -> str:
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{max(minutes, 1)} мин"
+    hours = minutes // 60
+    return f"{hours} ч" if hours < 48 else f"{hours // 24} дн"
+
+
+async def ocr_waiting_notes(db: AsyncSession, document_ids: list[int]) -> dict[int, str]:
+    """Что происходит со сканом, ждущим распознавания, — чтобы он не «висел» молча.
+
+    Компьютер с LM Studio может быть выключен часами; пользователь должен видеть, что скан
+    ждёт именно его, а не что сервер завис.
+    """
+    if not document_ids:
+        return {}
+    settings = get_settings()
+    now = _now()
+    tasks = (await db.execute(
+        select(DocumentOcrTask).where(DocumentOcrTask.document_id.in_(document_ids))
+    )).scalars().all()
+    if not tasks:
+        return {}
+    agents = (await db.execute(
+        select(OcrAgent).where(OcrAgent.revoked_at.is_(None))
+    )).scalars().all()
+    last_seen = max((a.last_seen_at for a in agents if a.last_seen_at), default=None)
+    online = bool(last_seen and (now - last_seen).total_seconds() <= settings.ocr_agent_online_seconds)
+    done_pages = dict((await db.execute(
+        select(DocumentOcrPage.task_id, func.count()).where(
+            DocumentOcrPage.task_id.in_([t.id for t in tasks])).group_by(DocumentOcrPage.task_id)
+    )).all())
+
+    notes: dict[int, str] = {}
+    for task in tasks:
+        if task.status == "leased" and task.pages_total:
+            notes[task.document_id] = (f"Распознаётся: стр. {done_pages.get(task.id, 0)} из "
+                                       f"{task.pages_total}")
+        elif task.status in ("pending", "leased"):
+            if not agents:
+                notes[task.document_id] = ("Агент распознавания не подключён — "
+                                           "администратору: «Админка → API-ключи»")
+            elif online:
+                notes[task.document_id] = "В очереди на распознавание, компьютер на связи"
+            elif last_seen is None:
+                notes[task.document_id] = ("Компьютер с распознаванием ни разу не выходил на связь — "
+                                           "проверьте установку агента")
+            else:
+                notes[task.document_id] = (
+                    f"Компьютер с распознаванием не на связи {_silence((now - last_seen).total_seconds())} "
+                    "— включите его и LM Studio, скан распознается сам")
+    return notes
 
 
 async def queue_status(db: AsyncSession) -> dict:

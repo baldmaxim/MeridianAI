@@ -87,8 +87,10 @@ export function documentToContextSourceViewModel(doc: MeetingDocument): ContextS
   const subtitle = status === 'error'
     ? (doc.processing_error ?? undefined)
     : status === 'awaiting'
-      ? 'Скан распознаётся на компьютере с LM Studio — текст появится, когда он включён'
-      : undefined;
+      ? (doc.ocr_note || 'Скан распознаётся на компьютере с LM Studio — текст появится, когда он включён')
+      : status === 'ready'
+        ? (doc.ocr_note || doc.quality_note || undefined)
+        : undefined;
   const meta = status === 'ready' && doc.chunks_count ? `${doc.chunks_count} фрагм.` : undefined;
   return {
     id: `doc-${doc.id}`,

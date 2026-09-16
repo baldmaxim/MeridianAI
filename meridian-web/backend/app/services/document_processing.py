@@ -18,6 +18,7 @@ from . import document_storage
 
 from .document_text_quality import assess_extracted_text
 from .clause_chunker import chunk_by_clauses
+from .ocr_quality import ocr_page_warnings
 
 logger = logging.getLogger("meridian.documents")
 
@@ -307,7 +308,10 @@ async def handle_document_process(payload: dict) -> None:
             doc.extracted_text_s3_key = extracted_key
             doc.processing_error = None
             # откуда текст: текстовый слой файла или OCR — видно при разборе качества поиска
-            doc.summary_json = json.dumps({"text_source": text_source}, ensure_ascii=False)
+            summary = {"text_source": text_source}
+            if text_source == "ocr":
+                summary["ocr_warnings"] = ocr_page_warnings(segments, page_count)
+            doc.summary_json = json.dumps(summary, ensure_ascii=False)
             await db.commit()
         logger.info("document %s processed: %d chunks, pages=%s sheets=%s, source=%s",
                     document_id, len(chunk_rows), page_count, sheet_count, text_source)

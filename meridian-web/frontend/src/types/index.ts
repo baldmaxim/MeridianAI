@@ -81,6 +81,7 @@ export interface SuggestionCard {
   evidence: SuggestionEvidence[];
   confidence: number;        // 0..1
   needs_user_check: boolean;
+  check_reasons?: string[];  // почему проверить: не найден пункт, цитата дописана и т.п.
   created_at: string | null;
   trigger: string | null;
   source_mode: 'auto' | 'manual' | 'strengthen' | 'fallback';
@@ -849,6 +850,9 @@ export interface MeetingDocument {
   page_count: number | null;
   sheet_count: number | null;
   processing_error: string | null;
+  ocr_note?: string | null;  // скан ждёт распознавания: идёт / компьютер не на связи N ч
+  quality_note?: string | null;  // готовый скан: «Сверьте со сканом стр. 42, 74»
+  ocr_missing_pages?: number[];  // страницы без текста — можно дораспознать
 }
 
 export interface DocumentChunkPreview {

@@ -242,6 +242,7 @@ async def get_document(
 @router.post("/{document_id}/reprocess")
 async def reprocess_document(
     document_id: int,
+    missing_pages: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -258,6 +259,15 @@ async def reprocess_document(
         raise HTTPException(403, "Недостаточно прав для обработки документа")
     if doc.status not in ("ready", "error"):
         raise HTTPException(409, "Документ ещё обрабатывается")
+
+    if missing_pages:
+        # Только пустые страницы скана — документ остаётся в подсказках, пока агент их досдаёт.
+        from ..services.ocr_queue import request_missing_pages
+        pages = await request_missing_pages(db, doc)
+        if not pages:
+            raise HTTPException(409, "Нераспознанных страниц нет или они уже в очереди")
+        await db.commit()
+        return {"ok": True, "status": doc.status, "pages": pages}
 
     doc.status = "uploaded"
     doc.processing_error = None

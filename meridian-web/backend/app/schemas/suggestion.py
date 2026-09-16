@@ -70,6 +70,8 @@ class SuggestionCard(BaseModel):
     evidence: list[SuggestionEvidence] = Field(default_factory=list)
     confidence: float = 0.5
     needs_user_check: bool = False
+    # Почему карточку надо проверить (заполняют проверки сервера, модель это поле не пишет).
+    check_reasons: list[str] = Field(default_factory=list)
     created_at: datetime | None = None
     trigger: str | None = None
     source_mode: str = "auto"

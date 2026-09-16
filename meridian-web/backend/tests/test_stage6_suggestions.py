@@ -131,8 +131,10 @@ def test_auto_prompt_max_cards():
 
 def test_manual_prompt_count():
     p = build_manual_cards_prompt("Подрядчик", "Тема: ЖК", "[00:01] ...", "", 5)
-    assert "3–5" in p
+    assert "1–5" in p
     assert "ask/clarify" in p
+    # не добирать карточки ради количества — они уходят не по теме
+    assert "ради количества" in p and "ПОСЛЕДНЮЮ реплику" in p
 
 
 # ---------- 12: persistence ----------

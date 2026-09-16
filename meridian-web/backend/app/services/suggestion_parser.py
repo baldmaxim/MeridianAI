@@ -203,45 +203,56 @@ def _misattributed_clauses(quote: str, ctx: str) -> list[str]:
 
 
 def apply_safety_checks(cards: list[SuggestionCard], doc_context_text: str = "") -> list[SuggestionCard]:
-    """Детерминированные guard'ы против галлюцинаций (Этап 6, §18)."""
+    """Детерминированные guard'ы против галлюцинаций (Этап 6, §18).
+
+    Каждая сработавшая проверка оставляет причину в check_reasons — пользователь видит не
+    просто «Проверить», а что именно сверить.
+    """
     settings = get_settings()
     require_ev = settings.suggestion_evidence_required_for_high_confidence
     ctx_low = (doc_context_text or "").lower()
 
     for c in cards:
         has_evidence = len(c.evidence) > 0
+        reasons: list[str] = []
+        model_doubts = c.needs_user_check
 
         # 1) высокая уверенность без evidence → понизить + проверить
         if require_ev and not has_evidence and c.confidence > 0.65:
             c.confidence = 0.55
-            c.needs_user_check = True
 
         # 2) document-evidence с неизвестным ref → проверить
         for e in c.evidence:
             if e.source == "document":
                 name = (e.ref or "").split(",")[0].strip().lower()
                 if not name or (ctx_low and name not in ctx_low):
-                    c.needs_user_check = True
+                    reasons.append("документ-источник не найден среди документов встречи")
+                    break
 
         # 3) категоричные формулировки без evidence → проверить + ограничить уверенность
         low = (c.text or "").lower()
         if any(w in low for w in _CATEGORICAL) and not has_evidence:
-            c.needs_user_check = True
+            reasons.append("категоричное утверждение без опоры")
             c.confidence = min(c.confidence, 0.5)
 
         # 4) trade_concession без условности → проверить
         if c.type == "trade_concession" and not any(w in low for w in _CONDITIONAL):
-            c.needs_user_check = True
+            reasons.append("уступка без встречного условия")
 
         # 5) пустой evidence → флаг проверки (§2)
         if not has_evidence:
-            c.needs_user_check = True
+            reasons.append("нет опоры на разговор или документы")
 
         # 6) номер пункта или цитата не подтверждаются текстом документов → проверить
-        reasons = ungrounded_reasons(c, doc_context_text)
-        if reasons:
-            c.needs_user_check = True
+        grounding = ungrounded_reasons(c, doc_context_text)
+        if grounding:
+            reasons += grounding
             c.confidence = min(c.confidence, _GROUNDED_CONFIDENCE_CAP)
-            logger.info("карточка «%s» требует проверки: %s", (c.title or "")[:60], "; ".join(reasons))
+            logger.info("карточка «%s» требует проверки: %s", (c.title or "")[:60], "; ".join(grounding))
+
+        if model_doubts and not reasons:
+            reasons.append("модель не уверена в опоре")
+        c.check_reasons = list(dict.fromkeys(reasons))
+        c.needs_user_check = bool(c.check_reasons)
 
     return cards

@@ -88,12 +88,14 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
   onUploadActivityChangeRef.current = onUploadActivityChange;
   useEffect(() => { onUploadActivityChangeRef.current?.(queue.activeCount); }, [queue.activeCount]);
 
-  // поллинг, пока есть документы в обработке. Скан, ждущий агента распознавания, не опрашиваем:
-  // компьютер с LM Studio может быть выключен часами.
+  // поллинг, пока есть документы в обработке. Скан, ждущий агента распознавания, опрашиваем
+  // редко: компьютер с LM Studio может быть выключен часами, но прогресс и «не на связи» видны.
   useEffect(() => {
+    if (meetingId == null) return;
     const pendingExists = docs.some((d) => !['ready', 'error', 'awaiting_ocr'].includes(d.status));
-    if (!pendingExists || meetingId == null) return;
-    const t = setInterval(load, 3000);
+    const awaitingOcr = docs.some((d) => d.status === 'awaiting_ocr' || !!d.ocr_note);
+    if (!pendingExists && !awaitingOcr) return;
+    const t = setInterval(load, pendingExists ? 3000 : 60000);
     return () => clearInterval(t);
   }, [docs, meetingId, load]);
 
@@ -142,12 +144,21 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
   }
 
   // Скан, упавший с «нужен OCR», сам не переобработается — перезапуск явный.
-  async function reprocess(d: MeetingDocument) {
+  // missingPages — готовый скан с пустыми страницами: агент досдаёт только их.
+  async function reprocess(d: MeetingDocument, missingPages = false) {
     setError('');
     try {
-      await reprocessDocument(d.document_id);
+      await reprocessDocument(d.document_id, { missingPages });
       await load();
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось запустить повторную обработку')); }
+  }
+
+  function primaryAction(d: MeetingDocument): { label: string; run: () => void } | undefined {
+    if (d.status === 'error') return { label: 'Распознать заново', run: () => reprocess(d) };
+    if (d.status === 'ready' && !d.ocr_note && (d.ocr_missing_pages?.length ?? 0) > 0) {
+      return { label: 'Дораспознать страницы', run: () => reprocess(d, true) };
+    }
+    return undefined;
   }
 
   const attachedIds = new Set(docs.map((d) => d.document_id));
@@ -232,8 +243,8 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
             source={documentToContextSourceViewModel(d)}
             onToggleIncluded={() => toggleIncluded(d)}
             onRemove={() => detach(d)}
-            primaryActionLabel={d.status === 'error' ? 'Распознать заново' : undefined}
-            onPrimaryAction={d.status === 'error' ? () => reprocess(d) : undefined}
+            primaryActionLabel={primaryAction(d)?.label}
+            onPrimaryAction={primaryAction(d)?.run}
           />
         ))}
       </div>

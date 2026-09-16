@@ -415,7 +415,18 @@ async def batch_delete_meetings(
 # --- Этап 4: документы встречи ---
 
 
-def _meeting_doc_item(md: MeetingDocumentRecord, doc: DocumentRecord, chunks_count: int) -> MeetingDocumentItem:
+def _ocr_warnings(doc: DocumentRecord) -> list[dict]:
+    try:
+        warnings = _json.loads(doc.summary_json or "{}").get("ocr_warnings") or []
+    except (ValueError, AttributeError):
+        return []
+    return [w for w in warnings if isinstance(w, dict) and isinstance(w.get("page"), int)]
+
+
+def _meeting_doc_item(md: MeetingDocumentRecord, doc: DocumentRecord, chunks_count: int,
+                      ocr_note: str | None = None) -> MeetingDocumentItem:
+    from app.services.ocr_quality import ocr_quality_note
+    warnings = _ocr_warnings(doc) if doc.status == "ready" else []
     return MeetingDocumentItem(
         id=md.id,
         document_id=doc.id,
@@ -428,6 +439,9 @@ def _meeting_doc_item(md: MeetingDocumentRecord, doc: DocumentRecord, chunks_cou
         page_count=doc.page_count,
         sheet_count=doc.sheet_count,
         processing_error=doc.processing_error,
+        ocr_note=ocr_note,
+        quality_note=ocr_quality_note(warnings),
+        ocr_missing_pages=sorted(w["page"] for w in warnings if w.get("reason") == "страница не распознана"),
     )
 
 
@@ -456,7 +470,11 @@ async def list_meeting_documents(
             .order_by(MeetingDocumentRecord.priority.desc(), MeetingDocumentRecord.id)
         )
     ).all()
-    return [_meeting_doc_item(md, doc, cc or 0) for md, doc, cc in rows]
+    from app.services.ocr_queue import ocr_waiting_notes
+    # ждёт распознавания целиком — или готов, но пустые страницы досдаются агентом
+    notes = await ocr_waiting_notes(db, [doc.id for _, doc, _ in rows
+                                         if doc.status == "awaiting_ocr" or _ocr_warnings(doc)])
+    return [_meeting_doc_item(md, doc, cc or 0, notes.get(doc.id)) for md, doc, cc in rows]
 
 
 @router.post("/{meeting_id}/documents/{document_id}", response_model=MeetingDocumentItem)

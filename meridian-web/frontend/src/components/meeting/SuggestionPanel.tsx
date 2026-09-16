@@ -240,6 +240,9 @@ function StructuredSuggestionCard({ card }: { card: SuggestionCardT }) {
       {card.title && <div style={styles.cardTitle2}>{card.title}</div>}
       <div style={styles.cardText}>{card.text}</div>
       {card.why && <div style={styles.whyLine}>— {card.why}</div>}
+      {card.needs_user_check && (card.check_reasons?.length ?? 0) > 0 && (
+        <div style={styles.checkReasons}>Проверить: {card.check_reasons?.join('; ')}</div>
+      )}
       {card.evidence.length > 0 && (
         <div>
           <button style={styles.evToggle} onClick={() => setShowEv((v) => !v)}>
@@ -512,6 +515,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '2px 8px', borderRadius: 4, fontSize: 8, fontFamily: theme.font.mono,
     fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const,
     color: theme.accent.amber, background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.3)',
+  },
+  checkReasons: {
+    marginTop: 6, fontSize: 12, lineHeight: 1.4, color: theme.accent.amber,
   },
   evToggle: {
     padding: '4px 10px', background: 'transparent', border: `1px solid ${theme.border.default}`,

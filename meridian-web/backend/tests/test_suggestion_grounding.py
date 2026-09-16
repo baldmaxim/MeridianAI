@@ -105,3 +105,30 @@ def test_no_documents_no_quote_check():
     assert ungrounded_reasons(card, "") == []
     card.text = "По п. 7.3 срок оплаты 45 дней."
     assert ungrounded_reasons(card, "") == ["пункт не найден в документах: 7.3"]
+
+
+def test_check_reasons_explain_the_flag():
+    card = _card("Будем оспаривать согласно п. 20.8 договора.",
+                 "Гарантийное удержание в соответствии с настоящим Договором будет составлять 3%")
+    [out] = apply_safety_checks([card], DOC)
+    assert out.check_reasons == ["пункт не найден в документах: 20.8"]
+
+
+def test_clean_card_has_no_reasons_and_model_doubt_is_explained():
+    ok = _card("По пункту 13.2.1 гарантийное удержание 3%, а не 10%.",
+               "Гарантийное удержание в соответствии с настоящим Договором будет составлять 3% (три процента)")
+    [out] = apply_safety_checks([ok], DOC)
+    assert out.needs_user_check is False and out.check_reasons == []
+    doubt = _card("По пункту 13.2.1 гарантийное удержание 3%.",
+                  "Гарантийное удержание в соответствии с настоящим Договором будет составлять 3% (три процента)")
+    doubt.needs_user_check = True
+    [out] = apply_safety_checks([doubt], DOC)
+    assert out.needs_user_check is True and out.check_reasons == ["модель не уверена в опоре"]
+
+
+def test_model_cannot_fill_reasons_itself():
+    card = _card("По пункту 13.2.1 гарантийное удержание 3%.",
+                 "Гарантийное удержание в соответствии с настоящим Договором будет составлять 3% (три процента)")
+    card.check_reasons = ["всё проверено"]
+    [out] = apply_safety_checks([card], DOC)
+    assert out.check_reasons == []

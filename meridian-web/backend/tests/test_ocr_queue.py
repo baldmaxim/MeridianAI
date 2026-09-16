@@ -376,3 +376,66 @@ async def test_agent_api_requires_token_and_serves_claim(sm, monkeypatch):
             assert status["done"] == 1 and status["agents"][0]["online"] is True
     finally:
         app.dependency_overrides.clear()
+
+
+# ---------- что видит пользователь, пока скан ждёт ----------
+
+async def test_waiting_note_without_agent(sm):
+    async with sm() as db:
+        doc = await _doc(db)
+        await q.request_ocr(db, doc)
+        notes = await q.ocr_waiting_notes(db, [doc.id])
+        assert "Агент распознавания не подключён" in notes[doc.id]
+
+
+async def test_waiting_note_when_computer_is_off(sm):
+    async with sm() as db:
+        doc = await _doc(db)
+        await q.request_ocr(db, doc)
+        agent, _ = await _agent(db)
+        agent.last_seen_at = datetime.utcnow() - timedelta(hours=5, minutes=10)
+        await db.flush()
+        notes = await q.ocr_waiting_notes(db, [doc.id])
+        assert notes[doc.id].startswith("Компьютер с распознаванием не на связи 5 ч")
+
+
+async def test_waiting_note_shows_progress_and_online_queue(sm):
+    async with sm() as db:
+        doc = await _doc(db)
+        await q.request_ocr(db, doc)
+        agent, _ = await _agent(db)
+        agent.last_seen_at = datetime.utcnow()
+        await db.flush()
+        assert (await q.ocr_waiting_notes(db, [doc.id]))[doc.id] == "В очереди на распознавание, компьютер на связи"
+        got = await q.claim_task(db, agent, pdf_url_for=URL)
+        await q.submit_page(db, agent, got["task_id"], page_number=1, pages_total=2, text=PAGE_1)
+        assert (await q.ocr_waiting_notes(db, [doc.id]))[doc.id] == "Распознаётся: стр. 1 из 2"
+
+
+async def test_no_notes_for_documents_without_ocr(sm):
+    async with sm() as db:
+        doc = await _doc(db)
+        assert await q.ocr_waiting_notes(db, [doc.id]) == {}
+        assert await q.ocr_waiting_notes(db, []) == {}
+
+
+async def test_missing_pages_requeued_without_hiding_document(sm):
+    """Пустые страницы досдаются агентом, договор всё это время остаётся в подсказках."""
+    async with sm() as db:
+        doc = await _doc(db)
+        await q.request_ocr(db, doc)
+        agent, _ = await _agent(db)
+        got = await q.claim_task(db, agent, pdf_url_for=URL)
+        await q.submit_page(db, agent, got["task_id"], page_number=1, pages_total=3, text=PAGE_1)
+        await q.submit_page(db, agent, got["task_id"], page_number=2, pages_total=3, text="")
+        await q.submit_page(db, agent, got["task_id"], page_number=3, pages_total=3,
+                            text='[{"label": "Text", "bbox": "1 2 3 4"}]')
+        await q.complete_task(db, agent, got["task_id"])
+        doc.status = "ready"
+        await db.flush()
+
+        assert await q.request_missing_pages(db, doc) == [2, 3]
+        assert doc.status == "ready"
+        again = await q.claim_task(db, agent, pdf_url_for=URL)
+        assert again["pages_done"] == [1]
+        assert await q.request_missing_pages(db, doc) == []  # уже в очереди
