@@ -332,3 +332,25 @@ def test_format_chunks_block_respects_max_chars():
     block = format_chunks_block(chunks, max_chunks=6, max_chars=8000)
     assert "Релевантные фрагменты документов" in block
     assert len(block) <= 8000 + 300  # уважает лимит (+overhead заголовков)
+
+
+async def test_retrieval_interleaves_contract_terms_without_losing_direct_hits(db):
+    """«Сдвигаем срок» не имеет общих слов с пунктом о компенсации; формулировки его находят,
+    а прямое попадание по реплике остаётся первым."""
+    owner = await _mk_user(db, "ret-expand@test.local")
+    meeting = await _mk_meeting(db, owner)
+    doc = await _mk_document(db, owner, status="ready")
+    await _mk_chunk(db, doc, 0, "4.1. Срок сдачи Объекта — 30 месяцев с даты начала работ.")
+    await _mk_chunk(db, doc, 1, "5.1. При увеличении срока производства работ Застроитель компенсирует "
+                                "затраты Генподрядчика из расчета 12 500 000 рублей ежемесячно.")
+    for i in range(2, 8):
+        await _mk_chunk(db, doc, i, f"{i}.1. Генподрядчик соблюдает требования охраны труда на площадке.")
+    db.add(MeetingDocumentRecord(session_id=meeting.id, document_id=doc.id, included=True, priority=100))
+    await db.flush()
+    query = "Заказчик: срок сдачи сдвигаем на месяц"
+    plain = await get_relevant_chunks_for_meeting(db, meeting.id, query, limit=2)
+    assert all("12 500 000" not in c["text"] for c in plain)
+    expanded = await get_relevant_chunks_for_meeting(
+        db, meeting.id, query, limit=2, extra_query="компенсация затрат; увеличение срока производства работ")
+    assert expanded[0]["text"].startswith("4.1.")
+    assert any("12 500 000" in c["text"] for c in expanded)

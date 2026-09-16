@@ -147,7 +147,12 @@ class Settings(BaseSettings):
     )
     document_chunk_target_chars: int = Field(default=7000, alias="DOCUMENT_CHUNK_TARGET_CHARS")
     document_chunk_overlap_chars: int = Field(default=1000, alias="DOCUMENT_CHUNK_OVERLAP_CHARS")
-    document_context_max_chunks: int = Field(default=6, alias="DOCUMENT_CONTEXT_MAX_CHUNKS")
+    # Договор режется по пунктам (~1,2 тыс. символов) — фрагментов нужно больше, чем страниц.
+    document_chunk_by_clauses: bool = Field(default=True, alias="DOCUMENT_CHUNK_BY_CLAUSES")
+    # Перед поиском по документам модель называет тему реплики языком договора (+1 короткий вызов).
+    document_query_expansion_enabled: bool = Field(default=True, alias="DOCUMENT_QUERY_EXPANSION_ENABLED")
+    document_query_expansion_timeout_seconds: float = Field(default=5.0, alias="DOCUMENT_QUERY_EXPANSION_TIMEOUT_SECONDS")
+    document_context_max_chunks: int = Field(default=10, alias="DOCUMENT_CONTEXT_MAX_CHUNKS")
     document_context_max_chars: int = Field(default=14000, alias="DOCUMENT_CONTEXT_MAX_CHARS")
     # RAG-папки в контекст подсказок (Этап 5). v1 — лексический retrieval поверх DocumentChunk.
     rag_context_enabled: bool = Field(default=True, alias="RAG_CONTEXT_ENABLED")

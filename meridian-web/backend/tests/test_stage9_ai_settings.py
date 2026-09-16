@@ -101,9 +101,9 @@ async def test_resolve_priority(db):
 def test_apply_mode_defaults():
     p = AISettingsProfile(owner_user_id=1, name="x", suggestion_mode="fast")
     ais.apply_mode_defaults(p)
-    assert p.max_auto_cards == 1 and p.document_context_max_chunks == 3 and p.previous_context_max_meetings == 2
+    assert p.max_auto_cards == 1 and p.document_context_max_chunks == 5 and p.previous_context_max_meetings == 2
     p.suggestion_mode = "deep"; ais.apply_mode_defaults(p)
-    assert p.document_context_max_chunks == 10 and p.previous_context_max_meetings == 5
+    assert p.document_context_max_chunks == 16 and p.previous_context_max_meetings == 5
     p.suggestion_mode = "balanced"; ais.apply_mode_defaults(p)
     assert p.max_auto_cards == 2 and p.max_manual_cards == 5
 

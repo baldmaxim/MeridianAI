@@ -23,15 +23,15 @@ DEFAULT_LIVE_MODEL = "google/gemini-3-flash-preview"
 # Лимиты/карточки по режиму (apply_mode_defaults заполняет колонки профиля)
 MODE_DEFAULTS = {
     "fast":     {"max_auto_cards": 1, "max_manual_cards": 3, "auto_suggestion_min_interval_seconds": 30,
-                 "document_context_max_chunks": 3, "document_context_max_chars": 6000,
+                 "document_context_max_chunks": 5, "document_context_max_chars": 6000,
                  "previous_context_max_meetings": 2, "previous_context_max_chars": 8000,
                  "knowledge_context_max_items": 6},
     "balanced": {"max_auto_cards": 2, "max_manual_cards": 5, "auto_suggestion_min_interval_seconds": 20,
-                 "document_context_max_chunks": 6, "document_context_max_chars": 14000,
+                 "document_context_max_chunks": 10, "document_context_max_chars": 14000,
                  "previous_context_max_meetings": 5, "previous_context_max_chars": 20000,
                  "knowledge_context_max_items": 12},
     "deep":     {"max_auto_cards": 2, "max_manual_cards": 5, "auto_suggestion_min_interval_seconds": 20,
-                 "document_context_max_chunks": 10, "document_context_max_chars": 24000,
+                 "document_context_max_chunks": 16, "document_context_max_chars": 24000,
                  "previous_context_max_meetings": 5, "previous_context_max_chars": 28000,
                  "knowledge_context_max_items": 20},
 }

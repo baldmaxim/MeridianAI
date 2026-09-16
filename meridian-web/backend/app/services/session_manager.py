@@ -71,6 +71,7 @@ from .context_pack import assemble_live_context_pack
 from ..core.transcription.turn_assembler import TurnAssembler
 from .audio_recorder import AudioRecorder
 from .suggestion_parser import parse_suggestion_response, apply_safety_checks, fallback_response
+from .document_query import build_expansion_prompt, parse_expansion
 from .ai_settings import mode_tokens as _mode_tokens
 
 logger = logging.getLogger("meridian.session")
@@ -219,6 +220,8 @@ class SessionManager:
 
         # Turn assembler (merges consecutive same-speaker segments)
         self._turn_assembler = TurnAssembler()
+        # Формулировки реплики в языке договора для поиска по документам (хвост диалога → термины)
+        self._doc_query_cache: Dict[str, str] = {}
 
         # Meeting memory (three-layer context for long meetings)
         self._meeting_memory = MeetingMemory()
@@ -446,12 +449,42 @@ class SessionManager:
         if not self._doc_context_provider or not self.db_session_id:
             return base
         try:
-            db_block = await self._doc_context_provider(self.db_session_id, query_text or "")
+            terms = await self._doc_query_terms(query_text or "")
+            if terms:
+                db_block = await self._doc_context_provider(self.db_session_id, query_text or "", terms)
+            else:
+                db_block = await self._doc_context_provider(self.db_session_id, query_text or "")
         except Exception:
             db_block = ""
         if db_block and base:
             return f"{base}\n\n{db_block}"
         return db_block or base
+
+    async def _doc_query_terms(self, query_text: str) -> str:
+        """Формулировки темы последней реплики в языке договора (для поиска по документам).
+
+        Короткий вызов модели с жёстким тайм-аутом: не успела или ошиблась — ищем только по
+        реплике, как раньше. Одинаковый хвост диалога не переспрашиваем.
+        """
+        settings = get_settings()
+        if not settings.document_query_expansion_enabled or not self.llm_client or not query_text.strip():
+            return ""
+        prompt = build_expansion_prompt(query_text)
+        cache = self._doc_query_cache
+        if prompt in cache:
+            return cache[prompt]
+        try:
+            raw = await asyncio.wait_for(
+                self.llm_client.get_suggestion_async(prompt, max_tokens=250),
+                timeout=settings.document_query_expansion_timeout_seconds,
+            )
+        except Exception:
+            return ""
+        terms = parse_expansion(raw)
+        if len(cache) >= 32:
+            cache.pop(next(iter(cache)))
+        cache[prompt] = terms
+        return terms
 
     def _trace_pack(self, pack, mode: str) -> None:
         """Короткая телеметрия Context Pack (без полного контента)."""

@@ -17,6 +17,7 @@ from . import s3
 from . import document_storage
 
 from .document_text_quality import assess_extracted_text
+from .clause_chunker import chunk_by_clauses
 
 logger = logging.getLogger("meridian.documents")
 
@@ -150,6 +151,39 @@ def chunk_text(text: str, target_chars: int, overlap_chars: int) -> list[str]:
     return chunks
 
 
+def _build_chunk_rows(document_id: int, segments: list[dict], settings) -> list[dict]:
+    """Фрагменты документа для поиска.
+
+    Договор с нумерованными пунктами режем по пунктам (пункт не рвётся на стыке страниц,
+    фрагмент знает свой раздел и номера). Остальное — по символам, как раньше.
+    """
+    cap = settings.document_max_extract_chars
+    pieces: list[dict] = []
+    by_clauses = chunk_by_clauses(segments) if settings.document_chunk_by_clauses else None
+    if by_clauses:
+        for r in by_clauses:
+            meta = {"clauses": r["clauses"], "last_page": r["last_page"]}
+            pieces.append({"text": r["text"], "page": r["page"], "sheet": None,
+                           "section": (r["section"] or None) and r["section"][:300],
+                           "metadata": json.dumps(meta, ensure_ascii=False)})
+    else:
+        for seg in segments:
+            for piece in chunk_text(seg["text"], settings.document_chunk_target_chars,
+                                    settings.document_chunk_overlap_chars):
+                pieces.append({"text": piece, "page": seg["page_number"], "sheet": seg["sheet_name"]})
+    rows: list[dict] = []
+    total = 0
+    for piece in pieces:
+        if total + len(piece["text"]) > cap:
+            logger.warning("document %s: достигнут лимит extract chars, обрезано", document_id)
+            break
+        rows.append({**piece, "idx": len(rows), "tokens": len(piece["text"].split())})
+        total += len(piece["text"])
+    logger.info("document %s: нарезка %s, фрагментов %d", document_id,
+                "по пунктам" if by_clauses else "по символам", len(rows))
+    return rows
+
+
 # --- проверка текста и OCR ---
 
 EMPTY_TEXT_MESSAGE = "Не удалось извлечь текст (пустой или сканированный документ)"
@@ -236,28 +270,7 @@ async def handle_document_process(payload: dict) -> None:
         if problem:
             raise ValueError(problem)
 
-        # чанкинг по сегментам с метаданными
-        chunk_rows: list[dict] = []
-        idx = 0
-        total = 0
-        cap = settings.document_max_extract_chars
-        for seg in segments:
-            for piece in chunk_text(seg["text"], settings.document_chunk_target_chars, settings.document_chunk_overlap_chars):
-                if total + len(piece) > cap:
-                    logger.warning("document %s: достигнут лимит extract chars, обрезано", document_id)
-                    break
-                chunk_rows.append({
-                    "idx": idx,
-                    "text": piece,
-                    "page": seg["page_number"],
-                    "sheet": seg["sheet_name"],
-                    "tokens": len(piece.split()),
-                })
-                idx += 1
-                total += len(piece)
-            else:
-                continue
-            break
+        chunk_rows = _build_chunk_rows(document_id, segments, settings)
 
         if not chunk_rows:
             raise ValueError("Не удалось сформировать чанки документа")
@@ -284,7 +297,9 @@ async def handle_document_process(payload: dict) -> None:
                     text=r["text"],
                     page_number=r["page"],
                     sheet_name=r["sheet"],
+                    section_title=r.get("section"),
                     token_count=r["tokens"],
+                    metadata_json=r.get("metadata"),
                 ))
             doc.status = "ready"
             doc.page_count = page_count

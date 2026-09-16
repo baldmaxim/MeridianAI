@@ -5,10 +5,12 @@
 get_relevant_chunks_for_meeting() стабилен, меняется только реализация scoring.
 """
 
+import json
 import logging
 import math
 import re
 from collections import Counter
+from itertools import zip_longest
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,12 +71,26 @@ def _bm25_scores(query_text: str, texts: list[str]) -> list[float]:
     return scores
 
 
+def _chunk_clauses(metadata_json: str | None) -> list[str]:
+    """Номера пунктов фрагмента (нарезка по пунктам) — для подписи фрагмента в промпте."""
+    if not metadata_json:
+        return []
+    try:
+        clauses = json.loads(metadata_json).get("clauses")
+    except (ValueError, AttributeError):
+        return []
+    return [str(c) for c in clauses] if isinstance(clauses, list) else []
+
+
 async def get_relevant_chunks_for_meeting(
-    db: AsyncSession, meeting_id: int, query_text: str, limit: int = 6
+    db: AsyncSession, meeting_id: int, query_text: str, limit: int = 6, extra_query: str = "",
 ) -> list[dict]:
     """Top-N релевантных чанков среди included+ready документов встречи.
 
     Источники: MeetingDocument(included=true) → DocumentRecord(status='ready') → DocumentChunk.
+    extra_query — формулировки темы в языке договора (document_query). Выдачи по реплике и по
+    формулировкам чередуются: прямые попадания по реплике не вытесняются, а находится и то,
+    с чем у реплики нет общих слов.
     """
     rows = (
         await db.execute(
@@ -85,6 +101,8 @@ async def get_relevant_chunks_for_meeting(
                 DocumentChunk.text,
                 DocumentChunk.page_number,
                 DocumentChunk.sheet_name,
+                DocumentChunk.section_title,
+                DocumentChunk.metadata_json,
                 DocumentRecord.original_name,
                 MeetingDocumentRecord.priority,
             )
@@ -103,6 +121,32 @@ async def get_relevant_chunks_for_meeting(
     if not rows:
         return []
 
+    ranked = _rank_rows(rows, query_text)
+    if extra_query.strip() and _stems(query_text):
+        merged, seen = [], set()
+        for pair in zip_longest(ranked, _rank_rows(rows, extra_query)):
+            for item in pair:
+                if item is not None and item[1].id not in seen:
+                    seen.add(item[1].id)
+                    merged.append(item)
+        ranked = merged
+    out: list[dict] = []
+    for score, r in ranked[:limit]:
+        out.append({
+            "document_id": r.document_id,
+            "document_name": r.original_name,
+            "chunk_id": r.id,
+            "text": r.text,
+            "page_number": r.page_number,
+            "sheet_name": r.sheet_name,
+            "section_title": r.section_title,
+            "clauses": _chunk_clauses(r.metadata_json),
+            "score": round(float(score), 4),
+        })
+    return out
+
+
+def _rank_rows(rows, query_text: str) -> list[tuple[float, object]]:
     has_query = bool(_stems(query_text))
     bm25 = _bm25_scores(query_text, [r.text for r in rows]) if has_query else []
     scored: list[tuple[float, object]] = []
@@ -123,18 +167,7 @@ async def get_relevant_chunks_for_meeting(
         scored.append((score, r))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    out: list[dict] = []
-    for score, r in scored[:limit]:
-        out.append({
-            "document_id": r.document_id,
-            "document_name": r.original_name,
-            "chunk_id": r.id,
-            "text": r.text,
-            "page_number": r.page_number,
-            "sheet_name": r.sheet_name,
-            "score": round(float(score), 4),
-        })
-    return out
+    return scored
 
 
 def format_chunks_block(chunks: list[dict], max_chunks: int, max_chars: int) -> str:
@@ -149,6 +182,11 @@ def format_chunks_block(chunks: list[dict], max_chunks: int, max_chars: int) -> 
             loc = f" | Страница {c['page_number']}"
         elif c.get("sheet_name"):
             loc = f" | Лист: {c['sheet_name']}"
+        if c.get("section_title"):
+            loc += f" | {c['section_title']}"
+        clauses = c.get("clauses") or []
+        if clauses:
+            loc += " | Пункты " + (clauses[0] if len(clauses) == 1 else f"{clauses[0]}–{clauses[-1]}")
         header = f"[Документ: {c['document_name']}{loc}]"
         text = c["text"]
         if total + len(text) > max_chars:
@@ -165,7 +203,7 @@ def format_chunks_block(chunks: list[dict], max_chunks: int, max_chars: int) -> 
     return "Релевантные фрагменты документов:\n\n" + "\n\n".join(parts)
 
 
-async def build_meeting_doc_context(meeting_id: int, query_text: str) -> str:
+async def build_meeting_doc_context(meeting_id: int, query_text: str, extra_query: str = "") -> str:
     """Провайдер для SessionManager: вернуть готовый промпт-блок (или '').
 
     Открывает собственную сессию БД (вызывается из STT/LLM-движка).
@@ -174,7 +212,8 @@ async def build_meeting_doc_context(meeting_id: int, query_text: str) -> str:
     try:
         async with async_session() as db:
             chunks = await get_relevant_chunks_for_meeting(
-                db, meeting_id, query_text, limit=settings.document_context_max_chunks
+                db, meeting_id, query_text, limit=settings.document_context_max_chunks,
+                extra_query=extra_query,
             )
         return format_chunks_block(
             chunks, settings.document_context_max_chunks, settings.document_context_max_chars
