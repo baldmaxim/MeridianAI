@@ -441,17 +441,20 @@ class SessionManager:
         except Exception:
             return ""
 
-    async def _augment_doc_context(self, base: str, query_text: str) -> str:
+    async def _augment_doc_context(self, base: str, query_text: str, expand_query: bool = False) -> str:
         """Документы встречи из БД (in-memory loader base + DB-провайдер).
 
         Этап 6: отвечает ТОЛЬКО за документы; RAG — отдельный блок ContextPack.
+        expand_query — переформулировать реплику в язык договора (+1 вызов модели, 1–5 с).
+        Для подсказок по кнопке это оправдано; авто-путь зовёт поиск на каждой пачке реплик,
+        ещё до решения, нужна ли подсказка, — там по умолчанию без переформулировки.
         """
         if not self._ai("document_context_enabled", True):
             return base  # Этап 9: документы выключены в настройках
         if not self._doc_context_provider or not self.db_session_id:
             return base
         try:
-            terms = await self._doc_query_terms(query_text or "")
+            terms = await self._doc_query_terms(query_text or "") if expand_query else ""
             if terms:
                 db_block = await self._doc_context_provider(self.db_session_id, query_text or "", terms)
             else:
@@ -509,7 +512,9 @@ class SessionManager:
         чтобы не augment-ить документы дважды.
         """
         db_doc = (document_context if document_already_augmented
-                  else await self._augment_doc_context(document_context, query_text))
+                  else await self._augment_doc_context(
+                      document_context, query_text,
+                      expand_query=mode != "auto" or get_settings().document_query_expansion_auto))
         rag = await self._rag_context_block(query_text)
         letters = await self._letters_context_block(query_text)
         knowledge = await self._knowledge_block(query_text)
@@ -1359,7 +1364,9 @@ class SessionManager:
         now = time.time()
         ctx = self._ctx_builder.build_reactive(batch_text)
         recent = ctx["recent_dialog"]
-        doc_context = await self._augment_doc_context(ctx["document_context"], batch_text)
+        doc_context = await self._augment_doc_context(
+            ctx["document_context"], batch_text,
+            expand_query=get_settings().document_query_expansion_auto)
 
         # --- Signal Engine (Этап 2): contextual classification ---
         if await self._signal_flow(batch_text, recent, doc_context,
@@ -1412,7 +1419,8 @@ class SessionManager:
         now = time.time()
         ctx = self._ctx_builder.build_reactive(text)
         recent = ctx["recent_dialog"]
-        doc_context = await self._augment_doc_context(ctx["document_context"], text)
+        doc_context = await self._augment_doc_context(
+            ctx["document_context"], text, expand_query=get_settings().document_query_expansion_auto)
 
         # --- Signal Engine (Этап 2): contextual classification ---
         if await self._signal_flow(text, recent, doc_context,
@@ -1498,7 +1506,8 @@ class SessionManager:
             await self._emit_suggestion_cards(raw, "manual", doc_context_text=doc_combined)
         else:
             # Этап 4: добавить релевантные фрагменты документов встречи (из БД)
-            ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context)
+            ctx["document_context"] = await self._augment_doc_context(ctx.get("document_context", ""), context,
+                                                                     expand_query=True)
             prompt = self.prompt_builder.build_tactical_hints_prompt(recent_dialog=context, **ctx)
             raw = await self.llm_client.get_suggestion_async(prompt, max_tokens=600)
             if raw:

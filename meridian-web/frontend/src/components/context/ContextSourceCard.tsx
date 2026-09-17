@@ -110,15 +110,16 @@ export function ContextSourceCard({
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  // flexWrap: на узком экране (360 px) кнопки уходят строкой ниже, а не наезжают на название
   card: {
-    display: 'flex', alignItems: 'flex-start', gap: 10,
+    display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' as const,
     padding: '10px 12px', background: theme.bg.elevated,
     border: `1px solid ${theme.border.default}`, borderRadius: 8,
   },
   cardCompact: { padding: '8px 10px', background: theme.bg.input },
   cardDisabled: { opacity: 0.55 },
   icon: { fontSize: 14, lineHeight: '20px', flexShrink: 0, width: 18, textAlign: 'center' as const },
-  main: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
+  main: { flex: '1 1 200px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
   title: {
     fontSize: 13, fontWeight: 600, color: theme.text.primary,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
@@ -127,7 +128,10 @@ const styles: Record<string, React.CSSProperties> = {
   metaRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const, marginTop: 1 },
   statusBadge: { fontFamily: theme.font.mono, fontSize: 10, flexShrink: 0 },
   meta: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
-  controls: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
+  controls: {
+    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+    flexWrap: 'wrap' as const, justifyContent: 'flex-end', marginLeft: 'auto', maxWidth: '100%',
+  },
   primaryBtn: {
     padding: '6px 12px', background: theme.accent.green, border: 'none', borderRadius: 6,
     color: '#080A0F', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: theme.font.body,

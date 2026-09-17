@@ -25,6 +25,7 @@ _DOUBLE_BULLET = re.compile(r"^-\s+[-–—•·]\s+")
 _LAYOUT_JSON = re.compile(r'\[\s*\{\s*"label"\s*:.*?"bbox"\s*:.*?\}\s*\]', re.DOTALL)
 _JSON_SKIP_ROLES = {"Page-Header", "Page-Footer"}
 _CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+_ONLY_DOTS = re.compile(r"^[.…\s]+$")
 _YOD_IN_WORD = re.compile(r"(?<=[а-яё])י+(?=[а-яё])", re.IGNORECASE)
 _MIXED_WORD = re.compile(r"\b(?=\w*[а-яё])(?=\w*[a-z])\w+\b", re.IGNORECASE)
 _LATIN_TO_CYRILLIC = str.maketrans("aAeEoOpPcCxXyYkKmMTHBr", "аАеЕоОрРсСхХуУкКмМТНВр")
@@ -166,4 +167,6 @@ def _markup_to_text(raw: str | None) -> str:
         # Пункт списка, где модель сама поставила тире («- - слова…»), — маркер один.
         line = _DOUBLE_BULLET.sub("- ", line)
         cleaned.append(re.sub(r"\s+\|\s*$", "", line))
-    return html.unescape("\n".join(line for line in cleaned if line and line != "-")).strip()
+    # «-» — пустой пункт списка, «...» — пример разметки из рассуждения модели («like <p>...</p>»)
+    return html.unescape("\n".join(line for line in cleaned
+                                   if line and line != "-" and not _ONLY_DOTS.match(line))).strip()

@@ -156,7 +156,7 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
   function primaryAction(d: MeetingDocument): { label: string; run: () => void } | undefined {
     if (d.status === 'error') return { label: 'Распознать заново', run: () => reprocess(d) };
     if (d.status === 'ready' && !d.ocr_note && (d.ocr_missing_pages?.length ?? 0) > 0) {
-      return { label: 'Дораспознать страницы', run: () => reprocess(d, true) };
+      return { label: 'Дораспознать', run: () => reprocess(d, true) };
     }
     return undefined;
   }

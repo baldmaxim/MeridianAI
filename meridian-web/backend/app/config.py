@@ -152,6 +152,8 @@ class Settings(BaseSettings):
     # Перед поиском по документам модель называет тему реплики языком договора (+1 короткий вызов).
     document_query_expansion_enabled: bool = Field(default=True, alias="DOCUMENT_QUERY_EXPANSION_ENABLED")
     document_query_expansion_timeout_seconds: float = Field(default=5.0, alias="DOCUMENT_QUERY_EXPANSION_TIMEOUT_SECONDS")
+    # Авто-подсказки ищут по документам на каждой пачке реплик — +1–5 с и вызов модели каждый раз.
+    document_query_expansion_auto: bool = Field(default=False, alias="DOCUMENT_QUERY_EXPANSION_AUTO")
     document_context_max_chunks: int = Field(default=10, alias="DOCUMENT_CONTEXT_MAX_CHUNKS")
     document_context_max_chars: int = Field(default=14000, alias="DOCUMENT_CONTEXT_MAX_CHARS")
     # RAG-папки в контекст подсказок (Этап 5). v1 — лексический retrieval поверх DocumentChunk.

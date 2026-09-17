@@ -111,7 +111,7 @@ def test_empty_input():
 def test_reasoning_preamble_before_markup_is_dropped():
     """Реальная стр. 74: агент взял ответ из поля рассуждений вместе с рассуждением модели."""
     raw = ("The user wants me to recognize the text in the image and preserve its structure. "
-           "I need to read it carefully." + chr(10) +
+           "I need to read it carefully, using HTML tags like <p>...</p>" + chr(10) +
            "<p>Генерального подрядчика неустойки подлежат возврату.</p>")
     assert ocr_markup_to_text(raw) == "Генерального подрядчика неустойки подлежат возврату."
 
