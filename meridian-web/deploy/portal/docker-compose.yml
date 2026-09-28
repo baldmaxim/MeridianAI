@@ -21,14 +21,19 @@ services:
       infra_web:
         aliases: [meridian-api]
     restart: unless-stopped
+    # tini PID 1: осиротевшие процессы healthcheck'а иначе копятся зомби у uvicorn
+    init: true
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health/ready').status==200 else 1)\""]
-      interval: 15s
+      # каждый healthcheck — exec через dockerd; на 1 vCPU Selectel частые проверки
+      # всех контейнеров съедали ~половину CPU
+      interval: 30s
       timeout: 5s
       retries: 5
       start_period: 20s
+      start_interval: 2s
 
   # Worker для фоновых задач (фаза 4). БД из meridian.env (Yandex).
   worker:
@@ -37,6 +42,7 @@ services:
     environment:
       DEV_MODE: "false"
     command: ["python", "-m", "app.worker"]
+    init: true
     networks: [internal]
     restart: unless-stopped
 
