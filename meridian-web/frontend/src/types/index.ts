@@ -616,6 +616,8 @@ export type WSMessageToServer =
   | { type: 'change_settings'; stt_provider?: string; llm_model?: string; temperature?: number; diarization?: boolean; diarization_max_speakers?: number; silence_filter?: boolean }
   | { type: 'save_to_history'; meeting_name?: string }
   | { type: 'set_speaker_role'; name: string; side: PublicSpeakerSide | ''; display_name?: string }
+  // Очная встреча: держат кнопку, пока говорит наша сторона (калибровка сторон голосов)
+  | { type: 'self_hold'; holding: boolean; client_ts_ms: number }
   | { type: 'audio_level'; rms: number; peak?: number; vad?: boolean; seq?: number; client_ts_ms?: number }
   | { type: 'observer_side'; side: PublicSpeakerSide | '' }
   | { type: 'change_role'; role_id: number }

@@ -879,8 +879,12 @@ class SessionManager:
             # Bug C: финальные legacy-сегменты должны попадать в committed-store,
             # иначе finalize/_persist_segments видят пустой транскрипт. Партиалы
             # (is_partial=True) сюда не доходят → дублей нет. Не зависит от _ws_send.
+            # Тот же объект уходит в committed-хук: с segment_id, меткой и временем речи,
+            # иначе сторона по метке (онлайн-захват, кнопка «говорим мы») не считается.
+            committed = self._legacy_to_committed(segment)
+            committed.assign_speech_timestamps(self.listening_started_server_ms)
             if segment.text and segment.text.strip():
-                self._committed_segments.append(self._legacy_to_committed(segment))
+                self._committed_segments.append(committed)
 
             # Also write to audio recorder if not ElevenLabs
             # (ElevenLabs writes in streaming_service._send_audio_loop)
@@ -910,7 +914,7 @@ class SessionManager:
                 asyncio.create_task(self._check_legacy_auto_triggers(segment.text))
 
                 # Conversation Tree: обновить дерево общения (fire-and-forget)
-                self._fire_committed_hook(segment)
+                self._fire_committed_hook(committed)
 
     # ---------------------------------------------------------------
     # AI Hint System (debounced)

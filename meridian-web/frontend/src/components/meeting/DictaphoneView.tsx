@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { theme } from '../../styles/theme';
 import { useMeetingStore } from '../../store/meetingStore';
 
@@ -8,13 +9,15 @@ interface Props {
   isConnected: boolean;
   onStart: () => void;
   onStop: () => void;
+  // Слот под большой кнопкой (калибровка сторон «держу — говорим мы»)
+  extra?: ReactNode;
 }
 
 /**
  * Простой режим встречи — чистое окно диктофона.
  * Использует ТУ ЖЕ сессию, что и MeetingPage (desktop WS), без своего подключения.
  */
-export function DictaphoneView({ level, isListening, isConnected, onStart, onStop }: Props) {
+export function DictaphoneView({ level, isListening, isConnected, onStart, onStop, extra }: Props) {
   const meetingName = useMeetingStore((s) => s.meetingName);
   const currentMeetingId = useMeetingStore((s) => s.currentMeetingId);
   const messages = useMeetingStore((s) => s.messages);
@@ -94,6 +97,8 @@ export function DictaphoneView({ level, isListening, isConnected, onStart, onSto
           ● Начать запись
         </button>
       )}
+
+      {extra}
 
       {lastError && <div style={styles.err}>{lastError}</div>}
 

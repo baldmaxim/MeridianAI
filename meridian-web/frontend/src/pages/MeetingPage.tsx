@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import type { AudioRecorderCaptureConfig, AudioSourceLevels, SystemAudioState } from '../hooks/useAudioRecorder';
-import { AudioPreflightPanel } from '../components/meeting/AudioPreflightPanel';
-import { OnlineAudioPanel } from '../components/meeting/OnlineAudioPanel';
+import { MeetingAudioSettings } from '../components/meeting/MeetingAudioSettings';
+import { SideCalibration } from '../components/meeting/SideCalibration';
+import { useSelfHold } from '../hooks/useSelfHold';
+import { MULTICHANNEL_CAPABLE_ROUTES } from '../audio/audioCaptureTypes';
 import {
   SystemAudioError,
   SYSTEM_AUDIO_ERROR_TEXT,
@@ -120,9 +122,12 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   }, []);
   // Этап 15: текущий конфиг захвата (device/route). Инициализируем из localStorage, чтобы запись
   // без открытия панели использовала сохранённый выбор. Панель обновляет ref через onConfigChange.
+  // Панель живёт в выпадающих «Настройках» и может быть ни разу не открыта — shadow-флаг тоже отсюда.
   const audioCaptureRef = useRef<AudioRecorderCaptureConfig>({
     deviceId: loadAudioSelection().deviceId,
     preset: presetForRoute(loadAudioSelection().route),
+    multichannelShadowEnabled: loadMultichannelShadowEnabled()
+      && MULTICHANNEL_CAPABLE_ROUTES.includes(loadAudioSelection().route),
   });
   const onAudioCaptureConfig = useCallback((cfg: AudioRecorderCaptureConfig) => {
     audioCaptureRef.current = cfg;
@@ -545,6 +550,20 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     return () => window.removeEventListener('keydown', handler);
   }, [store.isListening, store.isConnected, store.suggestionLoading, store.strengthenLoading, handleStartListening, handleStopListening, sendJSON]);
 
+  // Калибровка сторон «держу — говорим мы»: очная встреча на провайдере с диаризацией.
+  // В онлайне сторону даёт источник звука, у ElevenLabs нет меток голосов — там не нужна.
+  const sideCalibrationOn = store.isListening && !systemAudioState?.active
+    && (settings?.stt_provider === 'deepgram' || settings?.stt_provider === 'speechmatics')
+    && !!settings?.diarization;
+  const selfHold = useSelfHold(sideCalibrationOn, sendJSON);
+  // Каждый старт записи — новая нумерация голосов у провайдера: считаем реплики с этого места.
+  const [sessionMsgStart, setSessionMsgStart] = useState(0);
+  const [prevListening, setPrevListening] = useState(store.isListening);
+  if (store.isListening !== prevListening) {
+    setPrevListening(store.isListening);
+    if (store.isListening) setSessionMsgStart(store.messages.length);
+  }
+
   // Дебаунс отправки контекста: локальный стор обновляется мгновенно (поле/шапка
   // реагируют сразу), а update_meeting_context уходит на сервер с задержкой —
   // вместе с guard contextEditedAt это гасит self-echo (символы не пропадают).
@@ -637,6 +656,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         @media (max-width: 767px) {
           .mp-ref-label { display: none !important; }
           .mp-ref { gap: 10px !important; }
+          .mp-btn-label { display: none !important; }
         }
       `}</style>
       <button onClick={onBack} className="t-btn" style={styles.backBtn} aria-label="Назад" title="В главное меню">
@@ -685,6 +705,14 @@ export function MeetingPage({ meetingId, onBack }: Props) {
             )}
           </div>
         )}
+        <MeetingAudioSettings
+          onConfigChange={onAudioCaptureConfig}
+          enabled={onlineAudio}
+          onToggle={handleOnlineAudioToggle}
+          state={systemAudioState}
+          levels={sourceLevels}
+          isListening={store.isListening}
+        />
       </div>
     </div>
   );
@@ -730,6 +758,17 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     </div>
   ) : null;
 
+  const sideCalibration = (compact: boolean) => sideCalibrationOn && (
+    <SideCalibration
+      sinceIndex={sessionMsgStart}
+      holding={selfHold.holding}
+      onPress={selfHold.press}
+      onRelease={selfHold.release}
+      onSetSide={handleSetSpeakerSide}
+      compact={compact}
+    />
+  );
+
   // Простой режим (вид «Пользователь») — чистый диктофон поверх той же сессии.
   // Переключение режима — единым слайдером роли «Админ ⟷ Пользователь» в шапке.
   if (store.uiMode === 'simple') {
@@ -738,14 +777,6 @@ export function MeetingPage({ meetingId, onBack }: Props) {
         {topBar}
         <OfflineBanner />
         {recordingBanner}
-        <AudioPreflightPanel onConfigChange={onAudioCaptureConfig} />
-        <OnlineAudioPanel
-          enabled={onlineAudio}
-          onToggle={handleOnlineAudioToggle}
-          state={systemAudioState}
-          levels={sourceLevels}
-          isListening={store.isListening}
-        />
         <HelperPanel />
         <DictaphoneView
           level={level}
@@ -753,6 +784,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
           isConnected={store.isConnected}
           onStart={handleStartListening}
           onStop={handleStopListening}
+          extra={sideCalibration(false)}
         />
         {toastEl}
       </div>
@@ -764,14 +796,6 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       {topBar}
       <OfflineBanner />
       {recordingBanner}
-      <AudioPreflightPanel onConfigChange={onAudioCaptureConfig} />
-      <OnlineAudioPanel
-        enabled={onlineAudio}
-        onToggle={handleOnlineAudioToggle}
-        state={systemAudioState}
-        levels={sourceLevels}
-        isListening={store.isListening}
-      />
       <HelperPanel />
       {/* Tab bar + бейдж участников справа */}
       <div className="meeting-tabs" style={styles.tabs}>
@@ -995,6 +1019,8 @@ export function MeetingPage({ meetingId, onBack }: Props) {
           );
         })()}
       </div>
+
+      {activeTab === 0 && sideCalibration(true)}
 
       {/* Drawer toggle (mobile only) */}
       {activeTab === 0 && (

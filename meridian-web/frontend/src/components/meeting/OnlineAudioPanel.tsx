@@ -102,7 +102,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: theme.bg.secondary,
     border: `1px solid ${theme.border.default}`,
     borderRadius: 8,
-    margin: '0 12px 8px',
+    margin: 0,
     padding: '10px 14px',
     flexShrink: 0,
   },

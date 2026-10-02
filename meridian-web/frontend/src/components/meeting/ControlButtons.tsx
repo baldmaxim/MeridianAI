@@ -69,7 +69,7 @@ export function ControlButtons({
       <div className="control-spacer" style={styles.spacer} />
 
       <span className="control-hints" style={styles.hint}>
-        <kbd style={styles.kbd}>Space</kbd> пауза · <kbd style={styles.kbd}>H</kbd> подсказка · <kbd style={styles.kbd}>S</kbd> усилить
+        <kbd style={styles.kbd}>Space</kbd> пауза · <kbd style={styles.kbd}>H</kbd> подсказка · <kbd style={styles.kbd}>S</kbd> усилить · <kbd style={styles.kbd}>M</kbd> говорим мы
       </span>
 
       <div className="control-status" style={styles.status}>

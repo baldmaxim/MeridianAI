@@ -23,7 +23,7 @@ export function AudioPreflightPanel({
   const { devices, selection, permissionGranted, error, requestPermission, setDevice, setRoute } =
     useAudioInputDevices();
   const sc = useAudioSoundCheck();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [mcShadow, setMcShadow] = useState(() => loadMultichannelShadowEnabled());
 
   // Тоггл multichannel shadow показываем только для multi-канальных маршрутов или если sound-check
@@ -182,7 +182,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: theme.bg.secondary,
     border: `1px solid ${theme.border.default}`,
     borderRadius: 8,
-    margin: '8px 12px',
+    margin: '0 0 8px',
     overflow: 'hidden',
     flexShrink: 0,
   },

@@ -17,6 +17,7 @@ import logging
 import time
 import uuid
 from datetime import datetime
+from types import SimpleNamespace
 
 from sqlalchemy import select, update
 
@@ -29,6 +30,7 @@ from .online_capture_sides import (
     clamp_level,
     virtual_device_ids,
 )
+from .self_hold_sides import SelfHoldTracker
 from .secondary_audio_shadow import SecondaryAudioShadow
 from .multi_source_ingest import MultiSourceIngest, ROLE_PRIMARY, ROLE_SECONDARY
 from .device_clock import ClockSyncReport, classify_quality
@@ -173,6 +175,8 @@ class MeetingRoom:
             min_votes=_s.online_capture_side_min_votes,
             min_ratio=_s.online_capture_side_min_ratio,
         )
+        # Очная встреча: интервалы удержания кнопки «говорим мы» → голоса в тот же voter.
+        self._self_hold = SelfHoldTracker()
         # Этап 9.2: secondary audio shadow (аудио-чанки вторых устройств БЕЗ STT)
         self.shadow = SecondaryAudioShadow(get_settings())
         # Этап 9.3: единый ingest-слой (общая server timeline для всех источников)
@@ -433,6 +437,7 @@ class MeetingRoom:
         if not conn:
             return
         self.observer.remove_device(connection_id)  # Этап 9: чистим метрики observer
+        self._self_hold.release_all(connection_id, int(time.time() * 1000))  # кнопка «говорим мы»
         if connection_id in self._online_capture_conns:
             # Онлайн-захват: снять оба виртуальных устройства этого соединения
             self._online_capture_conns.discard(connection_id)
@@ -1106,6 +1111,8 @@ class MeetingRoom:
                 diarization=self.settings.get("diarization", True),
                 max_speakers=self.settings.get("diarization_max_speakers", 3),
             )
+            # Новое подключение к STT нумерует голоса заново — автостороны прошлой сессии неверны.
+            await self._reset_auto_sides()
         await self.broadcast(self._recording_status_payload(True))
         # Задача 3: сменился активный источник → обновить роли участников в шапке
         await self._broadcast_participants()
@@ -1252,6 +1259,17 @@ class MeetingRoom:
             # (числа, не аудио). Только от того, кто реально пишет звук.
             if conn and conn.can_record:
                 self._handle_audio_source_levels(connection_id, message, server_receive_ms)
+        elif t == "self_hold":
+            # Очная встреча: держат кнопку, пока говорит наша сторона (калибровка сторон).
+            if conn and conn.can_record:
+                client_ts_ms = message.get("client_ts_ms")
+                ts = (conn.to_server_ms(client_ts_ms)
+                      if conn.clock is not None and isinstance(client_ts_ms, (int, float))
+                      else float(server_receive_ms))
+                if message.get("holding"):
+                    self._self_hold.press(connection_id, int(ts))
+                else:
+                    self._self_hold.release(connection_id, int(ts))
         elif t == "observer_side":
             if conn and conn.device_role == "observer":
                 self.observer.set_side_hint(connection_id, message.get("side"))
@@ -1473,6 +1491,7 @@ class MeetingRoom:
                     diarization=bool(new_diar),
                     max_speakers=int(new_max or 3),
                 )
+                await self._reset_auto_sides()
                 await self.broadcast(self._recording_status_payload(self.session.is_listening))
             except Exception as e:
                 logger.error(f"[room {self.meeting_id}] restart STT failed: {e}")
@@ -1618,6 +1637,10 @@ class MeetingRoom:
             await self._broadcast_side_hint(segment)
         except Exception as e:
             logger.debug(f"[room {self.meeting_id}] side hint failed: {e}")
+        try:
+            await self._apply_self_hold_side(segment)
+        except Exception as e:
+            logger.debug(f"[room {self.meeting_id}] self-hold side failed: {e}")
         # Этап 7/8: live speaker→audio attribution — ТОЛЬКО при безопасной structured metadata
         # (isolated/per-speaker source). Общий primary room-mic → no-op (не маппим всех на primary).
         try:
@@ -1743,7 +1766,8 @@ class MeetingRoom:
                 return hint
         return self.observer.compute_segment_hint(segment_key, wall_clock) if wall_clock else None
 
-    async def _auto_assign_online_side(self, segment, hint) -> None:
+    async def _auto_assign_online_side(self, segment, hint,
+                                       source: str = "по источнику звука") -> None:
         """Закрепить сторону за меткой спикера, когда подсказок по ней набралось достаточно.
 
         Ручное назначение пользователя не перетираем. Решение принимается один раз на метку
@@ -1763,8 +1787,48 @@ class MeetingRoom:
         self.session.set_speaker_role(label, decided)
         await self._persist_speaker_role(label, decided, None)
         await self.broadcast(self._speaker_roles_payload())
-        logger.info("[room %s] сторона спикера определена по источнику звука: %s",
-                    self.meeting_id, decided)
+        logger.info("[room %s] сторона спикера определена %s: %s",
+                    self.meeting_id, source, decided)
+
+    async def _apply_self_hold_side(self, segment) -> None:
+        """Голос стороны реплики по кнопке «говорим мы» (очная встреча, калибровка).
+
+        Интервал речи — speech_start/end_ms; без них — длительность реплики до момента фиксации.
+        Решение по метке принимает тот же voter, что и для онлайн-захвата.
+        """
+        start_ms = getattr(segment, "speech_start_ms", None)
+        end_ms = getattr(segment, "speech_end_ms", None)
+        if start_ms is None or end_ms is None:
+            center = getattr(segment, "server_ts_ms", None)
+            if center is None:
+                return
+            duration_s = (getattr(segment, "end_time", 0) or 0) - (getattr(segment, "start_time", 0) or 0)
+            duration_ms = max(0, int(duration_s * 1000))
+            start_ms, end_ms = int(center) - duration_ms, int(center)
+        vote = self._self_hold.classify(int(start_ms), int(end_ms))
+        if vote is None:
+            return
+        side, weight = vote
+        await self._auto_assign_online_side(segment, SimpleNamespace(side=side, confidence=weight),
+                                            source="по кнопке «говорим мы»")
+
+    async def _reset_auto_sides(self) -> None:
+        """Снять автоназначенные стороны и голоса — после нового подключения к STT.
+
+        Провайдер нумерует голоса заново, прежняя привязка «метка → сторона» легла бы на
+        других людей. Ручные назначения не трогаем: их voter не считает своими.
+        """
+        labels = list(self._online_side_voter.assigned)
+        self._online_side_voter.reset()
+        self._self_hold.reset()
+        cleared = False
+        for label in labels:
+            if self.session.speaker_roles.get(label):
+                self.session.set_speaker_role(label, "")
+                await self._persist_speaker_role(label, "", None)
+                cleared = True
+        if cleared:
+            await self.broadcast(self._speaker_roles_payload())
 
     async def _broadcast_side_hint(self, segment) -> None:
         """Подсказка стороны реплики из двух «быстрых» источников вокруг committed-сегмента:
