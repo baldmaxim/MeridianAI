@@ -25,14 +25,31 @@ from ...models.meeting import MeetingSession
 from ...services.batch_to_meeting import merge_transcription_into_meeting, transcription_segments
 from ...services.api_keys import load_api_keys
 from ...services import s3
+from ...services.meeting_setup import load_user_settings
 from .audio_compressor import AudioCompressor
 from .transcription_service import BatchTranscriptionService
+from .deepgram_transcription_service import DeepgramBatchTranscriptionService
 from .protocol_generator import ProtocolGenerator
 from .segment_translator import SegmentTranslator, needs_translation
 from .utils import build_translation_json, parse_translation_map
 from .utils import split_protocol_output
 
 logger = logging.getLogger("meridian.batch")
+
+BATCH_STT = {
+    "deepgram": ("Deepgram", DeepgramBatchTranscriptionService),
+    "elevenlabs": ("ElevenLabs", BatchTranscriptionService),
+}
+
+
+def pick_batch_stt(chosen: str | None, api_keys: dict) -> tuple[str, str] | None:
+    """Провайдер из настроек пользователя; без ключа/не умеет батч — следующий с ключом."""
+    order = [chosen] if chosen in BATCH_STT else []
+    order += [p for p in BATCH_STT if p not in order]
+    for provider in order:
+        if api_keys.get(provider):
+            return provider, api_keys[provider]
+    return None
 
 
 async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None,
@@ -152,20 +169,23 @@ async def handle_batch_transcribe(payload: dict) -> None:
                     else:
                         logger.info("FFmpeg недоступен — пропуск сжатия")
 
-                elevenlabs_key = api_keys.get("elevenlabs")
-                if not elevenlabs_key:
+                chosen = (await load_user_settings(job.user_id)).get("stt_provider")
+                picked = pick_batch_stt(chosen, api_keys)
+                if not picked:
                     job.status = "error"
-                    job.error_message = "API ключ ElevenLabs не найден"
+                    job.error_message = "API ключ Deepgram/ElevenLabs не найден"
                     await db.commit()
                     return
+                provider, stt_key = picked
+                label, service_cls = BATCH_STT[provider]
+                logger.info("job %s: распознавание через %s (в настройках: %s)",
+                            job_id, provider, chosen)
                 job.status = "transcribing"
                 await db.commit()
-                transcription = await BatchTranscriptionService(elevenlabs_key).transcribe(
-                    file_to_transcribe
-                )
+                transcription = await service_cls(stt_key).transcribe(file_to_transcribe)
                 if not transcription:
                     job.status = "error"
-                    job.error_message = "Ошибка транскрипции ElevenLabs"
+                    job.error_message = f"Ошибка транскрипции {label}"
                     await db.commit()
                     return
                 job.transcription_text = transcription.get("text", "")
