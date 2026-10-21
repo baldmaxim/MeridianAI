@@ -21,6 +21,7 @@ from app.models.directory import Customer, ProjectObject
 from app.models.document import DocumentRecord, DocumentChunk
 from app.schemas.document import DocumentUploadSessionRequest
 from app.services import s3 as s3mod
+from app.services import document_storage
 from app.services import document_processing as dp
 from app.services.document_context import get_relevant_chunks_for_meeting, format_chunks_block
 from app.api.documents import create_document_upload_session, confirm_document_upload
@@ -100,6 +101,8 @@ async def sqlite_sm(monkeypatch):
 
 def _enable_s3(monkeypatch):
     monkeypatch.setattr(s3mod, "presign_put", lambda key, ttl=None: "http://fake-s3/put")
+    # Не зависим от S3 в локальном .env: в CI S3 не сконфигурирован → без этого legacy_multipart
+    monkeypatch.setattr(document_storage, "is_enabled", lambda: True)
 
 
 # ---------- 1–3: upload-session ----------
