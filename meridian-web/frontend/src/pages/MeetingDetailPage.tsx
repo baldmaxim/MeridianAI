@@ -23,12 +23,13 @@ interface IMeetingDetailPageProps {
   backLabel?: string;
 }
 
-type TMobileTab = 'transcript' | 'suggestions' | 'context';
+type TMobileTab = 'transcript' | 'suggestions' | 'context' | 'knowledge';
 
 const MOBILE_TABS: ReadonlyArray<{ key: TMobileTab; label: string }> = [
   { key: 'transcript', label: 'Транскрипция' },
   { key: 'suggestions', label: 'Подсказки' },
   { key: 'context', label: 'Контекст' },
+  { key: 'knowledge', label: 'Знания' },
 ];
 
 export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
@@ -141,12 +142,6 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         currentObjectId={meeting.object_id}
       />
 
-      {/* Этап 7: кандидаты в базу знаний по этой встрече */}
-      <div className={`${styles.section} ${styles.knowledgeSection}`}>
-        <PanelHeader title="База знаний по встрече" plain />
-        <LearningCandidates meetingId={meetingId} compact />
-      </div>
-
       {/* Mobile tabs */}
       <div className={`detail-mobile-tabs ${styles.mobileTabs}`}>
         {MOBILE_TABS.map(({ key, label }) => (
@@ -160,8 +155,16 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         ))}
       </div>
 
-      {/* Two-panel layout */}
+      {/* Три колонки: база знаний | транскрипция | контекст (планшет — две, телефон — вкладки) */}
       <div className={`detail-panels ${styles.panels}`}>
+        {/* Этап 7: кандидаты в базу знаний по этой встрече */}
+        <div className={`${mobileTab !== 'knowledge' ? 'detail-hide-mobile ' : ''}${styles.knowledgePanel}`}>
+          <PanelHeader title="База знаний по встрече" />
+          <div className={styles.knowledgeList}>
+            <LearningCandidates meetingId={meetingId} compact />
+          </div>
+        </div>
+
         {/* Left: Transcript */}
         <div className={`detail-left ${mobileTab !== 'transcript' ? 'detail-hide-mobile' : ''} ${styles.leftPanel}`}>
           <PanelHeader title="Транскрипция" meta={`${meeting.segments.length} сегментов`} />
@@ -176,7 +179,7 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         </div>
 
         {/* Right: Suggestions + Context */}
-        <div className={`detail-right ${mobileTab === 'transcript' ? 'detail-hide-mobile' : ''} ${styles.rightPanel}`}>
+        <div className={`detail-right ${mobileTab === 'transcript' || mobileTab === 'knowledge' ? 'detail-hide-mobile' : ''} ${styles.rightPanel}`}>
           {/* Context section */}
           <div className={`${mobileTab === 'suggestions' ? 'detail-hide-mobile ' : ''}${styles.section}`}>
             <PanelHeader title="Контекст" />
