@@ -13,6 +13,7 @@ import { ObjectDetailPage } from './pages/ObjectDetailPage';
 import { LettersSearchPage } from './pages/LettersSearchPage';
 import { ProjectLinkPage } from './pages/ProjectLinkPage';
 import { SettingsHubPage } from './pages/SettingsHubPage';
+import { DesktopAppPage } from './pages/DesktopAppPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { PageTransition } from './components/common/PageTransition';
 import { RecorderPage } from './pages/RecorderPage';
@@ -25,10 +26,10 @@ import { meetingDisplayName } from './lib/meetingName';
 import type { ProjectObject } from './types';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
-  | 'files' | 'knowledge' | 'letters' | 'project-links' | 'ai-settings' | 'settings';
+  | 'files' | 'knowledge' | 'letters' | 'project-links' | 'ai-settings' | 'settings' | 'desktop';
 
 // Под-потоки, всегда доступные авторизованному (не входят в матрицу доступа).
-const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters', 'project-links', 'files'];
+const ALWAYS_PAGES: Page[] = ['objects', 'object-detail', 'meeting', 'history', 'history-detail', 'letters', 'project-links', 'files', 'desktop'];
 
 // Маршрут (URL) → внутренняя страница + выбранные сущности.
 function pageFromRoute(route: ReturnType<typeof parseRoute>): {
@@ -65,6 +66,8 @@ function pageFromRoute(route: ReturnType<typeof parseRoute>): {
       return { page: 'ai-settings', objectId: null, meetingId: null, detailReturn: 'history' };
     case 'settings':
       return { page: 'settings', objectId: null, meetingId: null, detailReturn: 'history' };
+    case 'desktop':
+      return { page: 'desktop', objectId: null, meetingId: null, detailReturn: 'history' };
     default:
       return { page: 'objects', objectId: null, meetingId: null, detailReturn: 'history' };
   }
@@ -194,6 +197,8 @@ function App() {
             onNewMeeting={startNewMeeting}
           />
         );
+      case 'desktop':
+        return <DesktopAppPage onBack={() => navigate(paths.objects)} />;
       case 'settings':
         return <SettingsHubPage onBack={() => navigate(paths.objects)} />;
       case 'meeting':
@@ -260,6 +265,8 @@ function App() {
       showLetters={currentPage === 'letters'}
       onShowFiles={() => navigate(currentPage === 'files' ? paths.objects : paths.files)}
       showFiles={currentPage === 'files'}
+      onShowDesktop={() => navigate(currentPage === 'desktop' ? paths.objects : paths.desktop)}
+      showDesktop={currentPage === 'desktop'}
       onShowAISettings={canAccess('ai-settings') ? () => navigate(currentPage === 'ai-settings' ? paths.objects : paths.aiSettings) : undefined}
       showAISettings={currentPage === 'ai-settings'}
       canSwitchRole={isAdmin}

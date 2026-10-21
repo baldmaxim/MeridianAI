@@ -778,8 +778,13 @@ class SessionManager:
                 **partial.to_wire(),
             }))
 
-    def _on_committed(self, segment: CommittedSegment):
-        """Committed segment — source of truth. Store, analyze, notify."""
+    def _on_committed(self, segment: CommittedSegment, *, replay: bool = False):
+        """Committed segment — source of truth. Store, analyze, notify.
+
+        replay=True — досыпка уже известного сегмента в историю (клиент переподключился к
+        свежей комнате): пополняет историю и память встречи, но ничего не рассылает и не
+        запускает подсказки/дерево — реплика была и прозвучала раньше.
+        """
         # Apply speaker label
         if segment.speaker_id in self.speaker_mapping:
             segment.speaker_label = self.speaker_mapping[segment.speaker_id]
@@ -805,7 +810,7 @@ class SessionManager:
         # Send committed_transcript with word-level data to client
         # (frontend handles this in committed_transcript case,
         #  which adds to both committedSegments and messages)
-        if self._ws_send:
+        if self._ws_send and not replay:
             asyncio.create_task(self._send_json({
                 "type": "committed_transcript",
                 **segment.to_wire_full(),
@@ -822,11 +827,13 @@ class SessionManager:
             side=self._live_segment_side(segment.segment_id, segment.wall_clock,
                                          segment.speech_start_ms, segment.speech_end_ms),
         )
-        if self._ws_send:
+        if self._ws_send and not replay:
             asyncio.create_task(self._send_turn_update(turn))
 
         # Feed meeting memory
         self._meeting_memory.ingest_turn(turn)
+        if replay:
+            return
         if self._meeting_memory.needs_summary_update() and self.llm_client:
             asyncio.create_task(self._meeting_memory.update_summary(self.llm_client))
 

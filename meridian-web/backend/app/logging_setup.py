@@ -110,3 +110,8 @@ def setup_logging(dev_mode: bool = False, level: str = "INFO") -> None:
     # Дефолтный uvicorn access-лог отключаем: он пишет полный путь с ?token=.
     # Доступ логируем сами (редактированно) в RequestContextMiddleware.
     logging.getLogger("uvicorn.access").disabled = True
+    # uvicorn.error пишет «WebSocket /ws/...?token=… [accepted]» через собственный handler
+    # (мимо root) — чистим токен фильтром на самом логгере (токен устройства живёт долго).
+    uv_error = logging.getLogger("uvicorn.error")
+    if not any(isinstance(f, RedactionFilter) for f in uv_error.filters):
+        uv_error.addFilter(RedactionFilter())

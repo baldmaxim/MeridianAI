@@ -38,7 +38,7 @@ from ..services.access import (
 )
 from ..api.objects import resolve_or_create_customer
 from ..services.meeting_room import room_registry, compute_live_state
-from ..services.meeting_finalize import request_finalization
+from ..services.meeting_finalize import close_and_request_finalization, request_finalization
 from ..schemas.document import MeetingDocumentItem, MeetingDocumentPatch
 from ..schemas.finalization import (
     FinalizationStatusResponse,
@@ -655,13 +655,7 @@ async def finalize_meeting_endpoint(
         raise HTTPException(404, "Meeting not found")
     if not await can_record_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Недостаточно прав для завершения встречи")
-    if meeting.is_active:
-        meeting.is_active = False
-        meeting.status = "finalized"
-        if not meeting.ended_at:
-            from datetime import datetime as _dt
-            meeting.ended_at = _dt.utcnow()
-    await request_finalization(db, meeting_id)
+    await close_and_request_finalization(db, meeting)
     await db.flush()
     return FinalizationStatusResponse(
         meeting_id=meeting.id, status=meeting.finalization_status,

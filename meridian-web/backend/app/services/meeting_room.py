@@ -50,6 +50,7 @@ from ..models.meeting import (
     MeetingDocumentRecord,
 )
 from ..core.context.document_loader import MeetingDocument
+from ..core.transcription.models import CommittedSegment
 from ..core.context.audio_frame_v2 import is_audio_frame_v2
 from ..core.context.segment_source_attribution import (
     extract_segment_source_attribution,
@@ -177,6 +178,10 @@ class MeetingRoom:
         )
         # Очная встреча: интервалы удержания кнопки «говорим мы» → голоса в тот же voter.
         self._self_hold = SelfHoldTracker()
+        # Десктоп-приложение шлёт готовые фразы без аудио: id уже принятых (дедуп повторов
+        # после переподключения) и сторона каждой фразы (mic → self, system → opponent).
+        self._external_seen: set[str] = set()
+        self._external_sides: dict[str, str] = {}
         # Этап 9.2: secondary audio shadow (аудио-чанки вторых устройств БЕЗ STT)
         self.shadow = SecondaryAudioShadow(get_settings())
         # Этап 9.3: единый ingest-слой (общая server timeline для всех источников)
@@ -475,6 +480,39 @@ class MeetingRoom:
         # комната опустела — сохранить сегменты (без закрытия встречи), чтобы не потерять
         if not self.connections and not self.closed:
             await self._persist_segments(close=False)
+
+    # --- готовые фразы от десктоп-приложения (без аудио) ---
+
+    async def ingest_external_segments(
+        self, items: list[tuple[CommittedSegment, str | None]], *, replay: bool = False,
+    ) -> int:
+        """Подать готовые фразы в живую историю так же, как финальные сегменты от STT.
+
+        items — (сегмент, сторона self|opponent|None). segment_id — серверный id из БД, поэтому
+        _persist_segments видит фразу как уже сохранённую и не пишет дубль. Повтор того же id
+        пропускается: ни дубля в истории, ни повторных подсказок. replay=True — досыпка
+        истории без рассылки и подсказок. Возвращает число реально добавленных фраз.
+        """
+        added = 0
+        new_roles: list[tuple[str, str]] = []
+        for segment, side in items:
+            if segment.segment_id in self._external_seen:
+                continue
+            self._external_seen.add(segment.segment_id)
+            label = segment.speaker_label or ""
+            if side:
+                self._external_sides[segment.segment_id] = side
+                # Роль метки нужна диалогу подсказок ([МЫ]/[НЕ МЫ]); ручное назначение не трогаем.
+                if label and label not in self.session.speaker_roles:
+                    self.session.set_speaker_role(label, side)
+                    new_roles.append((label, side))
+            self.session._on_committed(segment, replay=replay)
+            added += 1
+        for label, side in new_roles:
+            await self._persist_speaker_role(label, side, None)
+        if new_roles:
+            await self.broadcast(self._speaker_roles_payload())
+        return added
 
     # --- активный источник аудио ---
 
@@ -1751,7 +1789,11 @@ class MeetingRoom:
         """Сторона реплики для диалога подсказок — только по дорожкам онлайн-захвата.
 
         Второй телефон в комнате сюда не идёт: там сторона — ручная, авто-применение выключено.
+        Фраза от десктоп-приложения уже пришла со стороной (канал mic/system) — берём её.
         """
+        external = self._external_sides.get(segment_key)
+        if external:
+            return external
         if not get_settings().online_capture_side_in_prompt or not self._only_online_capture_devices():
             return None
         hint = self._online_capture_hint(segment_key, wall_clock, speech_start_ms, speech_end_ms)

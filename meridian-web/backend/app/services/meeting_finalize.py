@@ -46,6 +46,19 @@ async def request_finalization(db: AsyncSession, meeting_id: int) -> bool:
     return True
 
 
+async def close_and_request_finalization(db: AsyncSession, meeting: MeetingSession) -> bool:
+    """Завершить встречу (если ещё live) и поставить формирование протокола в очередь.
+
+    Общая точка для веб-ручки и десктоп-приложения. Коммитит ВЫЗЫВАЮЩИЙ.
+    """
+    if meeting.is_active:
+        meeting.is_active = False
+        meeting.status = "finalized"
+        if not meeting.ended_at:
+            meeting.ended_at = datetime.utcnow()
+    return await request_finalization(db, meeting.id)
+
+
 async def enqueue_finalization(meeting_id: int) -> None:
     """Вариант с собственной сессией (для MeetingRoom)."""
     async with async_session() as db:
@@ -112,8 +125,7 @@ async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str
         meta.append(f"Объект: {obj.name}")
     if meeting.meeting_topic:
         meta.append(f"Тема: {meeting.meeting_topic}")
-    if meeting.meeting_notes:
-        meta.append(f"Заметки/цели: {meeting.meeting_notes}")
+    # Заметки участника идут в промпт отдельным блоком (build_user_prompt), здесь не дублируем.
     if meeting.negotiation_type:
         meta.append(f"Тип переговоров: {meeting.negotiation_type}")
     if meeting.meeting_role:
@@ -269,6 +281,7 @@ async def handle_meeting_finalize(payload: dict) -> None:
                 return
             meeting = await db.get(MeetingSession, meeting_id)
             meeting_block, transcript_text, documents_block, doc_names = await _gather_inputs(db, meeting)
+            meeting_notes = meeting.meeting_notes or ""
             # Этап 8: компактные итоги выбранных прошлых встреч (контекст, НЕ решения текущей)
             from .previous_meeting_context import build_previous_context_block
             previous_block = await build_previous_context_block(db, meeting_id)
@@ -306,7 +319,8 @@ async def handle_meeting_finalize(payload: dict) -> None:
         client.set_system_prompt(SYSTEM_PROMPT)
         user_prompt = build_user_prompt(meeting_block, transcript_text, documents_block,
                                         previous_meetings_block=previous_block,
-                                        conversation_tree_block=conversation_tree_block)
+                                        conversation_tree_block=conversation_tree_block,
+                                        meeting_notes=meeting_notes)
 
         raw = None
         for attempt in range(max(1, settings.meeting_finalization_retry_attempts)):

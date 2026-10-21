@@ -60,6 +60,7 @@ export const paths = {
   projectLinks: '/project-links',
   aiSettings: '/ai-settings',
   settings: '/settings',
+  desktop: '/desktop',
 };
 
 /** Разбор маршрута приложения по pathname. */
@@ -79,6 +80,7 @@ export type AppRoute =
   | { kind: 'project-links' }
   | { kind: 'ai-settings' }
   | { kind: 'settings' }
+  | { kind: 'desktop' }
   | { kind: 'login' };
 
 export function parseRoute(pathname: string): AppRoute {
@@ -112,6 +114,7 @@ export function parseRoute(pathname: string): AppRoute {
   if (/^\/project-links\/?$/.test(pathname)) return { kind: 'project-links' };
   if (/^\/ai-settings\/?$/.test(pathname)) return { kind: 'ai-settings' };
   if (/^\/settings\/?$/.test(pathname)) return { kind: 'settings' };
+  if (/^\/desktop\/?$/.test(pathname)) return { kind: 'desktop' };
 
   // Неизвестный путь → объекты (стартовая).
   return { kind: 'objects' };

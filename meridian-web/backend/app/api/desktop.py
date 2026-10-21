@@ -1,0 +1,336 @@
+# -*- coding: utf-8 -*-
+"""Ручки десктоп-приложения записи встреч.
+
+Приложение на ПК пишет встречу локально, распознаёт её на месте и при появлении сети
+отправляет сюда. Любой запрос приложение может повторить после обрыва сети, поэтому все
+записи идемпотентны (см. services/desktop_sync).
+
+Вход — по паролю с выдачей токена устройства (в базе только его хэш, как у OCR-агентов); дальше
+приложение ходит с `Authorization: Bearer <токен>`. Ручки списка и отзыва устройств — для сайта
+(обычный JWT пользователя).
+"""
+
+import logging
+from pathlib import Path
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..auth.dependencies import get_current_user
+from ..config import get_settings
+from ..database import get_db
+from ..models.file import FileRecord
+from ..models.meeting import MeetingSession
+from ..models.user import User
+from ..ratelimit import limiter
+from ..schemas.desktop import (
+    AudioConfirmResponse,
+    AudioUploadRequest,
+    AudioUploadResponse,
+    DesktopDeviceOut,
+    DesktopLoginRequest,
+    DesktopLoginResponse,
+    DesktopMeResponse,
+    DesktopMeetingItem,
+    DesktopUserOut,
+    MeetingPatchRequest,
+    MeetingPatchResponse,
+    MeetingUpsertRequest,
+    MeetingUpsertResponse,
+    SegmentsRequest,
+    SegmentsResponse,
+)
+from ..schemas.finalization import FinalizationStatusResponse
+from ..schemas.meeting_ask import MeetingAskRequest, MeetingAskResponse
+from ..services import desktop_sync as sync
+from ..services import s3
+from ..services.meeting_ask import MeetingAskError, answer_question
+from ..services.audit import audit, client_ip, hmac_email
+from ..services.desktop_devices import (
+    DesktopAuth,
+    authenticate_device,
+    check_credentials,
+    enroll_device,
+    get_user_device,
+    list_devices,
+    revoke_device,
+    touch_device,
+)
+from .batch import ALLOWED_EXTENSIONS, MAX_FILE_SIZE
+from .history import _resolve_customer_object
+
+logger = logging.getLogger("meridian.desktop")
+
+router = APIRouter()
+
+
+async def current_desktop_device(
+    db: AsyncSession = Depends(get_db),
+    authorization: Annotated[str | None, Header()] = None,
+) -> DesktopAuth:
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    auth = await authenticate_device(db, token)
+    if auth is None:
+        # В лог — факт, но не токен.
+        logger.warning("неопознанное устройство десктоп-приложения")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Токен устройства не принят")
+    await touch_device(db, auth.device)
+    return auth
+
+
+Device = Annotated[DesktopAuth, Depends(current_desktop_device)]
+
+
+def _user_out(user: User) -> DesktopUserOut:
+    return DesktopUserOut(id=user.id, email=user.email, display_name=user.display_name, role=user.role)
+
+
+async def _linked(db: AsyncSession, auth: DesktopAuth, meeting_id: int):
+    found = await sync.get_linked_meeting(db, auth.user.id, meeting_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Встреча не найдена")
+    return found
+
+
+def _finalization_response(meeting: MeetingSession) -> FinalizationStatusResponse:
+    return FinalizationStatusResponse(
+        meeting_id=meeting.id, status=meeting.finalization_status,
+        error=meeting.finalization_error, finalized_at=meeting.finalized_at,
+        has_protocol=bool(meeting.protocol_markdown),
+    )
+
+
+# ── вход и устройство ──────────────────────────────────────────────────────
+
+
+@router.post("/login", response_model=DesktopLoginResponse)
+@limiter.limit("5/minute")
+async def desktop_login(request: Request, data: DesktopLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Войти по паролю и получить токен устройства. Токен показывается один раз."""
+    ip = client_ip(request)
+    email_hmac = hmac_email(data.email)
+    user, reason = await check_credentials(db, data.email, data.password)
+    if reason is not None:
+        await audit("desktop_login_failed", actor_user_id=user.id if user else None,
+                    ip=ip, email_hmac=email_hmac, reason=reason)
+        if reason == "inactive":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    device, token = await enroll_device(db, user.id, data.device_name, data.platform, data.app_version)
+    await db.commit()
+    await audit("desktop_login_success", actor_user_id=user.id, ip=ip,
+                email_hmac=email_hmac, device_id=device.id)
+    return DesktopLoginResponse(device_token=token, device_id=device.id, user=_user_out(user))
+
+
+@router.get("/me", response_model=DesktopMeResponse)
+async def desktop_me(auth: Device):
+    return DesktopMeResponse(user=_user_out(auth.user), device=DesktopDeviceOut.model_validate(auth.device))
+
+
+@router.post("/logout")
+async def desktop_logout(request: Request, auth: Device, db: AsyncSession = Depends(get_db)):
+    await revoke_device(db, auth.device)
+    await db.commit()
+    await audit("desktop_device_revoked", actor_user_id=auth.user.id, ip=client_ip(request),
+                device_id=auth.device.id, via="logout")
+    return {"ok": True}
+
+
+# ── устройства для сайта (JWT пользователя) ─────────────────────────────────
+
+
+@router.get("/devices", response_model=list[DesktopDeviceOut])
+async def devices_list(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await list_devices(db, user.id)
+
+
+@router.delete("/devices/{device_id}")
+async def devices_revoke(
+    device_id: int, request: Request,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    device = await get_user_device(db, user.id, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Устройство не найдено")
+    await revoke_device(db, device)
+    await db.commit()
+    await audit("desktop_device_revoked", actor_user_id=user.id, ip=client_ip(request),
+                device_id=device_id, via="site")
+    return {"ok": True}
+
+
+# ── встречи ───────────────────────────────────────────────────────────────
+
+
+@router.post("/meetings", response_model=MeetingUpsertResponse)
+async def meetings_upsert(data: MeetingUpsertRequest, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Создать встречу или вернуть уже созданную с тем же client_uuid (title/ended_at обновятся)."""
+    client_uuid = str(data.client_uuid)
+    customer_id, object_id = data.customer_id, data.object_id
+    # Заказчика и объект проверяем только при создании: повтор их не меняет.
+    if await sync.get_link(db, auth.user.id, client_uuid) is None:
+        customer_id, object_id = await _resolve_customer_object(
+            db, auth.user, data.customer_id, data.object_id
+        )
+    meeting, created = await sync.upsert_meeting(
+        db, auth.user.id, auth.device.id, client_uuid,
+        title=data.title, started_at=data.started_at, ended_at=data.ended_at,
+        capture_mode=data.capture_mode, customer_id=customer_id, object_id=object_id,
+    )
+    await db.commit()
+    return MeetingUpsertResponse(meeting_id=meeting.id, created=created)
+
+
+@router.get("/meetings", response_model=list[DesktopMeetingItem])
+async def meetings_list(auth: Device, db: AsyncSession = Depends(get_db)):
+    """Встречи, принятые от приложения этим пользователем."""
+    return [
+        DesktopMeetingItem(
+            meeting_id=m.id, client_uuid=link.client_uuid, title=m.title, started_at=m.started_at,
+            finalization_status=m.finalization_status or "not_started",
+            protocol_ready=bool(m.protocol_markdown),
+        )
+        for m, link in await sync.list_meetings(db, auth.user.id)
+    ]
+
+
+@router.put("/meetings/{meeting_id}/segments", response_model=SegmentsResponse)
+async def meetings_segments(
+    meeting_id: int, data: SegmentsRequest, auth: Device, db: AsyncSession = Depends(get_db),
+):
+    """Принять пачку сегментов транскрипта (upsert по client_segment_id)."""
+    meeting, link = await _linked(db, auth, meeting_id)
+    segments = [
+        sync.SegmentIn(
+            client_segment_id=s.client_segment_id, text=s.text, start_time=s.start_time,
+            end_time=s.end_time, wall_clock=s.wall_clock, channel=s.channel,
+            speaker_label=s.speaker_label,
+        )
+        for s in data.segments
+    ]
+    try:
+        created, updated = await sync.upsert_segments(db, meeting, link, segments)
+    except sync.DesktopMeetingClosedError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(e))
+    await db.commit()
+    return SegmentsResponse(created=created, updated=updated)
+
+
+@router.patch("/meetings/{meeting_id}", response_model=MeetingPatchResponse)
+async def meetings_patch(
+    meeting_id: int, data: MeetingPatchRequest, auth: Device, db: AsyncSession = Depends(get_db),
+):
+    """Название, конец встречи и заметки пользователя (заметки приходят списком целиком)."""
+    meeting, _ = await _linked(db, auth, meeting_id)
+    if data.title is not None and data.title.strip():
+        meeting.title = data.title.strip()[:255]
+    if data.ended_at is not None:
+        meeting.ended_at = sync.to_naive_utc(data.ended_at)
+    if data.notes is not None:
+        meeting.meeting_notes = sync.format_notes([(n.at_seconds, n.text) for n in data.notes])
+    await db.commit()
+    return MeetingPatchResponse(meeting_id=meeting.id, title=meeting.title, ended_at=meeting.ended_at)
+
+
+@router.post("/meetings/{meeting_id}/finalize", response_model=FinalizationStatusResponse)
+async def meetings_finalize(meeting_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Завершить встречу и поставить протокол в очередь. Повтор отдаёт текущий статус."""
+    meeting, _ = await _linked(db, auth, meeting_id)
+    await sync.finalize(db, meeting)
+    await db.commit()
+    return _finalization_response(meeting)
+
+
+@router.post("/meetings/{meeting_id}/ask", response_model=MeetingAskResponse)
+@limiter.limit("20/minute")
+async def meetings_ask(
+    request: Request, meeting_id: int, data: MeetingAskRequest, auth: Device,
+    db: AsyncSession = Depends(get_db),
+):
+    """Вопрос по встрече: ответ по документам, прошлым встречам, транскрипту и заметкам.
+
+    Работает и после финализации.
+    """
+    meeting, _ = await _linked(db, auth, meeting_id)
+    try:
+        return await answer_question(db, auth.user, meeting, data.question)
+    except MeetingAskError as e:
+        raise HTTPException(e.status_code, e.message)
+
+
+# ── аудио ─────────────────────────────────────────────────────────────────
+
+
+@router.post("/meetings/{meeting_id}/audio-upload", response_model=AudioUploadResponse)
+async def meetings_audio_upload(
+    meeting_id: int, data: AudioUploadRequest, auth: Device, db: AsyncSession = Depends(get_db),
+):
+    """Presigned PUT для аудио встречи. Только хранение: обработка аудио не запускается."""
+    if not get_settings().s3_enabled:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail="S3-хранилище не настроено")
+    await _linked(db, auth, meeting_id)
+    ext = Path(data.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"Формат {ext} не поддерживается. Допустимые: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
+    if data.size > MAX_FILE_SIZE:
+        raise HTTPException(400, f"Файл слишком большой (макс. {MAX_FILE_SIZE // 1024 // 1024}MB)")
+
+    # Канал держим в имени файла («mic_…», «system_…»): отдельной колонки в files нет. Имя же
+    # служит ключом идемпотентности — повтор запроса отдаёт ту же запись, а не плодит новые.
+    name = f"{data.channel}_{Path(data.filename).name}"[:500]
+    rec = (await db.execute(
+        select(FileRecord).where(
+            FileRecord.user_id == auth.user.id, FileRecord.meeting_id == meeting_id,
+            FileRecord.purpose == "meeting_audio", FileRecord.original_name == name,
+            FileRecord.status.in_(("pending", "active")),
+        ).order_by(FileRecord.id)
+    )).scalars().first()
+    if rec is not None and rec.status == "active":
+        return AudioUploadResponse(file_id=rec.id, upload_url=None, status="active")
+    if rec is None:
+        rec = FileRecord(
+            user_id=auth.user.id,
+            object_key=s3.object_key(auth.user.id, "meeting_audio", data.filename),
+            original_name=name,
+            size=data.size,
+            purpose="meeting_audio",
+            status="pending",
+            meeting_id=meeting_id,
+        )
+        db.add(rec)
+        await db.flush()
+    upload_url = s3.presign_put(rec.object_key)
+    await db.commit()
+    return AudioUploadResponse(file_id=rec.id, upload_url=upload_url, status="pending")
+
+
+@router.post("/meetings/{meeting_id}/audio-confirm/{file_id}", response_model=AudioConfirmResponse)
+async def meetings_audio_confirm(
+    meeting_id: int, file_id: int, auth: Device, db: AsyncSession = Depends(get_db),
+):
+    """Проверить объект в S3 и активировать запись. Повтор на активной — без обращения к S3."""
+    await _linked(db, auth, meeting_id)
+    rec = (await db.execute(
+        select(FileRecord).where(
+            FileRecord.id == file_id, FileRecord.user_id == auth.user.id,
+            FileRecord.meeting_id == meeting_id, FileRecord.purpose == "meeting_audio",
+            FileRecord.status.in_(("pending", "active")),
+        )
+    )).scalar_one_or_none()
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Файл не найден")
+    if rec.status != "active":
+        meta = await s3.head_object(rec.object_key)
+        if not meta:
+            raise HTTPException(400, "Объект не загружен в хранилище")
+        rec.status = "active"
+        rec.size = meta["size"]
+        rec.mime = meta.get("content_type")
+        await db.commit()
+    return AudioConfirmResponse(file_id=rec.id, status=rec.status, size=rec.size)

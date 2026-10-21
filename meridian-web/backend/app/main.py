@@ -29,6 +29,7 @@ from .api.documents import router as documents_router
 from .api.meetings import router as meetings_router
 from .api.roles import router as roles_router
 from .api.history import router as history_router
+from .api.meeting_ask import router as meeting_ask_router
 from .api.batch import router as batch_router
 from .api.stash import router as stash_router
 from .api.customers import router as customers_router
@@ -52,7 +53,9 @@ from .api.transcription_authority import router as transcription_authority_route
 from .api.privacy import router as privacy_router
 from .api.health import router as health_api_router
 from .api.ocr_agent import agent_router as ocr_agent_router, admin_router as ocr_agent_admin_router
+from .api.desktop import router as desktop_router
 from .ws.handler import router as ws_router
+from .ws.desktop_handler import router as desktop_ws_router
 
 settings = get_settings()
 setup_logging(dev_mode=settings.dev_mode)
@@ -179,6 +182,16 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.warning("[Cleanup] pending upload sweep failed", exc_info=False)
 
+    try:
+        from .database import async_session
+        from .services.desktop_sync import reset_stale_live_flags
+        async with async_session() as db:
+            n = await reset_stale_live_flags(db)
+        if n:
+            logger.info("[Startup] Reset is_active on %d desktop meeting(s)", n)
+    except Exception:
+        logger.warning("[Startup] desktop is_active reset failed", exc_info=False)
+
     cleanup_task = asyncio.create_task(_session_cleanup_loop())
 
     yield
@@ -275,6 +288,7 @@ app.include_router(documents_router, prefix="/api/documents", tags=["documents"]
 app.include_router(meetings_router, prefix="/api/transcriptions", tags=["meetings"])
 app.include_router(roles_router, prefix="/api/roles", tags=["roles"])
 app.include_router(history_router, prefix="/api/meetings", tags=["meetings-history"])
+app.include_router(meeting_ask_router, prefix="/api/meetings", tags=["meeting-ask"])
 app.include_router(batch_router, prefix="/api/batch", tags=["batch"])
 app.include_router(stash_router, prefix="/api/stash", tags=["stash"])
 # §12: page-access enforcement применяется per-endpoint в самих роутерах (require_page),
@@ -303,7 +317,10 @@ app.include_router(health_api_router, prefix="/api/health", tags=["health"])
 # Агент распознавания сканов на компьютере пользователя: ходит сюда сам по токену (NAT).
 app.include_router(ocr_agent_router, prefix="/api/ocr-agent", tags=["ocr-agent"])
 app.include_router(ocr_agent_admin_router, prefix="/api/admin/ocr-agents", tags=["ocr-agent"])
+# Десктоп-приложение записи встреч: вход с токеном устройства и идемпотентный приём встречи.
+app.include_router(desktop_router, prefix="/api/desktop", tags=["desktop"])
 app.include_router(ws_router)
+app.include_router(desktop_ws_router)
 
 
 @app.get("/health/live")
