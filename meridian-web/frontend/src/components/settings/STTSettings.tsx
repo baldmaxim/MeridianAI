@@ -1,6 +1,7 @@
 import { theme } from '../../styles/theme';
 import { Select } from '../common';
 import { SettingToggle } from './SettingToggle';
+import { BatchSttSelect } from './BatchSttSelect';
 import styles from './STTSettings.module.css';
 
 const PROVIDERS = [
@@ -18,10 +19,12 @@ interface Props {
   onDiarizationChange: (v: boolean) => void;
   silenceFilter: boolean;
   onSilenceFilterChange: (v: boolean) => void;
+  batchValue?: string | null;
+  onBatchChange: (value: string) => void;
   activeServices?: string[];
 }
 
-export function STTSettings({ value, onChange, useStreaming, onStreamingChange, diarization, onDiarizationChange, silenceFilter, onSilenceFilterChange, activeServices }: Props) {
+export function STTSettings({ value, onChange, useStreaming, onStreamingChange, diarization, onDiarizationChange, silenceFilter, onSilenceFilterChange, batchValue, onBatchChange, activeServices }: Props) {
   const available = activeServices
     ? PROVIDERS.filter((p) => activeServices.includes(p.value))
     : [];
@@ -51,6 +54,8 @@ export function STTSettings({ value, onChange, useStreaming, onStreamingChange, 
       ) : (
         <div className={styles.noProviders}>Администратор не активировал STT-провайдеры</div>
       )}
+
+      <BatchSttSelect value={batchValue} onChange={onBatchChange} activeServices={activeServices} />
 
       <div className={styles.toggles}>
         <SettingToggle

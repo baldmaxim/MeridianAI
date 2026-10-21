@@ -3,7 +3,8 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # ffmpeg: сжатие аудио перед распознаванием (opus) + нарезка фрагментов
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# openssh-client: сервис asr-tunnel (SSH-туннель к ASR-серверу GigaAM)
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

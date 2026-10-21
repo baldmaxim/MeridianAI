@@ -116,6 +116,8 @@ export function SettingsPage({ onBack, embedded }: Props) {
                 onDiarizationChange={(v) => setSettings({ ...settings, diarization: v })}
                 silenceFilter={settings.silence_filter}
                 onSilenceFilterChange={(v) => setSettings({ ...settings, silence_filter: v })}
+                batchValue={settings.batch_stt_provider}
+                onBatchChange={(v) => setSettings({ ...settings, batch_stt_provider: v })}
                 activeServices={activeServices}
               />
             )}

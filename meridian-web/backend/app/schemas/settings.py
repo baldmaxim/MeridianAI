@@ -22,8 +22,12 @@ class TriggerKeywordConfig(BaseModel):
     enabled: bool = True
 
 
+BATCH_STT_PROVIDERS = ("", "deepgram", "elevenlabs", "gigaam")
+
+
 class UserSettingsResponse(BaseModel):
     stt_provider: str
+    batch_stt_provider: str | None = None
     llm_model: str
     temperature: float
     user_role: str
@@ -47,6 +51,7 @@ class UserSettingsResponse(BaseModel):
 
 class UserSettingsUpdate(BaseModel):
     stt_provider: str | None = None
+    batch_stt_provider: str | None = None
     llm_model: str | None = None
     temperature: float | None = None
     user_role: str | None = None
@@ -54,6 +59,13 @@ class UserSettingsUpdate(BaseModel):
     diarization: bool | None = None
     diarization_max_speakers: int | None = None
     silence_filter: bool | None = None
+
+    @field_validator("batch_stt_provider")
+    @classmethod
+    def check_batch_stt_provider(cls, v):
+        if v is not None and v not in BATCH_STT_PROVIDERS:
+            raise ValueError("batch_stt_provider: допустимы '', deepgram, elevenlabs, gigaam")
+        return v
 
     @field_validator("diarization_max_speakers")
     @classmethod

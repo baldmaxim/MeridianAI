@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import get_settings as _get_settings
 from ..database import get_db
 from ..models.user import User
 from ..models.settings import UserSettings
@@ -46,6 +47,9 @@ async def get_active_providers(
             select(ApiKey.service).where(ApiKey.is_active == True).distinct()
         )
     services = [row[0] for row in result.all()]
+    # GigaAM — сервис по URL из конфигурации, ключа в api_keys у него нет
+    if _get_settings().gigaam_url and "gigaam" not in services:
+        services.append("gigaam")
     return {"active_services": services}
 
 
@@ -72,6 +76,9 @@ async def update_settings(
             update_data[field] = json.dumps(
                 update_data[field], ensure_ascii=False
             )
+    # Пустая строка = «как в живой встрече» → NULL
+    if update_data.get("batch_stt_provider") == "":
+        update_data["batch_stt_provider"] = None
     for field, value in update_data.items():
         setattr(settings, field, value)
 
@@ -110,7 +117,6 @@ async def pick_folder(
     user: User = Depends(get_current_user),
 ):
     """Open native OS folder picker dialog and return selected path."""
-    from ..config import get_settings as _get_settings
     from fastapi import HTTPException
     if not _get_settings().dev_mode:
         raise HTTPException(403, "Folder picker is only available in DEV_MODE")

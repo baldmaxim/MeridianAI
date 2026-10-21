@@ -29,6 +29,7 @@ from ...services.meeting_setup import load_user_settings
 from .audio_compressor import AudioCompressor
 from .transcription_service import BatchTranscriptionService
 from .deepgram_transcription_service import DeepgramBatchTranscriptionService
+from .gigaam_transcription_service import GigaAMBatchTranscriptionService
 from .protocol_generator import ProtocolGenerator
 from .segment_translator import SegmentTranslator, needs_translation
 from .utils import build_translation_json, parse_translation_map
@@ -36,20 +37,26 @@ from .utils import split_protocol_output
 
 logger = logging.getLogger("meridian.batch")
 
+# Порядок = порядок автоматического fallback: GigaAM идёт после ключевых провайдеров.
+# credential: API-ключ (Deepgram/ElevenLabs) или URL сервиса (GigaAM)
 BATCH_STT = {
     "deepgram": ("Deepgram", DeepgramBatchTranscriptionService),
     "elevenlabs": ("ElevenLabs", BatchTranscriptionService),
+    "gigaam": ("GigaAM", GigaAMBatchTranscriptionService),
 }
+
+
+def ordered_batch_stt(chosen: str | None, credentials: dict) -> list[tuple[str, str]]:
+    """Провайдеры по приоритету: выбранный пользователем, затем остальные; только с credential."""
+    order = [chosen] if chosen in BATCH_STT else []
+    order += [p for p in BATCH_STT if p not in order]
+    return [(p, credentials[p]) for p in order if credentials.get(p)]
 
 
 def pick_batch_stt(chosen: str | None, api_keys: dict) -> tuple[str, str] | None:
     """Провайдер из настроек пользователя; без ключа/не умеет батч — следующий с ключом."""
-    order = [chosen] if chosen in BATCH_STT else []
-    order += [p for p in BATCH_STT if p not in order]
-    for provider in order:
-        if api_keys.get(provider):
-            return provider, api_keys[provider]
-    return None
+    ordered = ordered_batch_stt(chosen, api_keys)
+    return ordered[0] if ordered else None
 
 
 async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None,
@@ -169,20 +176,29 @@ async def handle_batch_transcribe(payload: dict) -> None:
                     else:
                         logger.info("FFmpeg недоступен — пропуск сжатия")
 
-                chosen = (await load_user_settings(job.user_id)).get("stt_provider")
-                picked = pick_batch_stt(chosen, api_keys)
-                if not picked:
+                user_settings = await load_user_settings(job.user_id)
+                chosen = user_settings.get("batch_stt_provider") or user_settings.get("stt_provider")
+                credentials = dict(api_keys)
+                if settings.gigaam_url:
+                    credentials["gigaam"] = settings.gigaam_url
+                candidates = ordered_batch_stt(chosen, credentials)
+                if not candidates:
                     job.status = "error"
-                    job.error_message = "API ключ Deepgram/ElevenLabs не найден"
+                    job.error_message = "Нет доступного распознавания: нужен ключ Deepgram/ElevenLabs или GigaAM"
                     await db.commit()
                     return
-                provider, stt_key = picked
-                label, service_cls = BATCH_STT[provider]
-                logger.info("job %s: распознавание через %s (в настройках: %s)",
-                            job_id, provider, chosen)
                 job.status = "transcribing"
                 await db.commit()
-                transcription = await service_cls(stt_key).transcribe(file_to_transcribe)
+                transcription = None
+                label = ""
+                for provider, credential in candidates:
+                    label, service_cls = BATCH_STT[provider]
+                    logger.info("job %s: распознавание через %s (в настройках: %s)",
+                                job_id, provider, chosen)
+                    transcription = await service_cls(credential).transcribe(file_to_transcribe)
+                    if transcription:
+                        break
+                    logger.warning("job %s: %s не вернул результат, пробуем следующего", job_id, provider)
                 if not transcription:
                     job.status = "error"
                     job.error_message = f"Ошибка транскрипции {label}"

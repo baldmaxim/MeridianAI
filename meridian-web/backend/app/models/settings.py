@@ -16,6 +16,10 @@ class UserSettings(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True
     )
     stt_provider: Mapped[str] = mapped_column(String(20), default="deepgram")
+    # Провайдер офлайн-распознавания (батч). NULL = как в живой встрече (stt_provider)
+    batch_stt_provider: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default=None
+    )
     llm_model: Mapped[str] = mapped_column(
         String(100), default="google/gemini-3-flash-preview"
     )

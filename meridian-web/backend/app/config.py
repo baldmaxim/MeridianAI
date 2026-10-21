@@ -329,6 +329,9 @@ class Settings(BaseSettings):
     multi_channel_batch_stt_result_ttl_seconds: int = Field(default=900, alias="MULTI_CHANNEL_BATCH_STT_RESULT_TTL_SECONDS")
     multi_channel_batch_stt_max_global_jobs: int = Field(default=2, alias="MULTI_CHANNEL_BATCH_STT_MAX_GLOBAL_JOBS")
     deepgram_batch_url: str = Field(default="https://api.deepgram.com/v1/listen", alias="DEEPGRAM_BATCH_URL")
+    # GigaAM — внешний HTTP-сервис офлайн-распознавания (доступ через SSH-туннель). Пусто = выключен.
+    gigaam_url: str = Field(default="", alias="GIGAAM_URL")
+    gigaam_timeout_seconds: int = Field(default=900, alias="GIGAAM_TIMEOUT_SECONDS")
 
     # Realtime multi-channel live STT shadow (Этап 9.6): выбранные primary/secondary каналы
     # mux-ятся в один realtime PCM16-multichannel stream и шлются в ОТДЕЛЬНОЕ realtime STT

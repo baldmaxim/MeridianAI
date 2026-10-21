@@ -20,6 +20,7 @@ logger = logging.getLogger("meridian.ws")
 
 DEFAULT_SETTINGS = {
     "stt_provider": "deepgram",
+    "batch_stt_provider": None,
     "llm_model": "google/gemini-3-flash-preview",
     "temperature": 0.7,
     "user_role": "gen_contractor",
@@ -58,6 +59,7 @@ async def load_user_settings(user_id: int | None) -> dict:
         if settings:
             return {
                 "stt_provider": settings.stt_provider,
+                "batch_stt_provider": settings.batch_stt_provider,
                 "llm_model": settings.llm_model,
                 "temperature": settings.temperature,
                 "user_role": settings.user_role,

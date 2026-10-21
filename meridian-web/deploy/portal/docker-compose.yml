@@ -17,6 +17,7 @@ services:
     environment:
       # БД — только Yandex Managed PG; DATABASE_URL берётся из meridian.env
       DEV_MODE: "false"
+      GIGAAM_URL: "http://asr-tunnel:18763"
     networks:
       internal: {}
       infra_web:
@@ -42,11 +43,29 @@ services:
     env_file: [./meridian.env]
     environment:
       DEV_MODE: "false"
+      GIGAAM_URL: "http://asr-tunnel:18763"
     mem_limit: 384m   # замер на проде ~98 MiB
     command: ["python", "-m", "app.worker"]
     init: true
     healthcheck:
       disable: true   # HEALTHCHECK образа бьёт в :8000, а воркер HTTP не слушает
+    networks: [internal]
+    restart: unless-stopped
+
+  # SSH-туннель к ASR-серверу (GigaAM: текст + говорящие) — только проброс :18763
+  # в сеть internal, shell/SFTP учётке запрещены на стороне сервера.
+  # Ключ, ssh_config и закреплённый ключ хоста — вне git: <REMOTE_DIR>/secrets/asr
+  # (каталог 700, файлы 600, владелец 10001). Обрыв → ssh выходит → restart.
+  # deploy-ghcr.sh поднимает сервис, только если secrets/asr/ssh_config на месте.
+  asr-tunnel:
+    image: ${REGISTRY}/meridian-api:${TAG}
+    mem_limit: 32m
+    init: true
+    command: ["ssh", "-F", "/run/asr/ssh_config", "-N", "-T", "meridian-asr"]
+    volumes:
+      - ../../../secrets/asr:/run/asr:ro
+    healthcheck:
+      disable: true
     networks: [internal]
     restart: unless-stopped
 

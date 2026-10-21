@@ -2,6 +2,7 @@ import type { SuggestionTypeConfig, TriggerKeywordConfig } from './suggestion';
 
 export interface UserSettings {
   stt_provider: string;
+  batch_stt_provider?: string | null;
   llm_model: string;
   temperature: number;
   user_role: string;

@@ -39,7 +39,10 @@ echo "== миграции (отдельный шаг, из образа) =="
 $DC run --rm migrate
 
 echo "== up app-сервисов (пересоздаются при смене образа/конфига) =="
-$DC up -d api worker frontend
+SERVICES="api worker frontend"
+# туннель к ASR (GigaAM) — только когда секреты разложены (secrets/asr, вне git)
+[ -f secrets/asr/ssh_config ] && SERVICES="$SERVICES asr-tunnel"
+$DC up -d $SERVICES
 
 echo "== health-gate: ждём ready (внутренняя проверка, до 90с) =="
 ok=0
