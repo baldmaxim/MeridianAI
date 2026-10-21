@@ -45,6 +45,8 @@ services:
     mem_limit: 384m   # замер на проде ~98 MiB
     command: ["python", "-m", "app.worker"]
     init: true
+    healthcheck:
+      disable: true   # HEALTHCHECK образа бьёт в :8000, а воркер HTTP не слушает
     networks: [internal]
     restart: unless-stopped
 
