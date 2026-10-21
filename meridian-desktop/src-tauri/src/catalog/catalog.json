@@ -1,0 +1,103 @@
+{
+  "schema": 2,
+  "transcribeCpp": "0.4.0",
+  "methodology": {
+    "dictationSeconds": 30,
+    "freeWaitSeconds": 3,
+    "waitWeight": 0.5,
+    "overallMaxWaitSeconds": 5,
+    "maxLanguageErrorPercent": 20,
+    "noteMinErrorPercent": 15,
+    "experimentalMaxErrorPercent": 30,
+    "fastCpuMaxWaitSeconds": 4,
+    "accurateMaxWaitSeconds": 10
+  },
+  "benchmarks": {
+    "quant": "Q8_0",
+    "accuracy": {
+      "dataset": "fleurs",
+      "split": "test"
+    },
+    "speed": {
+      "accelerated": {
+        "machine": "ryzen-4750u",
+        "backend": "vulkan"
+      },
+      "cpu": {
+        "machine": "ryzen-4750u",
+        "backend": "cpu"
+      }
+    }
+  },
+  "languageDetector": "lang-id-voxlingua107-ecapa",
+  "models": [
+    {
+      "id": "gigaam-v3-e2e-ctc",
+      "name": "GigaAM v3 E2E-CTC",
+      "description": "Russian only.",
+      "repository": "handy-computer/gigaam-v3-e2e-ctc-gguf",
+      "revision": "075dff81f843cf23d22b4ce943ffdc4dd8650cd7",
+      "previousRevisions": [],
+      "license": "mit",
+      "family": "gigaam",
+      "parameters": "221M",
+      "languages": [
+        "ru"
+      ],
+      "capabilities": {"streaming": false, "translate": false, "languageDetection": false, "timestamps": true},
+      "quant": "Q8_0",
+      "role": "asr",
+      "curated": true,
+      "minEngine": "0.2.4",
+      "files": {
+        "F32": {"filename": "gigaam-v3-e2e-ctc-F32.gguf", "size": 883603552, "sha256": "bf300323d1bc67bee5e9f177a5fae748d78077528c27de73ecc6d7a113e09ec5"},
+        "F16": {"filename": "gigaam-v3-e2e-ctc-F16.gguf", "size": 449098336, "sha256": "25a2fd66a50912645307bca1489b8c07e9060ef079b61a7cce0041248cc89b4a"},
+        "Q8_0": {"filename": "gigaam-v3-e2e-ctc-Q8_0.gguf", "size": 272151136, "sha256": "9ccce4750dc813a493d96ca15ee251712bedec15ac9a02fa3d2bd732f08ae5eb"},
+        "Q6_K": {"filename": "gigaam-v3-e2e-ctc-Q6_K.gguf", "size": 226439776, "sha256": "cb517247ae37589c5b281d6d9331ffb32124c77b789affe46a272be1428a5260"},
+        "Q5_K_M": {"filename": "gigaam-v3-e2e-ctc-Q5_K_M.gguf", "size": 204911200, "sha256": "d7c6a729f9bae8714d05cb7e66149e662c5098fe10b66206b70f4917f4f84004"},
+        "Q4_K_M": {"filename": "gigaam-v3-e2e-ctc-Q4_K_M.gguf", "size": 182497888, "sha256": "35581e11e048eef785657cff07e5fced794bba6d9c75143257f6452c8aeea655"}
+      }
+    },
+    {
+      "id": "gigaam-v3-e2e-rnnt",
+      "name": "GigaAM v3 E2E-RNN-T",
+      "description": "Best for Russian dictation. English may be unreliable.",
+      "repository": "handy-computer/gigaam-v3-e2e-rnnt-gguf",
+      "revision": "f719d70812344f4d0fb8c11c0887b190501a7465",
+      "previousRevisions": [],
+      "license": "mit",
+      "family": "gigaam",
+      "parameters": "223M",
+      "languages": [
+        "ru"
+      ],
+      "capabilities": {"streaming": false, "translate": false, "languageDetection": false, "timestamps": true},
+      "quant": "Q8_0",
+      "role": "asr",
+      "curated": true,
+      "minEngine": "0.2.4",
+      "files": {
+        "F32": {"filename": "gigaam-v3-e2e-rnnt-F32.gguf", "size": 890138592, "sha256": "0de6fa626b8a3429dc80e4b34c4b03c0e85b02e2eca4c654efbeb27a8a0a4c5b"},
+        "F16": {"filename": "gigaam-v3-e2e-rnnt-F16.gguf", "size": 452381408, "sha256": "87b12fa3523939d3c47c4b427f587e415dda41dcafa9e4ba17f2a1cab2f0d5ad"},
+        "Q8_0": {"filename": "gigaam-v3-e2e-rnnt-Q8_0.gguf", "size": 273724832, "sha256": "78d63b47723b7f8d78c6113a6ef983b5a86e2a86f6c273e1f5cb6967b1c4467a"},
+        "Q6_K": {"filename": "gigaam-v3-e2e-rnnt-Q6_K.gguf", "size": 227953952, "sha256": "1ef0f771d9ab0b0675c45ce67a3e5b79ac7497fe35ebb08a51704c4ee423edce"},
+        "Q5_K_M": {"filename": "gigaam-v3-e2e-rnnt-Q5_K_M.gguf", "size": 206392736, "sha256": "0f5969b05f7e196e8922e243c64963132025a5ae7ec2f83d028ae120d201594f"},
+        "Q4_K_M": {"filename": "gigaam-v3-e2e-rnnt-Q4_K_M.gguf", "size": 183948704, "sha256": "7d69952fb431a8d7800ed9910dc61fea37d8406bfe96d10bf24c8bd4b7c68623"}
+      }
+    }
+  ],
+  "results": {
+    "gigaam-v3-e2e-ctc": {
+      "accuracy": {
+        "ru": {"error": 5.53, "ciLower": 5.01}
+      },
+      "performance": {"accelerated": 35.375, "cpu": 11.455}
+    },
+    "gigaam-v3-e2e-rnnt": {
+      "accuracy": {
+        "ru": {"error": 5.35, "ciLower": 4.85}
+      },
+      "performance": {"accelerated": 15.02, "cpu": 7.875}
+    }
+  }
+}

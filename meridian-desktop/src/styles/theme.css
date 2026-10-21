@@ -1,0 +1,186 @@
+/* Meridian Colors */
+
+:root {
+  /* Palette source of truth. Each themed color is defined once as a
+     light/dark pair; the active tokens below and the `data-theme` overrides
+     in App.css reference these, so a hex value lives in exactly one place. */
+  --light-color-text: #0f0f0f;
+  --light-color-background: #fbfbfb;
+  --light-color-logo-primary: #3b82f6;
+  --light-color-logo-stroke: #1f2937;
+
+  /* Dark palette follows the MERIDIAN brand (branding/meridian.html). */
+  --dark-color-text: #edf2ff;
+  --dark-color-background: #080a0f;
+  --dark-color-logo-primary: #60a5fa;
+  --dark-color-logo-stroke: #e5e7eb;
+
+  /* Semantic status colors. First used by SecureInputWarning; intended to
+     replace the ad-hoc yellow-500/red-500 usages (e.g. ui/Alert.tsx) over
+     time so status styling is themeable from one place. */
+  --light-color-warning: #d97706;
+  --light-color-error: #dc2626;
+  --dark-color-warning: #fbbf24;
+  --dark-color-error: #ff4b6e;
+
+  /* Surface ladder (deep -> card) and secondary text. Used by the meetings UI;
+     light values are neutral counterparts of the dark brand surfaces. */
+  --light-color-deep: #f3f4f6;
+  --light-color-surface: #eef0f4;
+  --light-color-elevated: #e6e9ef;
+  --light-color-card: #ffffff;
+  --light-color-muted: #5b6475;
+  --light-color-subtle: #8b93a3;
+  --dark-color-deep: #0d1018;
+  --dark-color-surface: #111520;
+  --dark-color-elevated: #161c2c;
+  --dark-color-card: #1a2135;
+  --dark-color-muted: #8896b3;
+  --dark-color-subtle: #4a5568;
+
+  /* Brand status colors: amber (our side), blue (opponent), green (success). */
+  --light-color-amber: #c4851a;
+  --light-color-info: #2563eb;
+  --light-color-success: #059669;
+  --dark-color-amber: #f5a623;
+  --dark-color-info: #5b9cf6;
+  --dark-color-success: #2ee59d;
+
+  /* Tokens that do not change between light and dark */
+  --color-background-ui: #2563eb;
+  --color-text-stroke: #f6f6f6;
+  --color-mid-gray: #808080;
+
+  /* Active palette — defaults to light, follows the OS via the media query
+     below, or is forced by `data-theme` (see the overrides below). */
+  --color-text: var(--light-color-text);
+  --color-background: var(--light-color-background);
+  --color-logo-primary: var(--light-color-logo-primary);
+  --color-logo-stroke: var(--light-color-logo-stroke);
+  --color-warning: var(--light-color-warning);
+  --color-error: var(--light-color-error);
+  --color-deep: var(--light-color-deep);
+  --color-surface: var(--light-color-surface);
+  --color-elevated: var(--light-color-elevated);
+  --color-card: var(--light-color-card);
+  --color-muted: var(--light-color-muted);
+  --color-subtle: var(--light-color-subtle);
+  --color-amber: var(--light-color-amber);
+  --color-info: var(--light-color-info);
+  --color-success: var(--light-color-success);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text: var(--dark-color-text);
+    --color-background: var(--dark-color-background);
+    --color-logo-primary: var(--dark-color-logo-primary);
+    --color-logo-stroke: var(--dark-color-logo-stroke);
+    --color-warning: var(--dark-color-warning);
+    --color-error: var(--dark-color-error);
+    --color-deep: var(--dark-color-deep);
+    --color-surface: var(--dark-color-surface);
+    --color-elevated: var(--dark-color-elevated);
+    --color-card: var(--dark-color-card);
+    --color-muted: var(--dark-color-muted);
+    --color-subtle: var(--dark-color-subtle);
+    --color-amber: var(--dark-color-amber);
+    --color-info: var(--dark-color-info);
+    --color-success: var(--dark-color-success);
+  }
+}
+
+/*
+ * Explicit theme override, driven by the `theme` setting via
+ * `document.documentElement.dataset.theme`. When set, the higher-specificity
+ * attribute selectors win over the `prefers-color-scheme` media query above,
+ * so a user can keep Meridian light or dark regardless of the OS setting.
+ * `system` (or no attribute) leaves the OS in charge.
+ *
+ * Lives here (not in App.css) so every window that imports the shared palette —
+ * the settings window and the recording overlay alike — honours the override.
+ */
+:root[data-theme="light"] {
+  --color-text: var(--light-color-text);
+  --color-background: var(--light-color-background);
+  --color-logo-primary: var(--light-color-logo-primary);
+  --color-logo-stroke: var(--light-color-logo-stroke);
+  --color-warning: var(--light-color-warning);
+  --color-error: var(--light-color-error);
+  --color-deep: var(--light-color-deep);
+  --color-surface: var(--light-color-surface);
+  --color-elevated: var(--light-color-elevated);
+  --color-card: var(--light-color-card);
+  --color-muted: var(--light-color-muted);
+  --color-subtle: var(--light-color-subtle);
+  --color-amber: var(--light-color-amber);
+  --color-info: var(--light-color-info);
+  --color-success: var(--light-color-success);
+}
+
+:root[data-theme="dark"] {
+  --color-text: var(--dark-color-text);
+  --color-background: var(--dark-color-background);
+  --color-logo-primary: var(--dark-color-logo-primary);
+  --color-logo-stroke: var(--dark-color-logo-stroke);
+  --color-warning: var(--dark-color-warning);
+  --color-error: var(--dark-color-error);
+  --color-deep: var(--dark-color-deep);
+  --color-surface: var(--dark-color-surface);
+  --color-elevated: var(--dark-color-elevated);
+  --color-card: var(--dark-color-card);
+  --color-muted: var(--dark-color-muted);
+  --color-subtle: var(--dark-color-subtle);
+  --color-amber: var(--dark-color-amber);
+  --color-info: var(--dark-color-info);
+  --color-success: var(--dark-color-success);
+}
+
+/*
+ * Accent color presets, driven by the `accent_color` setting via
+ * `document.documentElement.dataset.accent`. They only override the palette
+ * source vars above, so the active `--color-logo-primary` (and the light/dark
+ * `data-theme` overrides) resolve to the chosen accent in every theme mode.
+ * The base :root values are the `blue` preset, used when no attribute is set.
+ */
+:root[data-accent="amber"] {
+  --light-color-logo-primary: #c4851a;
+  --dark-color-logo-primary: #f5a623;
+  --color-background-ui: #b87414;
+}
+
+:root[data-accent="blue"] {
+  --light-color-logo-primary: #3b82f6;
+  --dark-color-logo-primary: #60a5fa;
+  --color-background-ui: #2563eb;
+}
+
+:root[data-accent="green"] {
+  --light-color-logo-primary: #16a34a;
+  --dark-color-logo-primary: #4ade80;
+  --color-background-ui: #15803d;
+}
+
+:root[data-accent="violet"] {
+  --light-color-logo-primary: #8b5cf6;
+  --dark-color-logo-primary: #a78bfa;
+  --color-background-ui: #7c3aed;
+}
+
+:root[data-accent="orange"] {
+  --light-color-logo-primary: #f97316;
+  --dark-color-logo-primary: #fb923c;
+  --color-background-ui: #ea580c;
+}
+
+:root[data-accent="graphite"] {
+  --light-color-logo-primary: #52525b;
+  --dark-color-logo-primary: #a1a1aa;
+  --color-background-ui: #3f3f46;
+}
+
+:root[data-accent="pink"] {
+  --light-color-logo-primary: #faa2ca;
+  --dark-color-logo-primary: #f28cbb;
+  --color-background-ui: #da5893;
+}
