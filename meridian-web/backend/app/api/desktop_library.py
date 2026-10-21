@@ -124,6 +124,10 @@ async def meeting_view(meeting_id: int, auth: Device, db: AsyncSession = Depends
     return DesktopMeetingView(
         **_item_fields(row),
         protocol_markdown=row.MeetingSession.protocol_markdown,
+        negotiation_type=row.MeetingSession.negotiation_type,
+        key_terms=row.MeetingSession.meeting_notes,
+        opponent_weaknesses=row.MeetingSession.opponent_weaknesses,
+        app_notes=row.MeetingSession.app_notes,
         segments=[
             DesktopSegmentOut(
                 text=s.text, speaker_label=s.speaker_label,

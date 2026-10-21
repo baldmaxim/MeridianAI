@@ -7,8 +7,9 @@ use tauri::Manager;
 
 use super::session::Slot;
 use super::{
-    clean_name, export_channel_wav, io_err, now_iso, short_id, storage, ActiveMeetingState, AudioFile,
+    clean_context, clean_name, export_channel_wav, io_err, now_iso, short_id, storage, ActiveMeetingState, AudioFile,
     MeetingDetails, MeetingInfo, MeetingManager, Note, NoteInput, AUDIO_CHANNELS,
+    MAX_CONTEXT_TEXT_CHARS, MAX_NEGOTIATION_TYPE_CHARS,
 };
 use crate::managers::sync::account::{meeting_web_url, AccountStore};
 
@@ -112,6 +113,42 @@ impl MeetingManager {
         if !found {
             return Err("Встреча не найдена".to_string());
         }
+        let meeting = self
+            .db
+            .get_meeting(id)
+            .map_err(io_err)?
+            .ok_or_else(|| "Встреча не найдена".to_string())?;
+        Ok(self.with_web_url(meeting))
+    }
+
+    /// Sets the meeting context as given (`None` or empty clears a field), in
+    /// any state of the meeting. The server gets it with the next sync pass; it
+    /// is found by the search at once.
+    pub fn set_meeting_context(
+        &self,
+        id: &str,
+        negotiation_type: Option<String>,
+        key_terms: Option<String>,
+        opponent_weaknesses: Option<String>,
+    ) -> Result<MeetingInfo, String> {
+        let negotiation_type =
+            clean_context(negotiation_type.as_deref(), MAX_NEGOTIATION_TYPE_CHARS);
+        let key_terms = clean_context(key_terms.as_deref(), MAX_CONTEXT_TEXT_CHARS);
+        let opponent_weaknesses =
+            clean_context(opponent_weaknesses.as_deref(), MAX_CONTEXT_TEXT_CHARS);
+        let found = self
+            .db
+            .set_meeting_context(
+                id,
+                negotiation_type.as_deref(),
+                key_terms.as_deref(),
+                opponent_weaknesses.as_deref(),
+            )
+            .map_err(io_err)?;
+        if !found {
+            return Err("Встреча не найдена".to_string());
+        }
+        self.reindex(id);
         let meeting = self
             .db
             .get_meeting(id)

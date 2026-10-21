@@ -125,7 +125,8 @@ async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str
         meta.append(f"Объект: {obj.name}")
     if meeting.meeting_topic:
         meta.append(f"Тема: {meeting.meeting_topic}")
-    # Заметки участника идут в промпт отдельным блоком (build_user_prompt), здесь не дублируем.
+    # Ключевые условия (meeting_notes) и заметки приложения (app_notes) идут в промпт отдельными блоками
+    # (build_user_prompt), здесь не дублируем.
     if meeting.negotiation_type:
         meta.append(f"Тип переговоров: {meeting.negotiation_type}")
     if meeting.meeting_role:
@@ -282,6 +283,7 @@ async def handle_meeting_finalize(payload: dict) -> None:
             meeting = await db.get(MeetingSession, meeting_id)
             meeting_block, transcript_text, documents_block, doc_names = await _gather_inputs(db, meeting)
             meeting_notes = meeting.meeting_notes or ""
+            app_notes = meeting.app_notes or ""
             # Этап 8: компактные итоги выбранных прошлых встреч (контекст, НЕ решения текущей)
             from .previous_meeting_context import build_previous_context_block
             previous_block = await build_previous_context_block(db, meeting_id)
@@ -320,7 +322,7 @@ async def handle_meeting_finalize(payload: dict) -> None:
         user_prompt = build_user_prompt(meeting_block, transcript_text, documents_block,
                                         previous_meetings_block=previous_block,
                                         conversation_tree_block=conversation_tree_block,
-                                        meeting_notes=meeting_notes)
+                                        meeting_notes=meeting_notes, app_notes=app_notes)
 
         raw = None
         for attempt in range(max(1, settings.meeting_finalization_retry_attempts)):

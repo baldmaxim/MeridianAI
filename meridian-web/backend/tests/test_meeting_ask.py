@@ -230,13 +230,28 @@ def test_fit_truncates_transcript_head_and_total():
 def test_protocol_prompt_has_notes_block_only_when_notes():
     with_notes = build_user_prompt("Заказчик: ООО", "[00:01] Мы: привет", "",
                                    meeting_notes="[00:05] договорились о сроке до 1 марта")
-    assert "ЗАМЕТКИ И ЦЕЛИ УЧАСТНИКА" in with_notes
+    assert "КЛЮЧЕВЫЕ УСЛОВИЯ И ЦЕЛИ УЧАСТНИКА" in with_notes
     assert "[00:05] договорились о сроке до 1 марта" in with_notes
     assert "приоритетные акценты" in with_notes
+    assert "ЗАМЕТКИ ПОЛЬЗОВАТЕЛЯ" not in with_notes
 
     for empty in ("", "   ", None):
-        without = build_user_prompt("Заказчик: ООО", "[00:01] Мы: привет", "", meeting_notes=empty or "")
-        assert "ЗАМЕТКИ УЧАСТНИКА" not in without
+        without = build_user_prompt("Заказчик: ООО", "[00:01] Мы: привет", "",
+                                    meeting_notes=empty or "", app_notes=empty or "")
+        assert "КЛЮЧЕВЫЕ УСЛОВИЯ" not in without
+        assert "ЗАМЕТКИ ПОЛЬЗОВАТЕЛЯ" not in without
+        assert "приоритетные акценты" not in without
+
+
+def test_protocol_prompt_has_separate_blocks_for_key_terms_and_app_notes():
+    p = build_user_prompt("Заказчик: ООО", "[00:01] Мы: привет", "",
+                          meeting_notes="Аванс не более 30%", app_notes="[00:05] срок до 1 марта")
+    assert "===== КЛЮЧЕВЫЕ УСЛОВИЯ И ЦЕЛИ УЧАСТНИКА =====\nАванс не более 30%" in p
+    assert "===== ЗАМЕТКИ ПОЛЬЗОВАТЕЛЯ (строки с [мм:сс] — сделаны во время встречи) =====\n[00:05] срок до 1 марта" in p
+    assert p.index("Аванс не более 30%") < p.index("[00:05] срок до 1 марта")
+
+    only_app = build_user_prompt("Заказчик: ООО", "т", "", app_notes="[00:05] срок")
+    assert "ЗАМЕТКИ ПОЛЬЗОВАТЕЛЯ" in only_app and "КЛЮЧЕВЫЕ УСЛОВИЯ" not in only_app
 
 
 async def test_gather_inputs_does_not_duplicate_notes(db):

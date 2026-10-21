@@ -15,7 +15,8 @@ use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use log::{info, warn};
 
 use super::client::{
-    ApiClient, ApiError, AudioUploadBody, MeetingBody, NoteBody, PatchBody, SegmentBody,
+    ApiClient, ApiError, AudioUploadBody, ContextPatchBody, MeetingBody, NoteBody, PatchBody,
+    SegmentBody,
 };
 use crate::managers::meeting::{
     export_channel_wav, recorded_channels, CaptureMode, MeetingDb, MeetingInfo, MeetingStatus,
@@ -154,6 +155,7 @@ impl Engine<'_> {
             return Ok(None);
         }
         let server_id = self.create_meeting(&meeting).await?;
+        self.send_context(meeting_id).await?;
         self.send_segments(&meeting, server_id).await?;
         self.send_details(&meeting, server_id).await?;
         self.send_audio(&meeting, server_id).await?;
@@ -183,12 +185,62 @@ impl Engine<'_> {
                 capture_mode: capture_mode(meeting.capture_mode),
                 customer_id: meeting.customer_id,
                 object_id: meeting.object_id,
+                negotiation_type: meeting.negotiation_type.as_deref(),
+                key_terms: meeting.key_terms.as_deref(),
+                opponent_weaknesses: meeting.opponent_weaknesses.as_deref(),
             })
             .await?;
         self.db
             .set_server_meeting_id(&meeting.id, response.meeting_id)
             .map_err(db_error)?;
+        // The upsert carried the context; if it was edited meanwhile, the flag
+        // stays and `send_context` sends the newer one.
+        self.db
+            .clear_context_dirty_if(
+                &meeting.id,
+                meeting.negotiation_type.as_deref(),
+                meeting.key_terms.as_deref(),
+                meeting.opponent_weaknesses.as_deref(),
+            )
+            .map_err(db_error)?;
         Ok(response.meeting_id)
+    }
+
+    /// Sends the context of a meeting that is on the server, if it changed
+    /// since the server got it. Only the context goes: no finalization and no
+    /// change of the meeting's sync state. Empty strings clear the fields.
+    pub async fn send_context(&self, meeting_id: &str) -> Result<(), ApiError> {
+        let Some(meeting) = self.db.get_meeting(meeting_id).map_err(db_error)? else {
+            return Ok(());
+        };
+        let Some(server_id) = meeting.server_meeting_id else {
+            return Ok(());
+        };
+        if !self.db.context_dirty(meeting_id).map_err(db_error)? {
+            return Ok(());
+        }
+        self.client
+            .patch_context(
+                server_id,
+                &ContextPatchBody {
+                    negotiation_type: meeting.negotiation_type.as_deref().unwrap_or_default(),
+                    key_terms: meeting.key_terms.as_deref().unwrap_or_default(),
+                    opponent_weaknesses: meeting
+                        .opponent_weaknesses
+                        .as_deref()
+                        .unwrap_or_default(),
+                },
+            )
+            .await?;
+        self.db
+            .clear_context_dirty_if(
+                meeting_id,
+                meeting.negotiation_type.as_deref(),
+                meeting.key_terms.as_deref(),
+                meeting.opponent_weaknesses.as_deref(),
+            )
+            .map_err(db_error)?;
+        Ok(())
     }
 
     async fn send_segments(&self, meeting: &MeetingInfo, server_id: i64) -> Result<(), ApiError> {

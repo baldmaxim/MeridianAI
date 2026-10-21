@@ -1428,6 +1428,43 @@ class MeetingRoom:
             "samples_count": samples,
         })
 
+    def _apply_context(
+        self, *, topic: str, notes: str, negotiation_type: str, meeting_role: str,
+        opponent_weaknesses: str, title: str | None = None,
+    ) -> None:
+        """Контекст встречи в памяти комнаты — его читают подсказки."""
+        self.session.update_meeting_context(topic, notes)
+        self.session.negotiation_type = negotiation_type
+        self.session.meeting_role = meeting_role
+        self.session.opponent_weaknesses = opponent_weaknesses
+        if title is not None:
+            self.session.meeting_title = title
+
+    async def _broadcast_context(self) -> None:
+        await self.broadcast({
+            "type": "meeting_context_updated",
+            "title": self.session.meeting_title,
+            "topic": self.session.document_loader.meeting_topic,
+            "notes": self.session.document_loader.meeting_notes,
+            "negotiation_type": self.session.negotiation_type,
+            "meeting_role": self.session.meeting_role,
+            "opponent_weaknesses": self.session.opponent_weaknesses,
+        })
+
+    async def refresh_context(self, meeting: MeetingSession) -> None:
+        """Контекст изменён вне комнаты (REST приложения): обновить память и разослать клиентам.
+
+        В БД уже записано вызывающим; значения читаем с переданной встречи.
+        """
+        self._apply_context(
+            topic=meeting.meeting_topic or "",
+            notes=meeting.meeting_notes or "",
+            negotiation_type=meeting.negotiation_type or "sale",
+            meeting_role=meeting.meeting_role or "",
+            opponent_weaknesses=meeting.opponent_weaknesses or "",
+        )
+        await self._broadcast_context()
+
     async def _update_context(self, message: dict) -> None:
         title = message.get("title")
         topic = message.get("topic", "")
@@ -1435,12 +1472,10 @@ class MeetingRoom:
         negotiation_type = message.get("negotiation_type", "sale")
         meeting_role = message.get("meeting_role", "")
         opponent_weaknesses = message.get("opponent_weaknesses", "")
-        self.session.update_meeting_context(topic, notes)
-        self.session.negotiation_type = negotiation_type
-        self.session.meeting_role = meeting_role
-        self.session.opponent_weaknesses = opponent_weaknesses
-        if title is not None:
-            self.session.meeting_title = title
+        self._apply_context(
+            topic=topic, notes=notes, negotiation_type=negotiation_type,
+            meeting_role=meeting_role, opponent_weaknesses=opponent_weaknesses, title=title,
+        )
         # persist by meeting_id
         async with async_session() as db:
             meeting = (
@@ -1457,15 +1492,7 @@ class MeetingRoom:
                 if title is not None:
                     meeting.title = title
                 await db.commit()
-        await self.broadcast({
-            "type": "meeting_context_updated",
-            "title": self.session.meeting_title,
-            "topic": topic,
-            "notes": notes,
-            "negotiation_type": negotiation_type,
-            "meeting_role": meeting_role,
-            "opponent_weaknesses": opponent_weaknesses,
-        })
+        await self._broadcast_context()
 
     async def _change_role(self, message: dict, connection_id: str) -> None:
         role_id = message.get("role_id")

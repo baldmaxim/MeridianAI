@@ -56,6 +56,16 @@ pub struct MeetingView {
     #[serde(flatten)]
     pub item: LibraryItem,
     pub protocol_markdown: Option<String>,
+    /// The meeting context and the notes from the app. Absent in views cached
+    /// by older versions.
+    #[serde(default)]
+    pub negotiation_type: Option<String>,
+    #[serde(default)]
+    pub key_terms: Option<String>,
+    #[serde(default)]
+    pub opponent_weaknesses: Option<String>,
+    #[serde(default)]
+    pub app_notes: Option<String>,
     pub segments: Vec<ViewSegment>,
     pub documents: Vec<ViewDocument>,
 }

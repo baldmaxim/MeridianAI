@@ -23,6 +23,8 @@ class MeetingSession(Base):
     negotiation_type: Mapped[str | None] = mapped_column(String(50))
     meeting_role: Mapped[str | None] = mapped_column(String(255))
     opponent_weaknesses: Mapped[str | None] = mapped_column(Text)
+    # Заметки пользователя из десктоп-приложения (`[мм:сс] текст`); meeting_notes — контекст встречи.
+    app_notes: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

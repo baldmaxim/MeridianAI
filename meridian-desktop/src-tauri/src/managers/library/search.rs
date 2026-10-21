@@ -130,15 +130,24 @@ impl MeetingDb {
     /// meeting that is gone leaves the index.
     pub fn index_local_meeting(&self, id: &str) -> Result<()> {
         let conn = self.conn();
-        let title: Option<String> = conn
-            .query_row("SELECT title FROM meetings WHERE id = ?1", [id], |row| {
-                row.get(0)
-            })
+        let row: Option<(String, [Option<String>; 3])> = conn
+            .query_row(
+                "SELECT title, negotiation_type, key_terms, opponent_weaknesses
+                   FROM meetings WHERE id = ?1",
+                [id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        [row.get(1)?, row.get(2)?, row.get(3)?],
+                    ))
+                },
+            )
             .optional()?;
-        let Some(title) = title else {
+        let Some((title, context)) = row else {
             return remove_entry(&conn, KIND_LOCAL, id);
         };
-        let mut texts: Vec<String> = Vec::new();
+        // The context (type, key terms, weak points) is searched like the rest.
+        let mut texts: Vec<String> = context.into_iter().flatten().collect();
         for sql in [
             "SELECT text FROM segments WHERE meeting_id = ?1 ORDER BY start_time, channel, id",
             "SELECT text FROM notes WHERE meeting_id = ?1 ORDER BY at_seconds, id",

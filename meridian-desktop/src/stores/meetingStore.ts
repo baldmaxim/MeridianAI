@@ -58,6 +58,12 @@ interface MeetingStore {
     text: string,
   ) => Promise<ActionError>;
   deleteNote: (noteId: string) => Promise<ActionError>;
+  saveContext: (
+    id: string,
+    negotiationType: string | null,
+    keyTerms: string | null,
+    opponentWeaknesses: string | null,
+  ) => Promise<ActionError>;
   dismissDeviceError: (key: string) => void;
 
   // Backend event handlers
@@ -285,6 +291,25 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
             }
           : {},
       );
+      return null;
+    },
+
+    saveContext: async (id, negotiationType, keyTerms, opponentWeaknesses) => {
+      const result = await commands.setMeetingContext(
+        id,
+        negotiationType,
+        keyTerms,
+        opponentWeaknesses,
+      );
+      if (result.status === "error") return result.error;
+      const info = result.data;
+      set((s) => ({
+        meetings: upsertMeeting(s.meetings, info),
+        details:
+          s.details?.meeting.id === info.id
+            ? { ...s.details, meeting: info }
+            : s.details,
+      }));
       return null;
     },
 

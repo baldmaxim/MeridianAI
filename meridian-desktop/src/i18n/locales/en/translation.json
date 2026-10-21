@@ -575,6 +575,7 @@
       "notFound": "Meeting not found",
       "loading": "Loading meeting…",
       "tabProtocol": "Protocol",
+      "tabContext": "Context",
       "tabAsk": "Ask",
       "tabDocuments": "Documents",
       "collapsePanel": "Collapse panel",
@@ -671,6 +672,24 @@
       "noObject": "No object",
       "dialogTitle": "Meeting project",
       "save": "Save"
+    },
+    "context": {
+      "sectionTitle": "Meeting context (optional)",
+      "typeLabel": "Negotiation type",
+      "typePlaceholder": "For example: agreeing terms",
+      "typeSale": "Sale / closing a deal",
+      "typeClaim": "Claims handling",
+      "typeTerms": "Agreeing terms",
+      "keyTermsLabel": "Key terms / goals",
+      "keyTermsPlaceholder": "Target amount, deadline, key requirements, constraints...",
+      "weaknessesLabel": "Opponent's weak points",
+      "weaknessesPlaceholder": "Known issues, missed deadlines, market position...",
+      "hint": "Suggestions and the protocol use this context. It is sent to the site automatically.",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveFailed": "Could not save: {{error}}",
+      "notSet": "not set",
+      "appNotes": "Notes from the app"
     },
     "protocol": {
       "loading": "Loading the protocol…",

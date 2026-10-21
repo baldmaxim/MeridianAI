@@ -471,6 +471,18 @@ async setMeetingProject(meetingId: string, customerId: number | null, objectId: 
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Sets the meeting context (`None` or an empty string clears a field) and
+ * sends it to the server in the background. Works in any state of the meeting.
+ */
+async setMeetingContext(meetingId: string, negotiationType: string | null, keyTerms: string | null, opponentWeaknesses: string | null) : Promise<Result<MeetingInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_meeting_context", { meetingId, negotiationType, keyTerms, opponentWeaknesses }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteMeeting(id: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_meeting", { id }) };
@@ -1016,6 +1028,11 @@ customer_name: string | null; object_name: string | null;
  */
 audio_state: string; 
 /**
+ * Meeting context, as on the site: type of the negotiation, key terms and
+ * goals, the opponent's weak points. `None`: not set.
+ */
+negotiation_type: string | null; key_terms: string | null; opponent_weaknesses: string | null; 
+/**
  * Link to the meeting on the site; filled in for synced meetings when
  * an account is signed in. Not stored.
  */
@@ -1058,7 +1075,12 @@ export type MeetingView = ({ meeting_id: number; title: string | null; meeting_t
 /**
  * The local meeting's id when it was recorded in this app (by this user).
  */
-client_uuid: string | null; source: LibrarySource }) & { protocol_markdown: string | null; segments: ViewSegment[]; documents: ViewDocument[] }
+client_uuid: string | null; source: LibrarySource }) & { protocol_markdown: string | null; 
+/**
+ * The meeting context and the notes from the app. Absent in views cached
+ * by older versions.
+ */
+negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses?: string | null; app_notes?: string | null; segments: ViewSegment[]; documents: ViewDocument[] }
 /**
  * A meeting of the site; `from_cache`: the server was not reached.
  */
@@ -1151,7 +1173,11 @@ system_device_id: string | null;
  * The project of the meeting (ids from the site's reference book and their
  * names, for showing offline). All optional.
  */
-customer_id?: number | null; object_id?: number | null; customer_name?: string | null; object_name?: string | null }
+customer_id?: number | null; object_id?: number | null; customer_name?: string | null; object_name?: string | null; 
+/**
+ * The meeting context, as on the site. All optional.
+ */
+negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses?: string | null }
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.
  */

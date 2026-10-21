@@ -9,7 +9,7 @@ use specta::Type;
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
-static MIGRATIONS: &[M] = &[
+pub(super) static MIGRATIONS: &[M] = &[
     M::up(
         "CREATE TABLE meetings (
         id TEXT PRIMARY KEY,
@@ -84,6 +84,14 @@ static MIGRATIONS: &[M] = &[
         fts_rowid INTEGER NOT NULL,
         PRIMARY KEY (kind, ref_id)
     );",
+    ),
+    // Meeting context, as on the site. `context_dirty`: the server has not got
+    // the latest context yet (see `db_context.rs`).
+    M::up(
+        "ALTER TABLE meetings ADD COLUMN negotiation_type TEXT;
+    ALTER TABLE meetings ADD COLUMN key_terms TEXT;
+    ALTER TABLE meetings ADD COLUMN opponent_weaknesses TEXT;
+    ALTER TABLE meetings ADD COLUMN context_dirty INTEGER NOT NULL DEFAULT 0;",
     ),
 ];
 
@@ -163,6 +171,11 @@ pub struct MeetingInfo {
     /// `no_storage` (the server has no file
     /// storage), `skipped` (a channel is too big or refused).
     pub audio_state: String,
+    /// Meeting context, as on the site: type of the negotiation, key terms and
+    /// goals, the opponent's weak points. `None`: not set.
+    pub negotiation_type: Option<String>,
+    pub key_terms: Option<String>,
+    pub opponent_weaknesses: Option<String>,
     /// Link to the meeting on the site; filled in for synced meetings when
     /// an account is signed in. Not stored.
     pub web_url: Option<String>,
@@ -218,6 +231,9 @@ pub(super) fn map_meeting(row: &Row<'_>) -> rusqlite::Result<MeetingInfo> {
         customer_name: row.get("customer_name")?,
         object_name: row.get("object_name")?,
         audio_state: row.get("audio_state")?,
+        negotiation_type: row.get("negotiation_type")?,
+        key_terms: row.get("key_terms")?,
+        opponent_weaknesses: row.get("opponent_weaknesses")?,
         web_url: None,
     })
 }
@@ -281,8 +297,10 @@ impl MeetingDb {
         self.conn().execute(
             "INSERT INTO meetings (id, title, capture_mode, started_at, ended_at, status,
                 duration_seconds, server_meeting_id, sync_state, sync_error, synced_at,
-                customer_id, object_id, customer_name, object_name)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                customer_id, object_id, customer_name, object_name,
+                negotiation_type, key_terms, opponent_weaknesses)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
+                ?16, ?17, ?18)",
             params![
                 meeting.id,
                 meeting.title,
@@ -299,6 +317,9 @@ impl MeetingDb {
                 meeting.object_id,
                 meeting.customer_name,
                 meeting.object_name,
+                meeting.negotiation_type,
+                meeting.key_terms,
+                meeting.opponent_weaknesses,
             ],
         )?;
         Ok(())
@@ -464,6 +485,9 @@ pub(super) fn sample_meeting(id: &str, started_at: &str) -> MeetingInfo {
         customer_name: None,
         object_name: None,
         audio_state: "pending".to_string(),
+        negotiation_type: None,
+        key_terms: None,
+        opponent_weaknesses: None,
         web_url: None,
     }
 }

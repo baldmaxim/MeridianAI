@@ -640,6 +640,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::get_meeting,
             commands::meetings::rename_meeting,
             commands::meetings::set_meeting_project,
+            commands::meetings::set_meeting_context,
             commands::meetings::delete_meeting,
             commands::meetings::upsert_note,
             commands::meetings::delete_note,

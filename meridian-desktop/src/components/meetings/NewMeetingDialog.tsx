@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronDown } from "lucide-react";
 import { commands, type CaptureDevices, type CaptureMode } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -9,6 +10,12 @@ import { useMeetingStore } from "@/stores/meetingStore";
 import { formatTitleDate, isModelError } from "@/lib/utils/meetingFormat";
 import { resolveProject } from "@/lib/utils/projects";
 import { DeviceSelect } from "./DeviceSelect";
+import {
+  EMPTY_MEETING_CONTEXT,
+  MeetingContextForm,
+  toNullable,
+  type MeetingContextValue,
+} from "./MeetingContextForm";
 import { ProjectPicker } from "./ProjectPicker";
 
 interface NewMeetingDialogProps {
@@ -30,6 +37,10 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
   const [systemId, setSystemId] = useState("");
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [objectId, setObjectId] = useState<number | null>(null);
+  const [context, setContext] = useState<MeetingContextValue>(
+    EMPTY_MEETING_CONTEXT,
+  );
+  const [contextOpen, setContextOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customers = useLibraryStore((s) => s.snapshot?.projects);
@@ -50,6 +61,8 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
         : null,
     );
     setObjectId(filter.kind === "object" ? filter.objectId : null);
+    setContext(EMPTY_MEETING_CONTEXT);
+    setContextOpen(false);
     setMicId("");
     setSystemId("");
     setError(null);
@@ -87,6 +100,9 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
       object_id: project.objectId,
       customer_name: project.customerName,
       object_name: project.objectName,
+      negotiation_type: toNullable(context.negotiationType),
+      key_terms: toNullable(context.keyTerms),
+      opponent_weaknesses: toNullable(context.opponentWeaknesses),
     });
     setStarting(false);
     if (failure) {
@@ -176,6 +192,30 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
             }}
           />
         )}
+
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            aria-expanded={contextOpen}
+            onClick={() => setContextOpen((v) => !v)}
+            className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg py-1 text-sm text-muted transition-colors duration-200 hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
+          >
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 motion-reduce:transition-none ${
+                contextOpen ? "" : "-rotate-90 rtl:rotate-90"
+              }`}
+              aria-hidden="true"
+            />
+            {t("meetings.context.sectionTitle")}
+          </button>
+          {contextOpen && (
+            <MeetingContextForm
+              value={context}
+              onChange={setContext}
+              disabled={starting}
+            />
+          )}
+        </div>
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm text-muted">

@@ -8,7 +8,7 @@ use super::db::{map_meeting, MeetingDb, MeetingInfo, Segment};
 
 /// Stopped or interrupted, and waiting for the server. Meetings in `error`
 /// wait for the user's retry.
-const READY_FOR_SYNC: &str = "status IN ('stopped', 'interrupted') AND sync_state = 'pending'";
+pub(super) const READY_FOR_SYNC: &str = "status IN ('stopped', 'interrupted') AND sync_state = 'pending'";
 
 impl MeetingDb {
     /// Meetings to send, oldest first.

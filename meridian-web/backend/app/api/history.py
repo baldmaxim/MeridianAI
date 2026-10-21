@@ -846,6 +846,7 @@ async def get_meeting_detail(
         negotiation_type=meeting.negotiation_type,
         meeting_role=meeting.meeting_role,
         opponent_weaknesses=meeting.opponent_weaknesses,
+        app_notes=meeting.app_notes,
         started_at=meeting.started_at,
         ended_at=meeting.ended_at,
         recorded_seconds=meeting.recorded_seconds,

@@ -28,6 +28,16 @@ pub struct StartMeetingRequest {
     #[serde(default)]
     #[specta(optional)]
     pub object_name: Option<String>,
+    /// The meeting context, as on the site. All optional.
+    #[serde(default)]
+    #[specta(optional)]
+    pub negotiation_type: Option<String>,
+    #[serde(default)]
+    #[specta(optional)]
+    pub key_terms: Option<String>,
+    #[serde(default)]
+    #[specta(optional)]
+    pub opponent_weaknesses: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Type)]

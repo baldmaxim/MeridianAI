@@ -37,15 +37,25 @@ _SCHEMA_HINT = """Схема ответа (верни ровно её, на ру
 
 def build_user_prompt(meeting_block: str, transcript_text: str, documents_block: str,
                       previous_meetings_block: str = "", conversation_tree_block: str = "",
-                      meeting_notes: str = "") -> str:
+                      meeting_notes: str = "", app_notes: str = "") -> str:
+    """meeting_notes — «Ключевые условия / цели» (контекст встречи); app_notes — заметки пользователя из приложения."""
     parts = ["===== КОНТЕКСТ ВСТРЕЧИ =====", meeting_block]
     if meeting_notes and meeting_notes.strip():
         parts += [
             "",
-            "===== ЗАМЕТКИ И ЦЕЛИ УЧАСТНИКА (строки с [мм:сс] — сделаны во время встречи) =====",
+            "===== КЛЮЧЕВЫЕ УСЛОВИЯ И ЦЕЛИ УЧАСТНИКА =====",
             meeting_notes.strip(),
+        ]
+    if app_notes and app_notes.strip():
+        parts += [
             "",
-            "ВАЖНО: заметки — приоритетные акценты пользователя. Отрази их в протоколе (решения/задачи), "
+            "===== ЗАМЕТКИ ПОЛЬЗОВАТЕЛЯ (строки с [мм:сс] — сделаны во время встречи) =====",
+            app_notes.strip(),
+        ]
+    if (meeting_notes and meeting_notes.strip()) or (app_notes and app_notes.strip()):
+        parts += [
+            "",
+            "ВАЖНО: условия, цели и заметки — приоритетные акценты пользователя. Отрази их в протоколе (решения/задачи), "
             "подтверждая фактами из транскрипта; не цитируй дословно, если это не нужно.",
         ]
     if documents_block:

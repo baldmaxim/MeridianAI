@@ -294,7 +294,7 @@ fn old_database_is_upgraded_in_place() {
         .conn()
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 4);
 
     // The old meeting enters the index once.
     assert!(db.search_meetings("фундамент", None).unwrap().is_empty());
@@ -316,4 +316,24 @@ fn old_database_is_upgraded_in_place() {
     // A second open changes nothing.
     let db = MeetingDb::open(&path).unwrap();
     assert_eq!(db.index_missing_local().unwrap(), 0);
+}
+
+#[test]
+fn view_cached_by_an_older_version_reads_without_the_context() {
+    let view: super::types::MeetingView = serde_json::from_str(VIEW_JSON).unwrap();
+    assert!(view.negotiation_type.is_none());
+    assert!(view.key_terms.is_none());
+    assert!(view.opponent_weaknesses.is_none());
+    assert!(view.app_notes.is_none());
+
+    let mut json: serde_json::Value = serde_json::from_str(VIEW_JSON).unwrap();
+    json["negotiation_type"] = "price".into();
+    json["key_terms"] = "срок".into();
+    json["opponent_weaknesses"] = serde_json::Value::Null;
+    json["app_notes"] = "заметка".into();
+    let view: super::types::MeetingView = serde_json::from_value(json).unwrap();
+    assert_eq!(view.negotiation_type.as_deref(), Some("price"));
+    assert_eq!(view.key_terms.as_deref(), Some("срок"));
+    assert!(view.opponent_weaknesses.is_none());
+    assert_eq!(view.app_notes.as_deref(), Some("заметка"));
 }

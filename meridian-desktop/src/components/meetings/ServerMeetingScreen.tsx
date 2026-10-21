@@ -9,12 +9,13 @@ import { formatDateChip, formatTimeRange } from "@/lib/utils/meetingFormat";
 import { AskPane } from "./AskPane";
 import { DateTimeChips } from "./DateTimeChips";
 import { DocumentsPane } from "./DocumentsPane";
+import { ServerContextTab } from "./ServerContextTab";
 import { ProjectChip } from "./ProjectChip";
 import { ProtocolPane } from "./ProtocolPane";
 import { ServerTranscriptPane } from "./ServerTranscriptPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
 
-type PanelTab = "transcript" | "documents" | "ask";
+type PanelTab = "transcript" | "context" | "documents" | "ask";
 
 interface ServerMeetingScreenProps {
   serverMeetingId: number;
@@ -67,6 +68,7 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
 
   const tabs: SidePanelTab<PanelTab>[] = [
     { id: "transcript", label: t("meetings.view.tabTranscript") },
+    { id: "context", label: t("meetings.view.tabContext") },
     { id: "documents", label: t("meetings.view.tabDocuments") },
     { id: "ask", label: t("meetings.view.tabAsk") },
   ];
@@ -133,6 +135,7 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
           {tab === "transcript" && (
             <ServerTranscriptPane segments={view.segments} />
           )}
+          {tab === "context" && <ServerContextTab view={view} />}
           {tab === "documents" && <DocumentsPane documents={view.documents} />}
           {tab === "ask" && (
             <AskPane serverMeetingId={serverMeetingId} chat={chat} />

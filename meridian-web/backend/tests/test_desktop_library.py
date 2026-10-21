@@ -152,7 +152,9 @@ async def test_library_filters_and_limit(sm, client):
 async def test_meeting_view(sm, client):
     me = await _user(sm)
     h = await _device(sm, me)
-    mid, cuid = await _site_meeting(sm, me, link_for=me, protocol_markdown="# Протокол")
+    mid, cuid = await _site_meeting(sm, me, link_for=me, protocol_markdown="# Протокол",
+                                  negotiation_type="claim", meeting_notes="Аванс 30%",
+                                  opponent_weaknesses="Горят сроки", app_notes="[00:01] Заметка")
     async with sm() as db:
         db.add_all([
             TranscriptSegmentRecord(session_id=mid, segment_id="s2", text="Второе", start_time=5.0,
@@ -170,6 +172,8 @@ async def test_meeting_view(sm, client):
     body = r.json()
     assert body["meeting_id"] == mid and body["client_uuid"] == cuid and body["source"] == "desktop"
     assert body["protocol_markdown"] == "# Протокол"
+    assert (body["negotiation_type"], body["key_terms"], body["opponent_weaknesses"], body["app_notes"]) == (
+        "claim", "Аванс 30%", "Горят сроки", "[00:01] Заметка")
     assert [s["text"] for s in body["segments"]] == ["Первое", "Второе"]
     assert body["segments"][0]["speaker_label"] == "Мы"
     assert body["documents"][0]["filename"] == "dogovor.pdf" and body["documents"][0]["page_count"] == 3

@@ -56,6 +56,10 @@ class MeetingUpsertRequest(BaseModel):
     capture_mode: CaptureMode
     customer_id: int | None = None
     object_id: int | None = None
+    # Контекст встречи, как на сайте. None — не менять; "" — очистить.
+    negotiation_type: str | None = Field(default=None, max_length=50)
+    key_terms: str | None = Field(default=None, max_length=4000)  # «Ключевые условия / цели» (meeting_notes)
+    opponent_weaknesses: str | None = Field(default=None, max_length=4000)
 
 
 class MeetingUpsertResponse(BaseModel):
@@ -92,6 +96,10 @@ class MeetingPatchRequest(BaseModel):
     ended_at: datetime | None = None
     # None — заметки не трогать; список (даже пустой) заменяет их целиком.
     notes: list[NoteIn] | None = Field(default=None, max_length=1000)
+    # Контекст встречи, как на сайте. None — не менять; "" — очистить.
+    negotiation_type: str | None = Field(default=None, max_length=50)
+    key_terms: str | None = Field(default=None, max_length=4000)
+    opponent_weaknesses: str | None = Field(default=None, max_length=4000)
 
 
 class MeetingPatchResponse(BaseModel):
@@ -167,6 +175,10 @@ class DesktopDocumentOut(BaseModel):
 
 class DesktopMeetingView(DesktopLibraryItem):
     protocol_markdown: str | None
+    negotiation_type: str | None
+    key_terms: str | None
+    opponent_weaknesses: str | None
+    app_notes: str | None
     segments: list[DesktopSegmentOut]
     documents: list[DesktopDocumentOut]
 

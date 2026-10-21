@@ -14,6 +14,7 @@
 mod api;
 mod capture;
 mod db;
+mod db_context;
 mod db_sync;
 mod queries;
 mod recognizer;
@@ -71,6 +72,18 @@ fn clean_name(name: Option<&str>) -> Option<String> {
     name.map(str::trim)
         .filter(|name| !name.is_empty())
         .map(str::to_string)
+}
+
+/// The server takes at most this many characters of each context field.
+const MAX_NEGOTIATION_TYPE_CHARS: usize = 50;
+const MAX_CONTEXT_TEXT_CHARS: usize = 4000;
+
+/// A context field as stored: as written, cut to the server's limit, `None`
+/// when empty.
+fn clean_context(value: Option<&str>, max_chars: usize) -> Option<String> {
+    value
+        .filter(|text| !text.trim().is_empty())
+        .map(|text| text.chars().take(max_chars).collect())
 }
 
 fn io_err(e: impl std::fmt::Display) -> String {
@@ -253,6 +266,15 @@ impl MeetingManager {
             customer_name: clean_name(request.customer_name.as_deref()),
             object_name: clean_name(request.object_name.as_deref()),
             audio_state: "pending".to_string(),
+            negotiation_type: clean_context(
+                request.negotiation_type.as_deref(),
+                MAX_NEGOTIATION_TYPE_CHARS,
+            ),
+            key_terms: clean_context(request.key_terms.as_deref(), MAX_CONTEXT_TEXT_CHARS),
+            opponent_weaknesses: clean_context(
+                request.opponent_weaknesses.as_deref(),
+                MAX_CONTEXT_TEXT_CHARS,
+            ),
             web_url: None,
         };
         let devices = self.devices_for(Some(request));

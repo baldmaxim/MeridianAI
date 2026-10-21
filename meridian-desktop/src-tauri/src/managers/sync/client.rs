@@ -98,6 +98,10 @@ pub struct MeetingBody<'a> {
     pub capture_mode: &'a str,
     pub customer_id: Option<i64>,
     pub object_id: Option<i64>,
+    /// The meeting context; `None`: the server leaves it as it is.
+    pub negotiation_type: Option<&'a str>,
+    pub key_terms: Option<&'a str>,
+    pub opponent_weaknesses: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -126,6 +130,14 @@ pub struct PatchBody<'a> {
     pub title: &'a str,
     pub ended_at: Option<&'a str>,
     pub notes: Vec<NoteBody>,
+}
+
+/// Only the context: the server reads an empty string as "clear the field".
+#[derive(Serialize)]
+pub struct ContextPatchBody<'a> {
+    pub negotiation_type: &'a str,
+    pub key_terms: &'a str,
+    pub opponent_weaknesses: &'a str,
 }
 
 #[derive(Serialize)]
@@ -313,6 +325,16 @@ impl ApiClient {
         &self,
         meeting_id: i64,
         body: &PatchBody<'_>,
+    ) -> Result<(), ApiError> {
+        let url = self.url(&format!("meetings/{meeting_id}"));
+        send(self.authorized(self.http.patch(url).json(body))).await?;
+        Ok(())
+    }
+
+    pub async fn patch_context(
+        &self,
+        meeting_id: i64,
+        body: &ContextPatchBody<'_>,
     ) -> Result<(), ApiError> {
         let url = self.url(&format!("meetings/{meeting_id}"));
         send(self.authorized(self.http.patch(url).json(body))).await?;

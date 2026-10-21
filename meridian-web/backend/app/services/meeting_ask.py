@@ -241,7 +241,11 @@ async def _build_context(
         sections.append(tr)
     if meeting.meeting_notes and meeting.meeting_notes.strip():
         sections.append(_Section(
-            "note", "Заметки участника (с отметками времени)", meeting.meeting_notes.strip(),
+            "note", "Ключевые условия и цели участника", meeting.meeting_notes.strip(),
+            [(None, _src("note", "Ключевые условия и цели"))]))
+    if meeting.app_notes and meeting.app_notes.strip():
+        sections.append(_Section(
+            "note", "Заметки участника (с отметками времени)", meeting.app_notes.strip(),
             [(None, _src("note", "Заметки участника"))]))
     sections += await _document_sections(db, meeting.id, question, ai)
     prev = await _previous_section(db, user, meeting, ai)

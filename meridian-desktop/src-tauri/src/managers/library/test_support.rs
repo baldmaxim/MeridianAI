@@ -25,6 +25,9 @@ pub fn local_meeting(db: &MeetingDb, id: &str, title: &str, texts: &[&str], note
         customer_name: None,
         object_name: None,
         audio_state: "pending".to_string(),
+        negotiation_type: None,
+        key_terms: None,
+        opponent_weaknesses: None,
         web_url: None,
     })
     .unwrap();
@@ -80,6 +83,10 @@ pub fn view(item: LibraryItem, protocol: &str, texts: &[&str]) -> MeetingView {
     MeetingView {
         item,
         protocol_markdown: Some(protocol.to_string()),
+        negotiation_type: None,
+        key_terms: None,
+        opponent_weaknesses: None,
+        app_notes: None,
         segments: texts
             .iter()
             .map(|text| ViewSegment {

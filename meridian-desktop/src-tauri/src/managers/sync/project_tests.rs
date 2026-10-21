@@ -25,6 +25,9 @@ fn meeting(customer: Option<i64>, object: Option<i64>) -> MeetingInfo {
         customer_name: customer.map(|_| "Заказчик".to_string()),
         object_name: object.map(|_| "Объект".to_string()),
         audio_state: "none".to_string(),
+        negotiation_type: None,
+        key_terms: None,
+        opponent_weaknesses: None,
         web_url: None,
     }
 }

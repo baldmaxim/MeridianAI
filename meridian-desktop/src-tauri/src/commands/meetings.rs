@@ -101,6 +101,27 @@ pub fn set_meeting_project(
     )
 }
 
+/// Sets the meeting context (`None` or an empty string clears a field) and
+/// sends it to the server in the background. Works in any state of the meeting.
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_context(
+    app: AppHandle,
+    meeting_id: String,
+    negotiation_type: Option<String>,
+    key_terms: Option<String>,
+    opponent_weaknesses: Option<String>,
+) -> Result<MeetingInfo, String> {
+    let meeting = manager(&app).set_meeting_context(
+        &meeting_id,
+        negotiation_type,
+        key_terms,
+        opponent_weaknesses,
+    )?;
+    app.state::<Arc<SyncManager>>().wake();
+    Ok(meeting)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {

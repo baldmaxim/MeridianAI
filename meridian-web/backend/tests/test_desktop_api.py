@@ -381,20 +381,134 @@ async def test_notes_are_formatted_sorted_and_replaced(sm, client):
     ]})
     assert r.status_code == 200
     async with sm() as db:
-        notes = (await db.get(MeetingSession, mid)).meeting_notes
+        notes = (await db.get(MeetingSession, mid)).app_notes
     assert notes.split("\n") == ["[00:05] Спросить про аванс", "[02:05] Срок монтажа 45 дней", "[61:40] Итог"]
 
     # полная замена; без поля notes — не трогаем
     await client.patch(url, headers=_bearer(token), json={"title": "Новое имя"})
     async with sm() as db:
         m = await db.get(MeetingSession, mid)
-        assert m.meeting_notes and m.title == "Новое имя"
+        assert m.app_notes and m.title == "Новое имя"
     await client.patch(url, headers=_bearer(token), json={"notes": [{"at_seconds": 1, "text": "Одна"}]})
     async with sm() as db:
-        assert (await db.get(MeetingSession, mid)).meeting_notes == "[00:01] Одна"
+        assert (await db.get(MeetingSession, mid)).app_notes == "[00:01] Одна"
     await client.patch(url, headers=_bearer(token), json={"notes": []})
     async with sm() as db:
-        assert (await db.get(MeetingSession, mid)).meeting_notes is None
+        assert (await db.get(MeetingSession, mid)).app_notes is None
+
+
+async def test_patch_notes_do_not_touch_key_terms(sm, client):
+    user = await _user(sm)
+    token = await _device(sm, user)
+    mid = (await _meeting(client, token))["meeting_id"]
+    async with sm() as db:
+        (await db.get(MeetingSession, mid)).meeting_notes = "Аванс не более 30%"
+        await db.commit()
+    r = await client.patch(f"/api/desktop/meetings/{mid}", headers=_bearer(token),
+                           json={"notes": [{"at_seconds": 1, "text": "Заметка"}]})
+    assert r.status_code == 200
+    async with sm() as db:
+        m = await db.get(MeetingSession, mid)
+        assert m.meeting_notes == "Аванс не более 30%" and m.app_notes == "[00:01] Заметка"
+
+
+# ---------- контекст встречи ----------
+
+async def test_patch_context_set_keep_clear(sm, client):
+    user = await _user(sm)
+    token = await _device(sm, user)
+    mid = (await _meeting(client, token))["meeting_id"]
+    url = f"/api/desktop/meetings/{mid}"
+
+    r = await client.patch(url, headers=_bearer(token), json={
+        "negotiation_type": "claim", "key_terms": "Аванс не более 30%", "opponent_weaknesses": "Горят сроки"})
+    assert r.status_code == 200
+    async with sm() as db:
+        m = await db.get(MeetingSession, mid)
+        assert (m.negotiation_type, m.meeting_notes, m.opponent_weaknesses) == (
+            "claim", "Аванс не более 30%", "Горят сроки")
+
+    # не передано / null — без изменений
+    await client.patch(url, headers=_bearer(token), json={"title": "Другое", "key_terms": None})
+    async with sm() as db:
+        m = await db.get(MeetingSession, mid)
+        assert (m.negotiation_type, m.meeting_notes, m.opponent_weaknesses) == (
+            "claim", "Аванс не более 30%", "Горят сроки")
+
+    # частично: меняем одно поле, остальные на месте
+    await client.patch(url, headers=_bearer(token), json={"negotiation_type": "sale"})
+    # "" — очистить (NULL)
+    await client.patch(url, headers=_bearer(token), json={"key_terms": "", "opponent_weaknesses": "  "})
+    async with sm() as db:
+        m = await db.get(MeetingSession, mid)
+        assert m.negotiation_type == "sale"
+        assert m.meeting_notes is None and m.opponent_weaknesses is None
+
+
+async def test_patch_context_validates_length(sm, client):
+    token = await _device(sm, await _user(sm))
+    mid = (await _meeting(client, token))["meeting_id"]
+    url = f"/api/desktop/meetings/{mid}"
+    assert (await client.patch(url, headers=_bearer(token), json={"negotiation_type": "x" * 51})).status_code == 422
+    assert (await client.patch(url, headers=_bearer(token), json={"key_terms": "x" * 4001})).status_code == 422
+    assert (await client.patch(url, headers=_bearer(token), json={"opponent_weaknesses": "x" * 4001})).status_code == 422
+
+
+async def test_upsert_with_context_on_create_and_repeat(sm, client):
+    user = await _user(sm)
+    token = await _device(sm, user)
+    cu = str(uuid.uuid4())
+    first = await _meeting(client, token, client_uuid=cu, negotiation_type="claim",
+                           key_terms="Условия", opponent_weaknesses="Слабость")
+    assert first["created"] is True
+    async with sm() as db:
+        m = await db.get(MeetingSession, first["meeting_id"])
+        assert (m.negotiation_type, m.meeting_notes, m.opponent_weaknesses) == ("claim", "Условия", "Слабость")
+
+    # повтор без полей — контекст сохраняется; с полем — обновляется; "" — очищает
+    await _meeting(client, token, client_uuid=cu)
+    await _meeting(client, token, client_uuid=cu, key_terms="Новые условия", opponent_weaknesses="")
+    async with sm() as db:
+        m = await db.get(MeetingSession, first["meeting_id"])
+        assert (m.negotiation_type, m.meeting_notes, m.opponent_weaknesses) == ("claim", "Новые условия", None)
+
+
+async def test_patch_context_refreshes_live_room(sm, client, monkeypatch):
+    from app.services import meeting_room
+
+    token = await _device(sm, await _user(sm))
+    mid = (await _meeting(client, token))["meeting_id"]
+    seen: list[tuple] = []
+
+    class _Room:
+        async def refresh_context(self, meeting):
+            seen.append((meeting.negotiation_type, meeting.meeting_notes, meeting.opponent_weaknesses))
+
+    monkeypatch.setattr(meeting_room.room_registry, "get_room", lambda m: _Room() if m == mid else None)
+    url = f"/api/desktop/meetings/{mid}"
+    await client.patch(url, headers=_bearer(token), json={"title": "без контекста"})
+    assert seen == []
+    await client.patch(url, headers=_bearer(token), json={"key_terms": "Условия"})
+    assert seen == [(None, "Условия", None)]
+
+
+async def test_room_refresh_context_updates_session_and_broadcasts():
+    from app.services.meeting_room import MeetingRoom
+
+    room = MeetingRoom(1, None, None)
+    sent: list[dict] = []
+
+    async def _broadcast(msg):
+        sent.append(msg)
+
+    room.broadcast = _broadcast  # type: ignore[method-assign]
+    await room.refresh_context(MeetingSession(
+        meeting_topic="Тема", meeting_notes="Условия", negotiation_type=None,
+        meeting_role="Подрядчик", opponent_weaknesses="Слабость"))
+    assert room.session.document_loader.meeting_notes == "Условия"
+    assert room.session.negotiation_type == "sale"
+    assert room.session.opponent_weaknesses == "Слабость"
+    assert sent[0]["type"] == "meeting_context_updated" and sent[0]["notes"] == "Условия"
 
 
 # ---------- финализация ----------

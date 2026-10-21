@@ -6,12 +6,13 @@ import { AskPane } from "./AskPane";
 import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
 import { DeviceErrorBanner } from "./DeviceErrorBanner";
 import { LocalMeetingHeader } from "./LocalMeetingHeader";
+import { LocalContextTab } from "./LocalContextTab";
 import { LocalProtocolTab } from "./LocalProtocolTab";
 import { NotesPane } from "./NotesPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
 import { TranscriptPane } from "./TranscriptPane";
 
-type PanelTab = "transcript" | "protocol" | "ask";
+type PanelTab = "transcript" | "context" | "protocol" | "ask";
 
 interface LocalMeetingScreenProps {
   resuming: boolean;
@@ -50,6 +51,7 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
   const { meeting, segments, notes } = details;
   const tabs: SidePanelTab<PanelTab>[] = [
     { id: "transcript", label: t("meetings.view.tabTranscript") },
+    { id: "context", label: t("meetings.view.tabContext") },
     { id: "protocol", label: t("meetings.view.tabProtocol") },
     { id: "ask", label: t("meetings.view.tabAsk") },
   ];
@@ -81,6 +83,9 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
               live={isActive}
               visible
             />
+          )}
+          {tab === "context" && (
+            <LocalContextTab key={meeting.id} meeting={meeting} />
           )}
           {tab === "protocol" && (
             <LocalProtocolTab serverMeetingId={serverMeetingId} />

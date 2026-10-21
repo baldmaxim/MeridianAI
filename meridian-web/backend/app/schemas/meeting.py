@@ -104,6 +104,7 @@ class MeetingDetailResponse(BaseModel):
     negotiation_type: str | None
     meeting_role: str | None
     opponent_weaknesses: str | None
+    app_notes: str | None = None
     started_at: datetime
     ended_at: datetime | None
     recorded_seconds: int | None = None  # суммарное время записи (диктофон), не открытой сессии

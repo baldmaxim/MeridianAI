@@ -7,6 +7,8 @@ pub mod account;
 mod client;
 mod engine;
 #[cfg(test)]
+mod context_tests;
+#[cfg(test)]
 mod project_tests;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -100,6 +102,11 @@ pub fn retry_delay(attempts: u32) -> Duration {
         .min(MAX_RETRY_DELAY)
 }
 
+/// The waiting time of a context update is kept apart from the meeting's.
+fn context_key(id: &str) -> String {
+    format!("context:{id}")
+}
+
 impl SyncCore {
     pub fn new(
         db: Arc<MeetingDb>,
@@ -178,7 +185,15 @@ impl SyncCore {
                 return;
             }
         };
-        if !meetings.iter().any(|m| self.due(&m.id)) {
+        let context_pending = match self.db.meetings_with_pending_context() {
+            Ok(meetings) => meetings,
+            Err(e) => {
+                warn!("Cannot read the meetings with a changed context: {e:#}");
+                Vec::new()
+            }
+        };
+        let queue_due = meetings.iter().any(|m| self.due(&m.id));
+        if !queue_due && !context_pending.iter().any(|m| self.due(&context_key(&m.id))) {
             return;
         }
         let client = ApiClient::new(&account.server_url, Some(&account.device_token));
@@ -201,15 +216,56 @@ impl SyncCore {
             let signed_out = outcome == Outcome::Unauthorized;
             self.apply(&meeting.id, outcome);
             if signed_out {
-                break;
+                return self.finish_pass();
             }
         }
+        for meeting in context_pending {
+            let key = context_key(&meeting.id);
+            if !self.due(&key) {
+                continue;
+            }
+            let engine = Engine {
+                db: &self.db,
+                root: &self.root,
+                client: &client,
+                upload_audio,
+            };
+            match engine.send_context(&meeting.id).await {
+                Ok(()) => {
+                    self.inner().backoff.remove(&key);
+                }
+                Err(ApiError::Unauthorized) => {
+                    self.apply(&meeting.id, Outcome::Unauthorized);
+                    break;
+                }
+                Err(e) => self.postpone_context(&key, &meeting.id, &e),
+            }
+        }
+        self.finish_pass();
+    }
+
+    fn finish_pass(&self) {
         {
             let mut inner = self.inner();
             inner.running = false;
             inner.current = None;
         }
         self.announce(None);
+    }
+
+    /// The context could not be sent: try again later. The meeting's own sync
+    /// state and the status line stay as they are (the user has no action to take).
+    fn postpone_context(&self, key: &str, id: &str, error: &ApiError) {
+        warn!("Sending the context of {id} will be retried: {error}");
+        let mut inner = self.inner();
+        let attempts = inner.backoff.get(key).map_or(0, |(n, _)| *n) + 1;
+        inner.backoff.insert(
+            key.to_string(),
+            (attempts, Instant::now() + retry_delay(attempts)),
+        );
+        if let ApiError::Retry { status, .. } = error {
+            inner.online = status.is_some();
+        }
     }
 
     fn apply(&self, id: &str, outcome: Outcome) {

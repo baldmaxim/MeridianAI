@@ -121,8 +121,10 @@ async def upsert_meeting(
     db: AsyncSession, user_id: int, device_id: int, client_uuid: str, *, title: str | None,
     started_at: datetime, ended_at: datetime | None, capture_mode: str,
     customer_id: int | None, object_id: int | None,
+    negotiation_type: str | None = None, key_terms: str | None = None,
+    opponent_weaknesses: str | None = None,
 ) -> tuple[MeetingSession, bool]:
-    """(встреча, created). Повтор с тем же client_uuid обновляет название и конец встречи."""
+    """(встреча, created). Повтор с тем же client_uuid обновляет название, конец встречи и переданный контекст."""
     clean_title = ((title or "").strip() or DEFAULT_TITLE)[:255]
     started = to_naive_utc(started_at)
     ended = to_naive_utc(ended_at)
@@ -149,7 +151,30 @@ async def upsert_meeting(
         meeting.title = clean_title
         if ended is not None:
             meeting.ended_at = ended
+    apply_context(meeting, negotiation_type=negotiation_type, key_terms=key_terms,
+                  opponent_weaknesses=opponent_weaknesses)
     return meeting, created
+
+
+def apply_context(
+    meeting: MeetingSession, *, negotiation_type: str | None = None,
+    key_terms: str | None = None, opponent_weaknesses: str | None = None,
+) -> bool:
+    """Контекст встречи как на сайте. None — не менять; пустая строка — очистить (NULL).
+
+    key_terms пишется в meeting_notes («Ключевые условия / цели»). True — что-то передано.
+    """
+    changed = False
+    for attr, value in (
+        ("negotiation_type", negotiation_type),
+        ("meeting_notes", key_terms),
+        ("opponent_weaknesses", opponent_weaknesses),
+    ):
+        if value is None:
+            continue
+        setattr(meeting, attr, value.strip() or None)
+        changed = True
+    return changed
 
 
 async def list_meetings(db: AsyncSession, user_id: int, limit: int = 200) -> list[tuple[MeetingSession, DesktopMeetingLink]]:

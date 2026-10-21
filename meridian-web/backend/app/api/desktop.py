@@ -47,6 +47,7 @@ from ..schemas.meeting_ask import MeetingAskRequest, MeetingAskResponse
 from ..services import desktop_sync as sync
 from ..services import s3
 from ..services.meeting_ask import MeetingAskError, answer_question
+from ..services.meeting_room import room_registry
 from ..services.audit import audit, client_ip, hmac_email
 from ..services.desktop_devices import (
     DesktopAuth,
@@ -168,6 +169,17 @@ async def devices_revoke(
 # ── встречи ───────────────────────────────────────────────────────────────
 
 
+async def _refresh_live_room(meeting: MeetingSession) -> None:
+    """Если по встрече идёт живая комната — подсказки сразу видят новый контекст. Нет комнаты — ничего."""
+    room = room_registry.get_room(meeting.id)
+    if room is None:
+        return
+    try:
+        await room.refresh_context(meeting)
+    except Exception:
+        logger.exception("Не удалось обновить контекст живой комнаты встречи %s", meeting.id)
+
+
 @router.post("/meetings", response_model=MeetingUpsertResponse)
 async def meetings_upsert(data: MeetingUpsertRequest, auth: Device, db: AsyncSession = Depends(get_db)):
     """Создать встречу или вернуть уже созданную с тем же client_uuid (title/ended_at обновятся)."""
@@ -182,8 +194,15 @@ async def meetings_upsert(data: MeetingUpsertRequest, auth: Device, db: AsyncSes
         db, auth.user.id, auth.device.id, client_uuid,
         title=data.title, started_at=data.started_at, ended_at=data.ended_at,
         capture_mode=data.capture_mode, customer_id=customer_id, object_id=object_id,
+        negotiation_type=data.negotiation_type, key_terms=data.key_terms,
+        opponent_weaknesses=data.opponent_weaknesses,
     )
     await db.commit()
+    context_given = any(
+        v is not None for v in (data.negotiation_type, data.key_terms, data.opponent_weaknesses)
+    )
+    if context_given and not created:
+        await _refresh_live_room(meeting)
     return MeetingUpsertResponse(meeting_id=meeting.id, created=created)
 
 
@@ -226,15 +245,21 @@ async def meetings_segments(
 async def meetings_patch(
     meeting_id: int, data: MeetingPatchRequest, auth: Device, db: AsyncSession = Depends(get_db),
 ):
-    """Название, конец встречи и заметки пользователя (заметки приходят списком целиком)."""
+    """Название, конец встречи, заметки пользователя (app_notes, списком целиком) и контекст встречи."""
     meeting, _ = await _linked(db, auth, meeting_id)
     if data.title is not None and data.title.strip():
         meeting.title = data.title.strip()[:255]
     if data.ended_at is not None:
         meeting.ended_at = sync.to_naive_utc(data.ended_at)
     if data.notes is not None:
-        meeting.meeting_notes = sync.format_notes([(n.at_seconds, n.text) for n in data.notes])
+        meeting.app_notes = sync.format_notes([(n.at_seconds, n.text) for n in data.notes])
+    context_changed = sync.apply_context(
+        meeting, negotiation_type=data.negotiation_type, key_terms=data.key_terms,
+        opponent_weaknesses=data.opponent_weaknesses,
+    )
     await db.commit()
+    if context_changed:
+        await _refresh_live_room(meeting)
     return MeetingPatchResponse(meeting_id=meeting.id, title=meeting.title, ended_at=meeting.ended_at)
 
 

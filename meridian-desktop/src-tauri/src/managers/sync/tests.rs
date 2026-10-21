@@ -150,7 +150,7 @@ pub(crate) async fn start_mock(handler: impl Fn(&Req) -> Reply + Send + Sync + '
 }
 
 /// A server that accepts everything the way the real one does.
-fn happy(request: &Req) -> Reply {
+pub(super) fn happy(request: &Req) -> Reply {
     match (request.method.as_str(), request.path.as_str()) {
         ("POST", "/api/desktop/meetings") => ok(r#"{"meeting_id":42,"created":true}"#),
         ("PUT", "/api/desktop/meetings/42/segments") => ok(r#"{"created":1,"updated":0}"#),
@@ -167,16 +167,16 @@ fn happy(request: &Req) -> Reply {
 
 /* ------------------------------ fixtures ------------------------------ */
 
-struct Fixture {
-    core: SyncCore,
-    db: Arc<MeetingDb>,
+pub(super) struct Fixture {
+    pub(super) core: SyncCore,
+    pub(super) db: Arc<MeetingDb>,
     accounts: Arc<AccountStore>,
     notices: Arc<Mutex<Vec<Notice>>>,
     root: tempfile::TempDir,
     _account_dir: tempfile::TempDir,
 }
 
-fn fixture(server_url: &str) -> Fixture {
+pub(super) fn fixture(server_url: &str) -> Fixture {
     let db = Arc::new(MeetingDb::open_in_memory().unwrap());
     let account_dir = tempfile::tempdir().unwrap();
     let accounts = Arc::new(AccountStore::open(
@@ -232,6 +232,9 @@ fn meeting(id: &str, status: MeetingStatus) -> MeetingInfo {
         customer_name: None,
         object_name: None,
         audio_state: "pending".to_string(),
+        negotiation_type: None,
+        key_terms: None,
+        opponent_weaknesses: None,
         web_url: None,
     }
 }
@@ -250,14 +253,14 @@ fn segment(meeting: &str, n: usize) -> Segment {
 }
 
 impl Fixture {
-    fn add_meeting(&self, id: &str, status: MeetingStatus, segments: usize) {
+    pub(super) fn add_meeting(&self, id: &str, status: MeetingStatus, segments: usize) {
         self.db.insert_meeting(&meeting(id, status)).unwrap();
         for n in 0..segments {
             self.db.insert_segment(&segment(id, n)).unwrap();
         }
     }
 
-    fn meeting(&self, id: &str) -> MeetingInfo {
+    pub(super) fn meeting(&self, id: &str) -> MeetingInfo {
         self.db.get_meeting(id).unwrap().unwrap()
     }
 
