@@ -13,6 +13,8 @@ export interface BatchJob {
   updated_at: string;
   /** Встреча, сделанная из этой записи (если сделана). */
   meeting_id: number | null;
+  /** Число говорящих, заданное при загрузке; null — авто. */
+  max_speakers: number | null;
 }
 
 export interface BatchToMeetingResult {
@@ -78,6 +80,8 @@ export interface BatchUploadOpts {
   meetingId?: number;
   /** "gap_fill" — дозапись после обрыва связи (вливается в транскрипт встречи, без протокола) */
   kind?: 'gap_fill';
+  /** Число говорящих (2–6); null/undefined — авто. */
+  maxSpeakers?: number | null;
 }
 
 export async function uploadBatchAudio(
@@ -99,6 +103,7 @@ export async function uploadBatchAudio(
     const { data } = await api.post(`/batch/confirm/${session.file_id}`, {
       meeting_id: opts?.meetingId,
       kind: opts?.kind,
+      max_speakers: opts?.maxSpeakers ?? undefined,
     });
     return data;
   } catch (e) {
@@ -108,6 +113,7 @@ export async function uploadBatchAudio(
       form.append('file', file);
       if (opts?.meetingId != null) form.append('meeting_id', String(opts.meetingId));
       if (opts?.kind) form.append('kind', opts.kind);
+      if (opts?.maxSpeakers != null) form.append('max_speakers', String(opts.maxSpeakers));
       const { data } = await api.post('/batch/upload', form);
       return data;
     }
@@ -116,8 +122,14 @@ export async function uploadBatchAudio(
 }
 
 /** Распознать уже загруженный в мини-облако аудиофайл (без повторной загрузки). */
-export async function createBatchFromStash(fileId: number): Promise<BatchJob> {
-  const { data } = await api.post(`/batch/from-stash/${fileId}`);
+export async function createBatchFromStash(
+  fileId: number,
+  maxSpeakers?: number | null,
+): Promise<BatchJob> {
+  const { data } = await api.post(
+    `/batch/from-stash/${fileId}`,
+    maxSpeakers != null ? { max_speakers: maxSpeakers } : undefined,
+  );
   return data;
 }
 

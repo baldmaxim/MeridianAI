@@ -14,7 +14,7 @@ def test_pick_follows_user_choice():
 
 def test_pick_falls_back_when_no_key_or_unsupported():
     assert pick_batch_stt("deepgram", {"elevenlabs": "el"}) == ("elevenlabs", "el")
-    assert pick_batch_stt("speechmatics", KEYS) == ("deepgram", "dg")
+    assert pick_batch_stt("speechmatics", KEYS) == ("elevenlabs", "el")
     assert pick_batch_stt(None, {}) is None
 
 
@@ -56,18 +56,18 @@ KEYS_GIGA = {**KEYS, "gigaam": GIGA_URL}
 
 def test_ordered_chosen_gigaam_first():
     assert ordered_batch_stt("gigaam", KEYS_GIGA) == [
-        ("gigaam", GIGA_URL), ("deepgram", "dg"), ("elevenlabs", "el"),
+        ("gigaam", GIGA_URL), ("elevenlabs", "el"), ("deepgram", "dg"),
     ]
 
 
 def test_ordered_gigaam_without_url_falls_back_to_keys():
-    assert ordered_batch_stt("gigaam", KEYS) == [("deepgram", "dg"), ("elevenlabs", "el")]
-    assert pick_batch_stt("gigaam", KEYS) == ("deepgram", "dg")
+    assert ordered_batch_stt("gigaam", KEYS) == [("elevenlabs", "el"), ("deepgram", "dg")]
+    assert pick_batch_stt("gigaam", KEYS) == ("elevenlabs", "el")
 
 
 def test_ordered_gigaam_last_in_automatic_order():
     assert ordered_batch_stt(None, KEYS_GIGA)[-1] == ("gigaam", GIGA_URL)
-    assert pick_batch_stt(None, KEYS_GIGA) == ("deepgram", "dg")
+    assert pick_batch_stt(None, KEYS_GIGA) == ("elevenlabs", "el")
     assert pick_batch_stt(None, {"gigaam": GIGA_URL}) == ("gigaam", GIGA_URL)
 
 
@@ -102,7 +102,7 @@ class _Resp:
         return self._data
 
 
-def _patch_http(monkeypatch, post_codes, polls):
+def _patch_http(monkeypatch, post_codes, polls, form=None):
     calls = {"post": 0, "get": []}
     poll_iter = iter(polls)
 
@@ -114,7 +114,7 @@ def _patch_http(monkeypatch, post_codes, polls):
 
     def fake_post(url, **kwargs):
         assert kwargs["headers"]["Authorization"] == "Bearer tok"
-        assert kwargs["data"] == {"model": "gigaam-v3", "diarize": "true"}
+        assert kwargs["data"] == (form or {"model": "gigaam-v3", "diarize": "true"})
         code = post_codes[calls["post"]]
         calls["post"] += 1
         return _Resp(code, {"id": "job1"} if code == 200 else {})
@@ -157,3 +157,13 @@ def test_batch_stt_provider_validator():
     assert UserSettingsUpdate().batch_stt_provider is None
     with pytest.raises(ValidationError):
         UserSettingsUpdate(batch_stt_provider="speechmatics")
+
+
+@pytest.mark.asyncio
+async def test_gigaam_passes_max_speakers(monkeypatch, tmp_path):
+    audio = tmp_path / "a.ogg"
+    audio.write_bytes(b"x")
+    _patch_http(monkeypatch, [200], [{"status": "done", "result": {"text": "", "words": []}}],
+                form={"model": "gigaam-v3", "diarize": "true", "max_speakers": "4"})
+    t = await GigaAMBatchTranscriptionService(GIGA_URL, max_speakers=4).transcribe(str(audio), timeout=60)
+    assert t == {"text": "", "words": []}

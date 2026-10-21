@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BatchSegment(BaseModel):
@@ -27,6 +27,8 @@ class BatchJobResponse(BaseModel):
     updated_at: datetime
     # Встреча, сделанная из этой записи (если сделана) — чтобы не импортировать дважды.
     meeting_id: Optional[int] = None
+    # Число говорящих, заданное при загрузке; None — авто.
+    max_speakers: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -54,6 +56,11 @@ class UploadSessionResponse(BaseModel):
 class ConfirmUploadRequest(BaseModel):
     meeting_id: Optional[int] = None
     kind: Optional[str] = None
+    max_speakers: Optional[int] = Field(None, ge=2, le=6)
+
+
+class FromStashRequest(BaseModel):
+    max_speakers: Optional[int] = Field(None, ge=2, le=6)
 
 
 class ClipRequest(BaseModel):

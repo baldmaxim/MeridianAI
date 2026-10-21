@@ -27,8 +27,10 @@ _SPEAKER_NUM = re.compile(r"(\d+)\s*$")
 
 
 class GigaAMBatchTranscriptionService:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, max_speakers: Optional[int] = None):
         self.base_url = base_url.rstrip("/")
+        # Верхняя граница для диаризации (pyannote): без неё дробит быстрые перебивки
+        self.max_speakers = max_speakers
         # Сервис принимает только Host 127.0.0.1/localhost (защита от DNS rebinding),
         # а на проде он доступен по имени контейнера туннеля
         self.host_header = {"Host": f"127.0.0.1:{urlparse(self.base_url).port or 80}"}
@@ -74,6 +76,9 @@ class GigaAMBatchTranscriptionService:
 
     def _submit(self, file_path: str, headers: Dict[str, str]) -> Optional[str]:
         """Создать задание; на 429/503/сетевых ошибках повторять с backoff."""
+        form = {"model": MODEL, "diarize": "true"}
+        if self.max_speakers:
+            form["max_speakers"] = str(self.max_speakers)
         response = None
         for attempt in range(MAX_RETRIES):
             try:
@@ -82,7 +87,7 @@ class GigaAMBatchTranscriptionService:
                         f"{self.base_url}/api/jobs",
                         headers=headers,
                         files={"file": audio_file},
-                        data={"model": MODEL, "diarize": "true"},
+                        data=form,
                         timeout=UPLOAD_TIMEOUT,
                     )
                 if response.status_code not in RETRYABLE_STATUSES:

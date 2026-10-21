@@ -5,12 +5,18 @@ import { BatchJobDetail } from '../components/batch/BatchJobDetail';
 import { useBatchJobs, useUploadBatch, useDeleteBatchJob, useCreateBatchFromStash } from '../hooks/queries/batch';
 import { useStashFiles } from '../hooks/queries/stash';
 import { Modal } from '../components/common/Modal';
+import { Select } from '../components/common';
 import { errorDetail } from '../lib/errorDetail';
 import { getFileExtension, formatFileSize } from '../lib/documentFiles';
 import styles from './BatchPage.module.css';
 import { cx } from '../utils/cx';
 
 const AUDIO_EXT = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.opus', '.webm'];
+
+const SPEAKER_OPTIONS = [
+  { value: '', label: 'Авто' },
+  ...[2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) })),
+];
 
 interface Props {
   onBack: () => void;
@@ -25,12 +31,14 @@ export function BatchPage({ onBack }: Props) {
   const fromStashMut = useCreateBatchFromStash();
   const { data: stashFiles = [] } = useStashFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [speakers, setSpeakers] = useState('');
+  const maxSpeakers = speakers ? Number(speakers) : null;
 
   const audioStash = stashFiles.filter((f) => AUDIO_EXT.includes(getFileExtension(f.original_name)));
 
   const handleUpload = async (file: File) => {
     try {
-      const job = await uploadMut.mutateAsync(file);
+      const job = await uploadMut.mutateAsync({ file, maxSpeakers });
       setSelectedId(job.id);
     } catch (e) {
       alert(errorDetail(e) || 'Ошибка загрузки');
@@ -39,7 +47,7 @@ export function BatchPage({ onBack }: Props) {
 
   const handlePickStash = async (id: number) => {
     try {
-      const job = await fromStashMut.mutateAsync(id);
+      const job = await fromStashMut.mutateAsync({ fileId: id, maxSpeakers });
       setSelectedId(job.id);
       setPickerOpen(false);
     } catch (e) {
@@ -61,6 +69,22 @@ export function BatchPage({ onBack }: Props) {
         <div className={styles.topBar}>
           <button onClick={onBack} className={styles.backBtn}>{'\u2190'} Назад</button>
           <h2 className={styles.title}>Расшифровка записи</h2>
+        </div>
+        <div className={styles.speakers}>
+          <div className={styles.speakersRow}>
+            <span className={styles.speakersLabel}>Говорящих:</span>
+            <Select
+              value={speakers}
+              onChange={setSpeakers}
+              options={SPEAKER_OPTIONS}
+              className={styles.speakersWrap}
+              triggerClassName={styles.speakersSelect}
+              ariaLabel="Число говорящих"
+            />
+          </div>
+          <span className={styles.speakersHint}>
+            Укажите, если знаете, сколько человек говорит — так меньше путаницы между говорящими
+          </span>
         </div>
         <BatchUpload onUpload={handleUpload} uploading={uploadMut.isPending} />
         <button

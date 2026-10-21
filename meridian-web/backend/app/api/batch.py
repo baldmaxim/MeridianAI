@@ -33,6 +33,7 @@ from ..schemas.batch import (
     UploadSessionRequest,
     UploadSessionResponse,
     ConfirmUploadRequest,
+    FromStashRequest,
     ClipRequest,
 )
 from ..services.jobs import enqueue
@@ -65,6 +66,7 @@ async def upload_batch_audio(
     file: UploadFile = File(...),
     meeting_id: Optional[int] = Form(None),
     kind: Optional[str] = Form(None),
+    max_speakers: Optional[int] = Form(None, ge=2, le=6),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -93,6 +95,7 @@ async def upload_batch_audio(
         file_path=str(file_path),
         kind=("gap_fill" if kind == "gap_fill" else None),
         meeting_id=meeting_id,
+        max_speakers=max_speakers,
     )
     db.add(job)
     await db.flush()
@@ -171,6 +174,7 @@ async def confirm_upload(
         file_path=rec.object_key,  # теперь это S3-ключ, не локальный путь
         kind=kind,
         meeting_id=meeting_id,
+        max_speakers=(data.max_speakers if data else None),
     )
     db.add(job)
     await db.flush()
@@ -184,6 +188,7 @@ async def confirm_upload(
 @router.post("/from-stash/{file_id}", response_model=BatchJobResponse)
 async def create_from_stash(
     file_id: int,
+    data: Optional[FromStashRequest] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -227,6 +232,7 @@ async def create_from_stash(
         original_filename=rec.original_name,
         original_size=rec.size or 0,
         file_path=new_key,
+        max_speakers=(data.max_speakers if data else None),
     )
     db.add(job)
     await db.flush()

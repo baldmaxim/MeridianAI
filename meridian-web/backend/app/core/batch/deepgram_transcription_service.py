@@ -26,8 +26,10 @@ class DeepgramBatchTranscriptionService:
         "smart_format": "true",
     }
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, max_speakers: Optional[int] = None):
         self.api_key = api_key
+        # У batch API Deepgram нет верхней границы числа говорящих — параметр игнорируется
+        self.max_speakers = max_speakers
 
     async def transcribe(self, file_path: str, timeout: int = 600) -> Optional[Dict[str, Any]]:
         """Transcribe audio file. Returns {text, words} or None."""

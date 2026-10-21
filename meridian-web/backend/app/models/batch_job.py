@@ -25,6 +25,9 @@ class BatchJob(Base):
         Integer, ForeignKey("meeting_sessions.id", ondelete="SET NULL"), index=True, nullable=True
     )
 
+    # Число говорящих, заданное пользователем при загрузке (2..6). NULL — авто.
+    max_speakers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     original_size: Mapped[int] = mapped_column(Integer, default=0)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)

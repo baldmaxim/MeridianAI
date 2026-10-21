@@ -332,6 +332,12 @@ class Settings(BaseSettings):
     # GigaAM — внешний HTTP-сервис офлайн-распознавания (доступ через SSH-туннель). Пусто = выключен.
     gigaam_url: str = Field(default="", alias="GIGAAM_URL")
     gigaam_timeout_seconds: int = Field(default=900, alias="GIGAAM_TIMEOUT_SECONDS")
+    # Отдельная копия звука для распознавания (не влияет на копию для хранения, она 20k).
+    # Стенд 21.10.2026 (GigaAM, исходник AAC): 48k против 20k — +12% слов, на 30% меньше
+    # пропущенной речи; 20k + без нормализации = распознавать копию хранения как раньше.
+    # dynaudnorm на стенде неоднозначен (+/− по клипам) — выключен.
+    batch_stt_bitrate: str = Field(default="48k", alias="BATCH_STT_BITRATE")
+    batch_stt_normalize: bool = Field(default=False, alias="BATCH_STT_NORMALIZE")
 
     # Realtime multi-channel live STT shadow (Этап 9.6): выбранные primary/secondary каналы
     # mux-ятся в один realtime PCM16-multichannel stream и шлются в ОТДЕЛЬНОЕ realtime STT

@@ -17,8 +17,10 @@ RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 class BatchTranscriptionService:
     API_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, max_speakers: Optional[int] = None):
         self.api_key = api_key
+        # Число говорящих, если пользователь его знает (num_speakers); None — авто
+        self.max_speakers = max_speakers
 
     async def transcribe(self, file_path: str, timeout: int = 600) -> Optional[Dict[str, Any]]:
         """Transcribe audio file. Returns {text, words} or None."""
@@ -36,6 +38,8 @@ class BatchTranscriptionService:
                 "diarize": "true",
                 "timestamps_granularity": "word",
             }
+            if self.max_speakers:
+                data["num_speakers"] = str(self.max_speakers)
 
             response = None
             for attempt in range(MAX_RETRIES):

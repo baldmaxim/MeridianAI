@@ -37,11 +37,13 @@ from .utils import split_protocol_output
 
 logger = logging.getLogger("meridian.batch")
 
-# Порядок = порядок автоматического fallback: GigaAM идёт после ключевых провайдеров.
-# credential: API-ключ (Deepgram/ElevenLabs) или URL сервиса (GigaAM)
+# Порядок = порядок автоматического fallback: ElevenLabs (на реальной 2-часовой записи распознал
+# в 2,3 раза больше слов, чем Deepgram), затем Deepgram, GigaAM — последним.
+# credential: API-ключ (Deepgram/ElevenLabs) или URL сервиса (GigaAM).
+# Все сервисы принимают (credential, max_speakers=...).
 BATCH_STT = {
-    "deepgram": ("Deepgram", DeepgramBatchTranscriptionService),
     "elevenlabs": ("ElevenLabs", BatchTranscriptionService),
+    "deepgram": ("Deepgram", DeepgramBatchTranscriptionService),
     "gigaam": ("GigaAM", GigaAMBatchTranscriptionService),
 }
 
@@ -176,6 +178,22 @@ async def handle_batch_transcribe(payload: dict) -> None:
                     else:
                         logger.info("FFmpeg недоступен — пропуск сжатия")
 
+                # Отдельная копия под распознавание (под флагами; по умолчанию не делается).
+                # Берём оригинал, а не сжатую для хранения копию; живёт в tmpdir, в S3 не уходит.
+                if settings.batch_stt_bitrate != "20k" or settings.batch_stt_normalize:
+                    stt_compressor = AudioCompressor()
+                    stt_path = None
+                    if stt_compressor.is_available:
+                        stt_path = await stt_compressor.prepare_for_stt(
+                            local_audio, tmpdir,
+                            settings.batch_stt_bitrate, settings.batch_stt_normalize,
+                        )
+                    if stt_path:
+                        file_to_transcribe = stt_path
+                    else:
+                        logger.warning("job %s: копия для распознавания не создана, "
+                                       "распознаём как есть", job_id)
+
                 user_settings = await load_user_settings(job.user_id)
                 chosen = user_settings.get("batch_stt_provider") or user_settings.get("stt_provider")
                 credentials = dict(api_keys)
@@ -195,7 +213,8 @@ async def handle_batch_transcribe(payload: dict) -> None:
                     label, service_cls = BATCH_STT[provider]
                     logger.info("job %s: распознавание через %s (в настройках: %s)",
                                 job_id, provider, chosen)
-                    transcription = await service_cls(credential).transcribe(file_to_transcribe)
+                    service = service_cls(credential, max_speakers=job.max_speakers)
+                    transcription = await service.transcribe(file_to_transcribe)
                     if transcription:
                         break
                     logger.warning("job %s: %s не вернул результат, пробуем следующего", job_id, provider)

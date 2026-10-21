@@ -5,9 +5,26 @@ import asyncio
 import shutil
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+STT_FILENAME = "stt.ogg"
+
+
+def build_stt_ffmpeg_args(
+    ffmpeg_path: str,
+    input_path: str,
+    output_path: str,
+    bitrate: str,
+    normalize: bool,
+) -> List[str]:
+    """Аргументы ffmpeg для копии звука под распознавание (чистая функция — без запуска ffmpeg)."""
+    cmd = [ffmpeg_path, "-y", "-threads", "0", "-i", str(input_path)]
+    if normalize:
+        cmd += ["-af", "dynaudnorm"]
+    cmd += ["-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", bitrate, str(output_path)]
+    return cmd
 
 
 class AudioCompressor:
@@ -108,4 +125,48 @@ class AudioCompressor:
 
         except Exception as e:
             logger.error(f"Compression error: {e}")
+            return None
+
+    async def prepare_for_stt(
+        self,
+        input_path: str,
+        output_dir: str,
+        bitrate: str,
+        normalize: bool,
+    ) -> Optional[str]:
+        """Отдельная копия звука для распознавания: mono 16 кГц Opus (опционально с нормализацией).
+
+        Возвращает путь к `<output_dir>/stt/stt.ogg` или None при неудаче.
+        """
+        if not self.ffmpeg_path:
+            return None
+
+        try:
+            # отдельная подпапка: исходник в tmpdir может сам называться stt.ogg
+            output_path = Path(output_dir) / "stt" / STT_FILENAME
+            output_path.parent.mkdir(exist_ok=True)
+            cmd = build_stt_ffmpeg_args(
+                self.ffmpeg_path, input_path, str(output_path), bitrate, normalize
+            )
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await process.communicate()
+
+            if process.returncode == 0 and output_path.exists():
+                logger.info(
+                    f"STT copy: {input_path} -> {output_path} "
+                    f"({os.path.getsize(input_path)} -> {os.path.getsize(str(output_path))}, "
+                    f"bitrate={bitrate}, normalize={normalize})"
+                )
+                return str(output_path)
+
+            logger.error(f"STT copy failed: {stderr.decode()[:500]}")
+            return None
+
+        except Exception as e:
+            logger.error(f"STT copy error: {e}")
             return None

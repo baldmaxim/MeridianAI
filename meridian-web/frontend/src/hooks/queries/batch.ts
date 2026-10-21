@@ -27,7 +27,8 @@ export function useBatchJob(id: number | null) {
 export function useUploadBatch() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => uploadBatchAudio(file),
+    mutationFn: ({ file, maxSpeakers }: { file: File; maxSpeakers?: number | null }) =>
+      uploadBatchAudio(file, undefined, { maxSpeakers }),
     onSuccess: () => qc.invalidateQueries({ queryKey: batchKeys.jobs }),
   });
 }
@@ -43,7 +44,8 @@ export function useDeleteBatchJob() {
 export function useCreateBatchFromStash() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (fileId: number) => createBatchFromStash(fileId),
+    mutationFn: ({ fileId, maxSpeakers }: { fileId: number; maxSpeakers?: number | null }) =>
+      createBatchFromStash(fileId, maxSpeakers),
     onSuccess: () => qc.invalidateQueries({ queryKey: batchKeys.jobs }),
   });
 }
