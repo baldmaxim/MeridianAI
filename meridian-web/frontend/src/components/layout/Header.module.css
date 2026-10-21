@@ -1,4 +1,4 @@
-/* Шапка приложения. Мобильные правила (.header-*) живут в index.css (глобальные классы сохранены). */
+/* Шапка приложения. Мобильные правила (.header-*) и --header-h живут в index.css (глобальные классы сохранены). */
 
 .header {
   display: flex;
@@ -6,7 +6,7 @@
   justify-content: flex-start;
   gap: 14px;
   padding: env(safe-area-inset-top) 24px 0;
-  height: calc(52px + env(safe-area-inset-top));
+  height: calc(var(--header-h) + env(safe-area-inset-top));
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
@@ -109,97 +109,39 @@
   margin-left: auto;
 }
 
-.userMenuWrap {
-  position: relative;
-  display: flex;
-}
-
-.avatar {
+/* Иконка-кнопка (шестерёнка): на тач 44×44, на десктопе с мышью 36×36 */
+.iconBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-radius: 50%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-amber);
-  font-size: 10px;
-  color: var(--accent-amber);
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
-.userMenu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 200;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 240px;
-  padding: 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px var(--shadow-color);
-}
-
-.userMenuName {
-  padding: 4px 8px 6px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-
-.userMenuItem {
-  width: 100%;
-  min-height: 44px;
-  text-align: left;
-  padding: 10px 12px;
-  background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
+.iconBtn:hover {
+  background: var(--bg-hover);
   color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.04em;
 }
 
-.adminBtn {
-  padding: 4px 8px;
-  background: transparent;
-  border: 1px solid var(--border-amber);
-  border-radius: 5px;
-  color: var(--accent-amber);
-  cursor: pointer;
-  font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-}
-
-.adminBtnActive {
+.iconBtnActive,
+.iconBtnActive:hover {
+  color: var(--accent);
   background: var(--accent-amber-glow);
-  border-color: var(--accent-amber);
 }
 
-.logout {
-  padding: 4px 10px;
-  background: transparent;
-  border: 1px solid var(--border-amber);
-  border-radius: 4px;
-  color: var(--accent-amber);
-  cursor: pointer;
-  font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.08em;
+@media (min-width: 1024px) and (pointer: fine) {
+  .iconBtn {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .roleBadge {
@@ -217,63 +159,31 @@
   max-width: 140px;
 }
 
-/* display:flex на мобильном выставляет index.css (.header-burger) */
+/* Бургер: виден до 1024px; на странице встречи (.burgerAlways) — на всех ширинах */
 .burger {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
   background: transparent;
-  border: 1px solid var(--border-amber);
-  border-radius: 6px;
-  color: var(--accent-amber);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.menu {
-  position: fixed;
-  top: calc(44px + env(safe-area-inset-top));
-  left: 0;
-  right: 0;
-  z-index: 200;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-default);
-  box-shadow: 0 8px 24px var(--shadow-color);
-}
-
-.menuItem {
-  width: 100%;
-  min-height: 44px;
-  text-align: left;
-  padding: 11px 14px;
-  background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   color: var(--text);
   cursor: pointer;
-  font-size: 13px;
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.menuItemActive {
-  background: var(--accent-amber-glow);
-  border-color: var(--accent-amber);
-  color: var(--accent-amber);
-}
+@media (min-width: 1024px) {
+  .burger {
+    display: none;
+  }
 
-.menuRole {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0;
+  .burgerAlways {
+    display: flex;
+  }
 }
 
 /* display:flex на мобильном выставляет index.css (.mobile-role-strip) */

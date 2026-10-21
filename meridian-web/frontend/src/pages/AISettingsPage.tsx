@@ -9,7 +9,11 @@ import type { AISettingsProfile, AISettingsProfileInput, SuggestionMode } from '
 import styles from './AISettingsPage.module.css';
 import { cx } from '../utils/cx';
 
-interface Props { onBack: () => void; }
+interface Props {
+  onBack?: () => void;
+  /** Внутри хаба настроек: без своей шапки «назад» и заголовка */
+  embedded?: boolean;
+}
 
 const MODES: { key: SuggestionMode; label: string; hint: string }[] = [
   { key: 'fast', label: 'Быстрый', hint: 'Меньше контекста, короче, ниже задержка' },
@@ -56,7 +60,7 @@ function blankDraft(): AISettingsProfileInput {
   };
 }
 
-export function AISettingsPage({ onBack }: Props) {
+export function AISettingsPage({ onBack, embedded }: Props) {
   const [selectedId, setSelectedId] = useState<number | 'new' | null>(null);
   const [draft, setDraft] = useState<AISettingsProfileInput>(blankDraft());
   const [advanced, setAdvanced] = useState(false);
@@ -118,10 +122,10 @@ export function AISettingsPage({ onBack }: Props) {
   }
 
   return (
-    <div className={styles.container}>
+    <div className={embedded ? styles.containerEmbedded : styles.container}>
       <div className={styles.topBar}>
-        <button onClick={onBack} className={styles.backBtn}>&larr; К переговорам</button>
-        <span className={styles.topTitle}>AI-ПРОФИЛИ</span>
+        {!embedded && onBack && <button onClick={onBack} className={styles.backBtn}>&larr; К переговорам</button>}
+        {!embedded && <span className={styles.topTitle}>AI-ПРОФИЛИ</span>}
         <span className={styles.spacer} />
         <button onClick={startNew} className={styles.newBtn}>+ Новый профиль</button>
       </div>

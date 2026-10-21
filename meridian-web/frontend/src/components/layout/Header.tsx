@@ -1,15 +1,16 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import type { FC } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { paths, navTo } from '../../lib/navigation';
 import { logoutAll } from '../../api/auth';
-import { RoleSwitch } from './RoleSwitch';
 import { LogoMark } from './LogoMark';
 import { SessionTimer } from './SessionTimer';
-import { useOpenClose } from '../../hooks/useOpenClose';
 import { IconSwap } from '../common/IconSwap';
-import { ThemeToggle } from '../common/ThemeToggle';
-import { Dropdown } from '../common/Dropdown';
+import { Icon } from '../common/Icon';
+import { HeaderNav } from './HeaderNav';
+import { HeaderMobileMenu } from './HeaderMobileMenu';
+import { UserMenu } from './UserMenu';
+import type { IHeaderNavModel } from './headerNav';
 import styles from './Header.module.css';
 
 interface IHeaderProps {
@@ -47,27 +48,26 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
   const objectHeader = useMeetingStore((s) => (inObjectDetail ? s.objectHeader : null));
   const showObjectTag = !!objectHeader && !!(objectHeader.customer || objectHeader.object);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const closeUserMenu = useCallback(() => setUserMenuOpen(false), []);
-  const menu = useOpenClose(menuOpen, { closeVar: '--dropdown-close-dur', fallbackMs: 150 });
 
-  const navItems = ([
-    onShowObjects && { label: 'Проекты', path: paths.objects, onClick: onShowObjects, active: showObjects },
-    onShowLetters && { label: 'Письма', path: paths.letters, onClick: onShowLetters, active: showLetters },
-    onShowFiles && { label: 'Файлы', path: paths.files, onClick: onShowFiles, active: showFiles },
-    onShowDesktop && { label: 'Приложение для ПК', path: paths.desktop, onClick: onShowDesktop, active: showDesktop },
-    onShowKnowledge && { label: 'База знаний', path: paths.knowledge, onClick: onShowKnowledge, active: showKnowledge },
-    onShowAISettings && { label: 'AI-профили', path: paths.aiSettings, onClick: onShowAISettings, active: showAISettings },
-    onShowBatch && { label: 'Оффлайн распознавание', path: paths.batch, onClick: onShowBatch, active: showBatch },
-    onShowSettings && { label: '⚙ Настройки', path: paths.settings, onClick: onShowSettings, active: showSettings },
-  ].filter(Boolean)) as { label: string; path: string; onClick: () => void; active?: boolean }[];
+  // Шестерёнка «Настройки»: хаб настроек, а если его нет — AI-профили
+  const settingsAction = onShowSettings
+    ? { path: paths.settings, onClick: onShowSettings }
+    : onShowAISettings
+      ? { path: paths.aiSettings, onClick: onShowAISettings }
+      : undefined;
 
-  const handleNav = (fn: () => void) => { setMenuOpen(false); fn(); };
+  const nav: IHeaderNavModel = {
+    objects: onShowObjects && { path: paths.objects, onClick: onShowObjects, active: !!showObjects },
+    letters: onShowLetters && { path: paths.letters, onClick: onShowLetters, active: !!showLetters },
+    knowledge: onShowKnowledge && { path: paths.knowledge, onClick: onShowKnowledge, active: !!showKnowledge },
+    files: onShowFiles && { path: paths.files, onClick: onShowFiles, active: !!showFiles },
+    batch: onShowBatch && { path: paths.batch, onClick: onShowBatch, active: !!showBatch },
+    desktop: onShowDesktop && { path: paths.desktop, onClick: onShowDesktop, active: !!showDesktop },
+    settings: settingsAction && { ...settingsAction, active: !!showSettings || !!showAISettings },
+  };
 
   // Завершает все сессии пользователя на сервере, затем обычный локальный выход
   const handleLogoutAll = async () => {
-    setMenuOpen(false);
-    setUserMenuOpen(false);
     if (!window.confirm('Выйти на всех устройствах? Все активные сессии будут завершены.')) return;
     try {
       await logoutAll();
@@ -122,87 +122,59 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
           </div>
         )}
 
+        {/* На встрече ряд табов не показываем — чтобы не уйти со встречи случайным кликом */}
+        {!inMeeting && <HeaderNav nav={nav} />}
+
         <div className={`header-right ${styles.right}`}>
           {activeRoleName && (
             <span className={`header-role-badge ${styles.roleBadge}`}>
               {activeRoleName}
             </span>
           )}
-          {userName && (
-            <div className={`header-avatar ${styles.userMenuWrap}`}>
-              <button
-                type="button"
-                className={styles.avatar}
-                aria-label="Меню пользователя"
-                aria-haspopup="menu"
-                aria-expanded={userMenuOpen}
-                title={userName}
-                // mousedown вне меню закрывает Dropdown — не даём ему сработать на самом триггере
-                onMouseDown={(e) => e.nativeEvent.stopPropagation()}
-                onClick={() => setUserMenuOpen((o) => !o)}
-              >
-                {(userName[0] || 'U').toUpperCase()}
-              </button>
-              <Dropdown open={userMenuOpen} onClose={closeUserMenu} origin="top-right" className={styles.userMenu}>
-                <div className={styles.userMenuName}>{userName}</div>
-                <button type="button" className={`t-btn ${styles.userMenuItem}`} onClick={handleLogoutAll}>
-                  Выйти на всех устройствах
-                </button>
-              </Dropdown>
-            </div>
-          )}
-          {navItems.map((it) => (
+          {settingsAction && (
             <button
-              key={it.label}
-              className={`header-desktop-btn t-btn ${styles.adminBtn} ${it.active ? styles.adminBtnActive : ''}`}
-              {...navTo(it.path, it.onClick)}
+              type="button"
+              className={`t-btn ${styles.iconBtn} ${nav.settings?.active ? styles.iconBtnActive : ''}`}
+              aria-label="Настройки"
+              title="Настройки"
+              {...navTo(settingsAction.path, settingsAction.onClick)}
             >
-              {it.label}
+              <Icon name="gear" size={20} />
             </button>
-          ))}
-          {canSwitchRole && onToggleViewAs && (
-            <span className="header-roleswitch">
-              <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
-            </span>
           )}
-          <ThemeToggle />
-          <button className={`header-desktop-btn t-btn ${styles.logout}`} onClick={onLogout}>
-            Выход
-          </button>
+          {userName && (
+            <UserMenu
+              userName={userName}
+              onLogout={onLogout}
+              onLogoutAll={handleLogoutAll}
+              canSwitchRole={canSwitchRole}
+              viewAsUser={viewAsUser}
+              onToggleViewAs={onToggleViewAs}
+            />
+          )}
           <button
-            className={`header-burger t-btn ${styles.burger}`}
+            type="button"
+            className={`t-btn ${styles.burger} ${inMeeting ? styles.burgerAlways : ''}`}
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Меню"
+            aria-expanded={menuOpen}
           >
-            <IconSwap state={menuOpen ? 'b' : 'a'} a="☰" b="✕" />
+            <IconSwap state={menuOpen ? 'b' : 'a'} a={<Icon name="menu" />} b={<Icon name="close" />} />
           </button>
         </div>
       </header>
 
-      {menu.mounted && (
-        <div className={`header-menu t-dropdown ${menu.cls} ${styles.menu}`.trim()} data-origin="top-right">
-          {navItems.map((it) => (
-            <button
-              key={it.label}
-              {...navTo(it.path, () => handleNav(it.onClick))}
-              className={`t-btn ${styles.menuItem} ${it.active ? styles.menuItemActive : ''}`}
-            >
-              {it.label}
-            </button>
-          ))}
-          {canSwitchRole && onToggleViewAs && (
-            <div className={styles.menuRole}>
-              <RoleSwitch viewAsUser={!!viewAsUser} onToggle={onToggleViewAs} />
-            </div>
-          )}
-          <button onClick={() => handleNav(onLogout)} className={`t-btn ${styles.menuItem}`}>
-            Выход
-          </button>
-          <button onClick={handleLogoutAll} className={`t-btn ${styles.menuItem}`}>
-            Выйти на всех устройствах
-          </button>
-        </div>
-      )}
+      <HeaderMobileMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        nav={nav}
+        userName={userName}
+        onLogout={onLogout}
+        onLogoutAll={handleLogoutAll}
+        canSwitchRole={canSwitchRole}
+        viewAsUser={viewAsUser}
+        onToggleViewAs={onToggleViewAs}
+      />
       {(activeRoleName || meetingName || showObjectTag) && (
         <div className={`mobile-role-strip ${styles.mobileRoleStrip}`}>
           {showObjectTag && (

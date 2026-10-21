@@ -1,0 +1,133 @@
+.menu {
+  position: fixed;
+  top: calc(var(--header-h) + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: calc(100dvh - var(--header-h) - env(safe-area-inset-top));
+  padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.kicker {
+  padding: 10px 4px 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.item:hover {
+  background: var(--bg-hover);
+}
+
+.itemActive,
+.itemActive:hover {
+  background: var(--accent-amber-glow);
+  color: var(--accent);
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  color: var(--on-accent);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.ctaActive {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.module {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+}
+
+.moduleIcon {
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.moduleActive,
+.moduleActive:hover {
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  border-color: var(--accent-blue);
+  color: var(--text);
+}
+
+.settings {
+  margin-top: 8px;
+}
+
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-default);
+}
+
+.userName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.role {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.danger {
+  color: var(--danger);
+}

@@ -60,7 +60,7 @@ export function BatchPage({ onBack }: Props) {
       <div className={cx(styles.left, !!selectedId && styles.leftCompact)}>
         <div className={styles.topBar}>
           <button onClick={onBack} className={styles.backBtn}>{'\u2190'} Назад</button>
-          <h2 className={styles.title}>Оффлайн распознавание</h2>
+          <h2 className={styles.title}>Расшифровка записи</h2>
         </div>
         <BatchUpload onUpload={handleUpload} uploading={uploadMut.isPending} />
         <button

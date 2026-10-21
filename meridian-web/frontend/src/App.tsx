@@ -201,7 +201,7 @@ function App() {
       case 'desktop':
         return <DesktopAppPage onBack={() => navigate(paths.objects)} />;
       case 'settings':
-        return <SettingsHubPage onBack={() => navigate(paths.objects)} />;
+        return <SettingsHubPage onBack={() => navigate(paths.objects)} isAdmin={effectiveAdmin} />;
       case 'meeting':
         return (
           <MeetingPage

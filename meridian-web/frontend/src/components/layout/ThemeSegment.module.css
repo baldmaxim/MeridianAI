@@ -1,0 +1,49 @@
+.segment {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.option {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.option:hover {
+  color: var(--text);
+}
+
+.optionActive,
+.optionActive:hover {
+  background: var(--bg-card);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .option {
+    min-height: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option {
+    transition: none;
+  }
+}

@@ -1,0 +1,233 @@
+/* Десктопная навигация шапки. Показывается с 1024px; ниже — бургер-меню (HeaderMobileMenu). */
+.nav {
+  --tab-h: 36px;
+  display: none;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+@media (min-width: 1024px) {
+  .nav {
+    display: flex;
+  }
+}
+
+@media (pointer: coarse) {
+  .nav {
+    --tab-h: 44px;
+  }
+}
+
+/* ── Табы без рамок ── */
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--tab-h);
+  padding: 0 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+}
+
+.tabActive,
+.tabActive:hover {
+  color: var(--text);
+}
+
+/* Подчёркивание 2px у нижней границы шапки (таб центрирован по высоте шапки) */
+.tabActive::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc((var(--tab-h) - var(--header-h)) / 2);
+  height: 2px;
+  background: var(--accent);
+}
+
+.chevron {
+  transition: transform 150ms ease-out;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Материалы ── */
+.materialsWrap {
+  position: relative;
+  display: flex;
+}
+
+.materialsMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 280px;
+  padding: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.materialItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 150ms ease-out;
+}
+
+.materialItem:hover {
+  background: var(--bg-hover);
+}
+
+.materialItemActive .materialLabel {
+  color: var(--accent);
+}
+
+.materialLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.materialHint {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Чип модуля ── */
+.divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 8px;
+  background: var(--border-strong);
+  flex-shrink: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.chipActive {
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  border-color: var(--accent-blue);
+}
+
+.chipIcon {
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.chipText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.chipKicker {
+  display: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.chipLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* На 1024–1279 кикер скрыт, с 1280 — виден */
+@media (min-width: 1280px) {
+  .chipKicker {
+    display: block;
+  }
+}
+
+/* ── CTA «Скачать для ПК» ── */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 14px;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  color: var(--on-accent);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Мы на странице приложения для ПК — кольцо вокруг кнопки */
+.ctaActive {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Тач: тап-цели ≥44px */
+@media (pointer: coarse) {
+  .chip,
+  .cta {
+    min-height: 44px;
+  }
+}

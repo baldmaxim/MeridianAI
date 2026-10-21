@@ -7,6 +7,12 @@
   flex: 1;
 }
 
+.containerEmbedded {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .topBar {
   display: flex;
   align-items: center;

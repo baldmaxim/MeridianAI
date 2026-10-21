@@ -10,7 +10,7 @@
 # Порядок важен — в этом порядке рисуется матрица в админ-панели.
 PAGE_CATALOG: list[dict[str, str]] = [
     {"key": "objects", "label": "Проекты"},
-    {"key": "batch", "label": "Оффлайн распознавание"},
+    {"key": "batch", "label": "Расшифровка записи"},
     {"key": "knowledge", "label": "База знаний"},
     {"key": "ai-settings", "label": "AI-профили"},
     {"key": "settings", "label": "Настройки / Админ-панель"},
@@ -25,7 +25,7 @@ ALWAYS_ALLOWED_ALL: set[str] = {"objects"}
 ALWAYS_ALLOWED_BY_ROLE: dict[str, set[str]] = {"admin": {"settings"}}
 
 # Дефолты — повторяют ТЕКУЩЕЕ поведение до миграции:
-#   admin — всё; user — только Проекты + Оффлайн распознавание.
+#   admin — всё; user — только Проекты + Расшифровка записи.
 DEFAULT_ALLOWED: dict[str, list[str]] = {
     "admin": list(PAGE_KEYS),
     "user": ["objects", "batch"],

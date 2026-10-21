@@ -125,6 +125,12 @@
   --speaker-text-unknown: var(--text-secondary);
 }
 
+/* Высота шапки (без safe-area): от неё считаются высота .header-inner и top бургер-меню.
+   Значение для мобильных — в медиа-запросе max-width: 768px ниже. */
+:root {
+  --header-h: 52px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -541,9 +547,12 @@ button:disabled {
   }
 
   /* ── Header compact ── */
+  :root {
+    --header-h: 44px;
+  }
   .header-inner {
     padding: env(safe-area-inset-top) 14px 0 !important; /* боковые отступы — на контейнере AppLayout */
-    height: calc(44px + env(safe-area-inset-top)) !important;
+    height: calc(var(--header-h) + env(safe-area-inset-top)) !important;
   }
   .header-logo svg {
     width: 18px !important;
@@ -552,9 +561,6 @@ button:disabled {
   .header-logo-text {
     font-size: 13px !important;
     letter-spacing: 0.15em !important;
-  }
-  .header-logo-sub {
-    display: none !important;
   }
   .header-center {
     flex: 1 !important;
@@ -578,14 +584,6 @@ button:disabled {
   }
   .header-right {
     gap: 4px !important;
-  }
-  /* На мобильном десктоп-навигация и слайдер роли уходят в гамбургер-меню */
-  .header-desktop-btn,
-  .header-roleswitch {
-    display: none !important;
-  }
-  .header-burger {
-    display: flex !important;
   }
 
   /* ── Главная (объекты) ── */
@@ -890,13 +888,3 @@ button:disabled {
   .dk-wrap { gap: 20px; }
 }
 
-/* Планшет и узкий десктоп: десктоп-навигация шапки не помещается (до 1279px вылезала за край) — уходит в гамбургер */
-@media (max-width: 1279px) {
-  .header-desktop-btn,
-  .header-roleswitch {
-    display: none !important;
-  }
-  .header-burger {
-    display: flex !important;
-  }
-}
