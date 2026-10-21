@@ -7,9 +7,10 @@ use tauri::{AppHandle, Manager};
 
 use crate::managers::meeting::{
     ActiveMeetingState, AudioFile, CaptureDevices, MeetingDetails, MeetingInfo, MeetingManager,
-    Note, NoteInput, StartMeetingRequest,
+    MeetingVoice, Note, NoteInput, StartMeetingRequest,
 };
 use crate::managers::sync::SyncManager;
+use crate::settings::{get_settings, write_settings};
 
 fn manager(app: &AppHandle) -> Arc<MeetingManager> {
     Arc::clone(&app.state::<Arc<MeetingManager>>())
@@ -144,4 +145,40 @@ pub fn delete_note(app: AppHandle, id: String) -> Result<(), String> {
 #[specta::specta]
 pub async fn export_meeting_audio(app: AppHandle, id: String) -> Result<Vec<AudioFile>, String> {
     blocking(&app, move |m| m.export_meeting_audio(&id)).await
+}
+
+/// The voices of a meeting, by number.
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_voices_list(
+    app: AppHandle,
+    meeting_id: String,
+) -> Result<Vec<MeetingVoice>, String> {
+    manager(&app).list_voices(&meeting_id)
+}
+
+/// Sets the side of a voice (`self`, `opponent`, `None` clears it) and sends
+/// it to the server in the background.
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_voice_set_side(
+    app: AppHandle,
+    meeting_id: String,
+    label: String,
+    side: Option<String>,
+) -> Result<(), String> {
+    manager(&app).set_voice_side(&meeting_id, &label, side)?;
+    app.state::<Arc<SyncManager>>().wake();
+    Ok(())
+}
+
+/// Remembers the device whose sound online meetings record (`None`: the
+/// default one).
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_system_device(app: AppHandle, device_id: Option<String>) -> Result<(), String> {
+    let mut settings = get_settings(&app);
+    settings.meeting_system_device = device_id.filter(|id| !id.is_empty());
+    write_settings(&app, settings);
+    Ok(())
 }

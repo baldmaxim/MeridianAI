@@ -74,6 +74,14 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
       if (result.status === "ok") {
         setDevices(result.data);
         if (result.data.system_supported) setMode("online");
+        // The last chosen computer-sound device, if it is still there.
+        void commands.getAppSettings().then((settings) => {
+          if (cancelled || settings.status !== "ok") return;
+          const saved = settings.data.meeting_system_device;
+          if (saved && result.data.system_sources.some((d) => d.id === saved)) {
+            setSystemId(saved);
+          }
+        });
       } else {
         setError(result.error);
       }
@@ -86,6 +94,13 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
 
   const systemSupported = devices?.system_supported ?? false;
   const projectList = customers ?? [];
+
+  const handleSystemChange = (id: string) => {
+    setSystemId(id);
+    void commands.setMeetingSystemDevice(id || null).then((result) => {
+      if (result.status === "error") setError(result.error);
+    });
+  };
 
   const handleStart = async () => {
     setStarting(true);
@@ -254,7 +269,7 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
                 value={systemId}
                 devices={devices.system_sources}
                 disabled={starting}
-                onChange={setSystemId}
+                onChange={handleSystemChange}
               />
             )}
           </>

@@ -43,6 +43,21 @@ export const useMeetingEvents = (
     );
     track(events.meetingLevels.listen((e) => store.applyLevels(e.payload)));
     track(
+      events.meetingVoices.listen((e) =>
+        store.applyVoices(e.payload.meeting_id, e.payload.voices),
+      ),
+    );
+    track(
+      events.meetingSegmentRemoved.listen((e) =>
+        store.applySegmentRemoved(e.payload.meeting_id, e.payload.segment_id),
+      ),
+    );
+    track(
+      events.meetingSystemSilent.listen((e) =>
+        store.applySystemSilent(e.payload.meeting_id, e.payload.silent),
+      ),
+    );
+    track(
       events.meetingState.listen((e) => {
         store.applyState(e.payload);
         if (e.payload.kind === "recognition_error") {

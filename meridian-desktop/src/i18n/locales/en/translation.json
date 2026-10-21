@@ -592,6 +592,12 @@
       "system": "Opponent",
       "mixed": "Participant"
     },
+    "voice": {
+      "menuLabel": "Whose voice is this: {{voice}}",
+      "self": "Us",
+      "opponent": "Opponent",
+      "unknown": "Not sure"
+    },
     "transcript": {
       "emptyLive": "No phrases yet. Speak — the text will appear here.",
       "empty": "This meeting has no recognized phrases.",
@@ -612,6 +618,8 @@
       "channelMic": "microphone",
       "channelSystem": "computer sound",
       "dismiss": "Dismiss",
+      "systemSilent": "Computer sound has been silent for over a minute: check that Zoom/Teams outputs sound to the selected device",
+      "voiceSideFailed": "Failed to save the voice side",
       "recognition": "Could not recognize a phrase",
       "listFailed": "Could not load meetings",
       "loadFailed": "Could not open the meeting",

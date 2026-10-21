@@ -118,3 +118,5 @@ meridian-web/staging_evidence/
 
 # Мини-проект «Генератор подписи СУ-10» (su10info.meridianai.ru) — ведётся локально, не для публичного репо
 /010 SignatureGenerator/
+# Модель голоса десктопа (качается scripts/fetch-voice-model.mjs)
+meridian-desktop/src-tauri/resources/models/campplus-sv-zh-en-16k.onnx

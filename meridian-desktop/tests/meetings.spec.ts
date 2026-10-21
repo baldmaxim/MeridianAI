@@ -64,6 +64,18 @@ const installTauriMock = async (page: Page) => {
           text: "Первая фраза",
           created_at: "",
           synced: false,
+          voice: null,
+        },
+        {
+          id: "s-voice",
+          meeting_id: "m-stopped",
+          channel: "system",
+          start_time: 7,
+          end_time: 8,
+          text: "Фраза голоса",
+          created_at: "",
+          synced: false,
+          voice: "Голос 1",
         },
       ],
       notes: [
@@ -93,6 +105,15 @@ const installTauriMock = async (page: Page) => {
           return null;
         case "get_meeting":
           return details;
+        case "meeting_voices_list":
+          return [
+            {
+              label: "Голос 1",
+              side: "opponent",
+              count: 5,
+              first_channel: "system",
+            },
+          ];
         case "list_capture_devices":
           return { inputs: [], system_sources: [], system_supported: false };
         case "plugin:event|listen": {
@@ -132,6 +153,11 @@ const installTauriMock = async (page: Page) => {
           list.push(Number(args.handler));
           listeners.set(name, list);
           return Number(args.handler);
+        }
+        if (cmd === "meeting_voice_set_side") {
+          const calls = ((w.__calls as unknown[]) ??= []);
+          calls.push({ cmd, args });
+          return null;
         }
         return answer(cmd);
       },
@@ -182,10 +208,34 @@ test.describe("Meetings UI (mocked Tauri)", () => {
             text: "Вторая фраза",
             created_at: "",
             synced: false,
+            voice: null,
           },
         },
       ),
     );
     await expect(page.getByText("Вторая фраза")).toBeVisible();
+  });
+
+  test("voice chip shows the side and changes it through the menu", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByText("Совещание по смете").click();
+    const chip = page.getByRole("button", { name: "Голос 1 · Оппонент" });
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await page.getByRole("menuitemradio", { name: "Мы" }).click();
+    await expect(
+      page.getByRole("button", { name: "Голос 1 · Мы" }),
+    ).toBeVisible();
+    const calls = await page.evaluate(
+      () => (window as unknown as { __calls: unknown[] }).__calls,
+    );
+    expect(calls).toEqual([
+      {
+        cmd: "meeting_voice_set_side",
+        args: { meetingId: "m-stopped", label: "Голос 1", side: "self" },
+      },
+    ]);
   });
 });

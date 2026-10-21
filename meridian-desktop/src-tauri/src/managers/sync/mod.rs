@@ -12,6 +12,8 @@ mod context_tests;
 mod project_tests;
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod voices_tests;
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -102,7 +104,8 @@ pub fn retry_delay(attempts: u32) -> Duration {
         .min(MAX_RETRY_DELAY)
 }
 
-/// The waiting time of a context update is kept apart from the meeting's.
+/// The waiting time of a context (and voice side) update is kept apart from
+/// the meeting's.
 fn context_key(id: &str) -> String {
     format!("context:{id}")
 }
@@ -185,13 +188,24 @@ impl SyncCore {
                 return;
             }
         };
-        let context_pending = match self.db.meetings_with_pending_context() {
+        let mut context_pending = match self.db.meetings_with_pending_context() {
             Ok(meetings) => meetings,
             Err(e) => {
                 warn!("Cannot read the meetings with a changed context: {e:#}");
                 Vec::new()
             }
         };
+        // Synced meetings with a changed voice side wait in the same list.
+        match self.db.meetings_with_pending_voices() {
+            Ok(meetings) => {
+                for meeting in meetings {
+                    if !context_pending.iter().any(|m| m.id == meeting.id) {
+                        context_pending.push(meeting);
+                    }
+                }
+            }
+            Err(e) => warn!("Cannot read the meetings with a changed voice side: {e:#}"),
+        }
         let queue_due = meetings.iter().any(|m| self.due(&m.id));
         if !queue_due && !context_pending.iter().any(|m| self.due(&context_key(&m.id))) {
             return;
@@ -230,7 +244,11 @@ impl SyncCore {
                 client: &client,
                 upload_audio,
             };
-            match engine.send_context(&meeting.id).await {
+            let sent = match engine.send_context(&meeting.id).await {
+                Ok(()) => engine.send_voices(&meeting.id).await,
+                failed => failed,
+            };
+            match sent {
                 Ok(()) => {
                     self.inner().backoff.remove(&key);
                 }
@@ -256,7 +274,7 @@ impl SyncCore {
     /// The context could not be sent: try again later. The meeting's own sync
     /// state and the status line stay as they are (the user has no action to take).
     fn postpone_context(&self, key: &str, id: &str, error: &ApiError) {
-        warn!("Sending the context of {id} will be retried: {error}");
+        warn!("Sending the context or voices of {id} will be retried: {error}");
         let mut inner = self.inner();
         let attempts = inner.backoff.get(key).map_or(0, |(n, _)| *n) + 1;
         inner.backoff.insert(

@@ -4,9 +4,10 @@
 //!
 //! 1. create the meeting (`server_meeting_id`),
 //! 2. segments in batches of 500 (`segments.synced`),
-//! 3. title, end time and the whole list of notes,
-//! 4. audio, channel by channel (`audio_state`, `audio_done`),
-//! 5. finalize.
+//! 3. the sides of the voices (`meeting_voices.side_synced`),
+//! 4. title, end time and the whole list of notes,
+//! 5. audio, channel by channel (`audio_state`, `audio_done`),
+//! 6. finalize.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -88,6 +89,7 @@ fn segment_body(started_at: &str, segment: Segment) -> SegmentBody {
         start_time: segment.start_time.max(0.0),
         end_time: segment.end_time.max(0.0),
         channel: segment.channel,
+        speaker_label: segment.voice,
     }
 }
 
@@ -157,6 +159,7 @@ impl Engine<'_> {
         let server_id = self.create_meeting(&meeting).await?;
         self.send_context(meeting_id).await?;
         self.send_segments(&meeting, server_id).await?;
+        self.send_voices(meeting_id).await?;
         self.send_details(&meeting, server_id).await?;
         self.send_audio(&meeting, server_id).await?;
 
@@ -240,6 +243,28 @@ impl Engine<'_> {
                 meeting.opponent_weaknesses.as_deref(),
             )
             .map_err(db_error)?;
+        Ok(())
+    }
+
+    /// Sends the sides of the voices the server has not got (one request per
+    /// voice). A side changed meanwhile stays unsynced and goes next time.
+    pub async fn send_voices(&self, meeting_id: &str) -> Result<(), ApiError> {
+        let Some(server_id) = self
+            .db
+            .get_meeting(meeting_id)
+            .map_err(db_error)?
+            .and_then(|m| m.server_meeting_id)
+        else {
+            return Ok(());
+        };
+        for (label, side) in self.db.unsynced_voices(meeting_id).map_err(db_error)? {
+            self.client
+                .put_speaker_role(server_id, &label, side.as_deref())
+                .await?;
+            self.db
+                .mark_voice_synced_if(meeting_id, &label, side.as_deref())
+                .map_err(db_error)?;
+        }
         Ok(())
     }
 

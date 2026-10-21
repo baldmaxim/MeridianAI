@@ -88,19 +88,20 @@ impl PhraseQueue {
 }
 
 /// Recognizes queued phrases in order until the queue ends. A phrase that
-/// fails is reported and skipped; empty text is not stored.
+/// fails is reported and skipped; empty text is not stored. `store` gets the
+/// phrase's samples too (the voice is told from them).
 pub fn run_recognizer(
     queue: &PhraseQueue,
     meeting_id: &str,
-    mut transcribe: impl FnMut(Vec<f32>) -> Result<String>,
-    mut store: impl FnMut(Segment) -> Result<()>,
+    mut transcribe: impl FnMut(&[f32]) -> Result<String>,
+    mut store: impl FnMut(Segment, &[f32]) -> Result<()>,
     mut on_error: impl FnMut(String),
     mut new_segment_id: impl FnMut() -> String,
     mut now: impl FnMut() -> String,
 ) {
     while let Some(job) = queue.pop() {
         let PhraseJob { channel, phrase } = job;
-        let text = match transcribe(phrase.samples) {
+        let text = match transcribe(&phrase.samples) {
             Ok(text) => text.trim().to_string(),
             Err(e) => {
                 on_error(format!("Не удалось распознать фразу: {e:#}"));
@@ -123,8 +124,9 @@ pub fn run_recognizer(
             text,
             created_at: now(),
             synced: false,
+            voice: None,
         };
-        if let Err(e) = store(segment) {
+        if let Err(e) = store(segment, &phrase.samples) {
             on_error(format!("Не удалось сохранить фразу: {e:#}"));
         }
     }
@@ -158,7 +160,7 @@ mod tests {
                 x if x == 2.0 => Ok("   ".to_string()),
                 x => Ok(format!(" фраза {x} ")),
             },
-            |segment| {
+            |segment, _| {
                 stored.push(segment);
                 Ok(())
             },

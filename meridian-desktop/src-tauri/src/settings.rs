@@ -248,6 +248,10 @@ pub struct AppSettings {
     pub always_on_microphone: bool,
     #[serde(default)]
     pub selected_microphone: Option<String>,
+    /// The device whose sound an online meeting records (the other side's
+    /// voice). `None`: the default playback device / first monitor.
+    #[serde(default)]
+    pub meeting_system_device: Option<String>,
     /// Which input channel to use on the selected microphone device.
     /// None means "average all channels" (original behavior).
     #[serde(default)]
@@ -660,6 +664,7 @@ pub fn get_default_settings() -> AppSettings {
         onboarding_completed: false,
         always_on_microphone: false,
         selected_microphone: None,
+        meeting_system_device: None,
         selected_channel: None,
         clamshell_microphone: None,
         translate_to_english: false,

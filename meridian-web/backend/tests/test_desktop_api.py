@@ -325,6 +325,108 @@ async def test_segments_upsert_without_duplicates(sm, client):
     assert rows["Без метки"].wall_clock == datetime(2026, 10, 21, 9, 0, 6)
 
 
+async def test_voice_label_kept_on_channel_segments(sm, client):
+    token = await _device(sm, await _user(sm))
+    mid = (await _meeting(client, token))["meeting_id"]
+    url = f"/api/desktop/meetings/{mid}/segments"
+    batch = [
+        _seg("a", "Первая", 0, 1, "mic", speaker_label="Голос 1"),
+        _seg("b", "Вторая", 1, 2, "system", speaker_label="  Голос 2  "),
+        _seg("c", "Третья", 2, 3, "mic", speaker_label="   "),
+    ]
+    assert (await client.put(url, json={"segments": batch}, headers=_bearer(token))).status_code == 200
+    batch[0]["speaker_label"] = "Голос 3"  # повтор обновляет и метку
+    r = await client.put(url, json={"segments": batch}, headers=_bearer(token))
+    assert r.json() == {"created": 0, "updated": 3}
+    async with sm() as db:
+        rows = {s.text: s for s in (await db.execute(
+            select(TranscriptSegmentRecord).where(TranscriptSegmentRecord.session_id == mid))).scalars()}
+    assert (rows["Первая"].speaker_id, rows["Первая"].speaker_label) == ("desktop_mic", "Голос 3")
+    assert (rows["Вторая"].speaker_id, rows["Вторая"].speaker_label) == ("desktop_system", "Голос 2")
+    assert (rows["Третья"].speaker_id, rows["Третья"].speaker_label) == ("desktop_mic", "Мы")
+
+
+async def _roles(sm, mid) -> dict:
+    async with sm() as db:
+        return {r.speaker_label: (r.side, r.display_name) for r in (await db.execute(
+            select(MeetingSpeakerRole).where(MeetingSpeakerRole.meeting_id == mid))).scalars()}
+
+
+async def test_speaker_role_put_creates_changes_clears(sm, client):
+    token = await _device(sm, await _user(sm))
+    mid = (await _meeting(client, token, "in_person"))["meeting_id"]
+    url = f"/api/desktop/meetings/{mid}/speaker-roles/Голос 1"
+    h = _bearer(token)
+
+    r = await client.put(url, json={"side": "self"}, headers=h)
+    assert r.status_code == 200
+    assert [(x["speaker_label"], x["side"]) for x in r.json()] == [("Голос 1", "self")]
+    assert (await _roles(sm, mid)) == {"Голос 1": ("self", None)}
+
+    r = await client.put(url, json={"side": "opponent", "display_name": "Иван"}, headers=h)
+    assert r.json()[0]["side"] == "opponent" and r.json()[0]["display_name"] == "Иван"
+
+    r = await client.put(url, json={"side": None}, headers=h)  # имя осталось — строка жива, стороны нет
+    assert r.status_code == 200 and r.json()[0]["side"] is None
+    r = await client.put(url, json={"side": None, "display_name": ""}, headers=h)
+    assert r.json() == [] and await _roles(sm, mid) == {}
+
+
+async def test_speaker_role_put_allowed_after_finalize(sm, client):
+    token = await _device(sm, await _user(sm))
+    mid = (await _meeting(client, token))["meeting_id"]
+    h = _bearer(token)
+    assert (await client.post(f"/api/desktop/meetings/{mid}/finalize", headers=h)).status_code == 200
+    r = await client.put(f"/api/desktop/meetings/{mid}/speaker-roles/Голос 2", json={"side": "opponent"}, headers=h)
+    assert r.status_code == 200 and {x["speaker_label"] for x in r.json()} >= {"Голос 2"}
+
+
+async def test_speaker_role_put_syncs_live_room(sm, client, monkeypatch):
+    from app.services import meeting_room
+
+    token = await _device(sm, await _user(sm))
+    mid = (await _meeting(client, token))["meeting_id"]
+    broadcasts: list[dict] = []
+
+    class _Session:
+        speaker_roles: dict = {}
+        names: dict = {}
+
+        def set_speaker_name(self, label, name):
+            self.names[label] = name
+
+    class _Room:
+        session = _Session()
+
+        def _speaker_roles_payload(self):
+            return {"type": "speaker_roles", "roles": dict(self.session.speaker_roles)}
+
+        async def broadcast(self, msg):
+            broadcasts.append(msg)
+
+    monkeypatch.setattr(meeting_room.room_registry, "get_room", lambda m: _Room() if m == mid else None)
+    url = f"/api/desktop/meetings/{mid}/speaker-roles/Голос 1"
+    await client.put(url, json={"side": "self", "display_name": "Петя"}, headers=_bearer(token))
+    assert _Room.session.speaker_roles == {"Голос 1": "self"} and _Room.session.names == {"Голос 1": "Петя"}
+    assert broadcasts == [{"type": "speaker_roles", "roles": {"Голос 1": "self"}}]
+    await client.put(url, json={"side": None}, headers=_bearer(token))
+    assert _Room.session.speaker_roles == {}
+
+
+async def test_speaker_role_put_foreign_device_and_meeting(sm, client):
+    owner = await _user(sm, "owner@test.local")
+    other = await _user(sm, "other@test.local")
+    t_owner, t_other = await _device(sm, owner), await _device(sm, other)
+    mid = (await _meeting(client, t_owner))["meeting_id"]
+    url = f"/api/desktop/meetings/{mid}/speaker-roles/Голос 1"
+    assert (await client.put(url, json={"side": "self"}, headers=_bearer(t_other))).status_code == 404
+    assert (await client.put(url, json={"side": "self"})).status_code == 401
+    assert (await client.put(url, json={"side": "self"}, headers=_bearer("bad"))).status_code == 401
+    assert (await client.put("/api/desktop/meetings/99999/speaker-roles/Голос 1", json={"side": "self"},
+                             headers=_bearer(t_owner))).status_code == 404
+    assert "Голос 1" not in await _roles(sm, mid)
+
+
 async def test_segments_limit_and_validation(sm, client):
     user = await _user(sm)
     token = await _device(sm, user)

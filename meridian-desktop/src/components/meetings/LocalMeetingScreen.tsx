@@ -10,6 +10,7 @@ import { LocalContextTab } from "./LocalContextTab";
 import { LocalProtocolTab } from "./LocalProtocolTab";
 import { NotesPane } from "./NotesPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
+import { SystemSilentBanner } from "./SystemSilentBanner";
 import { TranscriptPane } from "./TranscriptPane";
 
 type PanelTab = "transcript" | "context" | "protocol" | "ask";
@@ -65,6 +66,7 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
         onDelete={() => setConfirmDelete(true)}
       />
       <DeviceErrorBanner meetingId={meeting.id} />
+      <SystemSilentBanner meetingId={meeting.id} />
       {meeting.status === "interrupted" && (
         <p className="mx-5 mt-2 rounded-lg bg-amber/10 px-3 py-2 text-sm text-amber">
           {t("meetings.interrupted.hint")}

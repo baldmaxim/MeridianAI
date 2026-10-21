@@ -93,6 +93,23 @@ pub(super) static MIGRATIONS: &[M] = &[
     ALTER TABLE meetings ADD COLUMN opponent_weaknesses TEXT;
     ALTER TABLE meetings ADD COLUMN context_dirty INTEGER NOT NULL DEFAULT 0;",
     ),
+    // Voices of a meeting ("Голос N", see `voice/` and `db_voices.rs`): the
+    // segment's voice, and per meeting each voice's side, its centroid (JSON
+    // vector) and whether the server has the side (`side_synced`).
+    M::up(
+        "ALTER TABLE segments ADD COLUMN voice TEXT;
+    CREATE TABLE meeting_voices (
+        meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        side TEXT,
+        centroid TEXT NOT NULL,
+        count INTEGER NOT NULL,
+        first_channel TEXT NOT NULL,
+        side_synced INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (meeting_id, label)
+    );",
+    ),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one
@@ -192,6 +209,9 @@ pub struct Segment {
     pub text: String,
     pub created_at: String,
     pub synced: bool,
+    /// Whose voice it is ("Голос 1"); `None`: not told apart (no voice model,
+    /// a too short phrase, a meeting from before voices).
+    pub voice: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
@@ -248,6 +268,7 @@ pub(super) fn map_segment(row: &Row<'_>) -> rusqlite::Result<Segment> {
         text: row.get("text")?,
         created_at: row.get("created_at")?,
         synced: row.get::<_, i64>("synced")? != 0,
+        voice: row.get("voice")?,
     })
 }
 
@@ -406,8 +427,8 @@ impl MeetingDb {
     pub fn insert_segment(&self, segment: &Segment) -> Result<()> {
         self.conn().execute(
             "INSERT INTO segments (id, meeting_id, channel, start_time, end_time, text,
-                created_at, synced)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                created_at, synced, voice)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 segment.id,
                 segment.meeting_id,
@@ -417,6 +438,7 @@ impl MeetingDb {
                 segment.text,
                 segment.created_at,
                 i64::from(segment.synced),
+                segment.voice,
             ],
         )?;
         Ok(())
@@ -506,6 +528,7 @@ mod tests {
             text: text.to_string(),
             created_at: "2026-01-01T00:00:00.000Z".to_string(),
             synced: false,
+            voice: None,
         }
     }
 

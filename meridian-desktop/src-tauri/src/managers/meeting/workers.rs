@@ -3,6 +3,7 @@
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::thread::JoinHandle;
+use std::time::Instant;
 
 use log::{error, warn};
 use tauri::Manager;
@@ -12,9 +13,12 @@ use super::capture::{ChanMsg, ChannelShared};
 use super::recognizer::{run_recognizer, PhraseJob, PhraseQueue};
 use super::segmenter::PhraseSegmenter;
 use super::session::{ChannelRuntime, LastLevels};
+use super::silence::SilenceDetector;
+use super::sink::SegmentSink;
+use super::voices::{embed_fn, EmbedderCell};
 use super::{
-    now_iso, short_id, MeetingLevels, MeetingManager, MeetingSegment, MeetingState,
-    MeetingStateKind, CHANNEL_SYSTEM, TICK,
+    now_iso, short_id, MeetingLevels, MeetingManager, MeetingSegment, MeetingSegmentRemoved,
+    MeetingState, MeetingStateKind, MeetingSystemSilent, MeetingVoices, CHANNEL_SYSTEM, TICK,
 };
 use crate::audio_toolkit::vad::SpeechScorer;
 use crate::managers::transcription::TranscriptionManager;
@@ -31,11 +35,23 @@ impl MeetingManager {
         let db = Arc::clone(&self.db);
         let queue = Arc::clone(queue);
         let meeting_id = meeting_id.to_string();
+        let embedder: EmbedderCell = Arc::clone(&self.voice_embedder);
         let spawned = std::thread::Builder::new()
             .name("meeting-recognizer".into())
             .spawn(move || {
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
                 let model_id = get_settings(&app).selected_model;
+                // A resumed meeting carries on with the voices it already has.
+                let voices = db.voice_centroids(&meeting_id).unwrap_or_else(|e| {
+                    warn!("Cannot read the voices of {meeting_id}: {e:#}");
+                    Vec::new()
+                });
+                let sink = SegmentSink::new(
+                    Arc::clone(&db),
+                    &meeting_id,
+                    embed_fn(&app, &embedder),
+                    voices,
+                );
                 run_recognizer(
                     &queue,
                     &meeting_id,
@@ -44,11 +60,27 @@ impl MeetingManager {
                         if !tm.is_model_loaded() {
                             tm.load_model(&model_id)?;
                         }
-                        tm.transcribe_phrase(samples)
+                        tm.transcribe_phrase(samples.to_vec())
                     },
-                    |segment| {
-                        db.insert_segment(&segment)?;
-                        let _ = MeetingSegment { segment }.emit(&app);
+                    |segment, samples| {
+                        let stored = sink.store(segment, samples)?;
+                        if let Some(voices) = stored.new_voices {
+                            let _ = MeetingVoices {
+                                meeting_id: meeting_id.clone(),
+                                voices,
+                            }
+                            .emit(&app);
+                        }
+                        for segment_id in stored.removed {
+                            let _ = MeetingSegmentRemoved {
+                                meeting_id: meeting_id.clone(),
+                                segment_id,
+                            }
+                            .emit(&app);
+                        }
+                        if let Some(segment) = stored.segment {
+                            let _ = MeetingSegment { segment }.emit(&app);
+                        }
                         Ok(())
                     },
                     |message| {
@@ -89,14 +121,30 @@ impl MeetingManager {
             .iter()
             .map(|c| (c.audio_name, Arc::clone(&c.shared)))
             .collect();
+        // Only an online meeting has the computer's sound to lose.
+        let mut system_silence = shared
+            .iter()
+            .any(|(name, _)| *name == CHANNEL_SYSTEM)
+            .then(SilenceDetector::default);
         std::thread::spawn(move || {
             let mut reported_queue = 0usize;
+            let began = Instant::now();
             loop {
                 let mut levels = MeetingLevels::default();
                 for (name, shared) in &shared {
                     let level = shared.take_level();
                     if *name == CHANNEL_SYSTEM {
                         levels.system = level;
+                        let change = system_silence
+                            .as_mut()
+                            .and_then(|d| d.update(level, began.elapsed()));
+                        if let Some(silent) = change {
+                            let _ = MeetingSystemSilent {
+                                meeting_id: meeting_id.clone(),
+                                silent,
+                            }
+                            .emit(&app);
+                        }
                     } else {
                         levels.mic = level;
                     }

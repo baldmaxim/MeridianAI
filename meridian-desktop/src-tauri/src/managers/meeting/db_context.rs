@@ -114,8 +114,9 @@ mod tests {
             .conn()
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
-        assert_eq!(MIGRATIONS.len(), 4);
+        // All later migrations are applied too.
+        assert_eq!(version, MIGRATIONS.len() as i32);
+        assert!(MIGRATIONS.len() >= 4);
     }
 
     #[test]

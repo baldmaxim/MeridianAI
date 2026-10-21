@@ -44,8 +44,10 @@ from ..schemas.desktop import (
 )
 from ..schemas.finalization import FinalizationStatusResponse
 from ..schemas.meeting_ask import MeetingAskRequest, MeetingAskResponse
+from ..schemas.speaker_role import SpeakerRoleOut, SpeakerRolePut
 from ..services import desktop_sync as sync
 from ..services import s3
+from ..services import speaker_roles as sr
 from ..services.meeting_ask import MeetingAskError, answer_question
 from ..services.meeting_room import room_registry
 from ..services.audit import audit, client_ip, hmac_email
@@ -261,6 +263,20 @@ async def meetings_patch(
     if context_changed:
         await _refresh_live_room(meeting)
     return MeetingPatchResponse(meeting_id=meeting.id, title=meeting.title, ended_at=meeting.ended_at)
+
+
+@router.put("/meetings/{meeting_id}/speaker-roles/{speaker_label}", response_model=list[SpeakerRoleOut])
+async def meetings_speaker_role(
+    meeting_id: int, speaker_label: str, data: SpeakerRolePut, auth: Device,
+    db: AsyncSession = Depends(get_db),
+):
+    """Назначить голосу («Голос 1») сторону self/opponent или очистить (side=null). Работает и после финализации."""
+    await _linked(db, auth, meeting_id)
+    await sr.upsert_role(db, meeting_id, speaker_label, side=data.side,
+                         display_name=data.display_name, assigned_by_user_id=auth.user.id)
+    await db.commit()
+    await sr.sync_room_role(meeting_id, speaker_label, data.side, data.display_name)
+    return await sr.list_roles(db, meeting_id)
 
 
 @router.post("/meetings/{meeting_id}/finalize", response_model=FinalizationStatusResponse)

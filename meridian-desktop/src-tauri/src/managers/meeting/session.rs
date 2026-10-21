@@ -132,19 +132,33 @@ impl MeetingManager {
         }
     }
 
+    /// The computer-sound device chosen in settings, if it is still there.
+    fn settings_system_device(&self) -> Option<String> {
+        let saved = get_settings(&self.app).meeting_system_device?;
+        // Gone: the default is better than not recording.
+        self.list_capture_devices()
+            .system_sources
+            .iter()
+            .any(|d| d.id == saved)
+            .then_some(saved)
+    }
+
     pub(super) fn devices_for(&self, request: Option<&StartMeetingRequest>) -> Devices {
+        let system = request
+            .and_then(|r| r.system_device_id.clone())
+            .or_else(|| self.settings_system_device());
         match request.and_then(|r| r.mic_device_id.clone()) {
             Some(id) => Devices {
                 mic: Some(id),
                 mic_channel: None,
-                system: request.and_then(|r| r.system_device_id.clone()),
+                system,
             },
             None => {
                 let (mic, mic_channel) = self.settings_microphone();
                 Devices {
                     mic,
                     mic_channel,
-                    system: request.and_then(|r| r.system_device_id.clone()),
+                    system,
                 }
             }
         }

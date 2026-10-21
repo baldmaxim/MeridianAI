@@ -16,17 +16,23 @@ mod capture;
 mod db;
 mod db_context;
 mod db_sync;
+mod db_voices;
+mod echo;
 mod queries;
 mod recognizer;
 mod segmenter;
 mod session;
+mod silence;
+mod sink;
 mod storage;
 #[cfg(test)]
 mod tests;
+pub mod voice;
+mod voices;
 mod workers;
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -37,10 +43,12 @@ use tauri_specta::Event;
 
 pub use api::{
     ActiveMeetingState, AudioFile, CaptureDevices, MeetingDetails, MeetingLevels, MeetingSegment,
-    MeetingState, MeetingStateKind, NoteInput, StartMeetingRequest,
+    MeetingSegmentRemoved, MeetingState, MeetingStateKind, MeetingSystemSilent, MeetingVoices,
+    NoteInput, StartMeetingRequest,
 };
 pub use capture::CaptureDevice;
 pub use db::{CaptureMode, MeetingDb, MeetingInfo, MeetingStatus, Note, Segment};
+pub use db_voices::MeetingVoice;
 use session::{Session, Slot};
 pub use storage::export_channel_wav;
 
@@ -148,6 +156,9 @@ pub struct MeetingManager {
     db: Arc<MeetingDb>,
     root: PathBuf,
     slot: Mutex<Slot>,
+    /// The voice model, loaded by the first meeting that needs it; `None`
+    /// inside: it could not be loaded and voices stay off.
+    voice_embedder: Arc<OnceLock<Option<Arc<voice::VoiceEmbedder>>>>,
 }
 
 impl MeetingManager {
@@ -177,6 +188,7 @@ impl MeetingManager {
             db: Arc::new(db),
             root,
             slot: Mutex::new(Slot::Idle),
+            voice_embedder: Arc::new(OnceLock::new()),
         })
     }
 

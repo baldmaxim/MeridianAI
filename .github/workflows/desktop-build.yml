@@ -75,6 +75,10 @@ jobs:
       - name: install frontend dependencies
         run: bun install
 
+      # Модель «чей голос» (CAM++, 28 МБ) в git не лежит: качаем и проверяем sha256.
+      - name: Fetch voice model
+        run: node scripts/fetch-voice-model.mjs
+
       # VC++ runtime кладётся рядом с exe (app-local), чтобы приложение стартовало
       # без установленного Microsoft Redistributable. build.rs читает именно
       # переменную HANDY_VC_REDIST_DIRS (имя унаследовано от форка, менять нельзя).

@@ -136,6 +136,28 @@ async def upsert_role(
     return role
 
 
+async def sync_room_role(
+    meeting_id: int, speaker_label: str, side: str | None, display_name: str | None,
+) -> None:
+    """Отразить роль в открытой live-комнате (cache) и разослать устройствам. Нет комнаты — ничего."""
+    from .meeting_room import room_registry  # локально: meeting_room сам тянет этот сервис
+
+    room = room_registry.get_room(meeting_id)
+    if not room:
+        return
+    norm = normalize_side(side)
+    if norm is None:
+        room.session.speaker_roles.pop(speaker_label, None)
+    else:
+        room.session.speaker_roles[speaker_label] = norm
+    if display_name is not None:
+        room.session.set_speaker_name(speaker_label, display_name)
+    try:
+        await room.broadcast(room._speaker_roles_payload())
+    except Exception:
+        pass
+
+
 # --- Speaker Identity Graph v1 compatibility (Этап 4) -----------------------
 # Тонкий мост legacy self/opponent → новый внутренний граф. Существующий API/поля
 # (PUBLIC_SPEAKER_SIDES, to_public_side, get_roles_map, ...) НЕ меняются.

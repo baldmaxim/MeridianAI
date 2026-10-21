@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
 
+use super::db_voices::MeetingVoice;
 use super::{CaptureDevice, CaptureMode, MeetingInfo, Note, Segment};
 
 #[derive(Clone, Debug, Deserialize, Type)]
@@ -81,6 +82,29 @@ pub struct AudioFile {
 #[derive(Clone, Debug, Serialize, Type, Event)]
 pub struct MeetingSegment {
     pub segment: Segment,
+}
+
+/// A segment is gone: the microphone's copy of a phrase that the system sound
+/// brought as well (an online meeting, the copy was not on the server yet).
+#[derive(Clone, Debug, Serialize, Type, Event)]
+pub struct MeetingSegmentRemoved {
+    pub meeting_id: String,
+    pub segment_id: String,
+}
+
+/// The voices of a meeting, after a new voice or a changed side.
+#[derive(Clone, Debug, Serialize, Type, Event)]
+pub struct MeetingVoices {
+    pub meeting_id: String,
+    pub voices: Vec<MeetingVoice>,
+}
+
+/// The computer's sound has been silent for a minute (`silent: true`), or
+/// came back (`false`). An online meeting only.
+#[derive(Clone, Debug, Serialize, Type, Event)]
+pub struct MeetingSystemSilent {
+    pub meeting_id: String,
+    pub silent: bool,
 }
 
 /// Input levels 0..1 of the two channels.

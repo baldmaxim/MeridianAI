@@ -5,6 +5,7 @@ import {
   type MeetingInfo,
   type MeetingLevels,
   type MeetingState,
+  type MeetingVoice,
   type Note,
   type Segment,
   type StartMeetingRequest,
@@ -29,6 +30,8 @@ const NO_LEVELS: MeetingLevels = { mic: 0, system: 0 };
 /** Action result: `null` on success, otherwise the backend's error message. */
 type ActionError = string | null;
 
+export type VoiceSide = "self" | "opponent" | null;
+
 interface MeetingStore {
   meetings: MeetingInfo[];
   listLoaded: boolean;
@@ -42,6 +45,10 @@ interface MeetingStore {
   levels: MeetingLevels;
   stopping: boolean;
   deviceErrors: DeviceError[];
+  /** Voices of the open meeting. */
+  voices: MeetingVoice[];
+  /** Meeting whose computer sound has been silent for over a minute. */
+  silentMeetingId: string | null;
 
   loadList: () => Promise<void>;
   syncActive: () => Promise<void>;
@@ -65,11 +72,16 @@ interface MeetingStore {
     opponentWeaknesses: string | null,
   ) => Promise<ActionError>;
   dismissDeviceError: (key: string) => void;
+  setVoiceSide: (label: string, side: VoiceSide) => Promise<ActionError>;
+  dismissSystemSilent: () => void;
 
   // Backend event handlers
   applyState: (state: MeetingState) => void;
   applySegment: (segment: Segment) => void;
   applyLevels: (levels: MeetingLevels) => void;
+  applyVoices: (meetingId: string, voices: MeetingVoice[]) => void;
+  applySegmentRemoved: (meetingId: string, segmentId: string) => void;
+  applySystemSilent: (meetingId: string, silent: boolean) => void;
 }
 
 const upsertMeeting = (
@@ -99,9 +111,17 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
       stopping: false,
       queueLen: 0,
       levels: NO_LEVELS,
+      silentMeetingId: null,
     });
     void get().loadList();
     if (get().openId === id) void get().openMeeting(id);
+  };
+
+  const loadVoices = async (id: string) => {
+    const result = await commands.meetingVoicesList(id);
+    if (result.status === "ok" && get().openId === id) {
+      set({ voices: result.data ?? [] });
+    }
   };
 
   return {
@@ -117,6 +137,8 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
     levels: NO_LEVELS,
     stopping: false,
     deviceErrors: [],
+    voices: [],
+    silentMeetingId: null,
 
     loadList: async () => {
       const result = await commands.listMeetings();
@@ -136,7 +158,13 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
       if (result.status !== "ok") return;
       const state = result.data;
       if (!state) {
-        set({ active: null, stopping: false, queueLen: 0, levels: NO_LEVELS });
+        set({
+          active: null,
+          stopping: false,
+          queueLen: 0,
+          levels: NO_LEVELS,
+          silentMeetingId: null,
+        });
         return;
       }
       set((s) => ({
@@ -157,7 +185,9 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
         details: switching ? null : s.details,
         detailsLoading: switching || s.details === null,
         detailsError: null,
+        voices: switching ? [] : s.voices,
       }));
+      void loadVoices(id);
       const result = await commands.getMeeting(id);
       if (get().openId !== id) return;
       if (result.status === "ok") {
@@ -184,7 +214,7 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
     },
 
     closeMeeting: () =>
-      set({ openId: null, details: null, detailsError: null }),
+      set({ openId: null, details: null, detailsError: null, voices: [] }),
 
     startMeeting: async (request) => {
       const result = await commands.startMeeting(request);
@@ -318,6 +348,28 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
         deviceErrors: s.deviceErrors.filter((e) => e.key !== key),
       })),
 
+    setVoiceSide: async (label, side) => {
+      const meetingId = get().openId;
+      if (!meetingId) return null;
+      const previous =
+        get().voices.find((v) => v.label === label)?.side ?? null;
+      const mark = (value: string | null) =>
+        set((s) => ({
+          voices: s.voices.map((v) =>
+            v.label === label ? { ...v, side: value } : v,
+          ),
+        }));
+      mark(side);
+      const result = await commands.meetingVoiceSetSide(meetingId, label, side);
+      if (result.status === "error") {
+        if (get().openId === meetingId) mark(previous);
+        return result.error;
+      }
+      return null;
+    },
+
+    dismissSystemSilent: () => set({ silentMeetingId: null }),
+
     applyState: (state) => {
       switch (state.kind) {
         case "started":
@@ -325,6 +377,7 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
             deviceErrors: s.deviceErrors.filter(
               (e) => e.meetingId !== state.meeting_id,
             ),
+            silentMeetingId: null,
           }));
           void get().syncActive();
           void get().loadList();
@@ -380,5 +433,27 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
     applyLevels: (levels) => {
       if (get().active) set({ levels });
     },
+
+    applyVoices: (meetingId, voices) => {
+      if (get().openId === meetingId) set({ voices });
+    },
+
+    applySegmentRemoved: (meetingId, segmentId) =>
+      set((s) =>
+        s.details?.meeting.id === meetingId
+          ? {
+              details: {
+                ...s.details,
+                segments: s.details.segments.filter((x) => x.id !== segmentId),
+              },
+            }
+          : {},
+      ),
+
+    applySystemSilent: (meetingId, silent) =>
+      set((s) => {
+        if (silent) return { silentMeetingId: meetingId };
+        return s.silentMeetingId === meetingId ? { silentMeetingId: null } : {};
+      }),
   };
 });

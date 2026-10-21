@@ -515,6 +515,41 @@ async exportMeetingAudio(id: string) : Promise<Result<AudioFile[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * The voices of a meeting, by number.
+ */
+async meetingVoicesList(meetingId: string) : Promise<Result<MeetingVoice[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_voices_list", { meetingId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sets the side of a voice (`self`, `opponent`, `None` clears it) and sends
+ * it to the server in the background.
+ */
+async meetingVoiceSetSide(meetingId: string, label: string, side: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_voice_set_side", { meetingId, label, side }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Remembers the device whose sound online meetings record (`None`: the
+ * default one).
+ */
+async setMeetingSystemDevice(deviceId: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_meeting_system_device", { deviceId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async accountLogin(request: AccountLoginRequest) : Promise<Result<AccountInfo, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("account_login", { request }) };
@@ -876,7 +911,10 @@ accountChanged: AccountChanged,
 historyUpdatePayload: HistoryUpdatePayload,
 meetingLevels: MeetingLevels,
 meetingSegment: MeetingSegment,
+meetingSegmentRemoved: MeetingSegmentRemoved,
 meetingState: MeetingState,
+meetingSystemSilent: MeetingSystemSilent,
+meetingVoices: MeetingVoices,
 streamPhaseEvent: StreamPhaseEvent,
 streamTextEvent: StreamTextEvent,
 syncState: SyncState
@@ -885,7 +923,10 @@ accountChanged: "account-changed",
 historyUpdatePayload: "history-update-payload",
 meetingLevels: "meeting-levels",
 meetingSegment: "meeting-segment",
+meetingSegmentRemoved: "meeting-segment-removed",
 meetingState: "meeting-state",
+meetingSystemSilent: "meeting-system-silent",
+meetingVoices: "meeting-voices",
 streamPhaseEvent: "stream-phase-event",
 streamTextEvent: "stream-text-event",
 syncState: "sync-state"
@@ -922,6 +963,11 @@ export type AppSettings = {
  * treated as version 0 and migrated forward.
  */
 settings_schema_version?: number; start_hidden?: boolean; selected_model?: string; onboarding_completed?: boolean; always_on_microphone?: boolean; selected_microphone?: string | null; 
+/**
+ * The device whose sound an online meeting records (the other side's
+ * voice). `None`: the default playback device / first monitor.
+ */
+meeting_system_device?: string | null; 
 /**
  * Which input channel to use on the selected microphone device.
  * None means "average all channels" (original behavior).
@@ -1045,6 +1091,11 @@ export type MeetingLevels = { mic: number; system: number }
  * A recognized phrase, as it is stored.
  */
 export type MeetingSegment = { segment: Segment }
+/**
+ * A segment is gone: the microphone's copy of a phrase that the system sound
+ * brought as well (an online meeting, the copy was not on the server yet).
+ */
+export type MeetingSegmentRemoved = { meeting_id: string; segment_id: string }
 export type MeetingState = { kind: MeetingStateKind; meeting_id: string; queue_len: number; channel: string | null; message: string | null }
 export type MeetingStateKind = "started" | 
 /**
@@ -1069,6 +1120,11 @@ export type MeetingStatus = "recording" | "stopped" |
  */
 "interrupted"
 /**
+ * The computer's sound has been silent for a minute (`silent: true`), or
+ * came back (`false`). An online meeting only.
+ */
+export type MeetingSystemSilent = { meeting_id: string; silent: boolean }
+/**
  * A meeting of the site as a whole: the item, the protocol, the phrases, the documents.
  */
 export type MeetingView = ({ meeting_id: number; title: string | null; meeting_topic: string | null; started_at: string | null; ended_at: string | null; customer_id: number | null; customer_name: string | null; object_id: number | null; object_name: string | null; finalization_status: string; protocol_ready: boolean; micro_summary: string | null; 
@@ -1085,6 +1141,26 @@ negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses
  * A meeting of the site; `from_cache`: the server was not reached.
  */
 export type MeetingViewResult = { view: MeetingView; from_cache: boolean }
+/**
+ * A voice of a meeting, as the UI shows it.
+ */
+export type MeetingVoice = { label: string; 
+/**
+ * `self`, `opponent` or `None` (not told).
+ */
+side: string | null; 
+/**
+ * Phrases that went into the voice's centroid.
+ */
+count: number; 
+/**
+ * Where the voice was first heard: `mic`, `system` or `mixed`.
+ */
+first_channel: string }
+/**
+ * The voices of a meeting, after a new voice or a changed side.
+ */
+export type MeetingVoices = { meeting_id: string; voices: MeetingVoice[] }
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
@@ -1159,7 +1235,12 @@ export type Segment = { id: string; meeting_id: string;
 /**
  * `mic`, `system`, or `mixed` for an in-person meeting.
  */
-channel: string; start_time: number; end_time: number; text: string; created_at: string; synced: boolean }
+channel: string; start_time: number; end_time: number; text: string; created_at: string; synced: boolean; 
+/**
+ * Whose voice it is ("Голос 1"); `None`: not told apart (no voice model,
+ * a too short phrase, a meeting from before voices).
+ */
+voice: string | null }
 export type StartMeetingRequest = { title: string; capture_mode: CaptureMode; 
 /**
  * `None`: the microphone chosen in settings, else the system default.

@@ -41,6 +41,7 @@ pub fn local_meeting(db: &MeetingDb, id: &str, title: &str, texts: &[&str], note
             text: text.to_string(),
             created_at: STARTED.to_string(),
             synced: false,
+            voice: None,
         })
         .unwrap();
     }

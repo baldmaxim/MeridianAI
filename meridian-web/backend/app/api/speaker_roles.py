@@ -14,7 +14,6 @@ from ..models.user import User
 from ..auth.dependencies import get_current_user
 from ..services.access import user_can_access_meeting, can_record_meeting
 from ..services import speaker_roles as sr
-from ..services.meeting_room import room_registry
 from ..schemas.speaker_role import SpeakerRoleOut, SpeakerRolePut
 
 logger = logging.getLogger("meridian.speaker_roles.api")
@@ -43,19 +42,6 @@ async def put_speaker_role(meeting_id: int, speaker_label: str, body: SpeakerRol
                          display_name=body.display_name, assigned_by_user_id=user.id)
     await db.commit()
 
-    # синхронизировать live-комнату (cache) + уведомить устройства
-    room = room_registry.get_room(meeting_id)
-    if room:
-        norm = sr.normalize_side(body.side)
-        if norm is None:
-            room.session.speaker_roles.pop(speaker_label, None)
-        else:
-            room.session.speaker_roles[speaker_label] = norm
-        if body.display_name is not None:
-            room.session.set_speaker_name(speaker_label, body.display_name)
-        try:
-            await room.broadcast(room._speaker_roles_payload())
-        except Exception:
-            pass
+    await sr.sync_room_role(meeting_id, speaker_label, body.side, body.display_name)
 
     return await sr.list_roles(db, meeting_id)

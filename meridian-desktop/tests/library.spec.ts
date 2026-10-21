@@ -231,6 +231,7 @@ const DETAILS = {
         text: "Начинаем планёрку, у нас три вопроса по графику.",
         created_at: "",
         synced: true,
+        voice: null,
       },
       {
         id: "s2",
@@ -241,6 +242,7 @@ const DETAILS = {
         text: "По бетону поставщик подтвердил поставку на понедельник.",
         created_at: "",
         synced: true,
+        voice: null,
       },
     ],
     notes: [

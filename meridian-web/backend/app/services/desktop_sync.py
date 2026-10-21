@@ -203,9 +203,13 @@ class SegmentIn:
 
 
 def _speaker_for(seg: SegmentIn) -> tuple[str, str]:
+    custom = (seg.speaker_label or "").strip()[:100]
     if seg.channel in CHANNEL_SPEAKERS:
-        return CHANNEL_SPEAKERS[seg.channel]
-    return MIXED_SPEAKER_ID, ((seg.speaker_label or "").strip()[:100] or MIXED_DEFAULT_LABEL)
+        # speaker_id остаётся канальным (от него WS берёт сторону по умолчанию),
+        # метка голоса от диаризации приложения («Голос 1») заменяет «Мы»/«Оппонент».
+        speaker_id, default_label = CHANNEL_SPEAKERS[seg.channel]
+        return speaker_id, custom or default_label
+    return MIXED_SPEAKER_ID, custom or MIXED_DEFAULT_LABEL
 
 
 async def upsert_segments(

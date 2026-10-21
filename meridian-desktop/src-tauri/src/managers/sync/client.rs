@@ -117,6 +117,16 @@ pub struct SegmentBody {
     pub end_time: f64,
     pub wall_clock: Option<String>,
     pub channel: String,
+    /// "Голос N" when the phrase's voice is known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker_label: Option<String>,
+}
+
+/// The side of a voice: `self`, `opponent`, or `None` to clear it.
+#[derive(Serialize)]
+pub struct SpeakerRoleBody<'a> {
+    pub side: Option<&'a str>,
+    pub display_name: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -338,6 +348,28 @@ impl ApiClient {
     ) -> Result<(), ApiError> {
         let url = self.url(&format!("meetings/{meeting_id}"));
         send(self.authorized(self.http.patch(url).json(body))).await?;
+        Ok(())
+    }
+
+    /// Sets the side of one voice of the meeting. The label goes into the
+    /// path, percent-encoded.
+    pub async fn put_speaker_role(
+        &self,
+        meeting_id: i64,
+        label: &str,
+        side: Option<&str>,
+    ) -> Result<(), ApiError> {
+        let mut url =
+            reqwest::Url::parse(&self.url(&format!("meetings/{meeting_id}/speaker-roles")))
+                .map_err(|e| ApiError::Local(format!("Неверный адрес сервера: {e}")))?;
+        url.path_segments_mut()
+            .map_err(|_| ApiError::Local("Неверный адрес сервера".to_string()))?
+            .push(label);
+        let body = SpeakerRoleBody {
+            side,
+            display_name: None,
+        };
+        send(self.authorized(self.http.put(url).json(&body))).await?;
         Ok(())
     }
 

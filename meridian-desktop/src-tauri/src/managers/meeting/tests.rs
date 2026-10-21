@@ -108,7 +108,7 @@ fn cutter_turns_channel_messages_into_queued_phrases() {
             seen.push(samples.len());
             Ok("текст".to_string())
         },
-        |segment| {
+        |segment, _| {
             assert_eq!(segment.channel, "mixed");
             assert!(
                 segment.start_time > 10.4 && segment.start_time < 10.7,

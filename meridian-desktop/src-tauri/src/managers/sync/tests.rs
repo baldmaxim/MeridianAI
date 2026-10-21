@@ -249,6 +249,7 @@ fn segment(meeting: &str, n: usize) -> Segment {
         text: format!("реплика {n}"),
         created_at: STARTED.to_string(),
         synced: false,
+        voice: None,
     }
 }
 
