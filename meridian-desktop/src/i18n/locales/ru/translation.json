@@ -642,6 +642,7 @@
       "projects": "Проекты",
       "allMeetings": "Все встречи",
       "noProject": "Без проекта",
+      "noMeetings": "Без встреч",
       "toggleObjects": "Объекты: {{name}}",
       "signedOut": "Войдите, чтобы видеть встречи с сайта",
       "signIn": "Войти",

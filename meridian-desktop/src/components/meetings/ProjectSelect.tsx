@@ -10,6 +10,9 @@ interface ProjectSelectProps {
   onChange: (filter: ProjectFilter) => void;
 }
 
+const withCount = (name: string, count: number): string =>
+  count > 0 ? `${name} (${count})` : name;
+
 const toValue = (filter: ProjectFilter): string => {
   switch (filter.kind) {
     case "all":
@@ -62,11 +65,11 @@ export const ProjectSelect: React.FC<ProjectSelectProps> = ({
         {tree.map((customer) => (
           <optgroup key={customer.id} label={customer.name}>
             <option value={`c:${customer.id}`}>
-              {`${customer.name} (${customer.count})`}
+              {withCount(customer.name, customer.count)}
             </option>
             {customer.objects.map((object) => (
               <option key={object.id} value={`o:${customer.id}:${object.id}`}>
-                {`${object.name} (${object.count})`}
+                {withCount(object.name, object.count)}
               </option>
             ))}
           </optgroup>

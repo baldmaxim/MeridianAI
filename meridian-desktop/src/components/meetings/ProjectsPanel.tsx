@@ -59,11 +59,23 @@ export const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
           onClick={() => onChange({ kind: "none" })}
         />
       </div>
-      {tree.map((customer) => {
+      {tree.map((customer, index) => {
+        const firstEmpty =
+          customer.count === 0 && index > 0 && tree[index - 1].count > 0;
         const open =
           expanded.has(customer.id) || activeCustomerId === customer.id;
         return (
           <div key={customer.id} className="flex flex-col gap-1">
+            {firstEmpty && (
+              <div
+                role="separator"
+                className="mt-2 flex items-center gap-2 px-2.5 font-mono text-[10px] uppercase tracking-wider text-muted"
+              >
+                <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                {t("meetings.library.noMeetings")}
+                <span className="h-px flex-1 bg-border" aria-hidden="true" />
+              </div>
+            )}
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -85,6 +97,7 @@ export const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
               <ProjectRow
                 label={customer.name}
                 count={customer.count}
+                folder={open ? "open" : "closed"}
                 active={
                   filter.kind === "customer" &&
                   filter.customerId === customer.id
@@ -100,6 +113,7 @@ export const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
                 <div key={object.id} className="ms-7 flex">
                   <ProjectRow
                     indented
+                    folder="closed"
                     label={object.name}
                     count={object.count}
                     active={

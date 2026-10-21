@@ -23,6 +23,8 @@ const shot = async (page: Page, name: string) => {
 interface MockOptions {
   signedIn: boolean;
   offline: boolean;
+  /** Adds a site meeting with an object but no customer (old data). */
+  legacy?: boolean;
 }
 
 const BASE_LOCAL = {
@@ -137,7 +139,18 @@ const ITEMS = [
   },
 ];
 
+// Empty customers go first on purpose: the panel must still sort them last.
 const PROJECTS = [
+  {
+    id: 3,
+    name: "Яркий Дом",
+    objects: [{ id: 31, name: "Литер 1", address: null }],
+  },
+  {
+    id: 4,
+    name: "Альфа-Монтаж",
+    objects: [],
+  },
   {
     id: 1,
     name: "СтройИнвест",
@@ -152,6 +165,15 @@ const PROJECTS = [
     objects: [{ id: 21, name: "Склад", address: null }],
   },
 ];
+
+const LEGACY_ITEM = {
+  ...SERVER_BASE,
+  meeting_id: 105,
+  title: "Старая встреча по складу",
+  started_at: "2026-10-16T09:00:00+03:00",
+  object_id: 21,
+  object_name: "Склад",
+};
 
 const VIEW_102 = {
   ...ITEMS[1],
@@ -416,7 +438,7 @@ const installTauriMock = async (page: Page, options: MockOptions) => {
     },
     {
       locals: LOCALS,
-      items: ITEMS,
+      items: options.legacy ? [...ITEMS, LEGACY_ITEM] : ITEMS,
       projects: PROJECTS,
       view101: VIEW_101,
       view102: VIEW_102,
@@ -512,6 +534,61 @@ test.describe("Library (mocked Tauri)", () => {
     await expect(page.getByRole("heading", { level: 3 })).toHaveCount(3);
     await nav.getByRole("button", { name: /^Все встречи/ }).click();
     await expect(page.getByRole("heading", { level: 3 })).toHaveCount(6);
+  });
+
+  test("projects with meetings go first; empty ones are muted, no badge", async ({
+    page,
+  }) => {
+    await open(page);
+    const nav = projectsNav(page);
+    const names = await nav.getByRole("button").allInnerTexts();
+    const order = names
+      .map((n) => n.split("\n")[0].trim())
+      .filter((n) => /^(СтройИнвест|ГорСтрой|Альфа-Монтаж|Яркий Дом)$/.test(n));
+    expect(order).toEqual([
+      "СтройИнвест",
+      "ГорСтрой",
+      "Альфа-Монтаж",
+      "Яркий Дом",
+    ]);
+    await expect(
+      nav.getByRole("button", { name: /^СтройИнвест\s*2$/ }),
+    ).toBeVisible();
+    await expect(
+      nav.getByRole("button", { name: /^ГорСтрой\s*1$/ }),
+    ).toBeVisible();
+    // An empty folder has no count at all.
+    await expect(
+      nav.getByRole("button", { name: /^Альфа-Монтаж$/ }),
+    ).toBeVisible();
+    await expect(
+      nav.getByRole("button", { name: /^Яркий Дом$/ }),
+    ).toBeVisible();
+    await expect(nav.getByRole("separator")).toHaveText("Без встреч");
+    await shot(page, "13-projects.jpg");
+  });
+
+  test("a meeting with an object only belongs to the customer of the object", async ({
+    page,
+  }) => {
+    await open(page, { legacy: true });
+    const nav = projectsNav(page);
+    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(7);
+    await expect(
+      nav.getByRole("button", { name: /^ГорСтрой\s*2$/ }),
+    ).toBeVisible();
+    await expect(
+      nav.getByRole("button", { name: /^Без проекта\s*3$/ }),
+    ).toBeVisible();
+    await nav.getByRole("button", { name: /^ГорСтрой/ }).click();
+    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(2);
+    await expect(page.getByText("Старая встреча по складу")).toBeVisible();
+    await nav.getByRole("button", { name: /^Склад\s*1$/ }).click();
+    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(1);
+    await expect(page.getByText("Старая встреча по складу")).toBeVisible();
+    await nav.getByRole("button", { name: /^Без проекта/ }).click();
+    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(3);
+    await expect(page.getByText("Старая встреча по складу")).toHaveCount(0);
   });
 
   test("search shows snippets with highlights and opens the hits", async ({
@@ -777,6 +854,16 @@ test.describe("Library at the minimum window size (mocked Tauri)", () => {
     await expect(projectsNav(page)).toBeHidden();
     const select = page.getByRole("combobox", { name: /Проекты/ });
     await expect(select).toBeVisible();
+    const labels = await select.locator("option").allInnerTexts();
+    expect(labels.slice(2, 5)).toEqual([
+      "СтройИнвест (2)",
+      "Корпус А (1)",
+      "Корпус Б (1)",
+    ]);
+    expect(labels).toContain("Альфа-Монтаж");
+    expect(labels.indexOf("Альфа-Монтаж")).toBeGreaterThan(
+      labels.indexOf("ГорСтрой (1)"),
+    );
     await select.selectOption("c:1");
     await expect(page.getByRole("heading", { level: 3 })).toHaveCount(2);
     await select.selectOption("all");

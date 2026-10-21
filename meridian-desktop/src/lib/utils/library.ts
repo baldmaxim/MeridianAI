@@ -56,13 +56,21 @@ const projectOfServer = (server: LibraryItem): ProjectFields => ({
   objectName: server.object_name,
 });
 
+/** Old data of the site may have an object without its customer. */
+const hasProject = (customerId: number | null, objectId: number | null) =>
+  customerId !== null || objectId !== null;
+
 /** The site is the source of truth once the meeting is there. */
 const pickProject = (
   local: MeetingInfo | null,
   server: LibraryItem | null,
 ): ProjectFields => {
-  if (server && server.customer_id !== null) return projectOfServer(server);
-  if (local && local.customer_id !== null) return projectOfLocal(local);
+  if (server && hasProject(server.customer_id, server.object_id)) {
+    return projectOfServer(server);
+  }
+  if (local && hasProject(local.customer_id, local.object_id)) {
+    return projectOfLocal(local);
+  }
   return NO_PROJECT;
 };
 
@@ -137,21 +145,47 @@ export const mergeLibrary = (
   return entries.sort(byStartDesc);
 };
 
+/** Customer id of every object of the reference book. */
+export type ObjectOwners = ReadonlyMap<number, number>;
+
+export const buildObjectOwners = (
+  projects: ProjectCustomer[],
+): ObjectOwners => {
+  const owners = new Map<number, number>();
+  for (const customer of projects) {
+    for (const object of customer.objects) owners.set(object.id, customer.id);
+  }
+  return owners;
+};
+
+/**
+ * The customer of a meeting: its own, or (old data with an object only) the
+ * owner of the object in the reference book. `null` means "no project".
+ */
+export const resolveCustomerId = (
+  entry: LibraryEntry,
+  owners: ObjectOwners,
+): number | null => {
+  if (entry.customerId !== null) return entry.customerId;
+  return entry.objectId !== null ? (owners.get(entry.objectId) ?? null) : null;
+};
+
 export const matchesFilter = (
   entry: LibraryEntry,
   filter: ProjectFilter,
+  owners: ObjectOwners,
 ): boolean => {
+  const customerId = resolveCustomerId(entry, owners);
   switch (filter.kind) {
     case "all":
       return true;
     case "none":
-      return entry.customerId === null;
+      return customerId === null;
     case "customer":
-      return entry.customerId === filter.customerId;
+      return customerId === filter.customerId;
     case "object":
       return (
-        entry.customerId === filter.customerId &&
-        entry.objectId === filter.objectId
+        customerId === filter.customerId && entry.objectId === filter.objectId
       );
   }
 };
@@ -168,6 +202,15 @@ export interface ProjectNode {
   count: number;
   objects: ProjectObjectNode[];
 }
+
+/** Folders with meetings first (most meetings first), the empty ones after. */
+const byCountThenName = (
+  a: { name: string; count: number },
+  b: { name: string; count: number },
+): number => {
+  if (a.count > 0 !== b.count > 0) return a.count > 0 ? -1 : 1;
+  return b.count - a.count || a.name.localeCompare(b.name);
+};
 
 /**
  * The reference book of the site plus the projects met only in the meetings
@@ -203,11 +246,13 @@ export const buildProjectTree = (
       ensureObject(node, object.id, object.name);
     }
   }
+  const owners = buildObjectOwners(projects);
   for (const entry of entries) {
-    if (entry.customerId === null) continue;
+    const customerId = resolveCustomerId(entry, owners);
+    if (customerId === null) continue;
     const customer = ensureCustomer(
-      entry.customerId,
-      entry.customerName ?? String(entry.customerId),
+      customerId,
+      entry.customerName ?? String(customerId),
     );
     customer.count += 1;
     if (entry.objectId !== null) {
@@ -218,7 +263,9 @@ export const buildProjectTree = (
       ).count += 1;
     }
   }
-  return [...nodes.values()];
+  const nodesList = [...nodes.values()];
+  for (const customer of nodesList) customer.objects.sort(byCountThenName);
+  return nodesList.sort(byCountThenName);
 };
 
 /** "Customer · Object", or just the customer; empty without a project. */

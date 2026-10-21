@@ -642,6 +642,7 @@
       "projects": "Projects",
       "allMeetings": "All meetings",
       "noProject": "No project",
+      "noMeetings": "No meetings",
       "toggleObjects": "Objects: {{name}}",
       "signedOut": "Sign in to see your meetings from the site",
       "signIn": "Sign in",

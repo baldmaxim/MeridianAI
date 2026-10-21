@@ -5,10 +5,12 @@ import type { SearchHit } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { useMeetingSearch } from "@/hooks/useMeetingSearch";
 import {
+  buildObjectOwners,
   buildProjectTree,
   findLocalForServer,
   matchesFilter,
   mergeLibrary,
+  resolveCustomerId,
   type LibraryEntry,
 } from "@/lib/utils/library";
 import { useLibraryStore } from "@/stores/libraryStore";
@@ -62,11 +64,17 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
     () => buildProjectTree(snapshot?.projects ?? [], all),
     [snapshot, all],
   );
-  const visible = useMemo(
-    () => all.filter((entry) => matchesFilter(entry, filter)),
-    [all, filter],
+  const owners = useMemo(
+    () => buildObjectOwners(snapshot?.projects ?? []),
+    [snapshot],
   );
-  const noProjectCount = all.filter((e) => e.customerId === null).length;
+  const visible = useMemo(
+    () => all.filter((entry) => matchesFilter(entry, filter, owners)),
+    [all, filter, owners],
+  );
+  const noProjectCount = all.filter(
+    (e) => resolveCustomerId(e, owners) === null,
+  ).length;
 
   const openEntry = (entry: LibraryEntry) => {
     if (entry.local)
