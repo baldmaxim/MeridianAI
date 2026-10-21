@@ -36,6 +36,8 @@ jobs:
       - name: Enable long paths (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        # До checkout папки meridian-desktop ещё нет.
+        working-directory: ${{ github.workspace }}
         run: |
           New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
             -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
