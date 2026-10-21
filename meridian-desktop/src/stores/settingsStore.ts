@@ -6,6 +6,7 @@ import type {
   AudioDevice,
   PostProcessApiFormat,
   ChineseScript,
+  LogLevel,
   TranscribeAcceleratorSetting,
   VadBackend,
 } from "@/bindings";
@@ -112,7 +113,7 @@ const settingUpdaters: {
     commands.setPostProcessSelectedPrompt(value as string),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
-  log_level: (value) => commands.setLogLevel(value as any),
+  log_level: (value) => commands.setLogLevel(value as LogLevel),
   app_language: (value) => commands.changeAppLanguageSetting(value as string),
   theme: (value) => commands.changeThemeSetting(value as string),
   accent_color: (value) => commands.changeAccentColorSetting(value as string),
@@ -264,7 +265,7 @@ export const useSettingsStore = create<SettingsStore>()(
       if (defaultSettings) {
         const defaultValue = defaultSettings[key];
         if (defaultValue !== undefined) {
-          await get().updateSetting(key, defaultValue as any);
+          await get().updateSetting(key, defaultValue as Settings[typeof key]);
         }
       }
     },

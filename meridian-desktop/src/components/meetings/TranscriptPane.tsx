@@ -78,7 +78,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto overscroll-contain px-4 py-3"
+        className="h-full select-text overflow-y-auto overscroll-contain px-4 py-3"
       >
         {items.length === 0 ? (
           <p className="mt-10 text-center text-sm text-muted">

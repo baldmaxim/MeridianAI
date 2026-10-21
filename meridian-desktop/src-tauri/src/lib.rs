@@ -2,6 +2,8 @@ pub mod audio_toolkit;
 mod catalog;
 mod chinese_script;
 pub mod cli;
+#[cfg(test)]
+mod bindings_tests;
 mod commands;
 pub mod engine_supervisor;
 mod helpers;
@@ -10,6 +12,7 @@ mod managers;
 mod memory;
 pub mod portable;
 mod recording;
+pub mod secrets;
 mod settings;
 mod tray;
 mod tray_i18n;
@@ -194,6 +197,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     let account_store = Arc::new(AccountStore::open(
         &portable::app_data_dir(app_handle).expect("Failed to resolve the app data directory"),
+        Arc::clone(secrets::global()),
     ));
     // The accounts go into the managed state first: meeting queries read them.
     app_handle.manage(account_store.clone());
@@ -574,34 +578,9 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     0
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run(cli_args: CliArgs) {
-    // Avoid ggml-metal residency-set teardown assertions when a native engine
-    // outlives the Tauri shutdown sequence. This must happen before
-    // transcribe-cpp initializes its Metal device. Advanced users can restore
-    // upstream residency behavior with HANDY_METAL_RESIDENCY=1.
-    #[cfg(target_os = "macos")]
-    if std::env::var("HANDY_METAL_RESIDENCY").as_deref() == Ok("1") {
-        // ggml treats GGML_METAL_NO_RESIDENCY as presence-based, so remove an
-        // inherited value as well when explicitly opting back in.
-        std::env::remove_var("GGML_METAL_NO_RESIDENCY");
-    } else {
-        std::env::set_var("GGML_METAL_NO_RESIDENCY", "1");
-    }
-
-    // Pin glibc's dynamic mmap threshold before the first large allocation,
-    // so per-dictation transient buffers are returned to the OS on free
-    // instead of accumulating in malloc arenas (#1792). No-op off Linux/glibc.
-    memory::init_allocator();
-
-    // Detect portable mode before anything else
-    portable::init();
-
-    // Parse console logging directives from RUST_LOG, falling back to info-level logging
-    // when the variable is unset
-    let console_filter = build_console_filter();
-
-    let specta_builder = Builder::<tauri::Wry>::new()
+/// The commands and events the frontend sees (and `bindings.ts` is generated from).
+pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
+    Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             commands::settings::change_theme_setting,
             commands::settings::change_accent_color_setting,
@@ -660,6 +639,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meetings::list_meetings,
             commands::meetings::get_meeting,
             commands::meetings::rename_meeting,
+            commands::meetings::set_meeting_project,
             commands::meetings::delete_meeting,
             commands::meetings::upsert_note,
             commands::meetings::delete_note,
@@ -670,6 +650,10 @@ pub fn run(cli_args: CliArgs) {
             commands::sync::sync_now,
             commands::sync::retry_meeting_sync,
             commands::sync::get_sync_status,
+            commands::library::library_get,
+            commands::library::meeting_view_get,
+            commands::library::meeting_ask,
+            commands::library::search_meetings,
             commands::models::get_available_models,
             commands::models::get_model_info,
             commands::models::download_model,
@@ -715,7 +699,37 @@ pub fn run(cli_args: CliArgs) {
             managers::meeting::MeetingState,
             managers::sync::SyncState,
             managers::sync::AccountChanged,
-        ]);
+        ])
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run(cli_args: CliArgs) {
+    // Avoid ggml-metal residency-set teardown assertions when a native engine
+    // outlives the Tauri shutdown sequence. This must happen before
+    // transcribe-cpp initializes its Metal device. Advanced users can restore
+    // upstream residency behavior with HANDY_METAL_RESIDENCY=1.
+    #[cfg(target_os = "macos")]
+    if std::env::var("HANDY_METAL_RESIDENCY").as_deref() == Ok("1") {
+        // ggml treats GGML_METAL_NO_RESIDENCY as presence-based, so remove an
+        // inherited value as well when explicitly opting back in.
+        std::env::remove_var("GGML_METAL_NO_RESIDENCY");
+    } else {
+        std::env::set_var("GGML_METAL_NO_RESIDENCY", "1");
+    }
+
+    // Pin glibc's dynamic mmap threshold before the first large allocation,
+    // so per-dictation transient buffers are returned to the OS on free
+    // instead of accumulating in malloc arenas (#1792). No-op off Linux/glibc.
+    memory::init_allocator();
+
+    // Detect portable mode before anything else
+    portable::init();
+
+    // Parse console logging directives from RUST_LOG, falling back to info-level logging
+    // when the variable is unset
+    let console_filter = build_console_filter();
+
+    let specta_builder = specta_builder();
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     specta_builder
@@ -806,6 +820,9 @@ pub fn run(cli_args: CliArgs) {
     let mut app = builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
+        // Автообновление (D3): ключ и endpoint — в tauri.conf.json, проверку и установку
+        // запускает фронтенд только по согласию пользователя.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_opener::init())

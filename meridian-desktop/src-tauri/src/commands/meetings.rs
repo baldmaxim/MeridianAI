@@ -81,6 +81,26 @@ pub fn rename_meeting(app: AppHandle, id: String, title: String) -> Result<(), S
     manager(&app).rename_meeting(&id, &title)
 }
 
+/// Sets (or, with `None`s, clears) the project of a local meeting.
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_project(
+    app: AppHandle,
+    meeting_id: String,
+    customer_id: Option<i64>,
+    object_id: Option<i64>,
+    customer_name: Option<String>,
+    object_name: Option<String>,
+) -> Result<MeetingInfo, String> {
+    manager(&app).set_meeting_project(
+        &meeting_id,
+        customer_id,
+        object_id,
+        customer_name,
+        object_name,
+    )
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_meeting(app: AppHandle, id: String) -> Result<(), String> {

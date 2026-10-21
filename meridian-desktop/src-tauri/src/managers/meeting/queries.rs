@@ -2,11 +2,12 @@
 
 use std::sync::Arc;
 
+use log::warn;
 use tauri::Manager;
 
 use super::session::Slot;
 use super::{
-    export_channel_wav, io_err, now_iso, short_id, storage, ActiveMeetingState, AudioFile,
+    clean_name, export_channel_wav, io_err, now_iso, short_id, storage, ActiveMeetingState, AudioFile,
     MeetingDetails, MeetingInfo, MeetingManager, Note, NoteInput, AUDIO_CHANNELS,
 };
 use crate::managers::sync::account::{meeting_web_url, AccountStore};
@@ -77,9 +78,46 @@ impl MeetingManager {
             return Err("Название не может быть пустым".to_string());
         }
         match self.db.rename_meeting(id, title).map_err(io_err)? {
-            true => Ok(()),
+            true => {
+                self.reindex(id);
+                Ok(())
+            }
             false => Err("Встреча не найдена".to_string()),
         }
+    }
+
+    /// Sets or clears the meeting's project. A meeting that is not on the server
+    /// yet takes it along with its first upload; the server does not change the
+    /// project of a meeting it already has, so for those it stays local.
+    pub fn set_meeting_project(
+        &self,
+        id: &str,
+        customer_id: Option<i64>,
+        object_id: Option<i64>,
+        customer_name: Option<String>,
+        object_name: Option<String>,
+    ) -> Result<MeetingInfo, String> {
+        let customer_name = clean_name(customer_name.as_deref());
+        let object_name = clean_name(object_name.as_deref());
+        let found = self
+            .db
+            .set_meeting_project(
+                id,
+                customer_id,
+                customer_name.as_deref(),
+                object_id,
+                object_name.as_deref(),
+            )
+            .map_err(io_err)?;
+        if !found {
+            return Err("Встреча не найдена".to_string());
+        }
+        let meeting = self
+            .db
+            .get_meeting(id)
+            .map_err(io_err)?
+            .ok_or_else(|| "Встреча не найдена".to_string())?;
+        Ok(self.with_web_url(meeting))
     }
 
     /// Whether a meeting is being recorded, set up or wound up right now.
@@ -97,6 +135,9 @@ impl MeetingManager {
         }
         if !self.db.delete_meeting(id).map_err(io_err)? {
             return Err("Встреча не найдена".to_string());
+        }
+        if let Err(e) = self.db.remove_local_index(id) {
+            warn!("Cannot drop meeting {id} from the search index: {e:#}");
         }
         match std::fs::remove_dir_all(storage::meeting_dir(&self.root, id)) {
             Ok(()) => Ok(()),
@@ -127,11 +168,16 @@ impl MeetingManager {
             updated_at: now_iso(),
         };
         self.db.upsert_note(&note).map_err(io_err)?;
+        self.reindex(&note.meeting_id);
         Ok(note)
     }
 
     pub fn delete_note(&self, id: &str) -> Result<(), String> {
+        let meeting_id = self.db.note_meeting_id(id).map_err(io_err)?;
         self.db.delete_note(id).map_err(io_err)?;
+        if let Some(meeting_id) = meeting_id {
+            self.reindex(&meeting_id);
+        }
         Ok(())
     }
 

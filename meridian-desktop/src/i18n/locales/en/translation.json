@@ -6,18 +6,35 @@
     "quit": "Quit",
     "cancel": "Cancel"
   },
-  "sidebar": {
-    "account": "Account",
-    "general": "General",
-    "models": "Models",
-    "advanced": "Advanced",
-    "postProcessing": "Post Process",
-    "debug": "Debug",
-    "about": "About",
-    "meetings": "Meetings",
-    "settingsGroup": "Settings"
+  "shell": {
+    "nav": {
+      "label": "Main navigation",
+      "meetings": "Meetings",
+      "settings": "Settings",
+      "account": "Account",
+      "accountOf": "Account: {{email}}"
+    },
+    "settingsTitle": "Settings",
+    "tabs": {
+      "account": "Account",
+      "general": "General",
+      "models": "Models",
+      "advanced": "Advanced",
+      "postProcessing": "Post Process",
+      "debug": "Debug",
+      "about": "About"
+    },
+    "record": {
+      "untitled": "Untitled",
+      "open": "Open meeting",
+      "openNamed": "Open the meeting in progress: {{title}}"
+    }
   },
   "onboarding": {
+    "aside": {
+      "title": "Meetings stay on your computer",
+      "text": "Meetings are recorded and recognized on your computer, with no internet. After you sign in, everything goes to Meridian on the website."
+    },
     "subtitle": "To get started, choose a transcription model",
     "existingModelsTitle": "Compatible Models",
     "downloadModelsTitle": "Available to Download",
@@ -501,9 +518,7 @@
       "new": "New meeting",
       "emptyTitle": "No meetings yet",
       "emptyHint": "Press “New meeting”: the app will record the conversation and recognize it on this computer.",
-      "loading": "Loading meetings…",
-      "modeOnline": "Online",
-      "modeInPerson": "In person"
+      "loading": "Loading meetings…"
     },
     "status": {
       "recording": "Recording",
@@ -557,9 +572,14 @@
       "stopping": "Finishing recognition…",
       "queue": "Phrases being recognized: {{count}}",
       "tabTranscript": "Transcript",
-      "tabNotes": "Notes",
       "notFound": "Meeting not found",
-      "loading": "Loading meeting…"
+      "loading": "Loading meeting…",
+      "tabProtocol": "Protocol",
+      "tabAsk": "Ask",
+      "tabDocuments": "Documents",
+      "collapsePanel": "Collapse panel",
+      "expandPanel": "Expand panel",
+      "panelLabel": "Meeting data"
     },
     "levels": {
       "us": "Us",
@@ -602,20 +622,98 @@
       "noteFailed": "Could not save the note",
       "openModelSettings": "Model settings",
       "retryFailed": "Could not retry the upload",
-      "openSiteFailed": "Could not open the site"
+      "openSiteFailed": "Could not open the site",
+      "protocolFailed": "Could not load the protocol",
+      "libraryFailed": "Could not refresh the list from the site",
+      "projectFailed": "Could not change the project"
     },
     "audio": {
       "noStorage": "audio not sent: the server has no storage"
+    },
+    "library": {
+      "searchPlaceholder": "Search all meetings",
+      "searchLabel": "Search meetings",
+      "clearSearch": "Clear search",
+      "refresh": "Refresh",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "noDate": "No date",
+      "untitled": "Untitled",
+      "projects": "Projects",
+      "allMeetings": "All meetings",
+      "noProject": "No project",
+      "toggleObjects": "Objects: {{name}}",
+      "signedOut": "Sign in to see your meetings from the site",
+      "signIn": "Sign in",
+      "offline": "No connection — showing saved data, updated {{time}}",
+      "offlineNoTime": "No connection — showing saved data",
+      "filterEmpty": "No meetings in this project yet",
+      "searching": "Searching…",
+      "searchEmpty": "Nothing found",
+      "searchFailed": "Search failed",
+      "searchResults": "Search results",
+      "sourceDesktop": "Recorded in the app",
+      "sourceWeb": "From the site",
+      "status": {
+        "sending": "Uploading",
+        "onServer": "On the server",
+        "protocolReady": "Protocol ready"
+      }
+    },
+    "project": {
+      "none": "No project",
+      "change": "Change project",
+      "lockedHint": "The project is changed on the site",
+      "customer": "Customer",
+      "object": "Object",
+      "noCustomer": "No project",
+      "noObject": "No object",
+      "dialogTitle": "Meeting project",
+      "save": "Save"
+    },
+    "protocol": {
+      "loading": "Loading the protocol…",
+      "needSync": "The protocol will appear after the meeting is sent to Meridian",
+      "reload": "Refresh",
+      "status": {
+        "notStarted": "The protocol is not ready yet",
+        "queued": "The protocol is queued",
+        "running": "The protocol is being prepared…",
+        "error": "Could not prepare the protocol",
+        "disabled": "The protocol is turned off for this meeting",
+        "empty": "The protocol is empty"
+      }
+    },
+    "ask": {
+      "needSync": "Available after the meeting is sent",
+      "placeholder": "Ask about the meeting…",
+      "send": "Send question",
+      "empty": "Ask a question — the answer comes from the protocol, the transcript and the documents.",
+      "thinking": "Thinking…",
+      "failed": "Could not get an answer",
+      "sources": "Sources",
+      "kind": {
+        "document": "Document",
+        "meeting": "Meeting",
+        "transcript": "Transcript",
+        "note": "Note",
+        "knowledge": "Knowledge base"
+      }
+    },
+    "server": {
+      "loadFailed": "Could not open the meeting",
+      "retry": "Retry",
+      "fromCache": "From cache",
+      "fromCacheHint": "The server is unreachable — showing saved data",
+      "documentsEmpty": "No documents attached to the meeting",
+      "documentUnnamed": "Unnamed",
+      "pages": "Pages: {{count}}"
     }
   },
   "account": {
     "signedOut": "You were signed out",
     "server": "Server",
     "logoutFailed": "Could not sign out",
-    "hint": {
-      "text": "Sign in to send meetings to the server and get a protocol from them.",
-      "link": "Account"
-    },
     "login": {
       "title": "Sign in to Meridian",
       "hint": "Recording works without signing in; after signing in the meetings go to the server.",
@@ -647,6 +745,21 @@
       "queued": "Queued: {{count}}",
       "offline": "No connection to the server",
       "signedOut": "Not signed in"
+    }
+  },
+  "update": {
+    "title": "Version {{version}} is available",
+    "text": "A new version of Meridian, {{version}}, is out. The app restarts after the install; do not update while a meeting is being recorded.",
+    "now": "Update now",
+    "later": "Later",
+    "installing": "Installing...",
+    "check": {
+      "title": "Updates",
+      "description": "Check whether a new version of Meridian is out",
+      "button": "Check for updates",
+      "checking": "Checking...",
+      "upToDate": "You have the latest version",
+      "failed": "Could not check for updates"
     }
   }
 }

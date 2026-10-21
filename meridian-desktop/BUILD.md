@@ -101,6 +101,30 @@ bun run tauri build
 
 This compiles a release binary and generates platform-specific bundles (deb, rpm, AppImage on Linux; dmg on macOS; msi on Windows).
 
+### Автообновление и подпись артефактов (Meridian)
+
+`bundle.createUpdaterArtifacts: true` в `tauri.conf.json`: `tauri build` подписывает артефакты
+обновления minisign-ключом и без него падает. Для локальной сборки:
+
+```bash
+# либо задать ключ (приватный ключ хранится вне репозитория)
+export TAURI_SIGNING_PRIVATE_KEY_PATH=~/.tauri/meridian-desktop.key
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=...
+# либо отключить артефакты обновления
+bun run tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
+Публичный ключ — `plugins.updater.pubkey`, endpoint — `https://meridianai.ru/desktop/latest.json`
+(nginx перенаправляет на ассет последнего релиза GitHub).
+
+Выпуск версии: поднять `version` в `tauri.conf.json` (и `Cargo.toml`, `package.json`), затем
+`git tag desktop-vX.Y.Z && git push origin desktop-vX.Y.Z`. Workflow `desktop-build.yml` соберёт
+установщики, подписанные `.sig` и `latest.json` и создаст **черновик** релиза.
+
+> [!IMPORTANT]
+> Релиз нужно **опубликовать** (убрать draft). Пока он черновик, ссылка
+> `/releases/latest/download/latest.json` не отдаёт файл и автообновление не находит новую версию.
+
 ## Linux Install (from source)
 
 The raw binary (`src-tauri/target/release/handy`) cannot run standalone — it needs Tauri resource files (tray icons, sounds, VAD model) to be co-located at the expected path.

@@ -60,3 +60,41 @@ export const sortMeetings = (meetings: MeetingInfo[]): MeetingInfo[] =>
 /** Model-related backend errors get a link to the model settings. */
 export const isModelError = (message: string): boolean =>
   /модел|model/i.test(message);
+
+const parseDate = (iso: string | null): Date | null => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/** "21 октября 2026" for the date chip; empty for a missing date. */
+export const formatDateChip = (iso: string | null, locale: string): string => {
+  const date = parseDate(iso);
+  if (!date) return "";
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+};
+
+/** "09:00" for a card; empty for a missing date. */
+export const formatTimeOfDay = (iso: string | null, locale: string): string => {
+  const date = parseDate(iso);
+  if (!date) return "";
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
+/** "09:00 – 09:10", or just the start while the end is unknown. */
+export const formatTimeRange = (
+  startIso: string | null,
+  endIso: string | null,
+  locale: string,
+): string => {
+  const start = formatTimeOfDay(startIso, locale);
+  const end = formatTimeOfDay(endIso, locale);
+  return start && end ? `${start} – ${end}` : start;
+};

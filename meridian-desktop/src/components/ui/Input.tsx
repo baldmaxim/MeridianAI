@@ -22,7 +22,7 @@ export const Input: React.FC<InputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const baseClasses =
-    "px-2 py-1 text-sm font-semibold bg-mid-gray/10 border border-mid-gray/80 rounded-md text-start transition-all duration-150 [&::-webkit-search-cancel-button]:hidden [&::-ms-reveal]:hidden [&::-ms-clear]:hidden";
+    "px-2 py-1 text-sm font-semibold bg-deep border border-border rounded-[10px] text-start transition-colors duration-150 motion-reduce:transition-none [&::-webkit-search-cancel-button]:hidden [&::-ms-reveal]:hidden [&::-ms-clear]:hidden";
 
   const interactiveClasses = disabled
     ? "opacity-60 cursor-not-allowed bg-mid-gray/10 border-mid-gray/40"

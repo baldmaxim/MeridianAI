@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useRef,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
@@ -12,26 +6,22 @@ import { platform } from "@tauri-apps/plugin-os";
 import { checkMicrophonePermission } from "tauri-plugin-macos-permissions-api";
 import { ModelStateEvent, RecordingErrorEvent } from "./lib/types/events";
 import "./App.css";
-import Footer from "./components/footer";
 import Onboarding, {
   PermissionsOnboarding,
   ModelMigration,
 } from "./components/onboarding";
-import {
-  DebugSettings,
-  type OnboardingPreviewStep,
-} from "./components/settings";
-import {
-  Sidebar,
-  SidebarSection,
+import { type OnboardingPreviewStep } from "./components/settings";
+import { AppShell } from "./components/shell/AppShell";
+import type {
+  AppSection,
   SettingsSection,
-  SECTIONS_CONFIG,
-} from "./components/Sidebar";
-import { MeetingsScreen } from "./components/meetings/MeetingsScreen";
+} from "./components/shell/settingsSections";
 import { useMeetingEvents } from "./hooks/useMeetingEvents";
 import { useSyncEvents } from "./hooks/useSyncEvents";
 import { useMeetingStore } from "./stores/meetingStore";
 import { useSettings } from "./hooks/useSettings";
+import { UpdateDialog } from "./components/UpdateDialog";
+import { useUpdateStore } from "./stores/updateStore";
 import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { deleteRetiredModel } from "@/components/onboarding/retiredModels";
@@ -41,19 +31,6 @@ type OnboardingStep = "permissions" | "migration" | "model" | "done";
 
 // Stable identity so preview effects do not re-run due to callback changes.
 const NOOP = () => {};
-
-const renderSettingsContent = (
-  section: SettingsSection,
-  onPreviewOnboarding: (step: OnboardingPreviewStep) => void,
-) => {
-  if (section === "debug") {
-    return <DebugSettings onPreviewOnboarding={onPreviewOnboarding} />;
-  }
-
-  const ActiveComponent =
-    SECTIONS_CONFIG[section]?.component || SECTIONS_CONFIG.general.component;
-  return <ActiveComponent />;
-};
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -68,47 +45,41 @@ function App() {
   // Set when a returning user's selected model is a retired (ONNX) model that
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
-  const [currentSection, setCurrentSection] =
-    useState<SidebarSection>("meetings");
+  const [currentSection, setCurrentSection] = useState<AppSection>("meetings");
+  const [settingsTab, setSettingsTab] = useState<SettingsSection>("account");
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
   const refreshAudioDevices = useSettingsStore(
     (state) => state.refreshAudioDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
-  const settingsScrollRef = useRef<HTMLDivElement>(null);
-  const isShowingOnboarding =
-    onboardingPreview !== null ||
-    onboardingStep === "permissions" ||
-    onboardingStep === "migration" ||
-    onboardingStep === "model";
-
-  // Classic scrollbars consume layout space. Reserve a matching gutter on the
-  // opposite edge while onboarding is visible so its content stays centered in
-  // the physical window. Overlay scrollbars ignore scrollbar-gutter.
-  useLayoutEffect(() => {
-    const attribute = "data-onboarding-active";
-    document.documentElement.toggleAttribute(attribute, isShowingOnboarding);
-    return () => document.documentElement.removeAttribute(attribute);
-  }, [isShowingOnboarding]);
-
-  // Reset the scroll position whenever the active section changes.
-  useLayoutEffect(() => {
-    settingsScrollRef.current?.scrollTo({ top: 0 });
-  }, [currentSection]);
-
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
 
   // Meeting events live as long as the main app does; a meeting that is
   // already recording (e.g. after a window reload) opens straight away.
-  useMeetingEvents(onboardingStep === "done", (meetingId) => {
+  const showMeeting = (meetingId: string) => {
     setCurrentSection("meetings");
     void useMeetingStore.getState().openMeeting(meetingId);
-  });
+  };
+  useMeetingEvents(onboardingStep === "done", showMeeting);
+
+  const openSettingsTab = (tab: SettingsSection) => {
+    setSettingsTab(tab);
+    setCurrentSection("settings");
+  };
 
   useSyncEvents(onboardingStep === "done");
+
+  // Тихая проверка обновлений после запуска (D3); диалог откроется, только если версия нашлась.
+  useEffect(() => {
+    if (onboardingStep !== "done") return;
+    const timer = window.setTimeout(() => {
+      void useUpdateStore.getState().checkForUpdates(true);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [onboardingStep]);
 
   // Initialize RTL direction when language changes
   useEffect(() => {
@@ -388,36 +359,16 @@ function App() {
     );
   } else {
     content = (
-      <div
-        dir={direction}
-        className="h-screen flex flex-col select-none cursor-default"
-      >
-        {/* Main content area that takes remaining space */}
-        <div className="flex-1 flex overflow-hidden">
-          <Sidebar
-            activeSection={currentSection}
-            onSectionChange={setCurrentSection}
-          />
-          {/* Scrollable content area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {currentSection === "meetings" ? (
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <MeetingsScreen
-                  onOpenModelSettings={() => setCurrentSection("models")}
-                  onOpenAccount={() => setCurrentSection("account")}
-                />
-              </div>
-            ) : (
-              <div ref={settingsScrollRef} className="flex-1 overflow-y-auto">
-                <div className="flex flex-col items-center p-4 gap-4">
-                  {renderSettingsContent(currentSection, setOnboardingPreview)}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        {/* Fixed footer at bottom */}
-        <Footer onOpenAccount={() => setCurrentSection("account")} />
+      <div dir={direction}>
+        <AppShell
+          section={currentSection}
+          settingsTab={settingsTab}
+          onSectionChange={setCurrentSection}
+          onSettingsTabChange={setSettingsTab}
+          onOpenSettingsTab={openSettingsTab}
+          onOpenMeeting={showMeeting}
+          onPreviewOnboarding={setOnboardingPreview}
+        />
       </div>
     );
   }
@@ -426,6 +377,7 @@ function App() {
     <>
       {toaster}
       {content}
+      <UpdateDialog />
     </>
   );
 }

@@ -1,6 +1,8 @@
 //! HTTP client of the Meridian server's `/api/desktop` API. Every call is a
 //! plain request; retries and ordering belong to the engine.
 
+mod library;
+
 use std::fmt;
 use std::io::Read;
 use std::path::Path;

@@ -35,12 +35,15 @@ const SCHEMA: u32 = 2;
 const MIRRORS: &[&str] = &["https://blob.handy.computer"];
 
 /// List order and onboarding set, keyed by catalog id. The default model
-/// (`gigaam-v3-e2e-ctc`) is rank 1, so onboarding features it first.
+/// (`gigaam-v3-e2e-ctc`) is rank 1, so onboarding features it first; Whisper
+/// Turbo (Kazakh / mixed speech) is the second featured pick.
 /// `(id, rank, recommended)`: rank is the sort position (lower = higher);
 /// recommended is the small badged onboarding subset.
 const MODEL_RANKING: &[(&str, u32, bool)] = &[
     ("gigaam-v3-e2e-ctc", 1, true),
-    ("gigaam-v3-e2e-rnnt", 2, true),
+    ("whisper-large-v3-turbo", 2, true),
+    ("gigaam-v3-e2e-rnnt", 3, true),
+    ("whisper-large-v3", 4, false),
 ];
 
 #[derive(Deserialize)]
@@ -551,9 +554,17 @@ mod tests {
     }
 
     #[test]
-    fn catalog_offers_exactly_the_gigaam_models_and_default_is_first() {
+    fn catalog_offers_gigaam_and_whisper_models_and_default_is_first() {
         let ids: Vec<&str> = transcription_models().map(|m| m.id.as_str()).collect();
-        assert_eq!(ids, ["gigaam-v3-e2e-ctc", "gigaam-v3-e2e-rnnt"]);
+        assert_eq!(
+            ids,
+            [
+                "gigaam-v3-e2e-ctc",
+                "gigaam-v3-e2e-rnnt",
+                "whisper-large-v3-turbo",
+                "whisper-large-v3"
+            ]
+        );
         assert_eq!(MODEL_RANKING[0].0, "gigaam-v3-e2e-ctc");
         assert!(CATALOG
             .iter()

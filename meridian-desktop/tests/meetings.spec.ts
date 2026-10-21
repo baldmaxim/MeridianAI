@@ -155,7 +155,7 @@ test.describe("Meetings UI (mocked Tauri)", () => {
     await page.goto("/");
     await expect(page.getByText("Совещание по смете")).toBeVisible();
     await expect(page.getByText("10:05")).toBeVisible();
-    await expect(page.getByText("Остановлена")).toBeVisible();
+    await expect(page.getByText("Не отправлена")).toBeVisible();
     await expect(page.getByText("Прервана")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Продолжить запись", exact: true }),

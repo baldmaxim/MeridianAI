@@ -12,7 +12,8 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420; object-src 'none'; base-uri 'self'; form-action 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -24,6 +25,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "resources": ["resources/**/*"],
     "license": "MIT",
@@ -69,6 +71,12 @@
         "template": "nsis/installer.nsi",
         "installerIcon": "icons/icon.ico"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM5MDEzMDY0NzgxRjY0MTUKUldRVlpCOTRaREFCT1I1cWhhdjRzOGZRMUVxZktnTVBmMnVJTHpEdTdkUllJMkpxZ1JDNWtzekQK",
+      "endpoints": ["https://meridianai.ru/desktop/latest.json"]
     }
   }
 }

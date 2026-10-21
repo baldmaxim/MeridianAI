@@ -9,6 +9,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use crate::managers::meeting::MeetingManager;
 use crate::managers::sync::account::{
     app_version, device_name, normalize_server_url, platform, AccountInfo, AccountStore,
     AccountUser, StoredAccount,
@@ -35,6 +36,14 @@ impl std::fmt::Debug for AccountLoginRequest {
 
 fn accounts(app: &AppHandle) -> Arc<AccountStore> {
     Arc::clone(&app.state::<Arc<AccountStore>>())
+}
+
+/// Forgets the site's meetings and projects kept for offline use.
+pub fn clear_library_cache(app: &AppHandle) {
+    let db = app.state::<Arc<MeetingManager>>().db();
+    if let Err(e) = db.clear_server_cache() {
+        warn!("Cannot clear the library cache: {e:#}");
+    }
 }
 
 #[tauri::command]
@@ -70,6 +79,8 @@ pub async fn account_login(
         },
     };
     let info = account.info();
+    // The cache belongs to the previous account, whoever it was.
+    clear_library_cache(&app);
     accounts(&app).save(account)?;
     info!("Signed in to {server_url} as device {}", info.device_id);
 
@@ -99,6 +110,7 @@ pub async fn account_logout(app: AppHandle) -> Result<(), String> {
         }
     }
     store.clear();
+    clear_library_cache(&app);
     let _ = AccountChanged {
         account: None,
         reason: None,

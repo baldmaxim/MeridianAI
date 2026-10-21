@@ -22,10 +22,16 @@
   --color-amber: var(--color-amber);
   --color-info: var(--color-info);
   --color-success: var(--color-success);
+  --color-on-accent: var(--color-on-accent);
+  --color-border: var(--color-border);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
 }
 
 :root {
   /* Typography */
+  font-family: var(--font-ui);
   font-size: 15px;
   line-height: 24px;
   font-weight: 400;
@@ -43,6 +49,9 @@
     var(--color-text),
     transparent 70%
   );
+
+  /* Thin card/divider border: a faint tint of the text color in both themes. */
+  --color-border: color-mix(in srgb, var(--color-text), transparent 90%);
 
   /* Log console surface — a subtle shade off the app background so the live log
      viewer reads as a distinct console. In light mode this is a faint gray code
@@ -68,12 +77,6 @@
     /* Just a bit darker than the (already dark) background, keeping its warm tint */
     --color-log-surface: color-mix(in srgb, var(--color-background), black 15%);
   }
-}
-
-/* Keep onboarding centered when classic scrollbars consume layout space.
-   Overlay scrollbars do not reserve a gutter, so this has no effect on them. */
-:root[data-onboarding-active] {
-  scrollbar-gutter: stable both-edges;
 }
 
 /* macOS - tint native overlay scrollbar thumb */
@@ -150,4 +153,13 @@
   .meeting-rec-dot {
     animation: none;
   }
+}
+
+/* App shell: the horizontal pill tabs of the settings screen scroll sideways
+   on narrow windows without showing a scrollbar. */
+.shell-tabs {
+  scrollbar-width: none;
+}
+.shell-tabs::-webkit-scrollbar {
+  display: none;
 }

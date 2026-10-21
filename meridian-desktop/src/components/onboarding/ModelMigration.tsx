@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Check, Loader2 } from "lucide-react";
 import type { RetiredModel } from "@/bindings";
-import AppTextLogo from "../icons/AppTextLogo";
+import { OnboardingLayout } from "./OnboardingLayout";
 import { Button } from "../ui/Button";
 import { useModelStore } from "../../stores/modelStore";
 import { formatModelSize } from "../../lib/utils/format";
@@ -270,101 +270,101 @@ const ModelMigration: React.FC<ModelMigrationProps> = ({
   const noWayForward = chosen.length === 0;
 
   return (
-    <div className="h-screen w-full flex flex-col p-6 gap-5 items-center justify-center">
-      <AppTextLogo width={160} className="shrink-0" />
+    <OnboardingLayout>
+      <div className="h-full w-full flex flex-col p-6 gap-5 items-center justify-center">
+        <div className="text-center max-w-md shrink-0">
+          <h2 className="text-xl font-semibold text-text mb-1.5">
+            {t("onboarding.migration.title")}
+          </h2>
+          <p className="text-sm text-text/70">
+            {t("onboarding.migration.description")}
+          </p>
+        </div>
 
-      <div className="text-center max-w-md shrink-0">
-        <h2 className="text-xl font-semibold text-text mb-1.5">
-          {t("onboarding.migration.title")}
-        </h2>
-        <p className="text-sm text-text/70">
-          {t("onboarding.migration.description")}
-        </p>
-      </div>
+        <ul className="w-full max-w-[560px] min-h-0 overflow-y-auto rounded-xl border-2 border-mid-gray/20 divide-y divide-mid-gray/20">
+          {rows.map((pair) => (
+            <MigrationRow
+              key={pair.retired.id}
+              pair={pair}
+              phase={phase}
+              chosen={isChosen(pair)}
+              showCheck={showChecks}
+              state={rowState(pair)}
+              onToggle={toggle}
+              onRetry={handleRetry}
+            />
+          ))}
+        </ul>
 
-      <ul className="w-full max-w-[560px] min-h-0 overflow-y-auto rounded-xl border-2 border-mid-gray/20 divide-y divide-mid-gray/20">
-        {rows.map((pair) => (
-          <MigrationRow
-            key={pair.retired.id}
-            pair={pair}
-            phase={phase}
-            chosen={isChosen(pair)}
-            showCheck={showChecks}
-            state={rowState(pair)}
-            onToggle={toggle}
-            onRetry={handleRetry}
-          />
-        ))}
-      </ul>
-
-      <div className="w-full max-w-[560px] flex flex-col items-center shrink-0">
-        {phase === "choose" ? (
-          noWayForward ? (
+        <div className="w-full max-w-[560px] flex flex-col items-center shrink-0">
+          {phase === "choose" ? (
+            noWayForward ? (
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full"
+                onClick={onChooseAnother}
+              >
+                {t("onboarding.migration.chooseAnother")}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full"
+                onClick={handleStart}
+              >
+                {toDownload.length > 0
+                  ? t("onboarding.migration.download", {
+                      size: formatModelSize(downloadMb),
+                    })
+                  : t("onboarding.migration.continue")}
+              </Button>
+            )
+          ) : downloading || !targetFailed ? (
+            <p
+              className="flex items-center gap-2 h-10 text-sm text-text/70"
+              aria-live="polite"
+            >
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {loadingTarget && (
+                <span>
+                  {t("modelSelector.loading", {
+                    modelName: target.replacement.name,
+                  })}
+                </span>
+              )}
+              {timeLeft && (
+                <span className="tabular-nums text-text/50">
+                  {t("onboarding.migration.timeRemaining", { time: timeLeft })}
+                </span>
+              )}
+              {timeLeft && speed > 0 && (
+                <span className="text-text/30" aria-hidden="true">
+                  ·
+                </span>
+              )}
+              {speed > 0 && (
+                <span className="tabular-nums text-text/50">
+                  {t("modelSelector.downloadSpeed", {
+                    speed: speed.toFixed(1),
+                  })}
+                </span>
+              )}
+            </p>
+          ) : (
             <Button
-              variant="primary"
-              size="lg"
-              className="w-full"
+              variant="ghost"
+              size="md"
+              className="h-10 text-text/70 hover:text-text"
               onClick={onChooseAnother}
             >
               {t("onboarding.migration.chooseAnother")}
             </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-full"
-              onClick={handleStart}
-            >
-              {toDownload.length > 0
-                ? t("onboarding.migration.download", {
-                    size: formatModelSize(downloadMb),
-                  })
-                : t("onboarding.migration.continue")}
-            </Button>
-          )
-        ) : downloading || !targetFailed ? (
-          <p
-            className="flex items-center gap-2 h-10 text-sm text-text/70"
-            aria-live="polite"
-          >
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {loadingTarget && (
-              <span>
-                {t("modelSelector.loading", {
-                  modelName: target.replacement.name,
-                })}
-              </span>
-            )}
-            {timeLeft && (
-              <span className="tabular-nums text-text/50">
-                {t("onboarding.migration.timeRemaining", { time: timeLeft })}
-              </span>
-            )}
-            {timeLeft && speed > 0 && (
-              <span className="text-text/30" aria-hidden="true">
-                ·
-              </span>
-            )}
-            {speed > 0 && (
-              <span className="tabular-nums text-text/50">
-                {t("modelSelector.downloadSpeed", {
-                  speed: speed.toFixed(1),
-                })}
-              </span>
-            )}
-          </p>
-        ) : (
-          <Button
-            variant="ghost"
-            size="md"
-            className="h-10 text-text/70 hover:text-text"
-            onClick={onChooseAnother}
-          >
-            {t("onboarding.migration.chooseAnother")}
-          </Button>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </OnboardingLayout>
   );
 };
 

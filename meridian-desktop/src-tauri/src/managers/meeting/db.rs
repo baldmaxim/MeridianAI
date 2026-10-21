@@ -52,6 +52,39 @@ static MIGRATIONS: &[M] = &[
         "ALTER TABLE meetings ADD COLUMN audio_state TEXT NOT NULL DEFAULT 'pending';
     ALTER TABLE meetings ADD COLUMN audio_done TEXT NOT NULL DEFAULT '';",
     ),
+    // Library: the project's names next to its ids (`customer_id`/`object_id` are
+    // there since the first version), the offline cache of the site's meetings
+    // and projects, and the full-text index over local and server meetings.
+    // `search_map` remembers the FTS row of each entry, so a re-index does not
+    // scan the whole index.
+    M::up(
+        "ALTER TABLE meetings ADD COLUMN customer_name TEXT;
+    ALTER TABLE meetings ADD COLUMN object_name TEXT;
+    CREATE TABLE server_library (
+        meeting_id INTEGER PRIMARY KEY,
+        json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
+    );
+    CREATE TABLE server_projects (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
+    );
+    CREATE TABLE server_views (
+        meeting_id INTEGER PRIMARY KEY,
+        json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
+    );
+    CREATE VIRTUAL TABLE search_index USING fts5(
+        kind UNINDEXED, ref_id UNINDEXED, title, body, tokenize = 'unicode61'
+    );
+    CREATE TABLE search_map (
+        kind TEXT NOT NULL,
+        ref_id TEXT NOT NULL,
+        fts_rowid INTEGER NOT NULL,
+        PRIMARY KEY (kind, ref_id)
+    );",
+    ),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one
@@ -123,6 +156,9 @@ pub struct MeetingInfo {
     pub synced_at: Option<String>,
     pub customer_id: Option<i64>,
     pub object_id: Option<i64>,
+    /// Names of the project, for showing it without the server's reference book.
+    pub customer_name: Option<String>,
+    pub object_name: Option<String>,
     /// Audio upload to the server: `pending`, `done`, `none` (nothing recorded),
     /// `no_storage` (the server has no file
     /// storage), `skipped` (a channel is too big or refused).
@@ -179,6 +215,8 @@ pub(super) fn map_meeting(row: &Row<'_>) -> rusqlite::Result<MeetingInfo> {
         synced_at: row.get("synced_at")?,
         customer_id: row.get("customer_id")?,
         object_id: row.get("object_id")?,
+        customer_name: row.get("customer_name")?,
+        object_name: row.get("object_name")?,
         audio_state: row.get("audio_state")?,
         web_url: None,
     })
@@ -235,7 +273,7 @@ impl MeetingDb {
         })
     }
 
-    pub(super) fn conn(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn conn(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -243,8 +281,8 @@ impl MeetingDb {
         self.conn().execute(
             "INSERT INTO meetings (id, title, capture_mode, started_at, ended_at, status,
                 duration_seconds, server_meeting_id, sync_state, sync_error, synced_at,
-                customer_id, object_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                customer_id, object_id, customer_name, object_name)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 meeting.id,
                 meeting.title,
@@ -259,6 +297,8 @@ impl MeetingDb {
                 meeting.synced_at,
                 meeting.customer_id,
                 meeting.object_id,
+                meeting.customer_name,
+                meeting.object_name,
             ],
         )?;
         Ok(())
@@ -316,6 +356,22 @@ impl MeetingDb {
             .conn()
             .execute("UPDATE meetings SET title = ?2 WHERE id = ?1", [id, title])?
             > 0)
+    }
+
+    /// Sets or clears the meeting's project. `false`: no such meeting.
+    pub fn set_meeting_project(
+        &self,
+        id: &str,
+        customer_id: Option<i64>,
+        customer_name: Option<&str>,
+        object_id: Option<i64>,
+        object_name: Option<&str>,
+    ) -> Result<bool> {
+        Ok(self.conn().execute(
+            "UPDATE meetings SET customer_id = ?2, customer_name = ?3,
+                object_id = ?4, object_name = ?5 WHERE id = ?1",
+            params![id, customer_id, customer_name, object_id, object_name],
+        )? > 0)
     }
 
     /// Removes the meeting with its segments and notes.
@@ -405,6 +461,8 @@ pub(super) fn sample_meeting(id: &str, started_at: &str) -> MeetingInfo {
         synced_at: None,
         customer_id: None,
         object_id: None,
+        customer_name: None,
+        object_name: None,
         audio_state: "pending".to_string(),
         web_url: None,
     }

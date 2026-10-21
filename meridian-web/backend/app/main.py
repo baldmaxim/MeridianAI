@@ -54,6 +54,7 @@ from .api.privacy import router as privacy_router
 from .api.health import router as health_api_router
 from .api.ocr_agent import agent_router as ocr_agent_router, admin_router as ocr_agent_admin_router
 from .api.desktop import router as desktop_router
+from .api.desktop_library import router as desktop_library_router
 from .ws.handler import router as ws_router
 from .ws.desktop_handler import router as desktop_ws_router
 
@@ -319,6 +320,7 @@ app.include_router(ocr_agent_router, prefix="/api/ocr-agent", tags=["ocr-agent"]
 app.include_router(ocr_agent_admin_router, prefix="/api/admin/ocr-agents", tags=["ocr-agent"])
 # Десктоп-приложение записи встреч: вход с токеном устройства и идемпотентный приём встречи.
 app.include_router(desktop_router, prefix="/api/desktop", tags=["desktop"])
+app.include_router(desktop_library_router, prefix="/api/desktop", tags=["desktop"])
 app.include_router(ws_router)
 app.include_router(desktop_ws_router)
 

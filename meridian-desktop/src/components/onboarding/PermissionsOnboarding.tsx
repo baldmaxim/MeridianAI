@@ -8,7 +8,7 @@ import {
 import { toast } from "sonner";
 import { commands } from "@/bindings";
 import { useSettingsStore } from "@/stores/settingsStore";
-import AppTextLogo from "../icons/AppTextLogo";
+import { OnboardingLayout } from "./OnboardingLayout";
 import { Mic, Check, Loader2 } from "lucide-react";
 
 interface PermissionsOnboardingProps {
@@ -247,61 +247,59 @@ const PermissionsOnboarding: React.FC<PermissionsOnboardingProps> = ({
 
   // Show permissions request screen
   return (
-    <div className="h-screen w-full flex flex-col p-6 gap-6 items-center justify-center">
-      <div className="flex flex-col items-center gap-2">
-        <AppTextLogo width={200} />
-      </div>
+    <OnboardingLayout>
+      <div className="h-full w-full flex flex-col p-6 gap-6 items-center justify-center">
+        <div className="max-w-md w-full flex flex-col items-center gap-4">
+          <div className="text-center mb-2">
+            <h2 className="text-xl font-semibold text-text mb-2">
+              {t("onboarding.permissions.title")}
+            </h2>
+            <p className="text-text/70">
+              {t("onboarding.permissions.description")}
+            </p>
+          </div>
 
-      <div className="max-w-md w-full flex flex-col items-center gap-4">
-        <div className="text-center mb-2">
-          <h2 className="text-xl font-semibold text-text mb-2">
-            {t("onboarding.permissions.title")}
-          </h2>
-          <p className="text-text/70">
-            {t("onboarding.permissions.description")}
-          </p>
-        </div>
-
-        {/* Microphone Permission Card */}
-        {showMicrophonePermission && (
-          <div className="w-full p-4 rounded-lg bg-white/5 border border-mid-gray/20">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-full bg-logo-primary/20 shrink-0">
-                <Mic className="w-6 h-6 text-logo-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-text">
-                  {t("onboarding.permissions.microphone.title")}
-                </h3>
-                <p className="text-sm text-text/60 mb-3">
-                  {t("onboarding.permissions.microphone.description")}
-                </p>
-                {permissions.microphone === "granted" ? (
-                  <div className="flex items-center gap-2 text-emerald-400 text-sm">
-                    <Check className="w-4 h-4" />
-                    {t("onboarding.permissions.granted")}
-                  </div>
-                ) : permissions.microphone === "waiting" ? (
-                  <div className="flex items-center gap-2 text-text/50 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {t("onboarding.permissions.waiting")}
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleGrantMicrophone}
-                    className="px-4 py-2 rounded-lg bg-logo-primary hover:bg-logo-primary/90 text-white text-sm font-medium transition-colors"
-                  >
-                    {isWindows
-                      ? t("accessibility.openSettings")
-                      : t("onboarding.permissions.grant")}
-                  </button>
-                )}
+          {/* Microphone Permission Card */}
+          {showMicrophonePermission && (
+            <div className="w-full p-4 rounded-xl bg-surface border border-border">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-full bg-logo-primary/20 shrink-0">
+                  <Mic className="w-6 h-6 text-logo-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-text">
+                    {t("onboarding.permissions.microphone.title")}
+                  </h3>
+                  <p className="text-sm text-text/60 mb-3">
+                    {t("onboarding.permissions.microphone.description")}
+                  </p>
+                  {permissions.microphone === "granted" ? (
+                    <div className="flex items-center gap-2 text-emerald-400 text-sm">
+                      <Check className="w-4 h-4" />
+                      {t("onboarding.permissions.granted")}
+                    </div>
+                  ) : permissions.microphone === "waiting" ? (
+                    <div className="flex items-center gap-2 text-text/50 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t("onboarding.permissions.waiting")}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleGrantMicrophone}
+                      className="px-4 py-2 rounded-lg bg-logo-primary hover:bg-logo-primary/90 text-on-accent text-sm font-medium transition-colors"
+                    >
+                      {isWindows
+                        ? t("accessibility.openSettings")
+                        : t("onboarding.permissions.grant")}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </OnboardingLayout>
   );
 };
 

@@ -45,7 +45,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note }) => {
   };
 
   return (
-    <li className="group flex items-start gap-2 rounded-lg bg-card px-3 py-2">
+    <li className="group flex items-start gap-2 rounded-lg bg-card px-3 py-2.5">
       <span className="w-12 shrink-0 pt-0.5 font-mono text-xs tabular-nums text-muted">
         {formatClock(note.at_seconds)}
       </span>

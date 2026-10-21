@@ -30,7 +30,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use chrono::{Local, SecondsFormat, Utc};
-use log::info;
+use log::{info, warn};
 use tauri::AppHandle;
 use tauri_specta::Event;
 
@@ -64,6 +64,13 @@ fn now_iso() -> String {
 
 fn short_id() -> String {
     uuid::Uuid::new_v4().simple().to_string()[..16].to_string()
+}
+
+/// A project's name as stored: trimmed, `None` when empty.
+fn clean_name(name: Option<&str>) -> Option<String> {
+    name.map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
 }
 
 fn io_err(e: impl std::fmt::Display) -> String {
@@ -135,9 +142,22 @@ impl MeetingManager {
         let root = crate::portable::app_data_dir(app)?.join("meetings");
         std::fs::create_dir_all(&root)?;
         let db = MeetingDb::open(&crate::portable::app_data_dir(app)?.join("meetings.db"))?;
+        let cut_off = db.recording_meeting_ids()?;
         let recovered = recover_interrupted(&db, &root)?;
+        // Their index entry (made by a note while recording) lacks the last phrases.
+        for id in &cut_off {
+            if let Err(e) = db.index_local_meeting(id) {
+                warn!("Cannot index meeting {id}: {e:#}");
+            }
+        }
         if recovered > 0 {
             info!("{recovered} meeting(s) were interrupted by the previous exit");
+        }
+        // Meetings from before the search index (or cut off): index them now.
+        match db.index_missing_local() {
+            Ok(0) => {}
+            Ok(count) => info!("{count} meeting(s) added to the search index"),
+            Err(e) => warn!("Cannot build the search index: {e:#}"),
         }
         Ok(Self {
             app: app.clone(),
@@ -145,6 +165,14 @@ impl MeetingManager {
             root,
             slot: Mutex::new(Slot::Idle),
         })
+    }
+
+    /// Brings the meeting's entry in the search index up to date. A failure
+    /// only costs the search, so it is logged and not reported.
+    fn reindex(&self, id: &str) {
+        if let Err(e) = self.db.index_local_meeting(id) {
+            warn!("Cannot index meeting {id}: {e:#}");
+        }
     }
 
     /// The meetings database, shared with the sync.
@@ -220,8 +248,10 @@ impl MeetingManager {
             sync_state: "pending".to_string(),
             sync_error: None,
             synced_at: None,
-            customer_id: None,
-            object_id: None,
+            customer_id: request.customer_id,
+            object_id: request.object_id,
+            customer_name: clean_name(request.customer_name.as_deref()),
+            object_name: clean_name(request.object_name.as_deref()),
             audio_state: "pending".to_string(),
             web_url: None,
         };
@@ -304,6 +334,9 @@ impl MeetingManager {
         };
         let result = self.finish_session(*session);
         *self.slot() = Slot::Idle;
+        if let Ok(meeting) = &result {
+            self.reindex(&meeting.id);
+        }
         result
     }
 }

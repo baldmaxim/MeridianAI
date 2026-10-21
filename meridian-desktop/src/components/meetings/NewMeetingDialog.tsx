@@ -4,9 +4,12 @@ import { commands, type CaptureDevices, type CaptureMode } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
+import { useLibraryStore } from "@/stores/libraryStore";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { formatTitleDate, isModelError } from "@/lib/utils/meetingFormat";
+import { resolveProject } from "@/lib/utils/projects";
 import { DeviceSelect } from "./DeviceSelect";
+import { ProjectPicker } from "./ProjectPicker";
 
 interface NewMeetingDialogProps {
   open: boolean;
@@ -25,8 +28,11 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
   const [devices, setDevices] = useState<CaptureDevices | null>(null);
   const [micId, setMicId] = useState("");
   const [systemId, setSystemId] = useState("");
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [objectId, setObjectId] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const customers = useLibraryStore((s) => s.snapshot?.projects);
 
   useEffect(() => {
     if (!open) return;
@@ -36,6 +42,14 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
         date: formatTitleDate(new Date()),
       }),
     );
+    // The project filter of the library pre-fills the project.
+    const filter = useLibraryStore.getState().filter;
+    setCustomerId(
+      filter.kind === "customer" || filter.kind === "object"
+        ? filter.customerId
+        : null,
+    );
+    setObjectId(filter.kind === "object" ? filter.objectId : null);
     setMicId("");
     setSystemId("");
     setError(null);
@@ -58,15 +72,21 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
   }, [open]);
 
   const systemSupported = devices?.system_supported ?? false;
+  const projectList = customers ?? [];
 
   const handleStart = async () => {
     setStarting(true);
     setError(null);
+    const project = resolveProject(projectList, customerId, objectId);
     const failure = await useMeetingStore.getState().startMeeting({
       title: title.trim(),
       capture_mode: mode,
       mic_device_id: micId || null,
       system_device_id: mode === "online" && systemId ? systemId : null,
+      customer_id: project.customerId,
+      object_id: project.objectId,
+      customer_name: project.customerName,
+      object_name: project.objectName,
     });
     setStarting(false);
     if (failure) {
@@ -143,6 +163,19 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
             }}
           />
         </label>
+
+        {projectList.length > 0 && (
+          <ProjectPicker
+            customers={projectList}
+            customerId={customerId}
+            objectId={objectId}
+            disabled={starting}
+            onChange={(customer, object) => {
+              setCustomerId(customer);
+              setObjectId(object);
+            }}
+          />
+        )}
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm text-muted">

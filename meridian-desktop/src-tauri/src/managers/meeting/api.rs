@@ -14,6 +14,20 @@ pub struct StartMeetingRequest {
     pub mic_device_id: Option<String>,
     /// `None`: the default playback device (Windows) or the first monitor (Linux).
     pub system_device_id: Option<String>,
+    /// The project of the meeting (ids from the site's reference book and their
+    /// names, for showing offline). All optional.
+    #[serde(default)]
+    #[specta(optional)]
+    pub customer_id: Option<i64>,
+    #[serde(default)]
+    #[specta(optional)]
+    pub object_id: Option<i64>,
+    #[serde(default)]
+    #[specta(optional)]
+    pub customer_name: Option<String>,
+    #[serde(default)]
+    #[specta(optional)]
+    pub object_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Type)]

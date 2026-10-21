@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
+import { toast } from "sonner";
+import { Button } from "../../ui/Button";
+import { useUpdateStore } from "@/stores/updateStore";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { AppDataDirectory } from "../AppDataDirectory";
@@ -12,6 +15,20 @@ import { LogDirectory } from "../debug";
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
   const [version, setVersion] = useState("");
+  const checking = useUpdateStore((s) => s.status === "checking");
+  const checkForUpdates = useUpdateStore((s) => s.checkForUpdates);
+
+  const handleCheckUpdates = async () => {
+    await checkForUpdates(false);
+    const { status, error } = useUpdateStore.getState();
+    if (status === "upToDate") {
+      toast.success(t("update.check.upToDate"));
+    } else if (status === "error") {
+      toast.error(t("update.check.failed"), {
+        description: error ?? undefined,
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -40,6 +57,21 @@ export const AboutSettings: React.FC = () => {
         >
           {/* eslint-disable-next-line i18next/no-literal-string */}
           <span className="text-sm font-mono">v{version}</span>
+        </SettingContainer>
+
+        <SettingContainer
+          title={t("update.check.title")}
+          description={t("update.check.description")}
+          grouped={true}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={checking}
+            onClick={() => void handleCheckUpdates()}
+          >
+            {checking ? t("update.check.checking") : t("update.check.button")}
+          </Button>
         </SettingContainer>
 
         <AppDataDirectory descriptionMode="tooltip" grouped={true} />

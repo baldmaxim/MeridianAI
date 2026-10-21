@@ -460,6 +460,17 @@ async renameMeeting(id: string, title: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Sets (or, with `None`s, clears) the project of a local meeting.
+ */
+async setMeetingProject(meetingId: string, customerId: number | null, objectId: number | null, customerName: string | null, objectName: string | null) : Promise<Result<MeetingInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_meeting_project", { meetingId, customerId, objectId, customerName, objectName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteMeeting(id: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_meeting", { id }) };
@@ -531,6 +542,49 @@ async retryMeetingSync(id: string) : Promise<Result<null, string>> {
 },
 async getSyncStatus() : Promise<SyncStatus> {
     return await TAURI_INVOKE("get_sync_status");
+},
+/**
+ * `refresh`: ask the server first; without a connection the cache is returned
+ * with `offline`. Not signed in: empty lists and `signed_in: false`.
+ */
+async libraryGet(refresh: boolean) : Promise<Result<LibrarySnapshot, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("library_get", { refresh }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * A meeting of the site; from the cache when the server can not be reached.
+ */
+async meetingViewGet(serverMeetingId: number) : Promise<Result<MeetingViewResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_view_get", { serverMeetingId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingAsk(serverMeetingId: number, question: string) : Promise<Result<AskAnswer, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_ask", { serverMeetingId, question }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Full-text search over local and server meetings; fewer than 2 characters
+ * find nothing.
+ */
+async searchMeetings(query: string, limit: number | null) : Promise<Result<SearchHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_meetings", { query, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 async getAvailableModels() : Promise<Result<ModelInfo[], string>> {
     try {
@@ -896,6 +950,12 @@ server_url?: string;
  * Send the meetings' audio to the server together with the text.
  */
 upload_audio?: boolean }
+export type AskAnswer = { answer: string; sources: AskSource[] }
+export type AskSource = { 
+/**
+ * `document`, `meeting`, `transcript`, `note` or `knowledge`.
+ */
+kind: string; title: string; ref: string | null }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AudioFile = { channel: string; path: string }
 export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[] }
@@ -922,9 +982,33 @@ export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number 
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type LLMPrompt = { id: string; name: string; prompt: string }
+/**
+ * A meeting of the signed-in user, from the site (including the ones recorded here).
+ */
+export type LibraryItem = { meeting_id: number; title: string | null; meeting_topic: string | null; started_at: string | null; ended_at: string | null; customer_id: number | null; customer_name: string | null; object_id: number | null; object_name: string | null; finalization_status: string; protocol_ready: boolean; micro_summary: string | null; 
+/**
+ * The local meeting's id when it was recorded in this app (by this user).
+ */
+client_uuid: string | null; source: LibrarySource }
+/**
+ * What the library screen shows: the cache, refreshed from the server when asked.
+ */
+export type LibrarySnapshot = { items: LibraryItem[]; projects: ProjectCustomer[]; fetched_at: string | null; 
+/**
+ * A refresh was asked for and the server was not reached: this is the cache.
+ */
+offline: boolean; signed_in: boolean }
+/**
+ * Where the meeting came from: any link with this app, or the site itself.
+ */
+export type LibrarySource = "desktop" | "web"
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MeetingDetails = { meeting: MeetingInfo; segments: Segment[]; notes: Note[] }
 export type MeetingInfo = { id: string; title: string; capture_mode: CaptureMode; started_at: string; ended_at: string | null; status: MeetingStatus; duration_seconds: number; server_meeting_id: number | null; sync_state: string; sync_error: string | null; synced_at: string | null; customer_id: number | null; object_id: number | null; 
+/**
+ * Names of the project, for showing it without the server's reference book.
+ */
+customer_name: string | null; object_name: string | null; 
 /**
  * Audio upload to the server: `pending`, `done`, `none` (nothing recorded),
  * `no_storage` (the server has no file
@@ -967,6 +1051,18 @@ export type MeetingStatus = "recording" | "stopped" |
  * The app went away while recording; the audio up to then is on disk.
  */
 "interrupted"
+/**
+ * A meeting of the site as a whole: the item, the protocol, the phrases, the documents.
+ */
+export type MeetingView = ({ meeting_id: number; title: string | null; meeting_topic: string | null; started_at: string | null; ended_at: string | null; customer_id: number | null; customer_name: string | null; object_id: number | null; object_name: string | null; finalization_status: string; protocol_ready: boolean; micro_summary: string | null; 
+/**
+ * The local meeting's id when it was recorded in this app (by this user).
+ */
+client_uuid: string | null; source: LibrarySource }) & { protocol_markdown: string | null; segments: ViewSegment[]; documents: ViewDocument[] }
+/**
+ * A meeting of the site; `from_cache`: the server was not reached.
+ */
+export type MeetingViewResult = { view: MeetingView; from_cache: boolean }
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
@@ -1016,11 +1112,26 @@ export type PostProcessApiFormat =
  */
 "anthropic"
 export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean; api_format?: PostProcessApiFormat }
+/**
+ * A customer with its objects (the site's reference book).
+ */
+export type ProjectCustomer = { id: number; name: string; objects: ProjectObject[] }
+export type ProjectObject = { id: number; name: string; address: string | null }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 /**
  * A retired ONNX model found on disk.
  */
 export type RetiredModel = { id: string; name: string; size_mb: number; replacement_repo: string }
+export type SearchHit = { kind: SearchKind; 
+/**
+ * The local meeting's uuid, or the server's meeting id as a string.
+ */
+id: string; title: string; 
+/**
+ * The matched text; the found words are in `[` `]`.
+ */
+snippet: string; started_at: string | null }
+export type SearchKind = "local" | "server"
 export type SecretMap = Partial<{ [key in string]: string }>
 export type Segment = { id: string; meeting_id: string; 
 /**
@@ -1035,7 +1146,12 @@ mic_device_id: string | null;
 /**
  * `None`: the default playback device (Windows) or the first monitor (Linux).
  */
-system_device_id: string | null }
+system_device_id: string | null; 
+/**
+ * The project of the meeting (ids from the site's reference book and their
+ * names, for showing offline). All optional.
+ */
+customer_id?: number | null; object_id?: number | null; customer_name?: string | null; object_name?: string | null }
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.
  */
@@ -1100,6 +1216,8 @@ syncing_meeting_id: string | null }
 export type Theme = "system" | "light" | "dark"
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
 export type VadBackend = "silero" | "earshot"
+export type ViewDocument = { filename: string | null; doc_type: string | null; doc_type_label: string | null; page_count: number | null }
+export type ViewSegment = { text: string; speaker_label: string | null; start_time: number | null; end_time: number | null; wall_clock: string | null }
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
 
 /** tauri-specta globals **/

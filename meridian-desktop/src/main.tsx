@@ -1,6 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { platform } from "@tauri-apps/plugin-os";
+import "@fontsource/syne/latin-800.css";
+import "@fontsource-variable/inter/wght.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/500.css";
 import App from "./App";
 import { installCompatShims } from "./lib/compat";
 import {

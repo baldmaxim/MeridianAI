@@ -4,7 +4,10 @@ name: desktop-build
 # и macOS Apple Silicon (.dmg). Сертификатов подписи нет: на macOS будет
 # предупреждение Gatekeeper, на Windows SmartScreen.
 # Запуск: gh workflow run desktop-build.yml   или   git tag desktop-v0.1.0 && git push origin desktop-v0.1.0
-# На теге desktop-v* дополнительно создаётся черновик GitHub Release с установщиками.
+# На теге desktop-v* дополнительно создаётся черновик GitHub Release с установщиками,
+# подписанными minisign-ключом обновлений артефактами (.sig) и latest.json для
+# tauri-plugin-updater. Релиз нужно ОПУБЛИКОВАТЬ (не draft): иначе
+# /releases/latest/download/latest.json недоступен и автообновление не работает.
 
 on:
   workflow_dispatch: {}
@@ -114,22 +117,40 @@ jobs:
           Add-Content $env:GITHUB_ENV "CMAKE_PREFIX_PATH=$combined"
           Write-Host "CMAKE_PREFIX_PATH=$combined"
 
-      # Секреты подписи сознательно не передаются: пустой APPLE_CERTIFICATE Tauri
-      # считает сертификатом и падает. signingIdentity "-" (ad-hoc) задан в tauri.conf.json.
-      - name: Build with Tauri (unsigned)
+      # Секреты подписи кода (Apple/Windows) сознательно не передаются: пустой APPLE_CERTIFICATE
+      # Tauri считает сертификатом и падает. signingIdentity "-" (ad-hoc) задан в tauri.conf.json.
+      # TAURI_SIGNING_* — это minisign-ключ автообновления (bundle.createUpdaterArtifacts):
+      # без него tauri build падает на подписи артефактов обновления.
+      - name: Build with Tauri (unsigned, updater artifacts signed)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: meridian-desktop
           args: ${{ matrix.args }}
+
+      # Архив обновления macOS называется Meridian.app.tar.gz без версии и архитектуры.
+      - name: Name macOS updater archive
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          dir="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          mv "$dir/Meridian.app.tar.gz" "$dir/Meridian_${version}_aarch64.app.tar.gz"
+          mv "$dir/Meridian.app.tar.gz.sig" "$dir/Meridian_${version}_aarch64.app.tar.gz.sig"
 
       - name: Upload artifacts (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
           name: meridian-desktop-${{ matrix.target }}
-          path: meridian-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          path: |
+            meridian-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            meridian-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            meridian-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
           retention-days: 30
 
@@ -222,6 +243,7 @@ jobs:
           path: |
             meridian-desktop/src-tauri/target/release/bundle/msi/*.msi
             meridian-desktop/src-tauri/target/release/bundle/nsis/*.exe
+            meridian-desktop/src-tauri/target/release/bundle/nsis/*.exe.sig
           if-no-files-found: error
           retention-days: 30
 
@@ -236,12 +258,25 @@ jobs:
       run:
         working-directory: .
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
           pattern: meridian-desktop-*
           path: release-assets
           merge-multiple: true
+
+      # latest.json для tauri-plugin-updater: версии, подписи (.sig) и ссылки на ассеты релиза.
+      - name: Build latest.json
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 meridian-desktop/scripts/ci/make-updater-json.py \
+            release-assets "$TAG" "$GITHUB_REPOSITORY" meridian-desktop/src-tauri/tauri.conf.json
+          cat release-assets/latest.json
 
       - name: Create draft release
         env:
@@ -257,4 +292,4 @@ jobs:
             --verify-tag \
             --draft \
             --title "Meridian Desktop $TAG" \
-            --notes "Неподписанные установщики: Windows x64 (.msi, .exe) и macOS Apple Silicon (.dmg)."
+            --notes "Неподписанные установщики: Windows x64 (.msi, .exe) и macOS Apple Silicon (.dmg). Черновик: для работы автообновления опубликуйте релиз (latest.json берётся из /releases/latest/download/)."

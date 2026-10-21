@@ -1,3 +1,4 @@
+use crate::secrets::SecretStore;
 use log::{debug, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -733,10 +734,11 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(crate::portable::store_path(SETTINGS_STORE_PATH))
         .expect("Failed to initialize store");
+    let secrets = crate::secrets::global();
 
     // Settings reads also persist one-time migrations. Migration helpers are
     // idempotent, so this converges after the first read of an older store.
-    let mut settings = if let Some(settings_value) = store.get("settings") {
+    let (mut settings, mut dirty) = if let Some(settings_value) = store.get("settings") {
         let (mut settings, mut updated) =
             match serde_json::from_value::<AppSettings>(settings_value.clone()) {
                 Ok(settings) => (settings, false),
@@ -750,22 +752,79 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
             updated = true;
         }
 
-        if updated {
-            store.set("settings", serde_json::to_value(&settings).unwrap());
-        }
-
-        settings
+        (settings, updated)
     } else {
-        let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
-        default_settings
+        (get_default_settings(), true)
     };
 
     if ensure_post_process_defaults(&mut settings) {
-        store.set("settings", serde_json::to_value(&settings).unwrap());
+        dirty = true;
+    }
+
+    // API keys live in the OS credential store; the file keeps them empty.
+    if hydrate_api_keys(secrets, &mut settings) {
+        dirty = true;
+    }
+
+    if dirty {
+        store.set("settings", settings_store_value(secrets, &settings));
     }
 
     settings
+}
+
+/// Name of a provider's API key in the OS credential store.
+fn api_key_secret_name(provider_id: &str) -> String {
+    format!("post_process_api_key.{provider_id}")
+}
+
+/// Fills `post_process_api_keys` from the OS credential store. A key found in
+/// the settings file in plaintext is moved there (one-time migration); returns
+/// true when something was moved, so the caller rewrites the file without it.
+/// With the credential store unavailable a plaintext key stays in the file.
+fn hydrate_api_keys(secrets: &SecretStore, settings: &mut AppSettings) -> bool {
+    let mut migrated = false;
+    let provider_ids: Vec<String> = settings.post_process_api_keys.keys().cloned().collect();
+    for provider_id in provider_ids {
+        let name = api_key_secret_name(&provider_id);
+        let in_file = settings
+            .post_process_api_keys
+            .get(&provider_id)
+            .cloned()
+            .unwrap_or_default();
+        if in_file.is_empty() {
+            // Failures are logged by SecretStore (without the value).
+            if let Ok(Some(value)) = secrets.get(&name) {
+                settings.post_process_api_keys.insert(provider_id, value);
+            }
+        } else if secrets.set(&name, &in_file).is_ok() {
+            migrated = true;
+        }
+    }
+    migrated
+}
+
+/// The JSON to persist in the settings file: API keys go to the OS credential
+/// store and are blanked here; a key the store refused stays in the file
+/// (fallback), a cleared key is removed from the store.
+fn settings_store_value(secrets: &SecretStore, settings: &AppSettings) -> serde_json::Value {
+    let mut value = serde_json::to_value(settings).expect("settings serialize to JSON");
+    let Some(keys) = value
+        .get_mut("post_process_api_keys")
+        .and_then(|keys| keys.as_object_mut())
+    else {
+        return value;
+    };
+    for (provider_id, key) in keys.iter_mut() {
+        let name = api_key_secret_name(provider_id);
+        let plain = key.as_str().unwrap_or_default();
+        if plain.is_empty() {
+            let _ = secrets.delete_if_known(&name);
+        } else if secrets.set(&name, plain).is_ok() {
+            *key = serde_json::Value::String(String::new());
+        }
+    }
+    value
 }
 
 /// Rebuilds settings from a store value that failed to deserialize as a whole.
@@ -876,7 +935,10 @@ pub fn write_settings(app: &AppHandle, settings: AppSettings) {
         .store(crate::portable::store_path(SETTINGS_STORE_PATH))
         .expect("Failed to initialize store");
 
-    store.set("settings", serde_json::to_value(&settings).unwrap());
+    store.set(
+        "settings",
+        settings_store_value(crate::secrets::global(), &settings),
+    );
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {
@@ -966,7 +1028,7 @@ mod tests {
             "overlay_position": "bottom",
             "debug_mode": false,
             "log_level": 2,
-            "custom_words": ["Handy", "cjpais"],
+            "custom_words": ["Meridian"],
             "model_unload_timeout": "min5",
             "word_correction_threshold": 0.18,
             "history_limit": 5,
@@ -1291,5 +1353,95 @@ mod tests {
         let out = format!("{:?}", map);
         assert!(!out.contains("secret"));
         assert!(out.contains("[REDACTED]"));
+    }
+
+    // --- API-ключи в хранилище ОС ---
+
+    use crate::secrets::testing::{store_with, MemoryBackend};
+    use std::sync::Arc;
+
+    const KEY_NAME: &str = "post_process_api_key.openai";
+
+    fn settings_with_key(key: &str) -> AppSettings {
+        let mut settings = get_default_settings();
+        settings
+            .post_process_api_keys
+            .insert("openai".into(), key.into());
+        settings
+    }
+
+    #[test]
+    fn plaintext_key_in_file_migrates_to_keyring() {
+        let backend = Arc::new(MemoryBackend::default());
+        let secrets = store_with(&backend);
+        let mut settings = settings_with_key("sk-plain");
+
+        assert!(hydrate_api_keys(&secrets, &mut settings));
+        assert_eq!(backend.stored(KEY_NAME).as_deref(), Some("sk-plain"));
+        // В памяти ключ остаётся, в файл он больше не попадает.
+        assert_eq!(settings.post_process_api_keys["openai"], "sk-plain");
+        let json = settings_store_value(&secrets, &settings);
+        assert_eq!(json["post_process_api_keys"]["openai"], "");
+        assert!(!json.to_string().contains("sk-plain"));
+    }
+
+    #[test]
+    fn key_is_loaded_from_keyring_when_file_is_empty() {
+        let backend = Arc::new(MemoryBackend::default());
+        backend
+            .items
+            .lock()
+            .unwrap()
+            .insert(KEY_NAME.into(), "sk-secret".into());
+        let secrets = store_with(&backend);
+        let mut settings = settings_with_key("");
+
+        assert!(!hydrate_api_keys(&secrets, &mut settings));
+        assert_eq!(settings.post_process_api_keys["openai"], "sk-secret");
+    }
+
+    #[test]
+    fn new_key_goes_to_keyring_and_cleared_key_is_removed() {
+        let backend = Arc::new(MemoryBackend::default());
+        let secrets = store_with(&backend);
+
+        let json = settings_store_value(&secrets, &settings_with_key("sk-new"));
+        assert_eq!(json["post_process_api_keys"]["openai"], "");
+        assert_eq!(backend.stored(KEY_NAME).as_deref(), Some("sk-new"));
+
+        let json = settings_store_value(&secrets, &settings_with_key(""));
+        assert_eq!(json["post_process_api_keys"]["openai"], "");
+        assert_eq!(backend.stored(KEY_NAME), None);
+    }
+
+    #[test]
+    fn unreadable_keyring_does_not_erase_the_stored_key() {
+        let backend = Arc::new(MemoryBackend::default());
+        backend
+            .items
+            .lock()
+            .unwrap()
+            .insert(KEY_NAME.into(), "sk-secret".into());
+        backend
+            .fail
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let secrets = store_with(&backend);
+
+        let mut settings = settings_with_key("");
+        assert!(!hydrate_api_keys(&secrets, &mut settings));
+        // Ключ не прочитали, настройки записались: в keyring ничего не стёрлось.
+        settings_store_value(&secrets, &settings);
+        assert_eq!(backend.stored(KEY_NAME).as_deref(), Some("sk-secret"));
+    }
+
+    #[test]
+    fn keyring_failure_falls_back_to_the_file() {
+        let backend = MemoryBackend::failing();
+        let secrets = store_with(&backend);
+        let mut settings = settings_with_key("sk-plain");
+
+        assert!(!hydrate_api_keys(&secrets, &mut settings));
+        let json = settings_store_value(&secrets, &settings);
+        assert_eq!(json["post_process_api_keys"]["openai"], "sk-plain");
     }
 }

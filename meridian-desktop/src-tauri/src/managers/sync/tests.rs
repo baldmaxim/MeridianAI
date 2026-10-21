@@ -13,6 +13,7 @@ use super::{Notice, SyncCore};
 use crate::managers::meeting::{
     write_test_audio, CaptureMode, MeetingDb, MeetingInfo, MeetingStatus, Note, Segment,
 };
+use crate::secrets::testing::{store_with, MemoryBackend};
 
 const TOKEN: &str = "tok-secret-123";
 const STARTED: &str = "2026-03-01T10:00:00.000Z";
@@ -20,11 +21,11 @@ const STARTED: &str = "2026-03-01T10:00:00.000Z";
 /* ------------------------------ mock server ------------------------------ */
 
 #[derive(Clone, Debug)]
-struct Req {
-    method: String,
-    path: String,
-    headers: HashMap<String, String>,
-    body: Vec<u8>,
+pub(crate) struct Req {
+    pub(crate) method: String,
+    pub(crate) path: String,
+    pub(crate) headers: HashMap<String, String>,
+    pub(crate) body: Vec<u8>,
 }
 
 impl Req {
@@ -32,28 +33,28 @@ impl Req {
         format!("{} {}", self.method, self.path)
     }
 
-    fn json(&self) -> serde_json::Value {
+    pub(crate) fn json(&self) -> serde_json::Value {
         serde_json::from_slice(&self.body).unwrap_or(serde_json::Value::Null)
     }
 }
 
-struct Reply(u16, String);
+pub(crate) struct Reply(pub(crate) u16, pub(crate) String);
 
-fn ok(body: &str) -> Reply {
+pub(crate) fn ok(body: &str) -> Reply {
     Reply(200, body.to_string())
 }
 
-fn err(status: u16, detail: &str) -> Reply {
+pub(crate) fn err(status: u16, detail: &str) -> Reply {
     Reply(status, format!(r#"{{"detail":"{detail}"}}"#))
 }
 
-struct Mock {
-    url: String,
-    requests: Arc<Mutex<Vec<Req>>>,
+pub(crate) struct Mock {
+    pub(crate) url: String,
+    pub(crate) requests: Arc<Mutex<Vec<Req>>>,
 }
 
 impl Mock {
-    fn lines(&self) -> Vec<String> {
+    pub(crate) fn lines(&self) -> Vec<String> {
         self.requests
             .lock()
             .unwrap()
@@ -62,11 +63,11 @@ impl Mock {
             .collect()
     }
 
-    fn all(&self) -> Vec<Req> {
+    pub(crate) fn all(&self) -> Vec<Req> {
         self.requests.lock().unwrap().clone()
     }
 
-    fn count(&self) -> usize {
+    pub(crate) fn count(&self) -> usize {
         self.requests.lock().unwrap().len()
     }
 }
@@ -117,7 +118,7 @@ async fn read_request(stream: &mut tokio::net::TcpStream) -> Option<Req> {
 }
 
 /// `{BASE}` in a reply body stands for the server's own address.
-async fn start_mock(handler: impl Fn(&Req) -> Reply + Send + Sync + 'static) -> Mock {
+pub(crate) async fn start_mock(handler: impl Fn(&Req) -> Reply + Send + Sync + 'static) -> Mock {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let requests = Arc::new(Mutex::new(Vec::new()));
@@ -178,7 +179,10 @@ struct Fixture {
 fn fixture(server_url: &str) -> Fixture {
     let db = Arc::new(MeetingDb::open_in_memory().unwrap());
     let account_dir = tempfile::tempdir().unwrap();
-    let accounts = Arc::new(AccountStore::open(account_dir.path()));
+    let accounts = Arc::new(AccountStore::open(
+        account_dir.path(),
+        store_with(&Arc::new(MemoryBackend::default())),
+    ));
     accounts
         .save(StoredAccount {
             server_url: server_url.to_string(),
@@ -225,6 +229,8 @@ fn meeting(id: &str, status: MeetingStatus) -> MeetingInfo {
         synced_at: None,
         customer_id: None,
         object_id: None,
+        customer_name: None,
+        object_name: None,
         audio_state: "pending".to_string(),
         web_url: None,
     }

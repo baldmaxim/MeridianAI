@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { events } from "@/bindings";
+import { useLibraryStore } from "@/stores/libraryStore";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { useSyncStore } from "@/stores/syncStore";
 
@@ -11,7 +12,8 @@ const RELOAD_DELAY_MS = 200;
 
 /**
  * Keeps the account and the upload status up to date and refreshes the
- * meetings whose upload state changed, so the badges follow without a restart.
+ * meetings (and the library of the site) whose state changed, so the badges
+ * follow without a restart.
  */
 export const useSyncEvents = (enabled: boolean) => {
   const { t } = useTranslation();
@@ -38,6 +40,8 @@ export const useSyncEvents = (enabled: boolean) => {
       reloadTimer = window.setTimeout(() => {
         const meetings = useMeetingStore.getState();
         void meetings.loadList();
+        // The site's list follows: a finished upload, a sign-in or sign-out.
+        void useLibraryStore.getState().load(true);
         if (touchedId && meetings.openId === touchedId) {
           void meetings.openMeeting(touchedId);
         }

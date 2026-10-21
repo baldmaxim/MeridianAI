@@ -43,8 +43,14 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   };
 
   return (
-    <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
-      <div className="shrink-0 px-4 py-3">
+    <section
+      aria-label={t("meetings.notes.title")}
+      className={`flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-surface ${className}`}
+    >
+      <h2 className="shrink-0 px-5 pt-4 font-mono text-[11px] font-medium uppercase tracking-wider text-muted">
+        {t("meetings.notes.title")}
+      </h2>
+      <div className="shrink-0 px-5 py-3">
         <input
           type="text"
           value={text}
@@ -57,10 +63,10 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
               void handleAdd();
             }
           }}
-          className="w-full rounded-md border border-mid-gray/60 bg-surface px-3 py-2 text-sm text-text placeholder:text-subtle focus:border-logo-primary focus:outline-none"
+          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-base text-text placeholder:text-subtle focus:border-logo-primary focus:outline-none"
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
         {notes.length === 0 ? (
           <p className="mt-6 text-center text-sm text-muted">
             {t("meetings.notes.empty")}
@@ -73,6 +79,6 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
           </ul>
         )}
       </div>
-    </div>
+    </section>
   );
 };

@@ -110,6 +110,14 @@ const installTauriMock = async (page: Page, options: MockOptions) => {
               segments: [],
               notes: [],
             };
+          case "library_get":
+            return {
+              items: [],
+              projects: [],
+              fetched_at: null,
+              offline: false,
+              signed_in: current !== null,
+            };
           case "get_account":
             return current;
           case "get_sync_status":
@@ -196,17 +204,22 @@ const calls = (page: Page) =>
   page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
 
 test.describe("Account and sync (mocked Tauri)", () => {
-  test("signed out: hint, footer, login form with error then success", async ({
+  test("signed out: hint, header, login form with error then success", async ({
     page,
   }) => {
     await installTauriMock(page, { signedIn: false, pending: 0 });
     await page.goto("/");
-    await expect(page.getByText("Войдите, чтобы встречи")).toBeVisible();
+    await expect(
+      page.getByText("Войдите, чтобы видеть встречи с сайта"),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Не выполнен вход" }),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Аккаунт" }).last().click();
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: "Аккаунт", exact: true })
+      .click();
     await page.getByLabel("Почта").fill("boss@example.com");
     await page.getByLabel("Пароль", { exact: true }).fill("wrong");
     await page.getByRole("button", { name: "Войти" }).click();
@@ -225,7 +238,10 @@ test.describe("Account and sync (mocked Tauri)", () => {
   }) => {
     await installTauriMock(page, { signedIn: false, pending: 0 });
     await page.goto("/");
-    await page.getByRole("button", { name: "Аккаунт" }).last().click();
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: "Аккаунт", exact: true })
+      .click();
     const email = page.getByLabel("Почта");
     await email.fill("a@b.ru");
     await page.getByRole("button", { name: "Очистить почту" }).click();
@@ -237,7 +253,7 @@ test.describe("Account and sync (mocked Tauri)", () => {
     expect(fontSize).toBeGreaterThanOrEqual(16);
   });
 
-  test("footer shows the queue and a click starts the sync", async ({
+  test("header shows the queue and a click starts the sync", async ({
     page,
   }) => {
     await installTauriMock(page, { signedIn: true, pending: 3 });

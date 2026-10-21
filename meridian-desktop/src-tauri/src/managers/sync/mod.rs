@@ -7,7 +7,9 @@ pub mod account;
 mod client;
 mod engine;
 #[cfg(test)]
-mod tests;
+mod project_tests;
+#[cfg(test)]
+pub(crate) mod tests;
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -240,6 +242,9 @@ impl SyncCore {
             Outcome::Unauthorized => {
                 info!("The server does not accept this device any more; signing out");
                 self.accounts.clear();
+                if let Err(e) = self.db.clear_server_cache() {
+                    warn!("Cannot clear the library cache: {e:#}");
+                }
                 {
                     let mut inner = self.inner();
                     inner.online = true;

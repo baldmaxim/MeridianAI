@@ -1,15 +1,22 @@
 //! The signed-in Meridian account: server address, device token and the user.
-//! Kept in `account.json` in the app data folder (0600 on unix). The token
-//! never leaves this module in a readable form: `Debug` masks it, and the
-//! frontend only gets `AccountInfo`.
+//! The device token lives in the OS credential store (`secrets`); `account.json`
+//! in the app data folder keeps the rest. If the credential store is unavailable
+//! the token falls back to the file (0600 on unix). The token never leaves this
+//! module in a readable form: `Debug` masks it, and the frontend only gets
+//! `AccountInfo`.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use log::warn;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+
+use crate::secrets::SecretStore;
+
+/// Name of the device token in the OS credential store.
+const TOKEN_SECRET_NAME: &str = "device_token";
 
 pub const DEFAULT_SERVER_URL: &str = "https://meridianai.ru";
 const ACCOUNT_FILE: &str = "account.json";
@@ -36,6 +43,28 @@ pub struct StoredAccount {
     pub device_token: String,
     pub device_id: i64,
     pub user: AccountUser,
+}
+
+/// What `account.json` holds. `device_token` is only present when the OS
+/// credential store could not take it (fallback) or in a file from an older version.
+#[derive(Serialize, Deserialize)]
+struct AccountFile {
+    server_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    device_token: Option<String>,
+    device_id: i64,
+    user: AccountUser,
+}
+
+impl AccountFile {
+    fn new(account: &StoredAccount, with_token: bool) -> Self {
+        Self {
+            server_url: account.server_url.clone(),
+            device_token: with_token.then(|| account.device_token.clone()),
+            device_id: account.device_id,
+            user: account.user.clone(),
+        }
+    }
 }
 
 impl fmt::Debug for StoredAccount {
@@ -139,23 +168,56 @@ pub fn app_version() -> &'static str {
 
 pub struct AccountStore {
     path: PathBuf,
+    secrets: Arc<SecretStore>,
     cache: Mutex<Option<StoredAccount>>,
 }
 
 impl AccountStore {
-    /// Reads `account.json` from `dir`; a missing or damaged file means no account.
-    pub fn open(dir: &Path) -> Self {
+    /// Reads `account.json` from `dir` and the token from the credential store;
+    /// a missing or damaged file means no account. A token found in the file
+    /// is moved to the credential store (one-time migration).
+    pub fn open(dir: &Path, secrets: Arc<SecretStore>) -> Self {
         let path = dir.join(ACCOUNT_FILE);
-        let account = match std::fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice::<StoredAccount>(&bytes)
+        let file = match std::fs::read(&path) {
+            Ok(bytes) => serde_json::from_slice::<AccountFile>(&bytes)
                 .map_err(|_| warn!("{} is damaged; signing out", path.display()))
                 .ok(),
             Err(_) => None,
         };
-        Self {
+        let store = Self {
             path,
-            cache: Mutex::new(account),
+            secrets,
+            cache: Mutex::new(None),
+        };
+        if let Some(file) = file {
+            let in_file = file.device_token.filter(|t| !t.is_empty());
+            let migrate = in_file
+                .as_deref()
+                .is_some_and(|token| store.secrets.set(TOKEN_SECRET_NAME, token).is_ok());
+            let token = match in_file {
+                Some(token) => Some(token),
+                None => store.secrets.get(TOKEN_SECRET_NAME).ok().flatten(),
+            };
+            if let Some(device_token) = token {
+                let account = StoredAccount {
+                    server_url: file.server_url,
+                    device_token,
+                    device_id: file.device_id,
+                    user: file.user,
+                };
+                if migrate {
+                    // Moved to the credential store: rewrite the file without the token.
+                    if let Err(e) = store.write_file(&account, false) {
+                        warn!(
+                            "Cannot rewrite {} after token migration: {e}",
+                            store.path.display()
+                        );
+                    }
+                }
+                *store.cache() = Some(account);
+            }
         }
+        store
     }
 
     fn cache(&self) -> MutexGuard<'_, Option<StoredAccount>> {
@@ -171,16 +233,24 @@ impl AccountStore {
     }
 
     pub fn save(&self, account: StoredAccount) -> Result<(), String> {
-        write_private(
-            &self.path,
-            &serde_json::to_vec_pretty(&account).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| format!("Не удалось сохранить аккаунт: {e}"))?;
+        // The token goes to the credential store; if it refuses, to the file.
+        let with_token = self
+            .secrets
+            .set(TOKEN_SECRET_NAME, &account.device_token)
+            .is_err();
+        self.write_file(&account, with_token)
+            .map_err(|e| format!("Не удалось сохранить аккаунт: {e}"))?;
         *self.cache() = Some(account);
         Ok(())
     }
 
-    /// Forgets the account and removes the file.
+    fn write_file(&self, account: &StoredAccount, with_token: bool) -> std::io::Result<()> {
+        let bytes = serde_json::to_vec_pretty(&AccountFile::new(account, with_token))
+            .map_err(std::io::Error::other)?;
+        write_private(&self.path, &bytes)
+    }
+
+    /// Forgets the account: removes the file and the token.
     pub fn clear(&self) {
         *self.cache() = None;
         if let Err(e) = std::fs::remove_file(&self.path) {
@@ -188,6 +258,8 @@ impl AccountStore {
                 warn!("Cannot remove {}: {e}", self.path.display());
             }
         }
+        // Failure is logged by SecretStore.
+        let _ = self.secrets.delete(TOKEN_SECRET_NAME);
     }
 }
 
@@ -214,6 +286,7 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::secrets::testing::{store_with, MemoryBackend};
 
     fn account() -> StoredAccount {
         StoredAccount {
@@ -275,22 +348,92 @@ mod tests {
         assert!(text.contains("***"));
     }
 
+    fn open(dir: &Path, backend: &Arc<MemoryBackend>) -> AccountStore {
+        AccountStore::open(dir, store_with(backend))
+    }
+
+    fn file_text(dir: &Path) -> String {
+        std::fs::read_to_string(dir.join("account.json")).unwrap()
+    }
+
     #[test]
     fn account_survives_restart_and_clears() {
         let dir = tempfile::tempdir().unwrap();
-        let store = AccountStore::open(dir.path());
+        let backend = Arc::new(MemoryBackend::default());
+        let store = open(dir.path(), &backend);
         assert!(store.get().is_none());
         store.save(account()).unwrap();
 
-        let reopened = AccountStore::open(dir.path());
+        let reopened = open(dir.path(), &backend);
         assert_eq!(reopened.get(), Some(account()));
         // The frontend view carries no token.
         let json = serde_json::to_string(&reopened.info().unwrap()).unwrap();
         assert!(!json.contains("secret-device-token"));
 
         reopened.clear();
-        assert!(AccountStore::open(dir.path()).get().is_none());
+        assert!(open(dir.path(), &backend).get().is_none());
         assert!(!dir.path().join("account.json").exists());
+        assert_eq!(backend.stored("device_token"), None);
+    }
+
+    #[test]
+    fn token_goes_to_keyring_not_to_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let backend = Arc::new(MemoryBackend::default());
+        open(dir.path(), &backend).save(account()).unwrap();
+        assert_eq!(
+            backend.stored("device_token").as_deref(),
+            Some("secret-device-token")
+        );
+        assert!(!file_text(dir.path()).contains("secret-device-token"));
+        assert!(!file_text(dir.path()).contains("device_token"));
+    }
+
+    #[test]
+    fn plaintext_token_in_old_file_migrates_to_keyring() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = serde_json::json!({
+            "server_url": "https://meridianai.ru",
+            "device_token": "secret-device-token",
+            "device_id": 7,
+            "user": { "id": 1, "email": "a@b.ru", "display_name": null },
+        });
+        std::fs::write(dir.path().join("account.json"), old.to_string()).unwrap();
+        let backend = Arc::new(MemoryBackend::default());
+
+        let store = open(dir.path(), &backend);
+        assert_eq!(store.get(), Some(account()));
+        assert_eq!(
+            backend.stored("device_token").as_deref(),
+            Some("secret-device-token")
+        );
+        assert!(!file_text(dir.path()).contains("secret-device-token"));
+        // After the migration the account still loads (token from the keyring).
+        assert_eq!(open(dir.path(), &backend).get(), Some(account()));
+    }
+
+    #[test]
+    fn keyring_failure_falls_back_to_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let backend = MemoryBackend::failing();
+        open(dir.path(), &backend).save(account()).unwrap();
+        assert!(file_text(dir.path()).contains("secret-device-token"));
+        assert_eq!(open(dir.path(), &backend).get(), Some(account()));
+    }
+
+    #[test]
+    fn fallback_token_moves_to_keyring_once_it_is_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let down = MemoryBackend::failing();
+        open(dir.path(), &down).save(account()).unwrap();
+
+        let backend = Arc::new(MemoryBackend::default());
+        assert_eq!(open(dir.path(), &backend).get(), Some(account()));
+        assert_eq!(
+            backend.stored("device_token").as_deref(),
+            Some("secret-device-token")
+        );
+        assert!(!file_text(dir.path()).contains("secret-device-token"));
     }
 
     #[cfg(unix)]
@@ -298,7 +441,10 @@ mod tests {
     fn account_file_is_private() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
-        AccountStore::open(dir.path()).save(account()).unwrap();
+        // Fallback mode: the file may hold the token, so it must be 0600.
+        open(dir.path(), &MemoryBackend::failing())
+            .save(account())
+            .unwrap();
         let mode = std::fs::metadata(dir.path().join("account.json"))
             .unwrap()
             .permissions()
@@ -310,6 +456,7 @@ mod tests {
     fn damaged_file_means_no_account() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("account.json"), b"{not json").unwrap();
-        assert!(AccountStore::open(dir.path()).get().is_none());
+        let backend = Arc::new(MemoryBackend::default());
+        assert!(open(dir.path(), &backend).get().is_none());
     }
 }

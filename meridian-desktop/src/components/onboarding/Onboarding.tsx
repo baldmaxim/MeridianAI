@@ -5,7 +5,7 @@ import { ChevronDown, ChevronLeft } from "lucide-react";
 import type { ModelInfo } from "@/bindings";
 import type { ModelCardStatus } from "./ModelCard";
 import ModelCard, { isLegacySource } from "./ModelCard";
-import AppTextLogo from "../icons/AppTextLogo";
+import { OnboardingLayout } from "./OnboardingLayout";
 import { Button } from "../ui/Button";
 import { useModelStore } from "../../stores/modelStore";
 
@@ -161,108 +161,73 @@ const Onboarding: React.FC<OnboardingProps> = ({
   };
 
   return (
-    <div className="h-screen w-full flex flex-col p-6 gap-4">
-      {onBack && (
-        <Button
-          variant="ghost"
-          size="md"
-          onClick={onBack}
-          disabled={isBusy}
-          className="fixed top-4 start-4 flex items-center gap-1 text-text/70 hover:text-text"
-        >
-          <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
-          {t("common.back")}
-        </Button>
-      )}
-      <div className="flex flex-col items-center gap-2 shrink-0">
-        <AppTextLogo width={200} />
-        <p className="text-text/70 max-w-md font-medium mx-auto">
-          {t("onboarding.subtitle")}
-        </p>
-      </div>
+    <OnboardingLayout>
+      <div className="min-h-full w-full flex flex-col p-6 gap-4">
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="md"
+            onClick={onBack}
+            disabled={isBusy}
+            className="fixed top-4 start-4 flex items-center gap-1 text-text/70 hover:text-text"
+          >
+            <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
+            {t("common.back")}
+          </Button>
+        )}
+        <div className="flex flex-col items-center gap-2 shrink-0">
+          <p className="text-text/70 max-w-md font-medium mx-auto">
+            {t("onboarding.subtitle")}
+          </p>
+        </div>
 
-      <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
-        <div className="space-y-6 pb-6">
-          {existingModels.length > 0 && (
-            <div className="space-y-3">
-              <div className="text-left">
-                <h2 className="text-sm font-medium text-text/60">
-                  {t("onboarding.existingModelsTitle")}
-                </h2>
-              </div>
-              {existingModels.map((model: ModelInfo) => (
-                <ModelCard
-                  key={model.id}
-                  model={model}
-                  status={getExistingModelStatus(model.id)}
-                  disabled={isBusy}
-                  onSelect={handleSelectExistingModel}
-                  showRecommended={false}
-                />
-              ))}
-            </div>
-          )}
-
-          {downloadable.length > 0 && (
-            <div className="space-y-3">
-              <div className="text-left">
-                <h2 className="text-sm font-medium text-text/60">
-                  {t("onboarding.downloadModelsTitle")}
-                </h2>
-              </div>
-
-              {topPicks.map((model: ModelInfo) => (
-                <ModelCard
-                  key={model.id}
-                  model={model}
-                  variant="featured"
-                  status={getModelStatus(model.id)}
-                  disabled={isBusy}
-                  onSelect={handleDownloadModel}
-                  onDownload={handleDownloadModel}
-                  onCancel={handleCancelDownload}
-                  downloadProgress={getModelDownloadProgress(model.id)}
-                  downloadSpeed={getModelDownloadSpeed(model.id)}
-                  showRecommended={false}
-                />
-              ))}
-
-              {otherRecommended.map((model: ModelInfo) => (
-                <ModelCard
-                  key={model.id}
-                  model={model}
-                  status={getModelStatus(model.id)}
-                  disabled={isBusy}
-                  onSelect={handleDownloadModel}
-                  onDownload={handleDownloadModel}
-                  onCancel={handleCancelDownload}
-                  downloadProgress={getModelDownloadProgress(model.id)}
-                  downloadSpeed={getModelDownloadSpeed(model.id)}
-                  showRecommended={false}
-                />
-              ))}
-
-              {hasRecommended && rest.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAll((v) => !v)}
-                  className="flex items-center justify-center gap-1.5 mx-auto py-1 text-sm font-medium text-text/60 hover:text-text transition-colors"
-                >
-                  {showAll
-                    ? t("onboarding.showFewerModels")
-                    : t("onboarding.showAllModels", {
-                        total: downloadable.length,
-                      })}
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-200 ${
-                      showAll ? "rotate-180" : ""
-                    }`}
+        <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
+          <div className="space-y-6 pb-6">
+            {existingModels.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-left">
+                  <h2 className="text-sm font-medium text-text/60">
+                    {t("onboarding.existingModelsTitle")}
+                  </h2>
+                </div>
+                {existingModels.map((model: ModelInfo) => (
+                  <ModelCard
+                    key={model.id}
+                    model={model}
+                    status={getExistingModelStatus(model.id)}
+                    disabled={isBusy}
+                    onSelect={handleSelectExistingModel}
+                    showRecommended={false}
                   />
-                </button>
-              )}
+                ))}
+              </div>
+            )}
 
-              {showRest &&
-                rest.map((model: ModelInfo) => (
+            {downloadable.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-left">
+                  <h2 className="text-sm font-medium text-text/60">
+                    {t("onboarding.downloadModelsTitle")}
+                  </h2>
+                </div>
+
+                {topPicks.map((model: ModelInfo) => (
+                  <ModelCard
+                    key={model.id}
+                    model={model}
+                    variant="featured"
+                    status={getModelStatus(model.id)}
+                    disabled={isBusy}
+                    onSelect={handleDownloadModel}
+                    onDownload={handleDownloadModel}
+                    onCancel={handleCancelDownload}
+                    downloadProgress={getModelDownloadProgress(model.id)}
+                    downloadSpeed={getModelDownloadSpeed(model.id)}
+                    showRecommended={false}
+                  />
+                ))}
+
+                {otherRecommended.map((model: ModelInfo) => (
                   <ModelCard
                     key={model.id}
                     model={model}
@@ -276,11 +241,47 @@ const Onboarding: React.FC<OnboardingProps> = ({
                     showRecommended={false}
                   />
                 ))}
-            </div>
-          )}
+
+                {hasRecommended && rest.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAll((v) => !v)}
+                    className="flex items-center justify-center gap-1.5 mx-auto py-1 text-sm font-medium text-text/60 hover:text-text transition-colors"
+                  >
+                    {showAll
+                      ? t("onboarding.showFewerModels")
+                      : t("onboarding.showAllModels", {
+                          total: downloadable.length,
+                        })}
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        showAll ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                )}
+
+                {showRest &&
+                  rest.map((model: ModelInfo) => (
+                    <ModelCard
+                      key={model.id}
+                      model={model}
+                      status={getModelStatus(model.id)}
+                      disabled={isBusy}
+                      onSelect={handleDownloadModel}
+                      onDownload={handleDownloadModel}
+                      onCancel={handleCancelDownload}
+                      downloadProgress={getModelDownloadProgress(model.id)}
+                      downloadSpeed={getModelDownloadSpeed(model.id)}
+                      showRecommended={false}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </OnboardingLayout>
   );
 };
 

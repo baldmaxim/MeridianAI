@@ -126,3 +126,58 @@ class DesktopMeetingItem(BaseModel):
     started_at: datetime
     finalization_status: str
     protocol_ready: bool
+
+
+# ── библиотека: все встречи сайта и проекты (только чтение) ────────────────
+
+
+class DesktopLibraryItem(BaseModel):
+    meeting_id: int
+    title: str | None
+    meeting_topic: str | None
+    started_at: datetime
+    ended_at: datetime | None
+    customer_id: int | None
+    customer_name: str | None
+    object_id: int | None
+    object_name: str | None
+    finalization_status: str
+    protocol_ready: bool
+    micro_summary: str | None
+    # uuid встречи у текущего пользователя; None — встреча заведена не из его приложения.
+    client_uuid: str | None
+    # desktop — у встречи есть любая связь с приложением, web — создана на сайте.
+    source: Literal["desktop", "web"]
+
+
+class DesktopSegmentOut(BaseModel):
+    text: str
+    speaker_label: str | None
+    start_time: float
+    end_time: float
+    wall_clock: datetime
+
+
+class DesktopDocumentOut(BaseModel):
+    filename: str | None
+    doc_type: str | None
+    doc_type_label: str | None
+    page_count: int | None
+
+
+class DesktopMeetingView(DesktopLibraryItem):
+    protocol_markdown: str | None
+    segments: list[DesktopSegmentOut]
+    documents: list[DesktopDocumentOut]
+
+
+class DesktopObjectOut(BaseModel):
+    id: int
+    name: str
+    address: str | None
+
+
+class DesktopCustomer(BaseModel):
+    id: int
+    name: str
+    objects: list[DesktopObjectOut]
