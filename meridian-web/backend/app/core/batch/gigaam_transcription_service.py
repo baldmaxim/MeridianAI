@@ -11,6 +11,7 @@ import logging
 import re
 import time
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -28,6 +29,9 @@ _SPEAKER_NUM = re.compile(r"(\d+)\s*$")
 class GigaAMBatchTranscriptionService:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
+        # Сервис принимает только Host 127.0.0.1/localhost (защита от DNS rebinding),
+        # а на проде он доступен по имени контейнера туннеля
+        self.host_header = {"Host": f"127.0.0.1:{urlparse(self.base_url).port or 80}"}
 
     async def transcribe(self, file_path: str, timeout: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Transcribe audio file. Returns {text, words} or None."""
@@ -42,7 +46,7 @@ class GigaAMBatchTranscriptionService:
             token = self._get_token()
             if not token:
                 return None
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {**self.host_header, "Authorization": f"Bearer {token}"}
 
             job_id = self._submit(file_path, headers)
             if not job_id:
@@ -60,7 +64,7 @@ class GigaAMBatchTranscriptionService:
     def _get_token(self) -> Optional[str]:
         """Токен сессии (без авторизации — доступ только через туннель)."""
         try:
-            response = requests.get(f"{self.base_url}/api/session", timeout=HTTP_TIMEOUT)
+            response = requests.get(f"{self.base_url}/api/session", headers=self.host_header, timeout=HTTP_TIMEOUT)
             if response.status_code == 200:
                 return response.json().get("token") or None
             logger.error(f"GigaAM session error: {response.status_code}")
