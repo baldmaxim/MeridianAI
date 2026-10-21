@@ -249,8 +249,10 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          ls -la release-assets
-          gh release create "$TAG" release-assets/* \
+          # Артефакт Windows лежит подпапками (msi/, nsis/) — грузим только файлы.
+          mapfile -t files < <(find release-assets -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \))
+          printf '%s\n' "${files[@]}"
+          gh release create "$TAG" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --draft \
