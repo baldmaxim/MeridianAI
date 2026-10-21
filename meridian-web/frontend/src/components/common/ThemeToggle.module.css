@@ -1,15 +1,50 @@
+/* Mobile-first: иконка в рамке, тап-цель 44×44. С 1440px — рамка-пилюля с подписью темы,
+   как соседние кнопки шапки (одна иконка без рамки была незаметна). */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   width: 44px;
   height: 44px;
   min-width: 44px;
   padding: 0;
   flex-shrink: 0;
   background: transparent;
-  border: none;
+  border: 1px solid var(--border-amber);
   border-radius: 8px;
-  color: var(--text-secondary);
+  color: var(--accent-amber);
   cursor: pointer;
+}
+
+.label {
+  display: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 4px;
+  }
+  .btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .btn {
+    width: auto;
+    height: auto;
+    padding: 4px 10px;
+  }
+  .label {
+    display: inline;
+  }
 }

@@ -59,6 +59,7 @@ export const ThemeToggle: FC = () => {
       title={title}
     >
       {ICONS[mode]}
+      <span className={styles.label}>Тема: {LABELS[mode]}</span>
     </button>
   );
 };
