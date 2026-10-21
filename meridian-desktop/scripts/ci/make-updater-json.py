@@ -17,7 +17,7 @@ from urllib.parse import quote
 
 
 def find_one(folder: Path, pattern: str) -> Path | None:
-    found = sorted(folder.glob(pattern))
+    found = sorted(folder.rglob(pattern))
     if len(found) > 1:
         sys.exit(f"Найдено несколько файлов по маске {pattern}: {[f.name for f in found]}")
     return found[0] if found else None

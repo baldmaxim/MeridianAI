@@ -284,8 +284,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          # Артефакт Windows лежит подпапками (msi/, nsis/) — грузим только файлы.
-          mapfile -t files < <(find release-assets -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \))
+          # Артефакты лежат подпапками (msi/, nsis/, dmg/, macos/) — грузим только файлы.
+          # latest.json и .app.tar.gz нужны автообновлению (подписи — внутри latest.json).
+          mapfile -t files < <(find release-assets -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' -o -name '*.app.tar.gz' -o -name 'latest.json' \))
           printf '%s\n' "${files[@]}"
           gh release create "$TAG" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
