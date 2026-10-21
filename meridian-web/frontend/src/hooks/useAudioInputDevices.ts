@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   AudioCaptureRoute,
   AudioCaptureSelection,
@@ -22,7 +22,7 @@ export function useAudioInputDevices() {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectionRef = useRef(selection);
-  selectionRef.current = selection;
+  useLayoutEffect(() => { selectionRef.current = selection; }, [selection]);
 
   const hasMedia = typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
@@ -98,6 +98,7 @@ export function useAudioInputDevices() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState внутри refresh только после await enumerateDevices (асинхронно)
     void refresh();
     if (!hasMedia || !navigator.mediaDevices.addEventListener) return;
     const onChange = () => { void refresh(); };

@@ -1,0 +1,41 @@
+.dropZone {
+  border: 2px dashed var(--border-default);
+  border-radius: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.dropZoneActive {
+  border-color: var(--accent-amber);
+  background: var(--accent-amber-glow);
+}
+
+.dropZoneBusy {
+  cursor: wait;
+}
+
+.fileInput {
+  display: none;
+}
+
+.dropIcon {
+  font-size: 28px;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.dropText {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.dropHint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}

@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { theme } from '../../styles/theme';
+import { useEffect, useState } from 'react';
 import { useAudioInputDevices } from '../../hooks/useAudioInputDevices';
 import { useAudioSoundCheck } from '../../hooks/useAudioSoundCheck';
 import { AUDIO_PRESETS, AUDIO_ROUTE_ORDER, MULTICHANNEL_CAPABLE_ROUTES } from '../../audio/audioCaptureTypes';
@@ -10,6 +9,8 @@ import {
   saveMultichannelShadowEnabled,
 } from '../../audio/audioCaptureMetadata';
 import type { AudioRecorderCaptureConfig } from '../../hooks/useAudioRecorder';
+import styles from './AudioPreflightPanel.module.css';
+import tone from './Tone.module.css';
 
 /**
  * Компактная панель выбора микрофона + sound-check (Этап 15).
@@ -56,38 +57,40 @@ export function AudioPreflightPanel({
       default: return '';
     }
   };
-  const statusColor = sc.status === 'ok' ? theme.accent.green
-    : sc.status === 'clipping' ? theme.accent.red
-      : sc.status === 'too_quiet' ? theme.accent.amber : theme.text.secondary;
+  const statusTone = sc.status === 'ok' ? tone.green
+    : sc.status === 'clipping' ? tone.red
+      : sc.status === 'too_quiet' ? tone.amber : tone.secondary;
+  const meterTone = sc.clippingDetected ? tone.bgRed
+    : sc.silenceDetected ? tone.bgAmber : tone.bgGreen;
 
   const selectedDevice = devices.find((d) => d.deviceId === selection.deviceId);
   const deviceLabel = selectedDevice?.label
     || (selection.deviceId ? 'Выбранное устройство' : 'Микрофон по умолчанию');
 
   return (
-    <div style={styles.wrap}>
-      <button style={styles.header} onClick={() => setOpen((o) => !o)} type="button">
-        <span style={styles.headerTitle}>🎙 Микрофон и проверка звука</span>
-        <span style={styles.headerMeta}>
+    <div className={styles.wrap}>
+      <button className={styles.header} onClick={() => setOpen((o) => !o)} type="button">
+        <span className={styles.headerTitle}>🎙 Микрофон и проверка звука</span>
+        <span className={styles.headerMeta}>
           {AUDIO_PRESETS[selection.route]?.label || 'по умолчанию'} {open ? '▾' : '▸'}
         </span>
       </button>
 
       {open && (
-        <div style={styles.body}>
+        <div className={styles.body}>
           {!permissionGranted && (
-            <div style={styles.hintBox}>
+            <div className={styles.hintBox}>
               Разрешите доступ к микрофону, чтобы увидеть устройства.
-              <button style={styles.smallBtn} onClick={() => void requestPermission()} type="button">
+              <button className={styles.smallBtn} onClick={() => void requestPermission()} type="button">
                 Разрешить доступ
               </button>
             </div>
           )}
-          {error && <div style={styles.errorBox}>{error}</div>}
+          {error && <div className={styles.errorBox}>{error}</div>}
 
-          <label style={styles.label}>Устройство</label>
+          <label className={styles.label}>Устройство</label>
           <select
-            style={styles.select}
+            className={styles.select}
             value={selection.deviceId || ''}
             onChange={(e) => setDevice(e.target.value || null)}
           >
@@ -99,9 +102,9 @@ export function AudioPreflightPanel({
             ))}
           </select>
 
-          <label style={styles.label}>Маршрут записи (техническая зона, не сторона)</label>
+          <label className={styles.label}>Маршрут записи (техническая зона, не сторона)</label>
           <select
-            style={styles.select}
+            className={styles.select}
             value={selection.route}
             onChange={(e) => setRoute(e.target.value as AudioCaptureRoute)}
           >
@@ -109,52 +112,50 @@ export function AudioPreflightPanel({
               <option key={r} value={r}>{AUDIO_PRESETS[r].label}</option>
             ))}
           </select>
-          <div style={styles.presetDesc}>{AUDIO_PRESETS[selection.route]?.description}</div>
+          <div className={styles.presetDesc}>{AUDIO_PRESETS[selection.route]?.description}</div>
 
-          <div style={styles.checkRow}>
+          <div className={styles.checkRow}>
             {sc.status === 'idle' || sc.status === 'error' ? (
               <button
-                style={styles.checkBtn}
+                className={styles.checkBtn}
                 onClick={() => void sc.start(selection.deviceId, presetForRoute(selection.route))}
                 type="button"
               >
                 Проверить звук
               </button>
             ) : (
-              <button style={styles.checkBtnStop} onClick={() => sc.stop()} type="button">
+              <button className={styles.checkBtnStop} onClick={() => sc.stop()} type="button">
                 Остановить
               </button>
             )}
-            <span style={{ ...styles.status, color: statusColor }}>{statusText()}</span>
+            <span className={`${styles.status} ${statusTone}`}>{statusText()}</span>
           </div>
 
           {(sc.status === 'running' || sc.status === 'ok' || sc.status === 'too_quiet'
             || sc.status === 'clipping') && (
             <>
-              <div style={styles.meterTrack}>
-                <div style={{
-                  ...styles.meterFill,
-                  width: `${Math.round(sc.rmsLevel * 100)}%`,
-                  background: sc.clippingDetected ? theme.accent.red
-                    : sc.silenceDetected ? theme.accent.amber : theme.accent.green,
-                }} />
+              <div className={styles.meterTrack}>
+                <div
+                  className={`${styles.meterFill} ${meterTone}`}
+                  style={{ transform: `scaleX(${Math.min(1, Math.max(0, sc.rmsLevel))})` }}
+                />
               </div>
-              <div style={styles.detected}>
+              <div className={styles.detected}>
                 Частота: {sc.sampleRate ? `${sc.sampleRate} Гц` : '—'} · Каналов: {sc.channelCount ?? '—'}
               </div>
             </>
           )}
 
           {multiCapable && (
-            <label style={styles.expRow}>
+            <label className={styles.expRow}>
               <input
                 type="checkbox"
                 checked={mcShadow}
                 onChange={(e) => { setMcShadow(e.target.checked); saveMultichannelShadowEnabled(e.target.checked); }}
               />
-              <span style={styles.expText}>
+              <span className={styles.expText}>
                 Экспериментально: передавать стерео/мультиканал в shadow-режиме
-                <span style={styles.expHint}>
+                <span className={styles.expHint}>
                   Не влияет на live-распознавание. Основной STT остаётся mono. Не определяет стороны участников.
                   Per-channel STT включается администратором на backend canary; этот переключатель только передаёт каналы.
                 </span>
@@ -162,12 +163,12 @@ export function AudioPreflightPanel({
             </label>
           )}
 
-          <div style={styles.tips}>
+          <div className={styles.tips}>
             <div>Zoom H2n / USB-рекордер: выберите «USB-рекордер», поставьте по центру стола.</div>
             <div>Спикерфон: выберите «USB-спикерфон».</div>
             <div>Телефон — запасной (secondary) сценарий, не основной микрофон.</div>
           </div>
-          <div style={styles.note}>
+          <div className={styles.note}>
             Стрим в обработку остаётся mono 16&nbsp;кГц (multichannel — позже). Метка устройства не
             покидает браузер: в систему уходят только маршрут и хэши. «{deviceLabel}».
           </div>
@@ -176,69 +177,3 @@ export function AudioPreflightPanel({
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: {
-    background: theme.bg.secondary,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 8,
-    margin: '0 0 8px',
-    overflow: 'hidden',
-    flexShrink: 0,
-  },
-  header: {
-    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer',
-    color: theme.text.primary, fontFamily: theme.font.body, fontSize: 13,
-  },
-  headerTitle: { fontWeight: 600 },
-  headerMeta: { color: theme.text.secondary, fontSize: 11, fontFamily: theme.font.mono },
-  body: { padding: '4px 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { color: theme.text.secondary, fontSize: 11, marginTop: 6, fontFamily: theme.font.body },
-  select: {
-    background: theme.bg.input, color: theme.text.primary,
-    border: `1px solid ${theme.border.default}`, borderRadius: 6, padding: '7px 9px',
-    fontSize: 12, fontFamily: theme.font.body,
-  },
-  presetDesc: { color: theme.text.muted, fontSize: 11, fontFamily: theme.font.body },
-  checkRow: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 },
-  checkBtn: {
-    padding: '7px 14px', background: theme.accent.amber, color: '#080A0F', border: 'none',
-    borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: theme.font.body,
-  },
-  checkBtnStop: {
-    padding: '7px 14px', background: theme.bg.elevated, color: theme.text.primary,
-    border: `1px solid ${theme.border.default}`, borderRadius: 6, fontSize: 12, cursor: 'pointer',
-    fontFamily: theme.font.body,
-  },
-  status: { fontSize: 12, fontFamily: theme.font.mono },
-  meterTrack: {
-    height: 8, background: theme.bg.input, borderRadius: 4, overflow: 'hidden', marginTop: 6,
-  },
-  meterFill: { height: '100%', transition: 'width 80ms linear', borderRadius: 4 },
-  detected: { color: theme.text.secondary, fontSize: 11, fontFamily: theme.font.mono, marginTop: 4 },
-  tips: {
-    marginTop: 10, display: 'flex', flexDirection: 'column', gap: 3,
-    color: theme.text.secondary, fontSize: 11, fontFamily: theme.font.body,
-  },
-  expRow: {
-    display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, cursor: 'pointer',
-    background: theme.bg.input, borderRadius: 6, padding: '8px 10px',
-  },
-  expText: { display: 'flex', flexDirection: 'column', gap: 2, color: theme.text.primary, fontSize: 12 },
-  expHint: { color: theme.text.muted, fontSize: 10.5, lineHeight: 1.5 },
-  note: { marginTop: 8, color: theme.text.muted, fontSize: 10.5, fontFamily: theme.font.body, lineHeight: 1.5 },
-  hintBox: {
-    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-    background: theme.bg.input, borderRadius: 6, padding: '8px 10px',
-    color: theme.text.secondary, fontSize: 12,
-  },
-  smallBtn: {
-    padding: '5px 10px', background: theme.accent.amber, color: '#080A0F', border: 'none',
-    borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-  },
-  errorBox: {
-    background: 'rgba(255,75,110,0.1)', color: theme.accent.red, borderRadius: 6,
-    padding: '7px 10px', fontSize: 11.5,
-  },
-};

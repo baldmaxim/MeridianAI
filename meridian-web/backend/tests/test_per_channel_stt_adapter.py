@@ -11,7 +11,6 @@ from app.core.audio.per_channel_stt_adapter import (
     PerChannelSttCache,
     build_per_channel_stt_adapter,
     hash_audio_for_cache,
-    hash_text,
     normalize_stt_text,
     pcm16_mono_to_wav_bytes,
 )

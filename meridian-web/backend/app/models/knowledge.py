@@ -8,7 +8,7 @@ Scope — owner_user_id (seam под organization_id). Уникальность 
 
 from datetime import datetime
 
-from sqlalchemy import String, Text, DateTime, Integer, Float, Boolean, ForeignKey, Index
+from sqlalchemy import String, Text, DateTime, Integer, Float, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base

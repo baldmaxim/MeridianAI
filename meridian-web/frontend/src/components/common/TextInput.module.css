@@ -1,0 +1,94 @@
+/* Поле ввода с крестиком «Очистить». Цвета — только токены темы (index.css).
+   Базовый вид .input обёрнут в :where() (специфичность 0): класс вызывающего кода (inputClassName)
+   переопределяет рамку/фон/отступы независимо от порядка загрузки CSS. */
+
+:where(.wrapper) {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+:where(.input) {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px; /* ≥16px — иначе Safari/Android-Chrome зумят форму при фокусе */
+  outline: none;
+  transition: border-color 150ms ease-out;
+}
+
+.input:focus {
+  border-color: var(--border-focus);
+}
+
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Место под крестик: текст не заходит под кнопку */
+.input.hasClear {
+  padding-right: 44px;
+}
+
+/* Свой крестик один на все браузеры: прячем системные */
+.input::-webkit-search-cancel-button,
+.input::-webkit-search-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.input::-ms-clear,
+.input::-ms-reveal {
+  display: none;
+}
+
+.clear {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 150ms ease-out;
+}
+
+.clear:hover {
+  color: var(--text);
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (min-width: 768px) {
+  :where(.input) {
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .clear {
+    transition: none;
+  }
+}

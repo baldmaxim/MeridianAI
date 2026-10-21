@@ -14,7 +14,7 @@ from ..models.user import User
 from ..models.meeting import SavedTranscription
 from ..schemas.meeting import SaveTranscriptionRequest, TranscriptionResponse
 from ..auth.dependencies import get_current_user
-from ..auth.service import decode_token
+from ..auth.service import decode_token, token_version_matches
 from ..config import get_settings
 from ..services.session_manager import get_session_manager
 
@@ -119,6 +119,13 @@ async def download_transcription(
     user_id = int(payload["sub"])
 
     async with async_session() as db:
+        auth_user = await db.get(User, user_id)
+        if (
+            auth_user is None
+            or not auth_user.is_active
+            or not token_version_matches(payload, auth_user.token_version)
+        ):
+            raise HTTPException(status_code=401, detail="Invalid token")
         result = await db.execute(
             select(SavedTranscription).where(
                 SavedTranscription.id == transcription_id,

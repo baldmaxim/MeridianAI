@@ -66,6 +66,7 @@ async def update_user(
         await audit("user_role_changed", actor_user_id=admin.id, ip=ip,
                     target_user_id=user_id, old=user.role, new=data.role)
         user.role = data.role
+        user.token_version += 1
 
     if data.is_active is not None and data.is_active != user.is_active:
         if is_self and not data.is_active:
@@ -73,6 +74,7 @@ async def update_user(
         await audit("user_active_changed", actor_user_id=admin.id, ip=ip,
                     target_user_id=user_id, new=data.is_active)
         user.is_active = data.is_active
+        user.token_version += 1
 
     if data.password is not None:
         if not data.password.strip():
@@ -80,6 +82,7 @@ async def update_user(
         await audit("user_password_reset", actor_user_id=admin.id, ip=ip,
                     target_user_id=user_id)
         user.password_hash = hash_password(data.password)
+        user.token_version += 1
 
     return user
 

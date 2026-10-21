@@ -1,0 +1,195 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  padding: 2px 2px;
+}
+
+.groupCount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  padding: 0 7px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  flex-wrap: wrap;
+}
+
+.avatar {
+  color: var(--avatar-color);
+  background: color-mix(in srgb, var(--avatar-color) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--avatar-color) 20%, transparent);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.info {
+  flex: 1;
+  min-width: 120px;
+}
+
+.email {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inactiveTag {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-red);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.meta {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+
+.roleBadge {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.roleAdmin {
+  background: color-mix(in srgb, var(--accent-amber) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 25%, transparent);
+  color: var(--accent-amber);
+}
+
+.roleUser {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.toggleBtn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  flex-shrink: 0;
+}
+
+.deleteBtn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  color: var(--accent-red);
+  flex-shrink: 0;
+}
+
+/* Цвет аватара — токены темы; смешанные оттенки подстраиваются под обе темы */
+.avatarTone0 { --avatar-color: var(--accent-amber); }
+.avatarTone1 { --avatar-color: var(--accent-blue); }
+.avatarTone2 { --avatar-color: var(--accent-green); }
+.avatarTone3 { --avatar-color: color-mix(in srgb, var(--accent-blue) 60%, var(--accent-red) 40%); }
+.avatarTone4 { --avatar-color: var(--accent-red); }
+.avatarTone5 { --avatar-color: color-mix(in srgb, var(--accent-green) 60%, var(--accent-blue) 40%); }
+
+.editBtn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border-amber);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  color: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.toggleDeactivate {
+  color: var(--accent-red);
+  border-color: color-mix(in srgb, var(--accent-red) 30%, transparent);
+}
+
+.toggleActivate {
+  color: var(--accent-green);
+  border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
+}

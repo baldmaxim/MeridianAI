@@ -1,0 +1,58 @@
+.badge {
+  --tone: var(--text-secondary);
+  --tone-bg: color-mix(in srgb, var(--tone) 10%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--tone);
+  background: var(--tone-bg);
+  border: 1px solid color-mix(in srgb, var(--tone) 20%, transparent);
+}
+
+.toneNeutral {
+  --tone: var(--text-secondary);
+}
+
+.toneBlue {
+  --tone: var(--accent-blue);
+}
+
+.toneAmber {
+  --tone: var(--accent-amber);
+  --tone-bg: var(--accent-amber-glow);
+}
+
+.toneGreen {
+  --tone: var(--accent-green);
+  --tone-bg: var(--accent-green-dim);
+}
+
+.toneRed {
+  --tone: var(--accent-red);
+  --tone-bg: var(--accent-red-dim);
+}
+
+.pulseDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tone);
+  animation: badgePulse 1.5s infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulseDot {
+    animation: none;
+  }
+}

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import styles from './ErrorBoundary.module.css';
 
 interface Props { children: ReactNode; }
 interface State { hasError: boolean; message: string; }
@@ -19,11 +20,11 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
     return (
-      <div style={styles.wrap}>
-        <div style={styles.card}>
-          <div style={styles.title}>Что-то пошло не так</div>
-          <div style={styles.msg}>{this.state.message}</div>
-          <button style={styles.btn} onClick={() => { this.setState({ hasError: false, message: '' }); window.location.reload(); }}>
+      <div className={styles.wrap}>
+        <div className={styles.card}>
+          <div className={styles.title}>Что-то пошло не так</div>
+          <div className={styles.msg}>{this.state.message}</div>
+          <button className={styles.btn} onClick={() => { this.setState({ hasError: false, message: '' }); window.location.reload(); }}>
             Перезагрузить
           </button>
         </div>
@@ -31,11 +32,3 @@ export class ErrorBoundary extends Component<Props, State> {
     );
   }
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080A0F', color: '#EDF2FF', fontFamily: 'Inter, system-ui, sans-serif' },
-  card: { display: 'flex', flexDirection: 'column', gap: 14, padding: 32, background: '#111520', border: '1px solid #1A2135', borderRadius: 14, maxWidth: 440, textAlign: 'center' as const },
-  title: { fontSize: 18, fontWeight: 800, color: '#F5A623' },
-  msg: { fontSize: 13, color: '#8896B3', wordBreak: 'break-word' as const },
-  btn: { padding: '10px 18px', background: '#F5A623', border: 'none', borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 13, fontWeight: 600 },
-};

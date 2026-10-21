@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { LoginForm } from '../components/auth/LoginForm';
 import { RegisterForm } from '../components/auth/RegisterForm';
-import { theme } from '../styles/theme';
+import { errorDetail } from '../lib/errorDetail';
+import styles from './LoginPage.module.css';
 
 interface Props {
   onLogin: (email: string, password: string) => Promise<unknown>;
@@ -12,13 +13,13 @@ interface Props {
 function LogoMark() {
   return (
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-      <circle cx="24" cy="24" r="20" stroke="#F5A623" strokeWidth="1" opacity="0.25"/>
-      <circle cx="24" cy="24" r="12" stroke="#F5A623" strokeWidth="1.5" opacity="0.6"/>
-      <circle cx="24" cy="24" r="4" fill="#F5A623"/>
-      <line x1="24" y1="4" x2="24" y2="10" stroke="#F5A623" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="24" y1="38" x2="24" y2="44" stroke="#F5A623" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="4" y1="24" x2="10" y2="24" stroke="#F5A623" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="38" y1="24" x2="44" y2="24" stroke="#F5A623" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="24" cy="24" r="20" stroke="var(--accent)" strokeWidth="1" opacity="0.25"/>
+      <circle cx="24" cy="24" r="12" stroke="var(--accent)" strokeWidth="1.5" opacity="0.6"/>
+      <circle cx="24" cy="24" r="4" fill="var(--accent)"/>
+      <line x1="24" y1="4" x2="24" y2="10" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="24" y1="38" x2="24" y2="44" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="4" y1="24" x2="10" y2="24" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="38" y1="24" x2="44" y2="24" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -39,8 +40,8 @@ export function LoginPage({ onLogin, onRegister }: Props) {
     setError('');
     try {
       await onLogin(email, password);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка входа');
+    } catch (err) {
+      setError(errorDetail(err) || 'Ошибка входа');
     }
   };
 
@@ -48,17 +49,17 @@ export function LoginPage({ onLogin, onRegister }: Props) {
     setError('');
     try {
       await onRegister(email, password, displayName, department);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка регистрации');
+    } catch (err) {
+      setError(errorDetail(err) || 'Ошибка регистрации');
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.brand}>
+    <div className={styles.container}>
+      <div className={styles.brand}>
         <LogoMark />
-        <div style={styles.brandText}>
-          MERIDI<span style={{ color: theme.accent.amber }}>AN</span>
+        <div className={styles.brandText}>
+          MERIDI<span className={styles.brandAccent}>AN</span>
         </div>
       </div>
       {mode === 'login' ? (
@@ -78,7 +79,7 @@ export function LoginPage({ onLogin, onRegister }: Props) {
         <button
           type="button"
           onClick={() => { window.location.href = '/api/auth/oidc/login'; }}
-          style={styles.ssoBtn}
+          className={styles.ssoBtn}
         >
           Войти через SSO (Keycloak)
         </button>
@@ -86,45 +87,3 @@ export function LoginPage({ onLogin, onRegister }: Props) {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100vh',
-    background: theme.bg.primary,
-    gap: 24,
-    padding: 20,
-  },
-  brand: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-  },
-  brandText: {
-    fontFamily: theme.font.heading,
-    fontWeight: 800,
-    fontSize: 24,
-    letterSpacing: '0.18em',
-    color: theme.text.primary,
-  },
-  brandSub: {
-    fontFamily: theme.font.mono,
-    fontSize: 11,
-    color: theme.text.muted,
-    letterSpacing: '0.12em',
-  },
-  ssoBtn: {
-    fontFamily: theme.font.body,
-    fontSize: 13,
-    padding: '10px 18px',
-    background: 'transparent',
-    color: theme.text.secondary,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 8,
-    cursor: 'pointer',
-  },
-};

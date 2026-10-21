@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { TextInput } from '../common';
 import { theme } from '../../styles/theme';
 import { batchToMeeting } from '../../api/batch';
 import type { BatchToMeetingResult } from '../../api/batch';
 import { listCustomers } from '../../api/customers';
 import { listObjects } from '../../api/objects';
 import type { Customer, ProjectObject } from '../../types';
+import { errorDetail } from '../../lib/errorDetail';
+import styles from './BatchToMeetingModal.module.css';
 
 interface Props {
   jobId: number;
@@ -68,8 +71,7 @@ export function BatchToMeetingModal({ jobId, defaultTitle, open, onClose, onDone
       onDone(result);
       onClose();
     } catch (e) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail || 'Не удалось сделать встречу из записи');
+      setError(errorDetail(e) || 'Не удалось сделать встречу из записи');
     } finally {
       setBusy(false);
     }
@@ -77,35 +79,37 @@ export function BatchToMeetingModal({ jobId, defaultTitle, open, onClose, onDone
 
   return (
     <Modal open={open} onClose={onClose}>
-      <div style={styles.body}>
-        <h3 style={styles.title}>Сделать встречу из записи</h3>
-        <p style={styles.hint}>
+      <div className={styles.body}>
+        <h3 className={styles.title}>Сделать встречу из записи</h3>
+        <p className={styles.hint}>
           Транскрипт переедет во встречу, после чего соберутся протокол, решения, поручения,
           риски и открытые вопросы — и появятся кандидаты в базу знаний.
         </p>
 
-        <label style={styles.label}>Название встречи</label>
-        <input
-          style={styles.input}
+        <label className={styles.label}>Название встречи</label>
+        <TextInput
+          inputClassName={styles.input}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onClear={() => setTitle('')}
+          clearLabel="название встречи"
           placeholder="Название встречи"
         />
 
-        <label style={styles.label}>Заказчик</label>
+        <label className={styles.label}>Заказчик</label>
         <SearchableSelect
           value={customerId}
           onChange={setCustomerId}
           options={customerOptions}
           placeholder="— не выбран —"
           searchPlaceholder="Поиск заказчика…"
-          style={styles.select}
+          style={selectStyle}
         />
-        <div style={styles.note}>
+        <div className={styles.note}>
           Без заказчика особенности контрагента из этой встречи в базу знаний не попадут.
         </div>
 
-        <label style={styles.label}>Объект</label>
+        <label className={styles.label}>Объект</label>
         <SearchableSelect
           value={objectId}
           onChange={setObjectId}
@@ -113,16 +117,16 @@ export function BatchToMeetingModal({ jobId, defaultTitle, open, onClose, onDone
           placeholder={customerId ? '— не выбран —' : 'Сначала выберите заказчика'}
           searchPlaceholder="Поиск объекта…"
           disabled={!customerId}
-          style={styles.select}
+          style={selectStyle}
         />
 
-        {error && <div style={styles.error}>{error}</div>}
+        {error && <div className={styles.error}>{error}</div>}
 
-        <div style={styles.actions}>
-          <button type="button" style={styles.cancel} onClick={onClose} disabled={busy}>
+        <div className={styles.actions}>
+          <button type="button" className={styles.cancel} onClick={onClose} disabled={busy}>
             Отмена
           </button>
-          <button type="button" style={styles.submit} onClick={submit} disabled={busy}>
+          <button type="button" className={styles.submit} onClick={submit} disabled={busy}>
             {busy ? 'Создаю…' : 'Сделать встречу'}
           </button>
         </div>
@@ -131,33 +135,14 @@ export function BatchToMeetingModal({ jobId, defaultTitle, open, onClose, onDone
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  body: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 320 },
-  title: { margin: 0, fontSize: 15, fontWeight: 700, color: theme.text.primary, fontFamily: theme.font.heading },
-  hint: { margin: 0, color: theme.text.secondary, fontSize: 12, lineHeight: 1.5 },
-  label: { color: theme.text.secondary, fontSize: 11, marginTop: 8, fontFamily: theme.font.body },
-  input: {
-    background: theme.bg.input, color: theme.text.primary,
-    border: `1px solid ${theme.border.default}`, borderRadius: 6,
-    padding: '8px 10px', fontSize: 13, fontFamily: theme.font.body,
-  },
-  select: {
-    background: theme.bg.input, color: theme.text.primary,
-    border: `1px solid ${theme.border.default}`, borderRadius: 6,
-    padding: '8px 10px', fontSize: 13, fontFamily: theme.font.body, width: '100%',
-  },
-  note: { color: theme.text.muted, fontSize: 10.5, lineHeight: 1.5 },
-  error: {
-    marginTop: 8, background: 'rgba(255,75,110,0.1)', color: theme.accent.red,
-    borderRadius: 6, padding: '7px 10px', fontSize: 11.5,
-  },
-  actions: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 },
-  cancel: {
-    padding: '8px 14px', background: theme.bg.elevated, color: theme.text.primary,
-    border: `1px solid ${theme.border.default}`, borderRadius: 6, fontSize: 12, cursor: 'pointer',
-  },
-  submit: {
-    padding: '8px 14px', background: theme.accent.amber, color: '#080A0F', border: 'none',
-    borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-  },
+/** Стиль триггера <SearchableSelect>: компонент принимает только style (не className). */
+const selectStyle: React.CSSProperties = {
+  background: theme.bg.input,
+  color: theme.text.primary,
+  border: `1px solid ${theme.border.default}`,
+  borderRadius: 6,
+  padding: '8px 10px',
+  fontSize: 13,
+  fontFamily: theme.font.body,
+  width: '100%',
 };

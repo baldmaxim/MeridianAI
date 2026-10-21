@@ -1,0 +1,48 @@
+/* Каркас страницы встречи. Адаптив (табы → нижняя навигация) — глобальные классы в index.css. */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  border-bottom: 1px solid var(--border-default);
+  padding: 0 24px;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.tab {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.tabActive {
+  border-bottom-color: var(--accent-amber);
+  color: var(--accent-amber);
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.contentNegotiations {
+  flex: 1;
+  overflow: hidden;
+  padding: 16px 20px 0;
+}

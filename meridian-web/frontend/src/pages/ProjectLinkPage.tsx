@@ -3,7 +3,9 @@ import { listPayhubProjects, type PayhubProject } from '../api/letters';
 import { listObjects, updateObject } from '../api/objects';
 import type { ProjectObject } from '../types';
 import { apiErrorMessage } from '../lib/apiError';
-import { theme } from '../styles/theme';
+import styles from './ProjectLinkPage.module.css';
+import { cx } from '../utils/cx';
+import { TextInput } from '../components/common';
 
 interface Props {
   onBack: () => void;
@@ -79,41 +81,33 @@ export function ProjectLinkPage({ onBack }: Props) {
   }
 
   return (
-    <div className="plp" style={styles.container}>
-      <style>{`
-        @media (max-width: 820px) {
-          .plp { overflow-y: auto !important; }
-          .plp-cols { flex-direction: column !important; flex: none !important; }
-          .plp-col { flex: none !important; }
-          .plp-list { max-height: 50vh; }
-        }
-      `}</style>
-      <div style={styles.head}>
-        <button className="t-btn" style={styles.back} onClick={onBack}>← Назад</button>
-        <span style={styles.title}>Связка проектов</span>
-        <span style={styles.subtitle}>PayHub → наши объекты</span>
+    <div className={styles.container}>
+      <div className={styles.head}>
+        <button className={cx('t-btn', styles.back)} onClick={onBack}>← Назад</button>
+        <span className={styles.title}>Связка проектов</span>
+        <span className={styles.subtitle}>PayHub → наши объекты</span>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
       {selected && (
-        <div style={styles.selectedBar}>
-          Выбран проект PayHub: <b style={{ color: theme.accent.amber }}>{selected.name}</b>
-          <button style={styles.clearSel} onClick={() => setSelected(null)}>сбросить</button>
+        <div className={styles.selectedBar}>
+          Выбран проект PayHub: <b className={styles.inline1}>{selected.name}</b>
+          <button className={styles.clearSel} onClick={() => setSelected(null)}>сбросить</button>
         </div>
       )}
 
-      <div className="plp-cols" style={styles.cols}>
+      <div className={styles.cols}>
         {/* Левая колонка — проекты PayHub */}
-        <div className="plp-col" style={styles.col}>
-          <div style={styles.colHead}>Проекты PayHub</div>
-          <input style={styles.search} placeholder="Поиск проекта…" value={leftQ} onChange={(e) => setLeftQ(e.target.value)} />
-          <div className="plp-list" style={styles.list}>
-            {projectsLoading && <div style={styles.empty}>Загрузка…</div>}
+        <div className={styles.col}>
+          <div className={styles.colHead}>Проекты PayHub</div>
+          <TextInput inputClassName={styles.search} placeholder="Поиск проекта…" value={leftQ} onChange={(e) => setLeftQ(e.target.value)} onClear={() => setLeftQ('')} clearLabel="поиск проекта" />
+          <div className={styles.list}>
+            {projectsLoading && <div className={styles.empty}>Загрузка…</div>}
             {!projectsLoading && notConfigured && (
-              <div style={styles.empty}>Таблица проектов PayHub не настроена (PAYHUB_PROJECTS_TABLE).</div>
+              <div className={styles.empty}>Таблица проектов PayHub не настроена (PAYHUB_PROJECTS_TABLE).</div>
             )}
             {!projectsLoading && !notConfigured && filteredProjects.length === 0 && (
-              <div style={styles.empty}>Проекты не найдены</div>
+              <div className={styles.empty}>Проекты не найдены</div>
             )}
             {filteredProjects.map((p) => {
               const isSel = selected?.projectId === p.projectId;
@@ -123,12 +117,11 @@ export function ProjectLinkPage({ onBack }: Props) {
                   key={p.projectId}
                   type="button"
                   onClick={() => setSelected(p)}
-                  className="t-btn"
-                  style={{ ...styles.row, ...(isSel ? styles.rowSel : null) }}
+                  className={cx('t-btn', styles.row, isSel && styles.rowSel)}
                 >
-                  <span style={styles.rowMain}>
-                    <span style={styles.rowName}>{p.name}</span>
-                    <span style={styles.rowMeta}>
+                  <span className={styles.rowMain}>
+                    <span className={styles.rowName}>{p.name}</span>
+                    <span className={styles.rowMeta}>
                       id {p.projectId}{p.letterCount != null ? ` · ${p.letterCount} писем` : ''}
                       {linkedTo ? ` · → ${linkedTo}` : ''}
                     </span>
@@ -140,29 +133,28 @@ export function ProjectLinkPage({ onBack }: Props) {
         </div>
 
         {/* Правая колонка — наши объекты */}
-        <div className="plp-col" style={styles.col}>
-          <div style={styles.colHead}>Наши объекты</div>
-          <input style={styles.search} placeholder="Поиск объекта или заказчика…" value={rightQ} onChange={(e) => setRightQ(e.target.value)} />
-          <div className="plp-list" style={styles.list}>
-            {objectsLoading && <div style={styles.empty}>Загрузка…</div>}
-            {!objectsLoading && filteredObjects.length === 0 && <div style={styles.empty}>Объекты не найдены</div>}
+        <div className={styles.col}>
+          <div className={styles.colHead}>Наши объекты</div>
+          <TextInput inputClassName={styles.search} placeholder="Поиск объекта или заказчика…" value={rightQ} onChange={(e) => setRightQ(e.target.value)} onClear={() => setRightQ('')} clearLabel="поиск объекта" />
+          <div className={styles.list}>
+            {objectsLoading && <div className={styles.empty}>Загрузка…</div>}
+            {!objectsLoading && filteredObjects.length === 0 && <div className={styles.empty}>Объекты не найдены</div>}
             {filteredObjects.map((o) => {
               const linkedName = o.payhub_project_id != null
                 ? (projectName.get(o.payhub_project_id) ?? `#${o.payhub_project_id}`)
                 : null;
               return (
-                <div key={o.id} style={styles.row}>
-                  <span style={styles.rowMain}>
-                    <span style={styles.rowName}>{o.name}</span>
-                    <span style={styles.rowMeta}>
+                <div key={o.id} className={styles.row}>
+                  <span className={styles.rowMain}>
+                    <span className={styles.rowName}>{o.name}</span>
+                    <span className={styles.rowMeta}>
                       {o.customer_name ?? '—'}
                       {linkedName ? ` · привязан: ${linkedName}` : ''}
                     </span>
                   </span>
-                  <span style={styles.rowActions}>
+                  <span className={styles.rowActions}>
                     <button
-                      className="t-btn"
-                      style={{ ...styles.linkBtn, opacity: selected && savingId !== o.id ? 1 : 0.5 }}
+                      className={cx('t-btn', styles.linkBtn)}
                       disabled={!selected || savingId === o.id}
                       title={selected ? `Привязать «${selected.name}»` : 'Сначала выберите проект слева'}
                       onClick={() => selected && setLink(o, selected.projectId)}
@@ -171,8 +163,7 @@ export function ProjectLinkPage({ onBack }: Props) {
                     </button>
                     {o.payhub_project_id != null && (
                       <button
-                        className="t-btn"
-                        style={styles.unlinkBtn}
+                        className={cx('t-btn', styles.unlinkBtn)}
                         disabled={savingId === o.id}
                         onClick={() => setLink(o, null)}
                       >
@@ -189,58 +180,3 @@ export function ProjectLinkPage({ onBack }: Props) {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '18px 20px', gap: 14, overflow: 'hidden' },
-  head: { display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' },
-  back: {
-    padding: '5px 12px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
-    borderRadius: 5, color: theme.accent.amber, cursor: 'pointer',
-    fontSize: 11, fontFamily: theme.font.mono, letterSpacing: '0.06em',
-  },
-  title: { fontFamily: theme.font.heading, fontWeight: 800, fontSize: 18, color: theme.text.primary },
-  subtitle: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, letterSpacing: '0.08em' },
-  error: {
-    padding: '10px 14px', background: theme.accent.redDim, border: `1px solid ${theme.accent.red}`,
-    borderRadius: 8, color: theme.accent.red, fontSize: 13, fontFamily: theme.font.body,
-  },
-  selectedBar: {
-    padding: '8px 14px', background: theme.accent.amberGlow, border: `1px solid ${theme.border.amber}`,
-    borderRadius: 8, color: theme.text.secondary, fontSize: 13, fontFamily: theme.font.body,
-    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-  },
-  clearSel: {
-    marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer',
-    color: theme.accent.amber, fontSize: 12, fontFamily: theme.font.mono, textDecoration: 'underline',
-  },
-  cols: { flex: 1, minHeight: 0, display: 'flex', gap: 16, flexWrap: 'nowrap' },
-  col: {
-    flex: '1 1 320px', minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 8,
-    background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`, borderRadius: 10, padding: 12,
-  },
-  colHead: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.amber, letterSpacing: '0.08em', textTransform: 'uppercase' },
-  search: {
-    padding: '9px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`,
-    borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none',
-  },
-  list: { flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 },
-  row: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', textAlign: 'left',
-    background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 8,
-    cursor: 'pointer', width: '100%',
-  },
-  rowSel: { border: `1px solid ${theme.accent.amber}`, background: theme.accent.amberGlow },
-  rowMain: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' },
-  rowName: { fontSize: 13, fontWeight: 600, color: theme.text.primary, fontFamily: theme.font.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  rowMeta: { fontSize: 11, color: theme.text.muted, fontFamily: theme.font.mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 },
-  rowActions: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
-  linkBtn: {
-    padding: '6px 12px', background: theme.accent.amber, border: 'none', borderRadius: 6,
-    color: '#080A0F', cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono, fontWeight: 700, letterSpacing: '0.04em',
-  },
-  unlinkBtn: {
-    padding: '6px 10px', background: 'transparent', border: `1px solid ${theme.accent.red}`, borderRadius: 6,
-    color: theme.accent.red, cursor: 'pointer', fontSize: 10, fontFamily: theme.font.mono, fontWeight: 600,
-  },
-  empty: { padding: 16, textAlign: 'center', color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 13 },
-};

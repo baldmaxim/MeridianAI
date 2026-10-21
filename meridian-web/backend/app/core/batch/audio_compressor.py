@@ -1,7 +1,6 @@
 """Audio compression service using ffmpeg (async)."""
 
 import os
-import re
 import asyncio
 import shutil
 import logging

@@ -17,7 +17,6 @@ from typing import Optional, Dict, List, Callable, Any
 from ..config import get_settings
 from ..core.context.analyzer import ContextAnalyzer
 from ..core.context.document_loader import DocumentLoader
-from ..core.context.knowledge_base import get_arguments_for_keyword
 from ..core.llm.client import LLMClient
 from ..core.llm.prompt_context_builder import PromptContextBuilder
 from ..core.llm.prompts import PromptBuilder

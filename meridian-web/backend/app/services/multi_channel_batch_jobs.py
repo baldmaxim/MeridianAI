@@ -10,7 +10,7 @@ response не хранится. WAV/snapshot держатся локально �
 import asyncio
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Awaitable, Callable
 

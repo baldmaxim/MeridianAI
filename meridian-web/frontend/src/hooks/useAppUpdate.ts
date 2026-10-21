@@ -1,60 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
-const POLL_MS = 60_000;
-const VERSION_URL = '/version.json';
+/** Как часто просить браузер проверить новый service worker. */
+export const SW_UPDATE_INTERVAL_MS = 30 * 60 * 1000;
 
-async function fetchBuildId(): Promise<string | null> {
-  try {
-    const r = await fetch(VERSION_URL, { cache: 'no-store' });
-    if (!r.ok) return null;
-    const j = await r.json();
-    return typeof j?.buildId === 'string' ? j.buildId : null;
-  } catch {
-    return null;
-  }
-}
+let updateTimer: ReturnType<typeof setInterval> | undefined;
 
 /**
- * Определяет, что на сервере лежит более новая сборка фронтенда, чем та,
- * что сейчас крутится в браузере: сравнивает зашитый __BUILD_ID__ со
- * статическим /version.json. Опрос раз в минуту + при возврате на вкладку.
- * После обнаружения опрос останавливается (ответ больше не изменится).
+ * Регистрирует service worker (vite-plugin-pwa, registerType: 'prompt') и сообщает,
+ * что готова новая версия фронтенда. Молчаливого skipWaiting нет: новая версия
+ * применяется только по явному `applyUpdate()` (кнопка «Обновить» в тосте).
+ * Раз в 30 минут вызывает registration.update(). Вызывать один раз — из AppUpdateBanner.
  */
-export function useAppUpdate(): boolean {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+export function useAppUpdate() {
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegisteredSW: (_swUrl, registration) => {
+      if (!registration || updateTimer) return;
+      updateTimer = setInterval(() => {
+        if (navigator.onLine === false) return;
+        registration.update().catch(() => {
+          /* нет сети / сервер недоступен — повторим на следующем тике */
+        });
+      }, SW_UPDATE_INTERVAL_MS);
+    },
+  });
 
-  useEffect(() => {
-    let stopped = false;
-    let timer: ReturnType<typeof setInterval> | undefined;
+  /** Активирует ожидающий SW и перезагружает страницу. */
+  const applyUpdate = () => updateServiceWorker(true);
 
-    const stop = () => {
-      stopped = true;
-      if (timer) clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', check);
-    };
-
-    const check = async () => {
-      if (stopped) return;
-      const remote = await fetchBuildId();
-      // Сетевые ошибки / битый JSON → null, флаг не поднимаем (транзиент).
-      if (remote && remote !== __BUILD_ID__) {
-        setUpdateAvailable(true);
-        stop();
-      }
-    };
-
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') check();
-    };
-
-    check();
-    timer = setInterval(check, POLL_MS);
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', check);
-
-    return stop;
-  }, []);
-
-  return updateAvailable;
+  return { updateAvailable: needRefresh, applyUpdate };
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { theme } from '../../styles/theme';
 import { listDocumentRecords, reprocessDocument } from '../../api/documents';
 import { listMeetingDocuments, attachMeetingDocument, patchMeetingDocument, detachMeetingDocument } from '../../api/meetingDocuments';
 import { apiErrorMessage } from '../../lib/apiError';
@@ -9,6 +8,7 @@ import { documentToContextSourceViewModel, type ContextSourceSectionSummary } fr
 import { useDocumentUploadQueue } from '../../hooks/useDocumentUploadQueue';
 import { DocumentUploadQueue } from './DocumentUploadQueue';
 import { Select } from '../common';
+import styles from './MeetingDocuments.module.css';
 
 interface Props {
   meetingId: number | null;
@@ -53,6 +53,7 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
     }
   }, [meetingId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- setState внутри load только после await (асинхронно)
   useEffect(() => { load(); }, [load]);
 
   // Если ensureMeetingId не передан — fallback: вернуть текущий meetingId либо null.
@@ -71,7 +72,7 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
 
   // Сводка для корзины контекста. Колбэк в ref → effect зависит только от docs.
   const onSummaryChangeRef = useRef(onSummaryChange);
-  onSummaryChangeRef.current = onSummaryChange;
+  useEffect(() => { onSummaryChangeRef.current = onSummaryChange; });
   useEffect(() => {
     if (!onSummaryChangeRef.current) return;
     onSummaryChangeRef.current({
@@ -85,7 +86,7 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
 
   // Активность загрузки → корзине (для чипа «Загрузка: N»).
   const onUploadActivityChangeRef = useRef(onUploadActivityChange);
-  onUploadActivityChangeRef.current = onUploadActivityChange;
+  useEffect(() => { onUploadActivityChangeRef.current = onUploadActivityChange; });
   useEffect(() => { onUploadActivityChangeRef.current?.(queue.activeCount); }, [queue.activeCount]);
 
   // поллинг, пока есть документы в обработке. Скан, ждущий агента распознавания, опрашиваем
@@ -101,7 +102,7 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
 
   // существующие документы по объекту (для «выбрать существующий»)
   useEffect(() => {
-    if (objectId == null) { setExisting([]); return; }
+    if (objectId == null) return;
     listDocumentRecords({ object_id: objectId }).then(setExisting).catch(() => setExisting([]));
   }, [objectId, docs]);
 
@@ -162,22 +163,22 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
   }
 
   const attachedIds = new Set(docs.map((d) => d.document_id));
-  const available = existing.filter((d) => !attachedIds.has(d.id) && d.status === 'ready');
+  const available = (objectId == null ? [] : existing).filter((d) => !attachedIds.has(d.id) && d.status === 'ready');
 
   return (
-    <div style={styles.card}>
-      <div style={styles.header}>
-        <span style={styles.dot} />
-        <span style={styles.title}>Документы встречи</span>
-        <span style={{ flex: 1 }} />
-        <button style={styles.refreshBtn} onClick={load} disabled={meetingId == null}>↻</button>
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <span className={styles.dot} />
+        <span className={styles.title}>Документы встречи</span>
+        <span className={styles.spacer} />
+        <button className={styles.refreshBtn} onClick={load} disabled={meetingId == null}>↻</button>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
 
       {/* Загрузка: кнопка + drag-and-drop */}
       <div
-        style={{ ...styles.dropZone, ...(dragOver ? styles.dropZoneActive : {}) }}
+        className={`${styles.dropZone} ${dragOver ? styles.dropZoneActive : ''}`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
@@ -187,25 +188,25 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
           type="file"
           multiple
           accept=".pdf,.docx,.xlsx,.txt,.md,.csv"
-          style={{ display: 'none' }}
+          className={styles.hidden}
           onChange={(e) => {
             const f = e.target.files;
             if (f && f.length) { setError(''); queue.addFiles(Array.from(f)); }
             if (fileRef.current) fileRef.current.value = '';
           }}
         />
-        <div style={styles.dropText}>
+        <div className={styles.dropText}>
           {queue.hasActiveUploads
             ? 'Файлы загружаются — можно продолжать настройку встречи'
             : dragOver
               ? 'Отпустите файлы, чтобы добавить в контекст'
               : 'Перетащите файлы сюда или загрузите кнопкой'}
         </div>
-        <div style={styles.uploadRow}>
-          <button style={styles.uploadBtn} onClick={() => fileRef.current?.click()}>
+        <div className={styles.uploadRow}>
+          <button className={styles.uploadBtn} onClick={() => fileRef.current?.click()}>
             + Загрузить документ
           </button>
-          <span style={styles.hint}>PDF, DOCX, XLSX, TXT, MD, CSV</span>
+          <span className={styles.hint}>PDF, DOCX, XLSX, TXT, MD, CSV</span>
         </div>
       </div>
 
@@ -220,23 +221,23 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
 
       {/* Выбрать существующий */}
       {available.length > 0 && (
-        <div style={styles.pickRow}>
+        <div className={styles.pickRow}>
           <Select
-            style={styles.select}
-            wrapperStyle={{ flex: 1, minWidth: 0 }}
+            className={styles.selectWrap}
+            triggerClassName={styles.select}
             ariaLabel="Существующий документ"
             value={String(pickId)}
             onChange={(v) => setPickId(v === '' ? '' : Number(v))}
             options={[{ value: '', label: '— выбрать существующий —' },
               ...available.map((d) => ({ value: String(d.id), label: d.original_name }))]}
           />
-          <button style={styles.attachBtn} onClick={attachExisting} disabled={pickId === ''}>Прикрепить</button>
+          <button className={styles.attachBtn} onClick={attachExisting} disabled={pickId === ''}>Прикрепить</button>
         </div>
       )}
 
       {/* Список */}
-      {docs.length === 0 && <div style={styles.empty}>Документы не прикреплены</div>}
-      <div style={styles.list}>
+      {docs.length === 0 && <div className={styles.empty}>Документы не прикреплены</div>}
+      <div className={styles.list}>
         {docs.map((d) => (
           <ContextSourceCard
             key={d.id}
@@ -251,30 +252,3 @@ export function MeetingDocuments({ meetingId, customerId, objectId, ensureMeetin
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  card: { background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 },
-  header: { display: 'flex', alignItems: 'center', gap: 8 },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  title: { fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary },
-  refreshBtn: { width: 28, height: 24, background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.secondary, cursor: 'pointer', fontSize: 13 },
-  dropZone: {
-    display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center',
-    padding: '18px 16px', borderRadius: 10,
-    border: `1.5px dashed ${theme.border.default}`, background: theme.bg.tertiary,
-    transition: 'border-color 0.18s, background 0.18s', textAlign: 'center' as const,
-  },
-  dropZoneActive: {
-    borderColor: theme.accent.amber, background: theme.accent.amberGlow,
-  },
-  dropText: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, letterSpacing: '0.04em' },
-  uploadRow: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' as const, justifyContent: 'center' },
-  uploadBtn: { padding: '10px 16px', background: theme.accent.amber, border: 'none', borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: theme.font.body },
-  hint: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
-  pickRow: { display: 'flex', gap: 8 },
-  select: { flex: 1, padding: '9px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none' },
-  attachBtn: { padding: '9px 14px', background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
-  empty: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
-  list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
-};

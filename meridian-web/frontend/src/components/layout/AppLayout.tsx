@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
-import { theme } from '../../styles/theme';
 import { Header } from './Header';
-import { AppUpdateBanner } from '../AppUpdateBanner';
-import { useAppUpdate } from '../../hooks/useAppUpdate';
+import styles from './AppLayout.module.css';
 
 interface Props {
   children: ReactNode;
@@ -32,29 +30,10 @@ interface Props {
 }
 
 export function AppLayout({ children, userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowLetters, showLetters, onShowFiles, showFiles, onShowDesktop, showDesktop, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting, inObjectDetail }: Props) {
-  const updateAvailable = useAppUpdate();
   return (
-    <div style={styles.container}>
+    <div className={styles.container}>
       <Header userName={userName} onLogout={onLogout} onShowBatch={onShowBatch} showBatch={showBatch} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} onShowLetters={onShowLetters} showLetters={showLetters} onShowFiles={onShowFiles} showFiles={showFiles} onShowDesktop={onShowDesktop} showDesktop={showDesktop} onShowAISettings={onShowAISettings} showAISettings={showAISettings} onShowObjects={onShowObjects} showObjects={showObjects} onShowSettings={onShowSettings} showSettings={showSettings} canSwitchRole={canSwitchRole} viewAsUser={viewAsUser} onToggleViewAs={onToggleViewAs} inMeeting={inMeeting} inObjectDetail={inObjectDetail} />
-      <AppUpdateBanner updateAvailable={updateAvailable} />
-      <main style={styles.main}>{children}</main>
+      <main className={styles.main}>{children}</main>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    background: theme.bg.primary,
-    color: theme.text.primary,
-    fontFamily: theme.font.body,
-  },
-  main: {
-    flex: 1,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-};

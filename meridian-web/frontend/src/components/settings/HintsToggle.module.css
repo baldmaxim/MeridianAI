@@ -1,0 +1,31 @@
+.toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  transition: background-color 0.2s;
+}
+
+.toggleOn {
+  justify-content: flex-end;
+  background: var(--accent-amber);
+}
+
+.toggleKnob {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--on-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle {
+    transition: none;
+  }
+}

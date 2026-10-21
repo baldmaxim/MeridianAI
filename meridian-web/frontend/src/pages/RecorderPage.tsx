@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { theme } from '../styles/theme';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -7,6 +6,8 @@ import { useMeetingStore } from '../store/meetingStore';
 import { getMobileMeeting } from '../api/mobile';
 import { navigate } from '../lib/navigation';
 import type { MobileMeetingDetail } from '../types';
+import styles from './RecorderPage.module.css';
+import { cx } from '../utils/cx';
 
 interface Props {
   meetingId: number;
@@ -50,7 +51,7 @@ export function RecorderPage({ meetingId }: Props) {
 
   // подключение к комнате как phone
   useEffect(() => {
-    getMobileMeeting(meetingId).then(setMeeting).catch(() => {});
+    getMobileMeeting(meetingId).then(setMeeting).catch(() => { /* заголовок встречи необязателен — запись работает и без него */ });
     useMeetingStore.getState().setCurrentMeetingId(meetingId);
     connect({ meetingId, deviceRole: 'phone' });
     return () => {
@@ -126,13 +127,13 @@ export function RecorderPage({ meetingId }: Props) {
     }
   };
 
-  let status = 'Подключение…';
-  let statusColor: string = theme.text.muted;
-  if (recordPermissionDenied) { status = 'Нет прав на запись'; statusColor = theme.accent.red; }
-  else if (!isConnected) { status = 'Нет соединения'; statusColor = theme.accent.red; }
-  else if (isActiveSource && recording) { status = 'Идёт запись'; statusColor = theme.accent.green; }
-  else if (activeAudioSource && !isActiveSource) { status = 'Источник аудио занят'; statusColor = theme.accent.amber; }
-  else { status = 'Подключено'; statusColor = theme.accent.green; }
+  let status: string;
+  let statusTone: string;
+  if (recordPermissionDenied) { status = 'Нет прав на запись'; statusTone = styles.statusRed; }
+  else if (!isConnected) { status = 'Нет соединения'; statusTone = styles.statusRed; }
+  else if (isActiveSource && recording) { status = 'Идёт запись'; statusTone = styles.statusGreen; }
+  else if (activeAudioSource && !isActiveSource) { status = 'Источник аудио занят'; statusTone = styles.statusAmber; }
+  else { status = 'Подключено'; statusTone = styles.statusGreen; }
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
   const ss = String(seconds % 60).padStart(2, '0');
@@ -140,55 +141,55 @@ export function RecorderPage({ meetingId }: Props) {
 
   if (closed) {
     return (
-      <div style={styles.root}>
-        <div style={{ ...styles.body, justifyContent: 'center', textAlign: 'center' }}>
-          <div style={styles.title}>Встреча удалена</div>
-          <div style={styles.permNote}>Эта встреча была удалена. Запись недоступна.</div>
-          <button style={styles.btnStart} onClick={() => navigate('/mobile/meetings')}>К списку встреч</button>
+      <div className={styles.root}>
+        <div className={cx(styles.body, styles.bodyCentered)}>
+          <div className={styles.title}>Встреча удалена</div>
+          <div className={styles.permNote}>Эта встреча была удалена. Запись недоступна.</div>
+          <button className={styles.btnStart} onClick={() => navigate('/mobile/meetings')}>К списку встреч</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.root}>
-      <header style={styles.header}>
-        <button style={styles.back} onClick={() => navigate(`/mobile/meetings/${meetingId}`)}>‹ Назад к встрече</button>
+    <div className={styles.root}>
+      <header className={styles.header}>
+        <button className={styles.back} onClick={() => navigate(`/mobile/meetings/${meetingId}`)}>‹ Назад к встрече</button>
       </header>
 
-      <div style={styles.body}>
-        <div style={styles.title}>{meeting?.title || meeting?.meeting_topic || `Встреча #${meetingId}`}</div>
-        <div style={styles.meta}>
+      <div className={styles.body}>
+        <div className={styles.title}>{meeting?.title || meeting?.meeting_topic || `Встреча #${meetingId}`}</div>
+        <div className={styles.meta}>
           {meeting?.customer_name && <span>🏢 {meeting.customer_name}</span>}
           {meeting?.object_name && <span>📍 {meeting.object_name}</span>}
         </div>
 
-        <div style={{ ...styles.status, color: statusColor }}>
-          <span style={{ ...styles.statusDot, background: statusColor }} />
+        <div className={cx(styles.status, statusTone)}>
+          <span className={styles.statusDot} />
           {status}
         </div>
 
         {/* Уровень звука */}
-        <div style={styles.levelTrack}>
-          <div style={{ ...styles.levelFill, width: `${Math.round(level * 100)}%` }} />
+        <div className={styles.levelTrack}>
+          <div className={styles.levelFill} style={{ transform: `scaleX(${Math.round(level * 100) / 100})` }} />
         </div>
 
         {/* Таймер */}
-        <div style={styles.timer}>{mm}:{ss}</div>
+        <div className={styles.timer}>{mm}:{ss}</div>
 
         {/* Большая кнопка */}
         {!canSendAudio ? (
           <>
-            <button style={styles.btnDisabled} disabled>🎙 Запись недоступна</button>
-            <div style={styles.permNote}>
+            <button className={styles.btnDisabled} disabled>🎙 Запись недоступна</button>
+            <div className={styles.permNote}>
               У вас есть доступ к просмотру встречи, но нет права запускать запись.
             </div>
           </>
         ) : isActiveSource && recording ? (
-          <button style={styles.btnStop} onClick={handleStop}>■ Остановить запись</button>
+          <button className={styles.btnStop} onClick={handleStop}>■ Остановить запись</button>
         ) : (
           <button
-            style={activeAudioSource ? styles.btnDisabled : styles.btnStart}
+            className={cx(activeAudioSource ? styles.btnDisabled : styles.btnStart)}
             onClick={handleStart}
             disabled={!isConnected || (!!activeAudioSource && !isActiveSource)}
           >
@@ -197,27 +198,27 @@ export function RecorderPage({ meetingId }: Props) {
         )}
 
         {paused && (
-          <div style={styles.pausedBanner} role="alert">
+          <div className={styles.pausedBanner} role="alert">
             <span>Запись приостановлена — экран был заблокирован.</span>
-            <button style={styles.resumeBtn} onClick={handleResume}>Продолжить запись</button>
+            <button className={styles.resumeBtn} onClick={handleResume}>Продолжить запись</button>
           </div>
         )}
 
         {isActiveSource && recording && !paused && (
-          <div style={styles.recHint}>
+          <div className={styles.recHint}>
             Не блокируйте экран. На iPhone запись в фоне при выключенном экране невозможна.
           </div>
         )}
 
-        {lastError && <div style={styles.err}>{lastError}</div>}
+        {lastError && <div className={styles.err}>{lastError}</div>}
 
         {/* Последние строки транскрипции */}
         {lastLines.length > 0 && (
-          <div style={styles.transcript}>
-            <div style={styles.transcriptLabel}>ТРАНСКРИПЦИЯ</div>
+          <div className={styles.transcript}>
+            <div className={styles.transcriptLabel}>ТРАНСКРИПЦИЯ</div>
             {lastLines.map((l) => (
-              <div key={l.id} style={styles.line}>
-                <span style={styles.speaker}>{l.speaker}:</span> {l.text}
+              <div key={l.id} className={styles.line}>
+                <span className={styles.speaker}>{l.speaker}:</span> {l.text}
               </div>
             ))}
           </div>
@@ -226,29 +227,3 @@ export function RecorderPage({ meetingId }: Props) {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', height: '100vh', background: theme.bg.primary, color: theme.text.primary, fontFamily: theme.font.body },
-  header: { height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: `1px solid ${theme.border.default}`, background: theme.bg.secondary },
-  back: { background: 'transparent', border: 'none', color: theme.accent.amber, cursor: 'pointer', fontSize: 13, fontFamily: theme.font.mono },
-  body: { flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '24px 18px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' as const },
-  title: { fontFamily: theme.font.heading, fontWeight: 800, fontSize: 20, textAlign: 'center' as const },
-  meta: { display: 'flex', gap: 12, flexWrap: 'wrap' as const, justifyContent: 'center', fontFamily: theme.font.mono, fontSize: 12, color: theme.text.secondary },
-  status: { display: 'flex', alignItems: 'center', gap: 8, fontFamily: theme.font.mono, fontSize: 13, marginTop: 4 },
-  statusDot: { width: 8, height: 8, borderRadius: '50%' },
-  levelTrack: { width: '100%', height: 8, background: theme.bg.tertiary, borderRadius: 6, overflow: 'hidden', border: `1px solid ${theme.border.default}` },
-  levelFill: { height: '100%', background: theme.accent.green, transition: 'width 0.08s linear' },
-  timer: { fontFamily: theme.font.body, fontSize: 40, fontWeight: 700, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums', color: theme.text.primary },
-  btnStart: { width: '100%', maxWidth: 320, padding: '20px', background: theme.accent.amber, border: 'none', borderRadius: 16, color: '#080A0F', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
-  btnStop: { width: '100%', maxWidth: 320, padding: '20px', background: theme.accent.red, border: 'none', borderRadius: 16, color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
-  btnDisabled: { width: '100%', maxWidth: 320, padding: '20px', background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 16, color: theme.text.muted, fontSize: 16, fontWeight: 600, cursor: 'not-allowed', fontFamily: theme.font.body },
-  permNote: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted, textAlign: 'center' as const, lineHeight: 1.5, maxWidth: 320 },
-  recHint: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, textAlign: 'center' as const, lineHeight: 1.5, maxWidth: 320 },
-  pausedBanner: { width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12, border: `1px solid ${theme.accent.amber}`, background: 'rgba(245,166,35,0.12)', color: theme.text.primary, fontFamily: theme.font.mono, fontSize: 12, textAlign: 'center' as const },
-  resumeBtn: { padding: '12px 20px', borderRadius: 10, border: 'none', background: theme.accent.amber, color: '#080A0F', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body },
-  err: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 12, textAlign: 'center' as const },
-  transcript: { width: '100%', background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 },
-  transcriptLabel: { fontFamily: theme.font.mono, fontSize: 10, letterSpacing: '0.12em', color: theme.accent.amber },
-  line: { fontSize: 13, color: theme.text.secondary, lineHeight: 1.5 },
-  speaker: { color: theme.accent.amber, fontFamily: theme.font.mono, fontSize: 11 },
-};

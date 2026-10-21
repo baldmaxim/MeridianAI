@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,7 +55,7 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     settings = UserSettings(user_id=user.id)
     db.add(settings)
 
-    token = create_access_token(user.id, user.role)
+    token = create_access_token(user.id, user.role, user.token_version)
     await audit(
         "user_registered",
         actor_user_id=user.id,
@@ -98,9 +98,21 @@ async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends
             detail="Account is deactivated",
         )
 
-    token = create_access_token(user.id, user.role)
+    token = create_access_token(user.id, user.role, user.token_version)
     await audit("login_success", actor_user_id=user.id, ip=ip)
     return TokenResponse(access_token=token)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Завершить все сессии: инвалидирует все выданные access-токены пользователя."""
+    user.token_version += 1
+    await audit("logout_all", actor_user_id=user.id, ip=client_ip(request))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=UserResponse)

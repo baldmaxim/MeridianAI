@@ -1,6 +1,7 @@
 import type { BatchJob } from '../../api/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
-import { theme } from '../../styles/theme';
+import styles from './BatchJobList.module.css';
+import { cx } from '../../utils/cx';
 
 interface Props {
   jobs: BatchJob[];
@@ -28,67 +29,32 @@ function formatDate(iso: string): string {
 export function BatchJobList({ jobs, selectedId, onSelect, onDelete }: Props) {
   if (jobs.length === 0) {
     return (
-      <div
-        style={{
-          textAlign: 'center',
-          padding: '40px 20px',
-          color: theme.text.muted,
-          fontFamily: theme.font.body,
-          fontSize: 13,
-        }}
-      >
+      <div className={styles.empty}>
         Нет задач. Загрузите аудиофайл выше.
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div className={styles.list}>
       {jobs.map((job) => (
         <div
           key={job.id}
           onClick={() => onSelect(job.id)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '10px 14px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            background: selectedId === job.id ? theme.bg.elevated : theme.bg.card,
-            border: `1px solid ${selectedId === job.id ? theme.border.amber : theme.border.default}`,
-            transition: 'all 0.15s',
-          }}
+          className={cx(styles.item, selectedId === job.id && styles.itemSelected)}
         >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily: theme.font.body,
-                fontSize: 12,
-                fontWeight: 500,
-                color: theme.text.primary,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
+          <div className={styles.info}>
+            <div className={styles.fileName}>
               {job.original_filename}
             </div>
-            <div
-              style={{
-                fontFamily: theme.font.mono,
-                fontSize: 10,
-                color: theme.text.muted,
-                marginTop: 2,
-              }}
-            >
+            <div className={styles.fileMeta}>
               {formatSize(job.original_size)}
               {job.compressed_size != null && (
-                <span style={{ color: theme.accent.green }}>
+                <span className={styles.compressed}>
                   {' '}{'\u2192'} {formatSize(job.compressed_size)}
                 </span>
               )}
-              <span style={{ marginLeft: 8 }}>{formatDate(job.created_at)}</span>
+              <span className={styles.date}>{formatDate(job.created_at)}</span>
             </div>
           </div>
           <BatchStatusBadge status={job.status} />
@@ -97,16 +63,7 @@ export function BatchJobList({ jobs, selectedId, onSelect, onDelete }: Props) {
               e.stopPropagation();
               onDelete(job.id);
             }}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: theme.text.muted,
-              cursor: 'pointer',
-              fontSize: 14,
-              padding: '2px 6px',
-              borderRadius: 4,
-              lineHeight: 1,
-            }}
+            className={styles.deleteBtn}
             title="Удалить"
           >
             {'\u2715'}

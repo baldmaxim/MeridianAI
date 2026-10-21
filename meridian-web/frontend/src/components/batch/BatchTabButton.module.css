@@ -1,0 +1,23 @@
+.tab {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.tabActive {
+  border-bottom-color: var(--accent-amber);
+  color: var(--accent-amber);
+}
+
+.tabDisabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.4;
+}

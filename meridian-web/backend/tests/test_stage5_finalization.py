@@ -5,9 +5,7 @@
 
 import json
 
-import pytest
 import pytest_asyncio
-from fastapi import HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -15,14 +13,13 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models.user import User
 from app.models.meeting import MeetingSession, TranscriptSegmentRecord
-from app.models.directory import MeetingParticipant
-from app.models.document import DocumentRecord, DocumentChunk
+from app.models.document import DocumentRecord
 from app.models.job import Job
 from app.models.protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from app.services import meeting_finalize as mf
 from app.api.history import (
     finalize_meeting_endpoint, get_finalization_status, get_meeting_protocol,
-    patch_meeting_protocol, retry_finalization, list_meetings,
+    patch_meeting_protocol, list_meetings,
 )
 from app.schemas.finalization import ProtocolPatch
 from app.api.mobile import mobile_meeting_detail

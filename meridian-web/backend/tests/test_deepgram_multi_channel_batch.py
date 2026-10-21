@@ -1,6 +1,5 @@
 """Тесты Deepgram multichannel batch adapter + pure parser (Этап 9.5)."""
 
-import math
 
 import httpx
 import pytest

@@ -8,7 +8,7 @@ import json
 import logging
 import re
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete
 
 from ..config import get_settings
 from ..database import async_session

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useOpenClose } from '../../hooks/useOpenClose';
-import { theme } from '../../styles/theme';
+import styles from './Modal.module.css';
 
 /**
  * Modal — modal open/close (transitions.dev 06).
@@ -33,12 +33,12 @@ export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop
   if (!m.mounted) return null;
 
   return (
-    <div style={styles.overlay} onClick={closeOnBackdrop ? onClose : undefined}>
+    <div className={styles.overlay} onClick={closeOnBackdrop ? onClose : undefined}>
       <div
-        className={`t-modal ${m.cls}`.trim()}
+        className={`t-modal ${m.cls} ${styles.modal}`.trim()}
         role="dialog"
         aria-modal="true"
-        style={{ ...styles.modal, maxWidth }}
+        style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -46,16 +46,3 @@ export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,10,15,0.7)',
-    backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', padding: 16,
-  },
-  modal: {
-    width: '100%', maxHeight: '90vh', overflow: 'auto',
-    background: theme.bg.elevated, border: `1px solid ${theme.border.default}`,
-    borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 14,
-  },
-};

@@ -1,0 +1,28 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.text {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotMuted { background: var(--text-muted); }
+.dotGreen { background: var(--accent-green); }
+.dotAmber { background: var(--accent-amber); }
+.dotRed { background: var(--accent-red); }
+
+.textGreen { color: var(--accent-green); }
+.textAmber { color: var(--accent-amber); }
+.textRed { color: var(--accent-red); }

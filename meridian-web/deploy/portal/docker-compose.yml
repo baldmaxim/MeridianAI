@@ -13,6 +13,7 @@ services:
   api:
     image: ${REGISTRY}/meridian-api:${TAG}
     env_file: [./meridian.env]
+    mem_limit: 512m   # замер на проде ~156 MiB; хост 1.9 GiB общий с соседями
     environment:
       # БД — только Yandex Managed PG; DATABASE_URL берётся из meridian.env
       DEV_MODE: "false"
@@ -41,6 +42,7 @@ services:
     env_file: [./meridian.env]
     environment:
       DEV_MODE: "false"
+    mem_limit: 384m   # замер на проде ~98 MiB
     command: ["python", "-m", "app.worker"]
     init: true
     networks: [internal]
@@ -51,6 +53,7 @@ services:
   migrate:
     image: ${REGISTRY}/meridian-api:${TAG}
     env_file: [./meridian.env]
+    mem_limit: 384m
     command: ["python", "-m", "alembic", "upgrade", "head"]
     networks: [internal]
     profiles: ["tools"]
@@ -60,6 +63,7 @@ services:
 
   frontend:
     image: ${REGISTRY}/meridian-frontend:${TAG}
+    mem_limit: 64m    # замер на проде ~3 MiB
     networks:
       infra_web:
         aliases: [meridian-frontend]

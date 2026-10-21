@@ -1,0 +1,16 @@
+/* Общие «тона» (цвет текста / заливки) по токенам темы для компонентов встречи. */
+
+.green { color: var(--accent-green); }
+.red { color: var(--accent-red); }
+.amber { color: var(--accent-amber); }
+.blue { color: var(--accent-blue); }
+.muted { color: var(--text-muted); }
+.secondary { color: var(--text-secondary); }
+.primary { color: var(--text); }
+
+.bgGreen { background: var(--accent-green); }
+.bgRed { background: var(--accent-red); }
+.bgAmber { background: var(--accent-amber); }
+.bgBlue { background: var(--accent-blue); }
+.bgMuted { background: var(--text-muted); }
+.bgSecondary { background: var(--text-secondary); }

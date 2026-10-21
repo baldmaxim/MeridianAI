@@ -6,8 +6,6 @@ Resolver/режимы/тогглы — чистые и на rollback-сесси�
 
 import json
 
-import pytest
-from fastapi import HTTPException
 
 from app.models.user import User
 from app.models.meeting import MeetingSession

@@ -10,7 +10,7 @@ import logging
 from sqlalchemy import select
 
 from ..database import async_session
-from ..auth.service import decode_token
+from ..auth.service import decode_token, token_version_matches
 from ..models.user import User
 from ..models.settings import UserSettings
 from ..models.role import NegotiationRole
@@ -41,7 +41,7 @@ async def authenticate_ws(token: str) -> User | None:
     async with async_session() as db:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
-        if user and user.is_active:
+        if user and user.is_active and token_version_matches(payload, user.token_version):
             return user
     return None
 

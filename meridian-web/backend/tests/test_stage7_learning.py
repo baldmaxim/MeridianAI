@@ -6,7 +6,7 @@ Job (sqlite + fake LLM): handle_learning_extract (порог/source_text/дуб�
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest_asyncio
 from sqlalchemy import select, func
@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models.user import User
 from app.models.meeting import MeetingSession, TranscriptSegmentRecord
-from app.models.directory import Customer, ProjectObject
+from app.models.directory import Customer
 from app.models.job import Job
 from app.models.knowledge import (
     LearningCandidate, GlossaryTerm, TriggerPhrase, NegotiationPlaybook,

@@ -1,4 +1,5 @@
-import { theme } from '../../styles/theme';
+import styles from './MarkdownView.module.css';
+import { cx } from '../../utils/cx';
 
 /** Инлайн-разметка: **жирный** и `код`. */
 function inline(text: string): React.ReactNode {
@@ -10,9 +11,9 @@ function inline(text: string): React.ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(text.slice(last, m.index));
     if (m[1] != null) {
-      nodes.push(<strong key={k++} style={{ color: theme.text.primary, fontWeight: 700 }}>{m[1]}</strong>);
+      nodes.push(<strong key={k++} className={styles.strong}>{m[1]}</strong>);
     } else {
-      nodes.push(<code key={k++} style={styles.code}>{m[2]}</code>);
+      nodes.push(<code key={k++} className={styles.code}>{m[2]}</code>);
     }
     last = re.lastIndex;
   }
@@ -44,14 +45,14 @@ export function MarkdownView({ md }: { md: string }) {
         i++;
       }
       blocks.push(
-        <div key={key++} style={styles.tableWrap}>
-          <table style={styles.table}>
+        <div key={key++} className={styles.tableWrap}>
+          <table className={styles.table}>
             <thead>
-              <tr>{header.map((h, j) => <th key={j} style={styles.th}>{inline(h)}</th>)}</tr>
+              <tr>{header.map((h, j) => <th key={j} className={styles.th}>{inline(h)}</th>)}</tr>
             </thead>
             <tbody>
               {rows.map((r, ri) => (
-                <tr key={ri}>{r.map((c, ci) => <td key={ci} style={styles.td}>{inline(c)}</td>)}</tr>
+                <tr key={ri}>{r.map((c, ci) => <td key={ci} className={styles.td}>{inline(c)}</td>)}</tr>
               ))}
             </tbody>
           </table>
@@ -64,7 +65,7 @@ export function MarkdownView({ md }: { md: string }) {
     const h = line.match(/^(#{1,4})\s+(.*)$/);
     if (h) {
       const lvl = h[1].length;
-      blocks.push(<div key={key++} style={lvl <= 2 ? styles.h2 : styles.h3}>{inline(h[2])}</div>);
+      blocks.push(<div key={key++} className={cx(lvl <= 2 ? styles.h2 : styles.h3)}>{inline(h[2])}</div>);
       i++;
       continue;
     }
@@ -77,8 +78,8 @@ export function MarkdownView({ md }: { md: string }) {
         i++;
       }
       blocks.push(
-        <ul key={key++} style={styles.ul}>
-          {items.map((it, ii) => <li key={ii} style={styles.li}>{inline(it)}</li>)}
+        <ul key={key++} className={styles.ul}>
+          {items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it)}</li>)}
         </ul>
       );
       continue;
@@ -96,85 +97,8 @@ export function MarkdownView({ md }: { md: string }) {
       para.push(lines[i]);
       i++;
     }
-    blocks.push(<p key={key++} style={styles.p}>{inline(para.join(' '))}</p>);
+    blocks.push(<p key={key++} className={styles.p}>{inline(para.join(' '))}</p>);
   }
 
-  return <div style={styles.doc}>{blocks}</div>;
+  return <div className={styles.doc}>{blocks}</div>;
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  doc: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    fontFamily: theme.font.body,
-    color: theme.text.primary,
-  },
-  h2: {
-    fontFamily: theme.font.heading,
-    fontSize: 15,
-    fontWeight: 800,
-    color: theme.accent.amber,
-    letterSpacing: '0.02em',
-    marginTop: 12,
-    paddingBottom: 4,
-    borderBottom: `1px solid ${theme.border.amber}`,
-  },
-  h3: {
-    fontFamily: theme.font.body,
-    fontSize: 13,
-    fontWeight: 700,
-    color: theme.text.primary,
-    marginTop: 8,
-  },
-  p: {
-    fontSize: 13,
-    lineHeight: 1.65,
-    color: theme.text.secondary,
-    margin: 0,
-  },
-  ul: {
-    margin: '2px 0',
-    paddingLeft: 18,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  li: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: theme.text.secondary,
-  },
-  tableWrap: {
-    overflowX: 'auto',
-    margin: '6px 0',
-  },
-  table: {
-    borderCollapse: 'collapse',
-    width: '100%',
-    fontSize: 12.5,
-  },
-  th: {
-    textAlign: 'left',
-    padding: '7px 10px',
-    background: theme.bg.elevated,
-    color: theme.text.primary,
-    fontWeight: 700,
-    border: `1px solid ${theme.border.default}`,
-    whiteSpace: 'nowrap',
-  },
-  td: {
-    padding: '7px 10px',
-    color: theme.text.secondary,
-    border: `1px solid ${theme.border.default}`,
-    verticalAlign: 'top',
-  },
-  code: {
-    fontFamily: theme.font.mono,
-    fontSize: 12,
-    background: theme.bg.tertiary,
-    padding: '1px 5px',
-    borderRadius: 4,
-    color: theme.accent.amber,
-  },
-};

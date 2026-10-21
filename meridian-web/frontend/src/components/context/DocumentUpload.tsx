@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { uploadDocument } from '../../api/documents';
 import { useMeetingStore } from '../../store/meetingStore';
-import { theme } from '../../styles/theme';
+import { isAxiosError } from 'axios';
 import { Select } from '../common';
+import styles from './DocumentUpload.module.css';
 
 const DOC_TYPES = [
   { value: 'contract', label: 'Контракт' },
@@ -27,8 +28,9 @@ export function DocumentUpload() {
       const doc = await uploadDocument(file, docType);
       addDocument(doc);
       if (fileRef.current) fileRef.current.value = '';
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка загрузки');
+    } catch (err) {
+      const detail = isAxiosError(err) ? err.response?.data?.detail : undefined;
+      setError(typeof detail === 'string' && detail ? detail : 'Ошибка загрузки');
     } finally {
       setUploading(false);
     }
@@ -48,110 +50,43 @@ export function DocumentUpload() {
   };
 
   return (
-    <div style={styles.container}>
+    <div className={styles.container}>
       {/* Drop zone */}
       <div
-        style={{
-          ...styles.dropZone,
-          borderColor: dragOver ? theme.accent.amber : 'rgba(255,255,255,0.08)',
-          background: dragOver ? 'rgba(245,166,35,0.04)' : theme.bg.tertiary,
-        }}
+        className={`${styles.dropZone} ${dragOver ? styles.dropZoneActive : ''}`}
         onClick={() => fileRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <div style={styles.dropIcon}>
+        <div className={styles.dropIcon}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect x="4" y="3" width="16" height="18" rx="2" stroke={theme.text.muted} strokeWidth="1.5"/>
-            <path d="M8 13h8M8 17h5" stroke={theme.text.muted} strokeWidth="1.5" strokeLinecap="round"/>
+            <rect x="4" y="3" width="16" height="18" rx="2" stroke="var(--text-muted)" strokeWidth="1.5"/>
+            <path d="M8 13h8M8 17h5" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </div>
         <div>
-          <div style={styles.dropTitle}>Перетащите файл или нажмите для выбора</div>
-          <div style={styles.dropSub}>PDF, MD — AI использует содержимое для анализа и подсказок</div>
+          <div className={styles.dropTitle}>Перетащите файл или нажмите для выбора</div>
+          <div className={styles.dropSub}>PDF, MD — AI использует содержимое для анализа и подсказок</div>
         </div>
       </div>
-      <input ref={fileRef} type="file" accept=".pdf,.md" style={{ display: 'none' }} onChange={handleUpload} />
+      <input ref={fileRef} type="file" accept=".pdf,.md" className={styles.hidden} onChange={handleUpload} />
 
       {/* Controls row */}
-      <div style={styles.controls}>
+      <div className={styles.controls}>
         <Select
           value={docType}
           onChange={setDocType}
           options={DOC_TYPES}
-          style={styles.select}
+          triggerClassName={styles.select}
           ariaLabel="Тип документа"
         />
-        <button onClick={() => fileRef.current?.click()} disabled={uploading} style={styles.uploadBtn}>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading} className={styles.uploadBtn}>
           {uploading ? 'Загрузка...' : '+ Загрузить'}
         </button>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', gap: 12 },
-  dropZone: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 14,
-    padding: '18px 20px',
-    border: '1px dashed rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    cursor: 'pointer',
-    transition: 'border-color 0.2s, background 0.2s',
-  },
-  dropIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    background: theme.bg.elevated,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  dropTitle: {
-    color: theme.text.primary,
-    fontSize: 13,
-    fontWeight: 500,
-    fontFamily: theme.font.body,
-  },
-  dropSub: {
-    color: theme.text.muted,
-    fontSize: 11,
-    fontFamily: theme.font.body,
-    marginTop: 2,
-  },
-  controls: {
-    display: 'flex',
-    gap: 8,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  select: {
-    padding: '8px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 12,
-    fontFamily: theme.font.body,
-  },
-  uploadBtn: {
-    padding: '8px 18px',
-    background: theme.accent.amber,
-    border: 'none',
-    borderRadius: 7,
-    color: '#080A0F',
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: theme.font.body,
-  },
-  error: { color: theme.accent.red, fontSize: 12 },
-};

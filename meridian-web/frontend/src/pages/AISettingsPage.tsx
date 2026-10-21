@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { theme } from '../styles/theme';
-import { Select, Combobox } from '../components/common';
+import { Select, Combobox, TextInput } from '../components/common';
 import { apiErrorMessage } from '../lib/apiError';
 import {
   useProfiles, useAiOptions, useCreateProfile, useUpdateProfile, useDeleteProfile, useMakeDefaultProfile,
 } from '../hooks/queries/aiSettings';
 import type { AISettingsProfile, AISettingsProfileInput, SuggestionMode } from '../types';
+import styles from './AISettingsPage.module.css';
+import { cx } from '../utils/cx';
 
 interface Props { onBack: () => void; }
 
@@ -116,69 +118,69 @@ export function AISettingsPage({ onBack }: Props) {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.topBar}>
-        <button onClick={onBack} style={styles.backBtn}>&larr; К переговорам</button>
-        <span style={styles.topTitle}>AI-ПРОФИЛИ</span>
-        <span style={{ flex: 1 }} />
-        <button onClick={startNew} style={styles.newBtn}>+ Новый профиль</button>
+    <div className={styles.container}>
+      <div className={styles.topBar}>
+        <button onClick={onBack} className={styles.backBtn}>&larr; К переговорам</button>
+        <span className={styles.topTitle}>AI-ПРОФИЛИ</span>
+        <span className={styles.spacer} />
+        <button onClick={startNew} className={styles.newBtn}>+ Новый профиль</button>
       </div>
 
-      {displayError && <div style={styles.error}>{displayError}</div>}
-      {info && <div style={styles.info}>{info}</div>}
+      {displayError && <div className={styles.error}>{displayError}</div>}
+      {info && <div className={styles.info}>{info}</div>}
 
-      <div style={styles.layout}>
+      <div className={styles.layout}>
         {/* список профилей */}
-        <div style={styles.listCol}>
+        <div className={styles.listCol}>
           {profiles.map((p) => (
-            <div key={p.id} style={selectedId === p.id ? styles.profCardActive : styles.profCard}
+            <div key={p.id} className={cx(selectedId === p.id ? styles.profCardActive : styles.profCard)}
                  onClick={() => selectProfile(p)}>
-              <div style={styles.profName}>
-                {p.name}{p.is_default && <span style={styles.defBadge}>по умолч.</span>}
+              <div className={styles.profName}>
+                {p.name}{p.is_default && <span className={styles.defBadge}>по умолч.</span>}
               </div>
-              <div style={styles.profMeta}>{p.suggestion_mode}</div>
-              <div style={styles.profActions}>
+              <div className={styles.profMeta}>{p.suggestion_mode}</div>
+              <div className={styles.profActions}>
                 {!p.is_default && (
-                  <button style={styles.smallBtn} disabled={busy}
+                  <button className={styles.smallBtn} disabled={busy}
                           onClick={(e) => { e.stopPropagation(); makeDefault(p.id); }}>Сделать default</button>
                 )}
                 {!p.is_default && (
-                  <button style={styles.smallDanger} disabled={busy}
+                  <button className={styles.smallDanger} disabled={busy}
                           onClick={(e) => { e.stopPropagation(); remove(p.id); }}>Удалить</button>
                 )}
               </div>
             </div>
           ))}
-          {profiles.length === 0 && <div style={styles.muted}>Профилей пока нет.</div>}
+          {profiles.length === 0 && <div className={styles.muted}>Профилей пока нет.</div>}
         </div>
 
         {/* редактор */}
         {selectedId != null ? (
-          <div style={styles.editCol}>
-            <label style={styles.lbl}>Название</label>
-            <input style={styles.input} value={draft.name || ''} onChange={(e) => set('name', e.target.value)} />
+          <div className={styles.editCol}>
+            <label className={styles.lbl}>Название</label>
+            <TextInput inputClassName={styles.input} value={draft.name || ''} onChange={(e) => set('name', e.target.value)} onClear={() => set('name', '')} clearLabel="название" />
 
-            <label style={styles.lbl}>Режим подсказок</label>
-            <div style={styles.modeRow}>
+            <label className={styles.lbl}>Режим подсказок</label>
+            <div className={styles.modeRow}>
               {MODES.map((m) => (
                 <button key={m.key} title={m.hint}
-                        style={draft.suggestion_mode === m.key ? styles.modeOn : styles.modeOff}
+                        className={cx(draft.suggestion_mode === m.key ? styles.modeOn : styles.modeOff)}
                         onClick={() => set('suggestion_mode', m.key)}>{m.label}</button>
               ))}
             </div>
 
-            <div style={styles.grid2}>
+            <div className={styles.grid2}>
               <div>
-                <label style={styles.lbl}>STT-провайдер</label>
-                <Select style={styles.input} value={draft.stt_provider || ''}
+                <label className={styles.lbl}>STT-провайдер</label>
+                <Select style={fieldStyle} value={draft.stt_provider || ''}
                         ariaLabel="STT-провайдер"
                         onChange={(v) => set('stt_provider', v || null)}
                         options={[{ value: '', label: 'по умолчанию' },
                           ...(options?.available_stt_providers || []).map((p) => ({ value: p, label: p }))]} />
               </div>
               <div>
-                <label style={styles.lbl}>LLM-провайдер</label>
-                <Select style={styles.input} value={draft.llm_provider || ''}
+                <label className={styles.lbl}>LLM-провайдер</label>
+                <Select style={fieldStyle} value={draft.llm_provider || ''}
                         ariaLabel="LLM-провайдер"
                         onChange={(v) => set('llm_provider', v || null)}
                         options={[{ value: '', label: 'по умолчанию' },
@@ -188,8 +190,8 @@ export function AISettingsPage({ onBack }: Props) {
 
             {MODEL_FIELDS.map((f) => (
               <div key={f.key}>
-                <label style={styles.lbl}>{f.label}</label>
-                <Combobox style={styles.input}
+                <label className={styles.lbl}>{f.label}</label>
+                <Combobox style={fieldStyle}
                           value={(draft[f.key] as string) || ''}
                           placeholder="по умолчанию (из config)"
                           options={options?.available_llm_models || []}
@@ -197,10 +199,10 @@ export function AISettingsPage({ onBack }: Props) {
               </div>
             ))}
 
-            <label style={styles.lbl}>Возможности</label>
-            <div style={styles.toggles}>
+            <label className={styles.lbl}>Возможности</label>
+            <div className={styles.toggles}>
               {TOGGLES.map((t) => (
-                <label key={t.key} style={styles.toggle}>
+                <label key={t.key} className={styles.toggle}>
                   <input type="checkbox" checked={!!draft[t.key as keyof AISettingsProfileInput]}
                          onChange={(e) => set(t.key as keyof AISettingsProfileInput, e.target.checked as never)} />
                   {t.label}
@@ -208,32 +210,34 @@ export function AISettingsPage({ onBack }: Props) {
               ))}
             </div>
 
-            <button style={styles.advToggle} onClick={() => setAdvanced((v) => !v)}>
+            <button className={styles.advToggle} onClick={() => setAdvanced((v) => !v)}>
               {advanced ? '▾ Скрыть расширенные' : '▸ Расширенные лимиты'}
             </button>
             {advanced && (
-              <div style={styles.grid2}>
+              <div className={styles.grid2}>
                 {LIMIT_FIELDS.map((f) => (
                   <div key={f.key}>
-                    <label style={styles.lbl}>{f.label}</label>
-                    <input type="number" style={styles.input}
+                    <label className={styles.lbl}>{f.label}</label>
+                    <TextInput type="number" inputClassName={styles.input}
                            value={(draft[f.key] as number | null) ?? ''}
                            onChange={(e) => set(f.key as keyof AISettingsProfileInput,
-                             (e.target.value === '' ? null : Number(e.target.value)) as never)} />
+                             (e.target.value === '' ? null : Number(e.target.value)) as never)}
+                           onClear={() => set(f.key as keyof AISettingsProfileInput, null as never)}
+                           clearLabel={f.label} />
                   </div>
                 ))}
               </div>
             )}
 
-            <div style={styles.saveRow}>
-              <button style={styles.saveBtn} disabled={busy} onClick={save}>
+            <div className={styles.saveRow}>
+              <button className={styles.saveBtn} disabled={busy} onClick={save}>
                 {selectedId === 'new' ? 'Создать профиль' : 'Сохранить'}
               </button>
             </div>
           </div>
         ) : (
-          <div style={styles.editCol}>
-            <div style={styles.muted}>Выберите профиль слева или создайте новый.</div>
+          <div className={styles.editCol}>
+            <div className={styles.muted}>Выберите профиль слева или создайте новый.</div>
           </div>
         )}
       </div>
@@ -241,35 +245,16 @@ export function AISettingsPage({ onBack }: Props) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'auto', flex: 1 },
-  topBar: { display: 'flex', alignItems: 'center', gap: 16, paddingBottom: 14, borderBottom: `1px solid ${theme.border.default}` },
-  backBtn: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: 'transparent', border: `1px solid ${theme.accent.amber}`, borderRadius: 6, color: theme.accent.amber, cursor: 'pointer', fontSize: 12, fontFamily: theme.font.mono, flexShrink: 0 },
-  topTitle: { fontFamily: theme.font.mono, fontSize: 11, letterSpacing: '0.16em', color: theme.text.secondary },
-  newBtn: { padding: '6px 14px', background: theme.accent.amberGlow, border: `1px solid ${theme.accent.amber}`, borderRadius: 6, color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
-  layout: { display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' as const },
-  listCol: { display: 'flex', flexDirection: 'column', gap: 8, width: 240, flexShrink: 0 },
-  editCol: { display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 320, maxWidth: 640, background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 18 },
-  profCard: { padding: 12, background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 9, cursor: 'pointer' },
-  profCardActive: { padding: 12, background: theme.bg.elevated, border: `1px solid ${theme.accent.amber}`, borderRadius: 9, cursor: 'pointer' },
-  profName: { fontSize: 13, fontWeight: 600, color: theme.text.primary, display: 'flex', alignItems: 'center', gap: 6 },
-  defBadge: { fontSize: 8, fontFamily: theme.font.mono, color: theme.accent.green, border: `1px solid ${theme.accent.green}`, borderRadius: 8, padding: '1px 6px' },
-  profMeta: { fontSize: 10, fontFamily: theme.font.mono, color: theme.text.muted, marginTop: 3 },
-  profActions: { display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' as const },
-  smallBtn: { padding: '3px 8px', background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 5, color: theme.accent.amber, cursor: 'pointer', fontSize: 9, fontFamily: theme.font.mono },
-  smallDanger: { padding: '3px 8px', background: 'transparent', border: `1px solid ${theme.accent.red}`, borderRadius: 5, color: theme.accent.red, cursor: 'pointer', fontSize: 9, fontFamily: theme.font.mono },
-  lbl: { fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 8 },
-  input: { padding: '9px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none', width: '100%', boxSizing: 'border-box' as const },
-  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
-  modeRow: { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
-  modeOn: { padding: '8px 14px', background: theme.accent.amberGlow, border: `1px solid ${theme.accent.amber}`, borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 12, fontFamily: theme.font.mono },
-  modeOff: { padding: '8px 14px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 7, color: theme.text.secondary, cursor: 'pointer', fontSize: 12, fontFamily: theme.font.mono },
-  toggles: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
-  toggle: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.text.secondary, fontFamily: theme.font.body },
-  advToggle: { alignSelf: 'flex-start', marginTop: 10, padding: '4px 0', background: 'transparent', border: 'none', color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
-  saveRow: { display: 'flex', gap: 10, marginTop: 12 },
-  saveBtn: { padding: '10px 18px', background: theme.accent.amber, border: 'none', borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: theme.font.body },
-  muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
-  error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 12 },
-  info: { color: theme.accent.green, fontFamily: theme.font.mono, fontSize: 12 },
+/** Стиль <Select>/<Combobox>: компоненты принимают только style (не className). */
+const fieldStyle: React.CSSProperties = {
+  padding: '9px 12px',
+  background: theme.bg.input,
+  border: `1px solid ${theme.border.default}`,
+  borderRadius: 7,
+  color: theme.text.primary,
+  fontSize: 13,
+  fontFamily: theme.font.body,
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
 };

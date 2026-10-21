@@ -1,0 +1,13 @@
+[Unit]
+Description=Meridian: логический дамп Yandex Managed PostgreSQL
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/portals/meridian/meridian-web/deploy/backup/meridian-pg-backup.sh
+# дамп БД - не быстро, но и не бесконечно
+TimeoutStartSec=1h
+Nice=10
+IOSchedulingClass=idle

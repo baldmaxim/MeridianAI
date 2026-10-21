@@ -1,0 +1,44 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 32px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--bg-card);
+  border-radius: 14px;
+  max-width: 440px;
+  text-align: center;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.msg {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.btn {
+  padding: 10px 18px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: var(--on-accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}

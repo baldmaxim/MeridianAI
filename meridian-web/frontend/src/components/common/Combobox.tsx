@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { theme } from '../../styles/theme';
 import { Dropdown } from './Dropdown';
+import { TextInput } from './TextInput';
+import styles from './SelectShared.module.css';
 
 /**
  * Combobox — анимированная замена <input list> + <datalist> (transitions.dev 05).
@@ -20,11 +21,12 @@ interface Props {
   style?: React.CSSProperties;       // на input (передавать существующий s.input)
   wrapperStyle?: React.CSSProperties;
   className?: string;
+  inputClassName?: string;           // класс input (CSS Modules вместо style)
 }
 
 export function Combobox({
   value, onChange, options, placeholder, disabled,
-  style, wrapperStyle, className = '',
+  style, wrapperStyle, className = '', inputClassName,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -60,8 +62,8 @@ export function Combobox({
   }
 
   return (
-    <div style={{ position: 'relative', ...wrapperStyle }} className={className}>
-      <input
+    <div className={`${styles.wrap} ${className}`.trim()} style={wrapperStyle}>
+      <TextInput
         ref={inputRef}
         type="text"
         disabled={disabled}
@@ -70,17 +72,20 @@ export function Combobox({
         onMouseDown={(e) => e.stopPropagation()} /* клик по input не считается «вне» для Dropdown */
         onFocus={() => setOpen(true)}
         onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(-1); }}
+        onClear={() => { onChange(''); setOpen(true); setActive(-1); }}
+        clearLabel="значение"
         onKeyDown={onKeyDown}
-        style={{ width: '100%', boxSizing: 'border-box', ...style }}
+        inputClassName={inputClassName}
+        style={style}
       />
 
       <Dropdown
         open={shouldOpen}
         onClose={close}
         origin="top-left"
-        style={cbStyles.menu}
+        className={`${styles.menu} ${styles.menuCombobox}`}
       >
-        <div role="listbox" style={cbStyles.list}>
+        <div role="listbox" className={styles.list}>
           {filtered.map((o, i) => {
             const isSel = o === value;
             const isActive = i === active;
@@ -92,11 +97,7 @@ export function Combobox({
                 aria-selected={isSel}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => pick(o)}
-                style={{
-                  ...cbStyles.opt,
-                  background: isActive ? theme.bg.hover : 'transparent',
-                  color: isSel ? theme.accent.amber : theme.text.primary,
-                }}
+                className={`${styles.opt} ${isActive ? styles.optActive : ''} ${isSel ? styles.optSelected : ''}`}
               >
                 {o}
               </button>
@@ -107,19 +108,3 @@ export function Combobox({
     </div>
   );
 }
-
-const cbStyles: Record<string, React.CSSProperties> = {
-  menu: {
-    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-    maxHeight: 240, overflowY: 'auto',
-    background: theme.bg.elevated, border: `1px solid ${theme.border.default}`,
-    borderRadius: 8, boxShadow: '0 12px 32px rgba(0,0,0,0.45)', padding: 4,
-  },
-  list: { display: 'flex', flexDirection: 'column' },
-  opt: {
-    display: 'flex', alignItems: 'center', minHeight: 40, padding: '8px 12px',
-    border: 'none', borderRadius: 6, background: 'transparent', textAlign: 'left',
-    cursor: 'pointer', fontSize: 13, fontFamily: theme.font.body, lineHeight: 1.3,
-    transition: 'background 0.12s ease',
-  },
-};

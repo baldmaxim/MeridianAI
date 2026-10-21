@@ -1,0 +1,192 @@
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.errBox {
+  background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+  color: var(--accent-red);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.queue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agentRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.agentMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.agentName {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agentMeta {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-family: 'JetBrains Mono', monospace;
+  overflow-wrap: anywhere;
+}
+
+.revokeBtn {
+  min-height: 36px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--accent-red);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.enrollRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nameField {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.input {
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+
+.btn {
+  min-height: 40px;
+}
+
+.tokenBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-amber);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.tokenWarn {
+  color: var(--accent-amber);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tokenRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.token {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+}
+
+.copyBtn {
+  min-height: 36px;
+  padding: 6px 12px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--accent-amber);
+}
+
+.dotOnline {
+  background: var(--accent-green);
+}
+
+.dotOffline {
+  background: var(--text-muted);
+}
+
+.queueFailed {
+  color: var(--accent-red);
+}

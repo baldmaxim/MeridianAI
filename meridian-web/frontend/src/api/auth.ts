@@ -25,3 +25,8 @@ export async function getMe(): Promise<User> {
   const { data } = await api.get<User>('/auth/me');
   return data;
 }
+
+/** Завершить все сессии пользователя на сервере (все выданные токены становятся недействительными). */
+export async function logoutAll(): Promise<void> {
+  await api.post('/auth/logout-all');
+}

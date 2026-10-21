@@ -1,0 +1,246 @@
+/* Детали встречи. Адаптив (стопка панелей, мобильные вкладки) — глобальные .detail-* в index.css. */
+
+.container {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+
+.loadingError {
+  color: var(--accent-red);
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: transparent;
+  border: 1px solid var(--accent-amber);
+  border-radius: 6px;
+  color: var(--accent-amber);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.topTitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.continueBtn,
+.deleteBtn {
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+.continueBtn {
+  background: var(--accent-amber-glow);
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+.deleteBtn {
+  background: transparent;
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  font-weight: 500;
+}
+
+.confirmBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.confirmText {
+  color: var(--accent-red);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.confirmYes,
+.confirmNo {
+  padding: 4px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.confirmYes {
+  background: var(--danger);
+  border: none;
+  color: var(--on-danger);
+  font-weight: 600;
+}
+
+.confirmNo {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.titleRow {
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+/* Поле названия: крупный шрифт (специфичнее .input из TextInput) */
+.titleField input {
+  font-size: 22px;
+  font-weight: 700;
+  border-color: var(--border-focus);
+  border-radius: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.titleMeta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.knowledgeSection {
+  padding: 12px 16px;
+}
+
+/* Мобильные вкладки: показаны до 768px включительно (как .detail-mobile-tabs в index.css) */
+.mobileTabs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mobileTab {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px 0;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+
+.mobileTabActive {
+  background: var(--accent-amber-glow);
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+.panels {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.leftPanel {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.rightPanel {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  min-width: 280px;
+}
+
+.transcriptList {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.emptyPanel {
+  padding: 20px 16px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.suggestionList {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 769px) {
+  .mobileTabs {
+    display: none;
+  }
+}

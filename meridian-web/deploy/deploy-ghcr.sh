@@ -5,11 +5,18 @@
 #   ssh "$DEPLOY_SSH" 'OWNER=your-org TAG=<git-sha> bash ${REMOTE_DIR:-/opt/portals/app}/meridian-web/deploy/deploy-ghcr.sh'
 #
 #   OWNER=your-org TAG=<git-sha> bash deploy-ghcr.sh
+#   TAG обязателен: только неизменяемый sha-тег (полный git sha коммита, из которого собран CI-образ);
+#   пустой и `latest` отвергаются.
 #   (приватные пакеты: задать GHCR_USER + GHCR_TOKEN для docker login)
 set -euo pipefail
 
 OWNER="${OWNER:-your-org}"
-TAG="${TAG:-latest}"
+TAG="${TAG:-}"
+if [ -z "$TAG" ] || [ "$TAG" = "latest" ]; then
+  echo "ОШИБКА: TAG не задан или равен 'latest'. Нужен immutable sha-тег образа:" >&2
+  echo "  OWNER=<owner> TAG=<полный git sha> bash $0" >&2
+  exit 1
+fi
 REMOTE_DIR="${REMOTE_DIR:-/opt/portals/app}"
 INFRA_DIR="${INFRA_DIR:-/opt/infra/nginx}"
 DOMAIN="${DOMAIN:-app.example.com}"

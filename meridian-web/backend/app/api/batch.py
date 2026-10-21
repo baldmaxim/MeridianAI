@@ -37,6 +37,7 @@ from ..schemas.batch import (
 )
 from ..services.jobs import enqueue
 from ..services import s3
+from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..core.batch.utils import (
     format_transcription_txt, group_words_by_speaker, parse_translation_map,
 )
@@ -79,17 +80,16 @@ async def upload_batch_audio(
     safe_name = f"{uuid.uuid4().hex[:8]}_{Path(file.filename or 'audio').name}"
     file_path = upload_dir / safe_name
 
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(400, f"Файл слишком большой (макс. {MAX_FILE_SIZE // 1024 // 1024}MB)")
-    with open(file_path, "wb") as f:
-        f.write(content)
+    try:
+        size = await save_upload_limited(file, file_path, MAX_FILE_SIZE)
+    except UploadTooLargeError:
+        raise HTTPException(413, f"Файл слишком большой (макс. {MAX_FILE_SIZE // 1024 // 1024}MB)")
 
     job = BatchJob(
         user_id=user.id,
         status="uploaded",
         original_filename=file.filename or "unknown",
-        original_size=len(content),
+        original_size=size,
         file_path=str(file_path),
         kind=("gap_fill" if kind == "gap_fill" else None),
         meeting_id=meeting_id,

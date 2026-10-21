@@ -5,6 +5,7 @@ import './index.css'
 import './styles/transitions.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { AppUpdateBanner } from './components/AppUpdateBanner'
 import { queryClient } from './lib/queryClient'
 
 createRoot(document.getElementById('root')!).render(
@@ -12,6 +13,7 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <App />
+        <AppUpdateBanner />
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>,

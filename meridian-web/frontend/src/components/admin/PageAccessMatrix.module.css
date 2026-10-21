@@ -1,0 +1,91 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.error {
+  color: var(--accent-red);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 360px;
+}
+
+.th {
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  text-align: center;
+  border-bottom: 1px solid var(--border-default);
+  text-transform: uppercase;
+}
+
+.tdLabel {
+  padding: 10px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tdCheck {
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.muted {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+.thLeft {
+  text-align: left;
+}
+
+.checkbox {
+  accent-color: var(--accent-amber);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.checkboxLocked {
+  cursor: not-allowed;
+}

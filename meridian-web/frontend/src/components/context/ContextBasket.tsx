@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { theme } from '../../styles/theme';
 import { CollapsibleSection } from '../common/CollapsibleSection';
 import { MeetingDocuments } from './MeetingDocuments';
 import { PreviousMeetingsContext } from './PreviousMeetingsContext';
@@ -15,6 +14,7 @@ import {
 import { useRagContextFolders } from '../../hooks/useRagContextFolders';
 import { useMeetingLetters } from '../../hooks/useMeetingLetters';
 import type { RagContextAdapter } from './ragContextTypes';
+import styles from './ContextBasket.module.css';
 
 interface Props {
   meetingId: number | null;
@@ -57,23 +57,23 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
   const letterIncluded = letters.attached.filter((x) => x.included).length;
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.head}>
-        <div style={styles.titleRow}>
-          <span style={styles.dot} />
-          <span style={styles.title}>Что попадёт в подсказки</span>
-          <span style={{ flex: 1 }} />
-          <button type="button" style={styles.previewBtn} onClick={() => setPreviewOpen(true)}>
+    <div className={styles.wrap}>
+      <div className={styles.head}>
+        <div className={styles.titleRow}>
+          <span className={styles.dot} />
+          <span className={styles.title}>Что попадёт в подсказки</span>
+          <span className={styles.spacer} />
+          <button type="button" className={styles.previewBtn} onClick={() => setPreviewOpen(true)}>
             Предпросмотр контекста
           </button>
         </div>
-        <div style={styles.subtitle}>Добавьте документы, прошлые встречи или RAG-папки</div>
-        <div style={styles.chips}>
-          <span style={styles.chipItem}>{chip('Файлы', docSummary)}</span>
-          {uploadActive > 0 && <span style={styles.chipActive}>Загрузка: {uploadActive}</span>}
-          <span style={styles.chipItem}>{chip('Прошлые встречи', prevSummary)}</span>
-          <span style={styles.chipItem}>{ragChip}</span>
-          <span style={styles.chipItem}>{`Письма: ${letterIncluded}/${letterTotal}`}</span>
+        <div className={styles.subtitle}>Добавьте документы, прошлые встречи или RAG-папки</div>
+        <div className={styles.chips}>
+          <span className={styles.chipItem}>{chip('Файлы', docSummary)}</span>
+          {uploadActive > 0 && <span className={styles.chipActive}>Загрузка: {uploadActive}</span>}
+          <span className={styles.chipItem}>{chip('Прошлые встречи', prevSummary)}</span>
+          <span className={styles.chipItem}>{ragChip}</span>
+          <span className={styles.chipItem}>{`Письма: ${letterIncluded}/${letterTotal}`}</span>
         </div>
       </div>
 
@@ -97,14 +97,14 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
             onSummaryChange={setPrevSummary}
           />
         ) : (
-          <div style={styles.hint}>
+          <div className={styles.hint}>
             Выберите заказчика или объект — встреча подготовится, и можно будет добавить прошлые встречи.
           </div>
         )}
       </CollapsibleSection>
 
       <CollapsibleSection title="RAG-папки и письма">
-        <div style={styles.ragSection}>
+        <div className={styles.ragSection}>
           {rag.attachedFolders.length === 0 && letters.attached.length === 0 ? (
             <ContextSourceCard source={ragPlaceholder} />
           ) : (
@@ -129,12 +129,12 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
               ))}
             </>
           )}
-          <div style={styles.ragActions}>
-            <button type="button" style={styles.ragPickBtn} onClick={() => setRagPickerOpen(true)}>
+          <div className={styles.ragActions}>
+            <button type="button" className={styles.ragPickBtn} onClick={() => setRagPickerOpen(true)}>
               Выбрать папку или письмо
             </button>
-            {letters.error && <span style={styles.ragNote}>{letters.error}</span>}
-            {!rag.enabled && <span style={styles.ragNote}>Backend RAG ещё не подключён</span>}
+            {letters.error && <span className={styles.ragNote}>{letters.error}</span>}
+            {!rag.enabled && <span className={styles.ragNote}>Backend RAG ещё не подключён</span>}
           </div>
         </div>
       </CollapsibleSection>
@@ -167,40 +167,3 @@ export function ContextBasket({ meetingId, customerId, objectId, ensureMeetingId
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 14 },
-  head: { display: 'flex', flexDirection: 'column', gap: 6 },
-  titleRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  previewBtn: {
-    padding: '5px 12px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
-    borderRadius: 7, color: theme.accent.amber, cursor: 'pointer', fontSize: 10,
-    fontFamily: theme.font.mono, letterSpacing: '0.03em', flexShrink: 0,
-  },
-  dot: { width: 7, height: 7, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  title: {
-    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 13,
-    letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: theme.text.primary,
-  },
-  subtitle: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, letterSpacing: '0.03em' },
-  chips: { display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginTop: 2 },
-  chipItem: {
-    padding: '4px 10px', borderRadius: 20, background: theme.bg.tertiary,
-    border: `1px solid ${theme.border.default}`, fontFamily: theme.font.mono,
-    fontSize: 10, letterSpacing: '0.04em', color: theme.text.secondary, whiteSpace: 'nowrap' as const,
-  },
-  chipActive: {
-    padding: '4px 10px', borderRadius: 20, background: theme.accent.amberGlow,
-    border: `1px solid ${theme.border.amber}`, fontFamily: theme.font.mono,
-    fontSize: 10, letterSpacing: '0.04em', color: theme.accent.amber, whiteSpace: 'nowrap' as const,
-  },
-  hint: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted, letterSpacing: '0.04em' },
-  ragSection: { display: 'flex', flexDirection: 'column', gap: 10 },
-  ragActions: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const },
-  ragPickBtn: {
-    padding: '9px 16px', background: 'transparent', border: `1px solid ${theme.border.amber}`,
-    borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.body, fontWeight: 600,
-  },
-  ragNote: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, letterSpacing: '0.04em' },
-};

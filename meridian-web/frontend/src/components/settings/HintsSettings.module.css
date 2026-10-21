@@ -1,0 +1,119 @@
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.cardTitle {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+  flex: 1;
+}
+
+.countBadge {
+  padding: 3px 10px;
+  background: color-mix(in srgb, var(--accent-amber) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 25%, transparent);
+  border-radius: 5px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-amber);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.4;
+}
+
+.addBtn {
+  padding: 8px 14px;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-default);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  text-align: center;
+}
+
+.kwRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.input {
+  padding: 7px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.deleteBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.typeList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kwList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kwRowOff {
+  opacity: 0.5;
+}
+
+.keywordField {
+  flex: 1;
+  min-width: 80px;
+}
+
+.messageField {
+  flex: 2;
+  min-width: 0;
+}

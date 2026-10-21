@@ -1,5 +1,5 @@
-import { theme } from '../../styles/theme';
 import { useMeetingStore } from '../../store/meetingStore';
+import styles from './ModeSwitch.module.css';
 
 /**
  * Слайдер «Диктофон ⟷ Полный» — вид экрана встречи.
@@ -16,34 +16,13 @@ export function ModeSwitch() {
       type="button"
       onClick={() => setUiMode(simple ? 'full' : 'simple')}
       title={simple ? 'Переключить в полный интерфейс' : 'Переключить в режим диктофона'}
-      style={styles.wrap}
+      className={styles.wrap}
     >
-      <span style={{ ...styles.label, color: simple ? theme.accent.amber : theme.text.muted }}>Диктофон</span>
-      <span style={styles.track}>
-        <span style={{ ...styles.knob, transform: simple ? 'translateX(0)' : 'translateX(18px)' }} />
+      <span className={`${styles.label} ${simple ? styles.labelOn : styles.labelOff}`}>Диктофон</span>
+      <span className={styles.track}>
+        <span className={`${styles.knob} ${simple ? '' : styles.knobFull}`} />
       </span>
-      <span style={{ ...styles.label, color: simple ? theme.text.muted : theme.accent.amber }}>Полный</span>
+      <span className={`${styles.label} ${simple ? styles.labelOff : styles.labelOn}`}>Полный</span>
     </button>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: {
-    display: 'inline-flex', alignItems: 'center', gap: 8,
-    background: 'transparent', border: 'none', cursor: 'pointer', padding: 4,
-  },
-  label: {
-    fontFamily: theme.font.mono, fontSize: 11, fontWeight: 600,
-    letterSpacing: '0.04em', transition: 'color 0.2s',
-  },
-  track: {
-    position: 'relative', width: 40, height: 22, flexShrink: 0,
-    background: theme.bg.tertiary, border: `1px solid ${theme.border.amber}`,
-    borderRadius: 12, display: 'inline-block',
-  },
-  knob: {
-    position: 'absolute', top: 2, left: 2, width: 16, height: 16,
-    background: theme.accent.amber, borderRadius: '50%',
-    transition: 'transform 0.2s ease',
-  },
-};

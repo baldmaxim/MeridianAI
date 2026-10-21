@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
-import { theme } from '../../styles/theme';
+import styles from './MultiChannelLivePanel.module.css';
 import type {
   IngestTrackInfo, PublicSpeakerSide, WSMessageToServer,
   MultiChannelLiveSegment, MultiChannelLiveStatus,
@@ -147,53 +147,53 @@ export function MultiChannelLivePanel({ meetingId, canEdit = true, sendJSON }: P
   const channels = liveState?.channels ?? [];
 
   return (
-    <div style={styles.panel}>
-      <div style={styles.note}>
+    <div className={styles.panel}>
+      <div className={styles.note}>
         Выбранные каналы объединяются в многоканальный поток и отправляются внешнему STT-провайдеру.
       </div>
-      <div style={styles.important}>
+      <div className={styles.important}>
         Основной transcript и AI-подсказки продолжают использовать текущий STT. Результат ниже —
         только диагностический candidate.
       </div>
-      <div style={styles.privacy}>
+      <div className={styles.privacy}>
         Аудио всех выбранных каналов будет передаваться внешнему STT-сервису.
       </div>
 
       {/* выбор каналов */}
-      <div style={styles.section}>каналы (порядок = порядок в потоке)</div>
-      <div style={styles.list}>
-        {tracks.length === 0 && <div style={styles.dim}>Нет активных источников.</div>}
+      <div className={styles.section}>каналы (порядок = порядок в потоке)</div>
+      <div className={styles.list}>
+        {tracks.length === 0 && <div className={styles.dim}>Нет активных источников.</div>}
         {selected.map((id) => byId[id] && (
-          <div key={id} style={styles.row}>
+          <div key={id} className={styles.row}>
             <input type="checkbox" checked readOnly disabled={active} onChange={() => toggle(id)} />
-            <span style={styles.rowLabel}>{trackLabel(byId[id])}</span>
-            <span style={styles.rowMeta}>
+            <span className={styles.rowLabel}>{trackLabel(byId[id])}</span>
+            <span className={styles.rowMeta}>
               {(byId[id].buffered_frames * byId[id].frame_ms / 1000).toFixed(1)}с · gaps {byId[id].gaps_count}
             </span>
-            <span style={styles.spacer} />
+            <span className={styles.spacer} />
             {(['self', 'opponent', ''] as const).map((sd) => (
               <button key={sd || 'none'} type="button" disabled={active}
-                style={sideOverrides[id] === sd ? styles.sideOn : styles.sideOff}
+                className={sideOverrides[id] === sd ? styles.sideOn : styles.sideOff}
                 onClick={() => setSideOverrides((o) => ({ ...o, [id]: sd }))}>
                 {sd === 'self' ? 'Мы' : sd === 'opponent' ? 'Не мы' : '?'}
               </button>
             ))}
-            <button type="button" style={styles.ord} disabled={active} onClick={() => move(id, -1)}>↑</button>
-            <button type="button" style={styles.ord} disabled={active} onClick={() => move(id, 1)}>↓</button>
+            <button type="button" className={styles.ord} disabled={active} onClick={() => move(id, -1)}>↑</button>
+            <button type="button" className={styles.ord} disabled={active} onClick={() => move(id, 1)}>↓</button>
           </div>
         ))}
         {!active && tracks.filter((t) => !selected.includes(t.track_id)).map((t) => (
-          <div key={t.track_id} style={{ ...styles.row, opacity: 0.6 }}>
+          <div key={t.track_id} className={`${styles.row} ${styles.rowDim}`}>
             <input type="checkbox" checked={false} onChange={() => toggle(t.track_id)} />
-            <span style={styles.rowLabel}>{trackLabel(t)}</span>
-            <span style={styles.rowMeta}>{(t.buffered_frames * t.frame_ms / 1000).toFixed(1)}с</span>
+            <span className={styles.rowLabel}>{trackLabel(t)}</span>
+            <span className={styles.rowMeta}>{(t.buffered_frames * t.frame_ms / 1000).toFixed(1)}с</span>
           </div>
         ))}
       </div>
 
-      {!alignmentReady && <div style={styles.warn}>Каналы ещё не выровнены — старт недоступен.</div>}
+      {!alignmentReady && <div className={styles.warn}>Каналы ещё не выровнены — старт недоступен.</div>}
 
-      <label style={styles.privacyRow}>
+      <label className={styles.privacyRow}>
         <input type="checkbox" checked={consent} disabled={active}
           onChange={(e) => setConsent(e.target.checked)} />
         <span>Я подтверждаю, что имею право передавать эту запись внешнему STT-сервису</span>
@@ -201,14 +201,14 @@ export function MultiChannelLivePanel({ meetingId, canEdit = true, sendJSON }: P
 
       {/* статус */}
       {liveState && status !== 'idle' && (
-        <div style={styles.statusRow}>
-          <span style={{ ...styles.badge, color: status === 'failed' ? theme.accent.red
-            : status === 'streaming' ? theme.accent.green : theme.accent.amber }}>
+        <div className={styles.statusRow}>
+          <span className={`${styles.badge} ${status === 'failed' ? styles.badgeFailed
+            : status === 'streaming' ? styles.badgeStreaming : styles.badgeWarn}`}>
             {STATUS_LABEL[status] ?? status}
           </span>
-          {liveState.provider && <span style={styles.rowMeta}>{liveState.provider}/{liveState.model}</span>}
+          {liveState.provider && <span className={styles.rowMeta}>{liveState.provider}/{liveState.model}</span>}
           {status === 'streaming' && (
-            <span style={styles.rowMeta}>
+            <span className={styles.rowMeta}>
               чанков {liveState.chunks_sent ?? 0} · кадров {liveState.frames_sent ?? 0} ·
               {' '}{((liveState.bytes_sent ?? 0) / 1024).toFixed(0)} КБ · очередь {liveState.provider_queue_depth ?? 0}
             </span>
@@ -216,28 +216,28 @@ export function MultiChannelLivePanel({ meetingId, canEdit = true, sendJSON }: P
         </div>
       )}
       {friendlyError(liveState?.error_code, liveState?.error_message) && (
-        <div style={styles.error}>{friendlyError(liveState?.error_code, liveState?.error_message)}</div>
+        <div className={styles.error}>{friendlyError(liveState?.error_code, liveState?.error_message)}</div>
       )}
 
       {/* per-channel cards */}
       {channels.length > 0 && (
-        <div style={styles.list}>
+        <div className={styles.list}>
           {channels.map((c) => {
             const interim = interimByChannel[c.channel_index];
             const chFinals = finals.filter((s) => s.channel_index === c.channel_index).slice(-3);
             const ratio = liveState?.silence_ratio_by_channel?.[c.channel_index];
             return (
-              <div key={c.channel_index} style={styles.chCard}>
-                <div style={styles.previewRow}>
-                  <span style={styles.rowLabel}>Канал {c.channel_index + 1} — {c.label}
+              <div key={c.channel_index} className={styles.chCard}>
+                <div className={styles.previewRow}>
+                  <span className={styles.rowLabel}>Канал {c.channel_index + 1} — {c.label}
                     {c.side === 'self' ? ' · Мы' : c.side === 'opponent' ? ' · Не мы' : ''}</span>
-                  <span style={styles.rowMeta}>
+                  <span className={styles.rowMeta}>
                     {c.track_id.slice(0, 6)} · gen {c.generation}
                     {ratio != null ? ` · тишина ${(ratio * 100).toFixed(0)}%` : ''}
                   </span>
                 </div>
-                {chFinals.map((s) => <div key={s.segment_id} style={styles.finalText}>{s.transcript}</div>)}
-                {interim && <div style={styles.interimText}>{interim.transcript}…</div>}
+                {chFinals.map((s) => <div key={s.segment_id} className={styles.finalText}>{s.transcript}</div>)}
+                {interim && <div className={styles.interimText}>{interim.transcript}…</div>}
               </div>
             );
           })}
@@ -246,71 +246,36 @@ export function MultiChannelLivePanel({ meetingId, canEdit = true, sendJSON }: P
 
       {/* chronological */}
       {finals.length > 0 && (
-        <details style={styles.details}>
-          <summary style={styles.summary}>Общий live candidate ({finals.length})</summary>
+        <details className={styles.details}>
+          <summary className={styles.summary}>Общий live candidate ({finals.length})</summary>
           {finals.map((s: MultiChannelLiveSegment) => (
-            <div key={s.segment_id} style={styles.chronoRow}>
-              <span style={styles.chronoTs}>{fmtTs(s.start_server_ms - startMs)}</span>
-              <span style={styles.rowMeta}>
+            <div key={s.segment_id} className={styles.chronoRow}>
+              <span className={styles.chronoTs}>{fmtTs(s.start_server_ms - startMs)}</span>
+              <span className={styles.rowMeta}>
                 [{s.side === 'self' ? 'МЫ' : s.side === 'opponent' ? 'НЕ МЫ' : '·'} · К{s.channel_index + 1}]
               </span>
-              <span style={styles.chronoText}>{s.transcript}</span>
+              <span className={styles.chronoText}>{s.transcript}</span>
             </div>
           ))}
         </details>
       )}
 
-      <div style={styles.actions}>
+      <div className={styles.actions}>
         {active ? (
-          <button type="button" style={styles.stopBtn} onClick={onStop}>Остановить</button>
+          <button type="button" className={styles.stopBtn} onClick={onStop}>Остановить</button>
         ) : (
-          <button type="button" style={styles.startBtn} disabled={!canStart} onClick={onStart}>
+          <button type="button" className={styles.startBtn} disabled={!canStart} onClick={onStart}>
             Запустить live shadow
           </button>
         )}
         {finals.length > 0 && (
           <>
-            <button type="button" style={styles.ghost} onClick={onClear}>Очистить candidate</button>
-            <button type="button" style={styles.ghost} onClick={copyCandidate}>Копировать</button>
-            <button type="button" style={styles.ghost} onClick={downloadJson}>Скачать JSON</button>
+            <button type="button" className={styles.ghost} onClick={onClear}>Очистить candidate</button>
+            <button type="button" className={styles.ghost} onClick={copyCandidate}>Копировать</button>
+            <button type="button" className={styles.ghost} onClick={downloadJson}>Скачать JSON</button>
           </>
         )}
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  panel: { display: 'flex', flexDirection: 'column', gap: 10 },
-  note: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, lineHeight: 1.5 },
-  important: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.green, lineHeight: 1.5 },
-  privacy: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.amber, lineHeight: 1.5 },
-  section: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted, letterSpacing: '0.08em', marginTop: 4 },
-  list: { display: 'flex', flexDirection: 'column', gap: 6 },
-  row: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: theme.bg.input, borderRadius: 8, flexWrap: 'wrap' as const },
-  rowLabel: { fontFamily: theme.font.body, fontSize: 13, color: theme.text.primary },
-  rowMeta: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
-  spacer: { flex: 1 },
-  ord: { padding: '2px 8px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.secondary, cursor: 'pointer' },
-  sideOff: { padding: '3px 8px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.secondary, cursor: 'pointer', fontSize: 11 },
-  sideOn: { padding: '3px 8px', background: 'rgba(245,166,35,0.14)', border: `1px solid ${theme.accent.amber}`, borderRadius: 6, color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontWeight: 600 },
-  dim: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.muted },
-  warn: { fontFamily: theme.font.mono, fontSize: 11, color: theme.accent.amber },
-  privacyRow: { display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: theme.font.body, fontSize: 12, color: theme.text.secondary, lineHeight: 1.4 },
-  statusRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const },
-  badge: { fontFamily: theme.font.mono, fontSize: 12, fontWeight: 600 },
-  error: { fontFamily: theme.font.mono, fontSize: 12, color: theme.accent.red },
-  chCard: { display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 8px', background: theme.bg.card, borderRadius: 8 },
-  previewRow: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' },
-  finalText: { fontFamily: theme.font.body, fontSize: 12, color: theme.text.primary, lineHeight: 1.4 },
-  interimText: { fontFamily: theme.font.body, fontSize: 12, color: theme.text.muted, fontStyle: 'italic', lineHeight: 1.4 },
-  details: { background: theme.bg.input, borderRadius: 8, padding: '6px 8px' },
-  summary: { fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary, cursor: 'pointer' },
-  chronoRow: { display: 'flex', gap: 8, alignItems: 'baseline', padding: '2px 0' },
-  chronoTs: { fontFamily: theme.font.mono, fontSize: 10, color: theme.accent.green },
-  chronoText: { fontFamily: theme.font.body, fontSize: 12, color: theme.text.primary },
-  actions: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' as const },
-  startBtn: { padding: '8px 16px', background: theme.accent.amber, border: 'none', borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 13, fontWeight: 600 },
-  stopBtn: { padding: '8px 16px', background: 'transparent', border: `1px solid ${theme.accent.red}`, borderRadius: 8, color: theme.accent.red, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
-  ghost: { padding: '8px 14px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 8, color: theme.text.secondary, cursor: 'pointer', fontSize: 13 },
-};

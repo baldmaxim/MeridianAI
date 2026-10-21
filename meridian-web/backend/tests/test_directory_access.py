@@ -5,7 +5,6 @@
 (owner_user_id/user_id) при удалении пользователя обнуляются (SET NULL), запись цела.
 """
 
-from sqlalchemy import select
 
 from app.models.user import User
 from app.models.meeting import MeetingSession

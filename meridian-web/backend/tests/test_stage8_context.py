@@ -4,7 +4,7 @@
 В live/finalization prompts попадают только компактные итоги, не транскрипты.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from fastapi import HTTPException
@@ -15,12 +15,12 @@ from app.models.meeting import MeetingSession
 from app.models.directory import Customer, ProjectObject, MeetingParticipant
 from app.models.protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from app.models.context_source import MeetingContextSource
-from app.schemas.context_source import MeetingContextSourceCreate, MeetingContextSourceUpdate
+from app.schemas.context_source import MeetingContextSourceCreate
 from app.services.previous_meeting_context import get_context_candidates, build_previous_context_block
 from app.core.llm.suggestion_prompts import build_auto_cards_prompt
 from app.core.llm.finalization_prompt import build_user_prompt
 from app.api.context_sources import (
-    add_context_source, list_context_sources, update_context_source, delete_context_source,
+    add_context_source, list_context_sources, delete_context_source,
 )
 from app.api.mobile import mobile_meeting_detail
 

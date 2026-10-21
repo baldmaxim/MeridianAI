@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { theme } from '../../styles/theme';
 import { useErrorShake } from '../../hooks/useErrorShake';
+import { TextInput } from '../common';
+import styles from './RegisterForm.module.css';
+import { cx } from '../../utils/cx';
 
 interface Props {
   onRegister: (email: string, password: string, displayName?: string, department?: string) => Promise<void>;
@@ -33,111 +35,54 @@ export function RegisterForm({ onRegister, onSwitchToLogin, error }: Props) {
   };
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="auth-form t-input" style={styles.form}>
-      <h2 style={styles.title}>Регистрация</h2>
-      {error && <div style={styles.error}>{error}</div>}
-      <input
+    <form ref={formRef} onSubmit={handleSubmit} className={cx('auth-form t-input', styles.form)}>
+      <h2 className={styles.title}>Регистрация</h2>
+      {error && <div className={styles.error}>{error}</div>}
+      <TextInput
         type="text"
         placeholder="Имя (необязательно)"
         value={displayName}
         onChange={(e) => setDisplayName(e.target.value)}
-        style={styles.input}
+        onClear={() => setDisplayName('')}
+        clearLabel="имя"
       />
-      <input
+      <TextInput
         type="text"
         placeholder="Отдел"
         value={department}
         onChange={(e) => setDepartment(e.target.value)}
+        onClear={() => setDepartment('')}
+        clearLabel="отдел"
         required
-        style={styles.input}
       />
-      <input
+      <TextInput
         type="email"
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        onClear={() => setEmail('')}
+        clearLabel="email"
         required
-        style={styles.input}
       />
-      <input
+      <TextInput
         type="password"
         placeholder="Пароль"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
+        onClear={() => setPassword('')}
+        clearLabel="пароль"
         required
         minLength={6}
-        style={styles.input}
       />
-      <button type="submit" className="t-btn t-btn-amber" disabled={loading} style={styles.button}>
+      <button type="submit" className={cx('t-btn t-btn-amber', styles.button)} disabled={loading}>
         {loading ? 'Регистрация...' : 'Зарегистрироваться'}
       </button>
-      <p style={styles.switch}>
+      <p className={styles.switch}>
         Уже есть аккаунт?{' '}
-        <span onClick={onSwitchToLogin} style={styles.link}>
+        <span onClick={onSwitchToLogin} className={styles.link}>
           Войти
         </span>
       </p>
     </form>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-    width: '100%',
-    maxWidth: 360,
-    padding: 32,
-    background: theme.bg.card,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 12,
-  },
-  title: {
-    color: theme.text.primary,
-    margin: 0,
-    textAlign: 'center',
-    fontFamily: theme.font.heading,
-    fontWeight: 700,
-    fontSize: 18,
-  },
-  input: {
-    padding: '10px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 14,
-    fontFamily: theme.font.body,
-    outline: 'none',
-  },
-  button: {
-    padding: '10px 14px',
-    background: theme.accent.amber,
-    border: 'none',
-    borderRadius: 7,
-    color: '#080A0F',
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: theme.font.body,
-  },
-  error: {
-    padding: 8,
-    background: theme.accent.redDim,
-    border: '1px solid rgba(255,75,110,0.2)',
-    borderRadius: 6,
-    color: theme.accent.red,
-    fontSize: 13,
-  },
-  switch: {
-    color: theme.text.secondary,
-    textAlign: 'center',
-    fontSize: 13,
-    margin: 0,
-  },
-  link: {
-    color: theme.accent.amber,
-    cursor: 'pointer',
-  },
-};

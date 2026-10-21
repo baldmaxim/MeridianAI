@@ -1,50 +1,55 @@
-/* MERIDIAN Design System — branding/meridian.html */
+/* MERIDIAN Design System — branding/meridian.html
+   Значения — CSS-переменные (определены в index.css для тёмной и светлой темы).
+   Склеивать цвет с alpha-суффиксом нельзя: используйте withAlpha() из utils/cssVar.ts. */
 
 export const theme = {
   bg: {
-    primary: '#080A0F',     // void
-    secondary: '#0D1018',   // deep
-    tertiary: '#111520',    // surface
-    elevated: '#161C2C',    // elevated
-    card: '#1A2135',        // card
-    chat: '#0D1018',
-    suggestion: '#0D1018',
-    input: '#111520',
-    hover: '#161C2C',
+    primary: 'var(--bg)',               // void
+    secondary: 'var(--bg-secondary)',   // deep
+    tertiary: 'var(--bg-tertiary)',     // surface
+    elevated: 'var(--bg-elevated)',     // elevated
+    card: 'var(--bg-card)',             // card
+    chat: 'var(--bg-chat)',
+    suggestion: 'var(--bg-suggestion)',
+    input: 'var(--bg-input)',
+    hover: 'var(--bg-hover)',
   },
   text: {
-    primary: '#EDF2FF',
-    secondary: '#8896B3',
-    suggestion: '#F5A623',
-    muted: '#4A5568',
+    primary: 'var(--text)',
+    secondary: 'var(--text-secondary)',
+    suggestion: 'var(--text-suggestion)',
+    muted: 'var(--text-muted)',
   },
   accent: {
-    amber: '#F5A623',
-    amberDim: '#C4851A',
-    amberGlow: 'rgba(245,166,35,0.12)',
-    blue: '#5B9CF6',
-    red: '#FF4B6E',
-    redDim: 'rgba(255,75,110,0.15)',
-    green: '#2EE59D',
-    greenDim: 'rgba(46,229,157,0.15)',
+    amber: 'var(--accent-amber)',
+    amberDim: 'var(--accent-amber-dim)',
+    amberGlow: 'var(--accent-amber-glow)',
+    blue: 'var(--accent-blue)',
+    red: 'var(--accent-red)',
+    redDim: 'var(--accent-red-dim)',
+    green: 'var(--accent-green)',
+    greenDim: 'var(--accent-green-dim)',
     // Legacy aliases
-    blueHover: '#4A8BE5',
-    greenHover: '#26CC8A',
-    yellow: '#F5A623',
+    blueHover: 'var(--accent-blue-hover)',
+    greenHover: 'var(--accent-green-hover)',
+    yellow: 'var(--accent-yellow)',
   },
   speaker: {
-    'Заказчик': 'rgba(91,156,246,0.08)',
-    'Субподрядчик': 'rgba(46,229,157,0.08)',
-    'Вы': 'rgba(245,166,35,0.08)',
-    'System': '#111520',
-    'Unknown': '#0D1018',
+    'Заказчик': 'var(--speaker-customer)',
+    'Субподрядчик': 'var(--speaker-subcontractor)',
+    'Вы': 'var(--speaker-you)',
+    'System': 'var(--speaker-system)',
+    'Unknown': 'var(--speaker-unknown)',
   } as Record<string, string>,
   border: {
-    default: 'rgba(255,255,255,0.06)',
-    focus: '#F5A623',
-    amber: 'rgba(245,166,35,0.25)',
+    default: 'var(--border-default)',
+    focus: 'var(--border-focus)',
+    amber: 'var(--border-amber)',
   },
-  disabled: '#2A3040',
+  disabled: 'var(--disabled)',
+  /** Текст на заливке акцентом/опасным цветом (кнопки): тёмный в dark, белый в light */
+  onAccent: 'var(--on-accent)',
+  onDanger: 'var(--on-danger)',
   font: {
     heading: "'Syne', sans-serif",
     mono: "'JetBrains Mono', monospace",
@@ -54,20 +59,23 @@ export const theme = {
 
 /* Speaker text colors */
 export const speakerTextColors: Record<string, string> = {
-  'Заказчик': '#5B9CF6',
-  'Субподрядчик': '#2EE59D',
-  'Вы': '#F5A623',
-  'System': '#4A5568',
-  'Unknown': '#8896B3',
+  'Заказчик': 'var(--speaker-text-customer)',
+  'Субподрядчик': 'var(--speaker-text-subcontractor)',
+  'Вы': 'var(--speaker-text-you)',
+  'System': 'var(--speaker-text-system)',
+  'Unknown': 'var(--speaker-text-unknown)',
 };
+
+/* Палитра для DG_S0, GM_S0, EL_S0…: синий, красный, зелёный, янтарный */
+const SPEAKER_BG_CYCLE = ['var(--speaker-customer)', 'var(--speaker-red)', 'var(--speaker-subcontractor)', 'var(--speaker-you)'];
+const SPEAKER_TEXT_CYCLE = ['var(--accent-blue)', 'var(--accent-red)', 'var(--accent-green)', 'var(--accent-amber)'];
 
 /* Get speaker bg, with fallback for DG_S0, GM_S0 etc */
 export function getSpeakerBg(speaker: string): string {
   if (theme.speaker[speaker]) return theme.speaker[speaker];
   if (speaker.startsWith('DG_S') || speaker.startsWith('GM_S') || speaker.startsWith('EL_S')) {
     const idx = parseInt(speaker.split('S')[1] || '0');
-    const colors = ['rgba(91,156,246,0.08)', 'rgba(255,75,110,0.08)', 'rgba(46,229,157,0.08)', 'rgba(245,166,35,0.08)'];
-    return colors[idx % colors.length];
+    return SPEAKER_BG_CYCLE[idx % SPEAKER_BG_CYCLE.length];
   }
   return theme.speaker['Unknown'];
 }
@@ -76,8 +84,7 @@ export function getSpeakerTextColor(speaker: string): string {
   if (speakerTextColors[speaker]) return speakerTextColors[speaker];
   if (speaker.startsWith('DG_S') || speaker.startsWith('GM_S') || speaker.startsWith('EL_S')) {
     const idx = parseInt(speaker.split('S')[1] || '0');
-    const colors = ['#5B9CF6', '#FF4B6E', '#2EE59D', '#F5A623'];
-    return colors[idx % colors.length];
+    return SPEAKER_TEXT_CYCLE[idx % SPEAKER_TEXT_CYCLE.length];
   }
-  return '#8896B3';
+  return speakerTextColors['Unknown'];
 }

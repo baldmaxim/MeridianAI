@@ -1,7 +1,8 @@
-import React from 'react';
-import { theme } from '../../styles/theme';
 import { isSystemAudioSupported } from '../../audio/systemAudio';
 import type { AudioSourceLevels, SystemAudioState } from '../../hooks/useAudioRecorder';
+import { OnlineAudioMeter } from './OnlineAudioMeter';
+import styles from './OnlineAudioPanel.module.css';
+import tone from './Tone.module.css';
 
 interface OnlineAudioPanelProps {
   enabled: boolean;
@@ -33,25 +34,25 @@ export function OnlineAudioPanel({
     if (state?.error) return 'только микрофон';
     return 'ожидание доступа';
   };
-  const statusColor = !enabled || !supported ? theme.text.muted
-    : active ? theme.accent.green
-      : state?.error ? theme.accent.red : theme.accent.amber;
+  const statusTone = !enabled || !supported ? tone.muted
+    : active ? tone.green
+      : state?.error ? tone.red : tone.amber;
 
   return (
-    <div style={styles.wrap}>
-      <label style={styles.row}>
+    <div className={styles.wrap}>
+      <label className={styles.row}>
         <input
           type="checkbox"
           checked={enabled && supported}
           disabled={!supported}
           onChange={(e) => onToggle(e.target.checked)}
         />
-        <span style={styles.texts}>
-          <span style={styles.title}>
+        <span className={styles.texts}>
+          <span className={styles.title}>
             🖥 Звук онлайн-встречи (Zoom / Teams / Meet)
-            <span style={{ ...styles.status, color: statusColor }}>· {statusText()}</span>
+            <span className={`${styles.status} ${statusTone}`}>· {statusText()}</span>
           </span>
-          <span style={styles.hint}>
+          <span className={styles.hint}>
             {supported
               ? 'При старте записи браузер спросит, чем поделиться: выберите вкладку встречи '
                 + '(или весь экран для настольного Zoom/Teams) и ОБЯЗАТЕЛЬНО включите «Поделиться звуком». '
@@ -60,7 +61,7 @@ export function OnlineAudioPanel({
                 + 'для очной встречи этого достаточно.'}
           </span>
           {enabled && supported && (
-            <span style={styles.hint}>
+            <span className={styles.hint}>
               В наушниках стороны разделяются точнее: через колонки голос собеседника попадает
               ещё и в микрофон.
             </span>
@@ -68,65 +69,18 @@ export function OnlineAudioPanel({
         </span>
       </label>
 
-      {state?.error && state.message && <div style={styles.errorBox}>{state.message}</div>}
+      {state?.error && state.message && <div className={styles.errorBox}>{state.message}</div>}
 
       {showMeters && (
-        <div style={styles.meters}>
-          <Meter label="Вы" value={levels!.micRms} color={theme.accent.blue} />
-          <Meter
+        <div className={styles.meters}>
+          <OnlineAudioMeter label="Вы" value={levels!.micRms} fillClass={tone.bgBlue} />
+          <OnlineAudioMeter
             label="Оппонент"
             value={levels!.systemActive ? levels!.systemRms : 0}
-            color={levels!.systemActive ? theme.accent.amber : theme.text.muted}
+            fillClass={levels!.systemActive ? tone.bgAmber : tone.bgMuted}
           />
         </div>
       )}
     </div>
   );
 }
-
-function Meter({ label, value, color }: { label: string; value: number; color: string }) {
-  // rms обычно сильно ниже 1 — растягиваем, чтобы полоса была читаемой.
-  const width = Math.min(100, Math.round(value * 250));
-  return (
-    <div style={styles.meterRow}>
-      <span style={styles.meterLabel}>{label}</span>
-      <span style={styles.meterTrack}>
-        <span style={{ ...styles.meterFill, width: `${width}%`, background: color }} />
-      </span>
-    </div>
-  );
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: {
-    background: theme.bg.secondary,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 8,
-    margin: 0,
-    padding: '10px 14px',
-    flexShrink: 0,
-  },
-  row: { display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' },
-  texts: { display: 'flex', flexDirection: 'column', gap: 3 },
-  title: {
-    color: theme.text.primary, fontSize: 13, fontWeight: 600,
-    fontFamily: theme.font.body, display: 'flex', flexWrap: 'wrap', gap: 6,
-  },
-  status: { fontFamily: theme.font.mono, fontSize: 11, fontWeight: 400 },
-  hint: { color: theme.text.muted, fontSize: 11, lineHeight: 1.5, fontFamily: theme.font.body },
-  errorBox: {
-    marginTop: 8, background: 'rgba(255,75,110,0.1)', color: theme.accent.red,
-    borderRadius: 6, padding: '7px 10px', fontSize: 11.5,
-  },
-  meters: { marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 },
-  meterRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  meterLabel: {
-    width: 74, flexShrink: 0, color: theme.text.secondary,
-    fontSize: 11, fontFamily: theme.font.mono,
-  },
-  meterTrack: {
-    flex: 1, height: 6, background: theme.bg.input, borderRadius: 3,
-    overflow: 'hidden', display: 'block',
-  },
-  meterFill: { height: '100%', display: 'block', borderRadius: 3, transition: 'width 100ms linear' },
-};

@@ -7,8 +7,6 @@ import pytest
 from datetime import datetime
 
 import pytest_asyncio
-from fastapi import HTTPException
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -16,7 +14,7 @@ from app.database import Base
 from app.models.user import User
 from app.models.meeting import MeetingSession, TranscriptSegmentRecord
 from app.models.directory import MeetingParticipant
-from app.models.meeting_conversation import MeetingConversationTopic, MeetingSpeakerRole
+from app.models.meeting_conversation import MeetingSpeakerRole
 from app.services import speaker_roles as srsvc
 from app.services.conversation_tree import ConversationTreeService
 from app.api.speaker_roles import get_speaker_roles, put_speaker_role

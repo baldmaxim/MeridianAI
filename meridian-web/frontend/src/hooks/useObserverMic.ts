@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PublicSpeakerSide, DeviceSyncState } from '../types';
 import { ClockSyncController } from '../lib/clockSync';
 
@@ -31,7 +31,7 @@ export function useObserverMic(meetingId: number | null) {
   const clockRef = useRef<ClockSyncController | null>(null);
   const seqRef = useRef(0);
   const sideRef = useRef<PublicSpeakerSide>('opponent');
-  sideRef.current = side;
+  useLayoutEffect(() => { sideRef.current = side; }, [side]);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }

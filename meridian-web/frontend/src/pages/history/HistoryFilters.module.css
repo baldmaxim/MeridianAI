@@ -1,0 +1,39 @@
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Триггер Select: стили задаём через обёртку (сам компонент не принимает className на кнопку) */
+.filterSelect > button {
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+}
+
+.searchField {
+  flex: 1;
+  min-width: 160px;
+  width: auto;
+}
+
+.filterBtn {
+  min-height: 44px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border-amber);
+  border-radius: 7px;
+  color: var(--accent-amber);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}

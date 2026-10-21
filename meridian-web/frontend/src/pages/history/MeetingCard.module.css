@@ -1,0 +1,235 @@
+.row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.checkWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  cursor: pointer;
+}
+
+.checkWrapSelected {
+  border-color: var(--accent-amber);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1.5px solid var(--text-muted);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.checkboxSelected {
+  background: var(--accent-amber);
+  border-color: var(--accent-amber);
+}
+
+.checkmark {
+  font-size: 10px;
+  color: var(--on-accent);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  cursor: pointer;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  transition: border-color 0.15s;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+.cardSelected {
+  border-color: color-mix(in srgb, var(--accent-amber) 30%, transparent);
+}
+
+@media (hover: hover) {
+  .card:hover {
+    border-color: color-mix(in srgb, var(--accent-amber) 30%, transparent);
+  }
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardDate {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.cardTopic {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardDir {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dirChip,
+.tagChip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.dirChip {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+}
+
+.tagChip {
+  color: var(--accent-amber);
+  background: var(--accent-amber-glow);
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 20%, transparent);
+}
+
+.cardBadges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge,
+.finBadge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.badge {
+  background: var(--badge-bg);
+  border: 1px solid var(--badge-border);
+  color: var(--badge-color);
+  font-weight: 600;
+}
+
+.badgeAmber {
+  --badge-bg: var(--accent-amber-glow);
+  --badge-border: color-mix(in srgb, var(--accent-amber) 20%, transparent);
+  --badge-color: var(--accent-amber);
+
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.badgeBlue {
+  --badge-bg: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  --badge-border: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  --badge-color: var(--accent-blue);
+}
+
+.badgeGreen {
+  --badge-bg: var(--accent-green-dim);
+  --badge-border: color-mix(in srgb, var(--accent-green) 20%, transparent);
+  --badge-color: var(--accent-green);
+}
+
+.badgeMuted {
+  --badge-bg: var(--bg-tertiary);
+  --badge-border: var(--border-default);
+  --badge-color: var(--text-muted);
+
+  font-weight: 400;
+}
+
+/* Статус протокола: рамка и текст одного цвета */
+.finBadge {
+  background: transparent;
+  border: 1px solid var(--fin-color);
+  color: var(--fin-color);
+}
+
+.finCompleted {
+  --fin-color: var(--accent-green);
+}
+
+.finError {
+  --fin-color: var(--accent-red);
+}
+
+.finPartial {
+  --fin-color: var(--accent-amber);
+}
+
+.finDefault {
+  --fin-color: var(--accent-blue);
+}
+
+.sideBtn {
+  flex-shrink: 0;
+  width: 44px;
+  background: var(--bg-card);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.finalizeSide {
+  border: 1px solid var(--accent-green);
+  border-left: none;
+  color: var(--accent-green);
+}
+
+.retrySide {
+  border: 1px solid var(--accent-red);
+  border-left: none;
+  color: var(--accent-red);
+}

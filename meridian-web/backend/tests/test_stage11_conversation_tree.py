@@ -7,8 +7,6 @@
 import json
 from datetime import datetime
 
-import pytest
-from fastapi import HTTPException
 
 from app.models.user import User
 from app.models.meeting import MeetingSession, TranscriptSegmentRecord
@@ -17,7 +15,7 @@ from app.models.meeting_conversation import MeetingConversationTopic
 from app.services.conversation_tree import ConversationTreeService, MAX_REFS_PER_SIDE
 from app.schemas.conversation_tree import ConversationTopicUpdate
 from app.api.conversation_tree import (
-    get_conversation_tree, patch_conversation_topic, rebuild_conversation_tree,
+    get_conversation_tree, patch_conversation_topic,
 )
 from sqlalchemy import select, func
 

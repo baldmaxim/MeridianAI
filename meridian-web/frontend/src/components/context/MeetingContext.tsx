@@ -1,6 +1,6 @@
 import { useMeetingStore } from '../../store/meetingStore';
-import { theme } from '../../styles/theme';
 import { Combobox } from '../common';
+import styles from './MeetingContext.module.css';
 
 interface Props {
   // Отправить актуальный контекст из стора (debounce + WS) — см. MeetingPage.pushContext.
@@ -21,41 +21,24 @@ export function MeetingContext({ pushContext }: Props) {
   const handleNotesChange = (value: string) => { setNotes(value); pushContext(); };
 
   return (
-    <div style={styles.col}>
-      <label style={styles.label}>Тип переговоров</label>
+    <div className={styles.col}>
+      <label className={styles.label}>Тип переговоров</label>
       <Combobox
         placeholder="Например: согласование условий"
         value={negotiationType}
         onChange={handleNegotiationTypeChange}
         options={TYPE_SUGGESTIONS}
-        style={styles.input}
+        inputClassName={styles.input}
       />
 
-      <label style={styles.label}>Ключевые условия / цели</label>
+      <label className={styles.label}>Ключевые условия / цели</label>
       <textarea
         placeholder={"Целевая сумма, дедлайн, ключевые требования, ограничения..."}
         value={notes}
         onChange={(e) => handleNotesChange(e.target.value)}
         rows={6}
-        style={styles.textarea}
+        className={styles.textarea}
       />
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  col: { display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 },
-  label: {
-    fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber,
-    letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 8,
-  },
-  input: {
-    padding: '10px 14px', background: theme.bg.input, border: `1px solid ${theme.border.default}`,
-    borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none',
-  },
-  textarea: {
-    padding: '10px 14px', background: theme.bg.input, border: `1px solid ${theme.border.default}`,
-    borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body,
-    outline: 'none', resize: 'vertical' as const,
-  },
-};

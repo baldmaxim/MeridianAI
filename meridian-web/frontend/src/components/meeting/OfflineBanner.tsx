@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { theme } from '../../styles/theme';
 import { useMeetingStore } from '../../store/meetingStore';
 import { offlineAudioBuffer } from '../../lib/offlineAudioBuffer';
+import styles from './OfflineBanner.module.css';
 
 /**
  * Задача 1/5: видимая индикация обрыва связи. Пока нет соединения и идёт запись —
@@ -34,9 +34,9 @@ export function OfflineBanner() {
   const ss = String(bufferedSec % 60).padStart(2, '0');
 
   return (
-    <div style={styles.bar}>
-      <span style={styles.dot} />
-      <span style={styles.txt}>
+    <div className={styles.bar}>
+      <span className={styles.dot} />
+      <span className={styles.txt}>
         Нет соединения.{' '}
         {isListening
           ? `Запись идёт — звук буферизуется (${mm}:${ss}) и будет дораспознан при восстановлении сети.`
@@ -45,13 +45,3 @@ export function OfflineBanner() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  bar: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '8px 14px', background: 'rgba(255,75,110,0.12)',
-    borderBottom: `1px solid ${theme.accent.red}`,
-  },
-  dot: { width: 8, height: 8, borderRadius: '50%', background: theme.accent.red, flexShrink: 0 },
-  txt: { fontFamily: theme.font.mono, fontSize: 12, color: theme.text.primary, lineHeight: 1.4 },
-};

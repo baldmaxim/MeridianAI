@@ -6,6 +6,7 @@ Opt-in canary. По умолчанию выключен/shadow. channel_{index} 
 """
 
 import array
+import hashlib
 import sys
 from dataclasses import dataclass, field
 from typing import Any, Optional

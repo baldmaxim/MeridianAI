@@ -81,7 +81,6 @@ async def update_settings(
 def _open_folder_dialog() -> str:
     """Open native OS folder picker dialog via subprocess."""
     if platform.system() == "Windows":
-        import tempfile, os
         # Use PowerShell with Shell.Application COM — always shows on top
         ps_script = (
             "$shell = New-Object -ComObject Shell.Application;"

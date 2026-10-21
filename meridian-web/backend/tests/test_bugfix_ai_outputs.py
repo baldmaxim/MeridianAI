@@ -8,7 +8,6 @@ D — make_default нарушал partial-unique uq_ai_profile_default из-за
 
 from datetime import datetime
 
-import pytest
 from sqlalchemy import select, func
 
 from app.core.llm.client import OPENROUTER_APP_HEADERS, LLMClient

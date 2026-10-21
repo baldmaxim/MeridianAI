@@ -5,9 +5,9 @@ and new CommittedSegment (ElevenLabs).
 """
 
 from collections import deque
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 from datetime import datetime, timedelta
-from ..transcription.models import TranscriptSegment, CommittedSegment
+from ..transcription.models import TranscriptSegment
 
 
 class ContextAnalyzer:

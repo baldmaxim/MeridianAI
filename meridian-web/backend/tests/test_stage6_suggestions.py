@@ -14,7 +14,7 @@ import app.database as appdb
 from app.models.meeting import MeetingSuggestion
 from app.schemas.suggestion import SuggestionCard, SuggestionResponse, SuggestionEvidence
 from app.services.suggestion_parser import (
-    parse_suggestion_response, apply_safety_checks, fallback_response, extract_json_from_text,
+    parse_suggestion_response, apply_safety_checks, fallback_response,
 )
 from app.core.llm.suggestion_prompts import build_auto_cards_prompt, build_manual_cards_prompt
 from app.services.session_manager import SessionManager

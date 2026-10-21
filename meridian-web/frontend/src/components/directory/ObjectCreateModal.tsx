@@ -3,17 +3,30 @@ import type { Customer } from '../../types';
 import { createObject } from '../../api/objects';
 import { listCustomers } from '../../api/customers';
 import { apiErrorMessage } from '../../lib/apiError';
-import { dirStyles as s } from './directoryStyles';
-import { theme } from '../../styles/theme';
 import { Modal } from '../common/Modal';
-import { Combobox } from '../common';
+import { Combobox, TextInput } from '../common';
+import { theme } from '../../styles/theme';
 import { useErrorShake } from '../../hooks/useErrorShake';
+import styles from './ObjectCreateModal.module.css';
+import { cx } from '../../utils/cx';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
 }
+
+/** Стиль поля <Combobox>: компонент принимает только style (не className). */
+const comboInputStyle: React.CSSProperties = {
+  padding: '9px 12px',
+  background: theme.bg.input,
+  border: `1px solid ${theme.border.default}`,
+  borderRadius: 7,
+  color: theme.text.primary,
+  fontSize: 13,
+  fontFamily: theme.font.body,
+  outline: 'none',
+};
 
 /** Минимальная модалка создания объекта (для всех ролей).
  *  Заказчик — текстовое поле с подсказками из уже созданных (combobox): можно выбрать
@@ -66,44 +79,35 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} maxWidth={460}>
-      <div style={styles.head}>
-        <span style={s.title}>Новый объект</span>
-        <button className="t-btn" style={styles.close} onClick={onClose}>×</button>
+      <div className={styles.head}>
+        <span className={styles.title}>Новый объект</span>
+        <button className={cx('t-btn', styles.close)} onClick={onClose}>×</button>
       </div>
 
-      <div ref={formRef} className="t-input" style={s.formCard}>
-        <label style={s.label}>Название *</label>
-        <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="ЖК «Рассвет», корпус 2" autoFocus />
-        <label style={s.label}>Заказчик *</label>
+      <div ref={formRef} className={cx('t-input', styles.formCard)}>
+        <label className={styles.label}>Название *</label>
+        <TextInput inputClassName={styles.input} value={name} onChange={(e) => setName(e.target.value)} onClear={() => setName('')} clearLabel="название" placeholder="ЖК «Рассвет», корпус 2" autoFocus />
+        <label className={styles.label}>Заказчик *</label>
         <Combobox
-          style={s.input}
+          style={comboInputStyle}
           value={customerName}
           onChange={setCustomerName}
           options={customers.map((c) => c.name)}
           placeholder="ООО «Стройзаказ» — выберите или впишите нового"
         />
-        <label style={s.label}>Адрес</label>
-        <input style={s.input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="необязательно" />
-        <label style={s.label}>Описание</label>
-        <input style={s.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="необязательно" />
-        <label style={s.label}>PayHub project_id</label>
-        <input style={s.input} value={payhubProjectId} onChange={(e) => setPayhubProjectId(e.target.value)} placeholder="ID проекта в PayHub — для поиска писем (необязательно)" inputMode="numeric" />
-        <div style={s.formRow}>
-          <button className="t-btn t-btn-amber" style={s.btn} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
-          <button className="t-btn" style={s.btnGhost} onClick={onClose}>Отмена</button>
+        <label className={styles.label}>Адрес</label>
+        <TextInput inputClassName={styles.input} value={address} onChange={(e) => setAddress(e.target.value)} onClear={() => setAddress('')} clearLabel="адрес" placeholder="необязательно" />
+        <label className={styles.label}>Описание</label>
+        <TextInput inputClassName={styles.input} value={description} onChange={(e) => setDescription(e.target.value)} onClear={() => setDescription('')} clearLabel="описание" placeholder="необязательно" />
+        <label className={styles.label}>PayHub project_id</label>
+        <TextInput inputClassName={styles.input} value={payhubProjectId} onChange={(e) => setPayhubProjectId(e.target.value)} onClear={() => setPayhubProjectId('')} clearLabel="PayHub project_id" placeholder="ID проекта в PayHub — для поиска писем (необязательно)" inputMode="numeric" />
+        <div className={styles.formRow}>
+          <button className={cx('t-btn t-btn-amber', styles.btn)} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
+          <button className={cx('t-btn', styles.btnGhost)} onClick={onClose}>Отмена</button>
         </div>
       </div>
 
-      {error && <div style={s.error}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
     </Modal>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  close: {
-    width: 28, height: 28, borderRadius: 6, background: 'transparent',
-    border: `1px solid ${theme.border.default}`, color: theme.text.secondary,
-    cursor: 'pointer', fontSize: 16, lineHeight: 1,
-  },
-};

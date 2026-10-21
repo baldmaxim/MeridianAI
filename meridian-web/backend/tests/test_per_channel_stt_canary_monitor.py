@@ -7,7 +7,6 @@ from pathlib import Path
 
 from app.core.context.per_channel_stt_canary_monitor import (
     analyze_per_channel_stt_canary_run,
-    load_per_channel_stt_monitor_events_from_lines,
 )
 
 _BACKEND = str(Path(__file__).resolve().parents[1])

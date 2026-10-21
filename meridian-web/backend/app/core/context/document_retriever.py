@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Dict, List, Set
+from typing import List, Set
 
 from .document_chunker import DocumentChunk
 

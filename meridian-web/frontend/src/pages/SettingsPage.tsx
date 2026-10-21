@@ -6,9 +6,13 @@ import { LLMSettings } from '../components/settings/LLMSettings';
 import { HintsSettings } from '../components/settings/HintsSettings';
 import { StorageSettings } from '../components/settings/StorageSettings';
 import { RoleSettings } from '../components/settings/RoleSettings';
-import { theme } from '../styles/theme';
+import { SettingsPlaceholderSection } from '../components/settings/SettingsPlaceholderSection';
 import type { UserSettings, SuggestionTypeConfig, TriggerKeywordConfig } from '../types';
+import styles from './SettingsPage.module.css';
+import { cx } from '../utils/cx';
 
+// Цвета типов подсказок — пользовательские данные (hex хранится в настройках и правится через input[type=color]),
+// поэтому здесь остаются hex-значения, а не токены темы.
 const DEFAULT_SUGGESTION_TYPES: SuggestionTypeConfig[] = [
   { key: 'priority', badge: '✦ ПРИОРИТЕТ', color: '#F5A623', metaLabel: 'Контекст', actionLabel: 'Использовать', llm_description: 'главная рекомендация: что сказать/сделать ПРЯМО СЕЙЧАС. Учитывай фазу переговоров.', enabled: true },
   { key: 'counter', badge: '⇄ КОНТРАРГУМЕНТ', color: '#5B9CF6', metaLabel: 'Триггер', actionLabel: 'Использовать', secondaryAction: 'Подробнее', llm_description: 'контраргумент на последнее утверждение оппонента. Используй: переформулирование, вопрос-ловушку или «условную уступку».', enabled: true },
@@ -78,31 +82,30 @@ export function SettingsPage({ onBack, embedded }: Props) {
   }, [settings, applying, updateMut, setCustomSuggestionTypes, showToast]);
 
   return (
-    <div style={embedded ? styles.containerEmbedded : styles.container}>
+    <div className={cx(embedded ? styles.containerEmbedded : styles.container)}>
       {!embedded && (
-        <div style={styles.topBar}>
-          <button onClick={onBack} className="t-btn" style={styles.backBtn}>&larr; Назад</button>
-          <span style={styles.topTitle}>НАСТРОЙКИ</span>
+        <div className={styles.topBar}>
+          <button onClick={onBack} className={cx('t-btn', styles.backBtn)}>&larr; Назад</button>
+          <span className={styles.topTitle}>НАСТРОЙКИ</span>
         </div>
       )}
 
       {!settings ? (
-        <div style={styles.loading}>Загрузка...</div>
+        <div className={styles.loading}>Загрузка...</div>
       ) : (
-        <div className="settings-layout mobile-content-pad" style={styles.settingsLayout}>
-          <nav style={styles.settingsNav}>
+        <div className={cx('settings-layout mobile-content-pad', styles.settingsLayout)}>
+          <nav className={styles.settingsNav}>
             {SETTINGS_SECTIONS.map((sec) => (
               <button
                 key={sec.id}
                 onClick={() => setSection(sec.id)}
-                className="t-btn"
-                style={section === sec.id ? styles.navActive : styles.navItem}
+                className={cx('t-btn', section === sec.id ? styles.navActive : styles.navItem)}
               >
-                <span style={{ fontSize: 14 }}>{sec.icon}</span> {sec.label}
+                <span className={styles.navIcon}>{sec.icon}</span> {sec.label}
               </button>
             ))}
           </nav>
-          <div style={styles.settingsContent}>
+          <div className={styles.settingsContent}>
             {section === 'stt' && (
               <STTSettings
                 value={settings.stt_provider}
@@ -141,17 +144,16 @@ export function SettingsPage({ onBack, embedded }: Props) {
               />
             )}
             {section === 'notifications' && (
-              <PlaceholderSection title="Уведомления" text="Звуковые уведомления, push-нотификации, уровни важности. Раздел в разработке." />
+              <SettingsPlaceholderSection title="Уведомления" text="Звуковые уведомления, push-нотификации, уровни важности. Раздел в разработке." />
             )}
             {section === 'locale' && (
-              <PlaceholderSection title="Язык и регион" text="Язык интерфейса, формат даты и валюты. Раздел в разработке." />
+              <SettingsPlaceholderSection title="Язык и регион" text="Язык интерфейса, формат даты и валюты. Раздел в разработке." />
             )}
             {section !== 'roles' && (
               <button
                 onClick={handleApply}
                 disabled={applying}
-                className="t-btn t-btn-amber"
-                style={{ ...styles.applyBtn, opacity: applying ? 0.6 : 1, cursor: applying ? 'wait' : 'pointer' }}
+                className={cx('t-btn t-btn-amber', styles.applyBtn)}
               >
                 {applying ? 'Сохранение...' : 'Применить настройки'}
               </button>
@@ -163,20 +165,10 @@ export function SettingsPage({ onBack, embedded }: Props) {
       {toast && (
         <div
           key={toast.message + String(toast.type)}
-          style={{
-            ...styles.toast,
-            borderColor: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-            background: toast.type === 'success' ? 'rgba(46,229,157,0.12)' : 'rgba(255,75,110,0.12)',
-          }}
+          className={cx(styles.toast, toast.type === 'success' ? styles.toastSuccess : styles.toastError)}
         >
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-            background: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-          }} />
-          <span style={{
-            color: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-            fontSize: 12, fontFamily: theme.font.mono, fontWeight: 500,
-          }}>
+          <span className={styles.toastDot} />
+          <span className={styles.toastText}>
             {toast.message}
           </span>
         </div>
@@ -184,71 +176,3 @@ export function SettingsPage({ onBack, embedded }: Props) {
     </div>
   );
 }
-
-function PlaceholderSection({ title, text }: { title: string; text: string }) {
-  return (
-    <div style={styles.placeholderCard}>
-      <div style={styles.sectionHeader}>
-        <span style={styles.dot} />
-        <span style={styles.sectionTitle}>{title}</span>
-      </div>
-      <div style={styles.placeholderText}>{text}</div>
-    </div>
-  );
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'auto', padding: '20px 24px' },
-  containerEmbedded: { display: 'flex', flexDirection: 'column' },
-  topBar: {
-    display: 'flex', alignItems: 'center', gap: 16,
-    paddingBottom: 12, marginBottom: 20,
-    borderBottom: `1px solid ${theme.border.default}`, flexShrink: 0,
-  },
-  backBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px',
-    background: 'transparent', border: `1px solid ${theme.accent.amber}`, borderRadius: 6,
-    color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em', flexShrink: 0,
-  },
-  topTitle: {
-    fontFamily: theme.font.mono, fontSize: 11, fontWeight: 500,
-    letterSpacing: '0.16em', color: theme.text.secondary, flex: 1,
-  },
-  loading: { color: theme.text.secondary, fontFamily: theme.font.mono, fontSize: 13, padding: '20px 0' },
-  settingsLayout: { display: 'flex', gap: 24 },
-  settingsNav: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, flexShrink: 0 },
-  navActive: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
-    background: theme.accent.amber, color: '#080A0F', border: 'none', borderRadius: 8,
-    fontSize: 12, fontWeight: 600, fontFamily: theme.font.body, cursor: 'pointer', textAlign: 'left' as const,
-  },
-  navItem: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
-    background: 'transparent', color: theme.text.secondary, border: 'none', borderRadius: 8,
-    fontSize: 12, fontFamily: theme.font.body, cursor: 'pointer', textAlign: 'left' as const,
-  },
-  settingsContent: { flex: 1, display: 'flex', flexDirection: 'column', gap: 20 },
-  placeholderCard: {
-    background: theme.bg.card, border: `1px solid ${theme.border.default}`,
-    borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 12,
-  },
-  placeholderText: { color: theme.text.muted, fontSize: 13, fontFamily: theme.font.body, lineHeight: 1.6 },
-  sectionHeader: { display: 'flex', alignItems: 'center', gap: 8 },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  sectionTitle: {
-    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11,
-    letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary, flex: 1,
-  },
-  applyBtn: {
-    marginTop: 8, padding: '9px 22px', background: theme.accent.amber, border: 'none',
-    borderRadius: 7, color: '#080A0F', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-    fontFamily: theme.font.body, alignSelf: 'flex-start',
-  },
-  toast: {
-    position: 'fixed' as const, bottom: 24, right: 24, zIndex: 9999,
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px',
-    borderRadius: 8, border: '1px solid', backdropFilter: 'blur(12px)',
-    animation: 'toastSlideIn 0.3s ease-out',
-  },
-};

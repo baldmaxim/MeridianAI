@@ -1,226 +1,61 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { FC } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { useAudioRecorder } from '../hooks/useAudioRecorder';
-import type { AudioRecorderCaptureConfig, AudioSourceLevels, SystemAudioState } from '../hooks/useAudioRecorder';
-import { MeetingAudioSettings } from '../components/meeting/MeetingAudioSettings';
 import { SideCalibration } from '../components/meeting/SideCalibration';
 import { useSelfHold } from '../hooks/useSelfHold';
-import { MULTICHANNEL_CAPABLE_ROUTES } from '../audio/audioCaptureTypes';
-import {
-  SystemAudioError,
-  SYSTEM_AUDIO_ERROR_TEXT,
-  captureSystemAudio,
-  isSystemAudioSupported,
-  stopSystemAudio,
-} from '../audio/systemAudio';
-import { SpeakerIdentityReviewPanel } from '../components/meeting/SpeakerIdentityReviewPanel';
-import {
-  loadAudioSelection,
-  loadMultichannelShadowEnabled,
-  loadOnlineMeetingAudioEnabled,
-  presetForRoute,
-  saveOnlineMeetingAudioEnabled,
-} from '../audio/audioCaptureMetadata';
-import { useWakeLock } from '../hooks/useWakeLock';
 import { useMeetingStore } from '../store/meetingStore';
 import { getSettings } from '../api/settings';
 import { createMeeting } from '../api/meetings';
 import { getMeetingDetail } from '../api/history';
-import { uploadBatchAudio } from '../api/batch';
-import { offlineAudioBuffer } from '../lib/offlineAudioBuffer';
-import { ChatDisplay } from '../components/meeting/ChatDisplay';
-import { SpeakerSideAssignmentPanel } from '../components/meeting/SpeakerSideAssignmentPanel';
+import { getConversationTree } from '../api/conversationTree';
 import { HelperPanel } from '../components/meeting/HelperPanel';
 import { ParticipantsBadge } from '../components/meeting/ParticipantsBadge';
-import { SuggestionPanel } from '../components/meeting/SuggestionPanel';
 import { ControlButtons } from '../components/meeting/ControlButtons';
-import { MeetingStats } from '../components/meeting/MeetingStats';
-import { ConversationTreePanel } from '../components/meeting/ConversationTreePanel';
 import { DictaphoneView } from '../components/meeting/DictaphoneView';
-import { ModeSwitch } from '../components/meeting/ModeSwitch';
-import { RecordingIndicator } from '../components/meeting/RecordingIndicator';
 import { OfflineBanner } from '../components/meeting/OfflineBanner';
-import { getConversationTree } from '../api/conversationTree';
-import { PopNumber } from '../components/common/PopNumber';
-import { IconSwap } from '../components/common/IconSwap';
-import { useExitTransition } from '../hooks/useExitTransition';
-import { CollapsibleSection } from '../components/common/CollapsibleSection';
-import { ContextBasket } from '../components/context/ContextBasket';
-import { ragContextApiAdapter } from '../api/ragContextAdapter';
-import { FinalizationPanel } from '../components/protocol/FinalizationPanel';
-import { MeetingContext } from '../components/context/MeetingContext';
-import { MeetingAISettingsBlock } from '../components/context/MeetingAISettings';
-import { RoleSelector } from '../components/context/RoleSelector';
-import { getSpeakerRoles, putSpeakerRole } from '../api/speakerRoles';
-import { listSpeakerCorrections, putSpeakerCorrection, deleteSpeakerCorrection } from '../api/speakerCorrections';
-import { toPublicSpeakerSide, nextPublicSpeakerSide, type PublicSpeakerSide } from '../lib/speakerSides';
-import { segmentOverrideSide } from '../lib/segmentCorrections';
-import type { SpeakerSegmentCorrection } from '../types';
-import { theme } from '../styles/theme';
 import { navigate, paths } from '../lib/navigation';
 import type { UserSettings } from '../types';
+import { buildDefaultMeetingName, formatMeetingDate } from './meeting/meetingFormat';
+import { MeetingTopBar } from './meeting/MeetingTopBar';
+import { MeetingToast } from './meeting/MeetingToast';
+import type { IMeetingToastData } from './meeting/MeetingToast';
+import { RecordingBanner } from './meeting/RecordingBanner';
+import { NegotiationsTab } from './meeting/NegotiationsTab';
+import { MeetingContextTab } from './meeting/MeetingContextTab';
+import { useMeetingSpeakers } from './meeting/useMeetingSpeakers';
+import { useMeetingContextSync } from './meeting/useMeetingContextSync';
+import { useMeetingAudioCapture } from './meeting/useMeetingAudioCapture';
+import styles from './MeetingPage.module.css';
 
 const TABS = ['Переговоры', 'Контекст встречи'] as const;
+const TOAST_MS = 3000;
+const SAVE_COOLDOWN_MS = 2000;
 
-// Дата в формате ДД.ММ.ГГГГ.
-function formatDmy(d: Date): string {
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-}
-
-// Дефолтное название встречи: «Заказчик_Объект_ДД.ММ.ГГГГ» (непустые части через «_»).
-function buildDefaultMeetingName(customerName: string | null, objectName: string | null): string {
-  return [customerName, objectName, formatDmy(new Date())].filter((p) => p && p.trim()).join('_');
-}
-
-// Дата начала записи встречи для показа в шапке (ISO → ДД.ММ.ГГГГ).
-function formatMeetingDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : formatDmy(d);
-}
-
-interface Props {
+interface IMeetingPageProps {
   meetingId?: number;
   onBack: () => void;
 }
 
-export function MeetingPage({ meetingId, onBack }: Props) {
+export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<IMeetingToastData | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const ctxSendTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const linkCopiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
+    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
 
-  const [level, setLevel] = useState(0);
   const { connect, disconnect, sendJSON, sendBinary, ws } = useWebSocket(() => {
     // Встреча удалена на сервере — на главный экран
     showToast('Встреча удалена', 'error');
     navigate(paths.objects);
   });
-  // Задача 5: если WS открыт — чанк идёт в realtime STT; иначе буферизуем в IndexedDB
-  // (переживает обрыв/перезагрузку) и дошлём батчем при восстановлении сети.
-  const sendAudioChunk = useCallback((buf: ArrayBuffer) => {
-    if (ws.current?.readyState === WebSocket.OPEN) { sendBinary(buf); return; }
-    const mid = useMeetingStore.getState().currentMeetingId;
-    if (mid != null) void offlineAudioBuffer.append(mid, buf);
-  }, [sendBinary, ws]);
-  // Wake Lock держит экран включённым, пока идёт запись (мобильный фон/блокировка).
-  const wakeLock = useWakeLock();
-  // Запись прервана ОС (экран заблокирован / звонок) — показываем «Продолжить».
-  const [recordingPaused, setRecordingPaused] = useState(false);
-  const onAudioInterrupt = useCallback(() => {
-    if (useMeetingStore.getState().isListening) setRecordingPaused(true);
-  }, []);
-  // Этап 15: текущий конфиг захвата (device/route). Инициализируем из localStorage, чтобы запись
-  // без открытия панели использовала сохранённый выбор. Панель обновляет ref через onConfigChange.
-  // Панель живёт в выпадающих «Настройках» и может быть ни разу не открыта — shadow-флаг тоже отсюда.
-  const audioCaptureRef = useRef<AudioRecorderCaptureConfig>({
-    deviceId: loadAudioSelection().deviceId,
-    preset: presetForRoute(loadAudioSelection().route),
-    multichannelShadowEnabled: loadMultichannelShadowEnabled()
-      && MULTICHANNEL_CAPABLE_ROUTES.includes(loadAudioSelection().route),
-  });
-  const onAudioCaptureConfig = useCallback((cfg: AudioRecorderCaptureConfig) => {
-    audioCaptureRef.current = cfg;
-  }, []);
-  // Этап 16: v2 shadow-кадр уходит ТОЛЬКО если ws открыт и буфер не переполнен. Legacy mono
-  // (sendAudioChunk) никогда не дропается из-за shadow — приоритет у production STT.
-  const sendShadowFrame = useCallback((buf: ArrayBuffer) => {
-    const w = ws.current;
-    if (w?.readyState === WebSocket.OPEN && w.bufferedAmount < 1_000_000) sendBinary(buf);
-  }, [sendBinary, ws]);
-  // Онлайн-встреча: захват звука вкладки/экрана. Держим и в ref — getConfig() читается
-  // на каждом start(), а AudioPreflightPanel перезаписывает audioCaptureRef целиком.
-  const [onlineAudio, setOnlineAudio] = useState(() => loadOnlineMeetingAudioEnabled());
-  const onlineAudioRef = useRef(onlineAudio);
-  onlineAudioRef.current = onlineAudio;
-  const [systemAudioState, setSystemAudioState] = useState<SystemAudioState | null>(null);
-  const [sourceLevels, setSourceLevels] = useState<AudioSourceLevels | null>(null);
-  const sourceLevelsSeq = useRef(0);
-  const handleOnlineAudioToggle = useCallback((next: boolean) => {
-    setOnlineAudio(next);
-    saveOnlineMeetingAudioEnabled(next);
-    if (!next) { setSystemAudioState(null); setSourceLevels(null); }
-  }, []);
-  // Уровни двух источников (~150 мс): по ним backend помечает, чья это реплика.
-  // Числа, не аудио. Шлём только во время записи и только при живом WS.
-  const sourceLevelsWasActive = useRef(false);
-  const handleSourceLevels = useCallback((levels: AudioSourceLevels) => {
-    setSourceLevels(levels);
-    // На очной встрече (захват выключен) слать нечего: сторону по одному микрофону
-    // не определить. Один кадр после отключения нужен, чтобы backend снял виртуальные
-    // устройства и перестал считать сторону по устаревшим уровням.
-    const wasActive = sourceLevelsWasActive.current;
-    sourceLevelsWasActive.current = levels.systemActive;
-    if (!levels.systemActive && !wasActive) return;
-    sendJSON({
-      type: 'audio_source_levels',
-      mic_rms: levels.micRms,
-      mic_peak: levels.micPeak,
-      system_rms: levels.systemRms,
-      system_peak: levels.systemPeak,
-      system_active: levels.systemActive,
-      seq: ++sourceLevelsSeq.current,
-      client_ts_ms: Date.now(),
-    });
-  }, [sendJSON]);
-  const handleSystemAudioState = useCallback((state: SystemAudioState) => {
-    setSystemAudioState(state);
-    if (state.error && state.message) showToast(state.message, 'error');
-    else if (!state.active && !state.error) showToast('Доступ к звуку встречи прекращён — пишем только микрофон', 'error');
-  }, [showToast]);
-
-  const { start: startAudio, stop: stopAudio } = useAudioRecorder(
-    sendAudioChunk, setLevel, onAudioInterrupt,
-    {
-      getConfig: () => ({
-        ...audioCaptureRef.current,
-        systemAudioEnabled: onlineAudioRef.current,
-      }),
-      onCaptureMetadata: (m) => sendJSON({ type: 'audio_capture_metadata', payload: m }),
-      sendShadowFrame,
-      onSourceLevels: handleSourceLevels,
-      onSystemAudioState: handleSystemAudioState,
-    },
-  );
+  const getSocket = useCallback(() => ws.current, [ws]);
   const store = useMeetingStore();
-
-  // Задача 5: при восстановлении WS (false→true) дослать накопленный офлайн-звук
-  // как офлайн-дозапись (kind=gap_fill) — результат вливается в транскрипт встречи.
-  const prevConnectedRef = useRef(false);
-  const flushingRef = useRef(false);
-  useEffect(() => {
-    const connected = store.isConnected;
-    const wasConnected = prevConnectedRef.current;
-    prevConnectedRef.current = connected;
-    if (!connected || wasConnected || flushingRef.current) return;
-    const mid = useMeetingStore.getState().currentMeetingId;
-    if (mid == null) return;
-    flushingRef.current = true;
-    (async () => {
-      try {
-        const wav = await offlineAudioBuffer.drainToWav(mid);
-        if (wav) {
-          const file = new File([wav], `gap_${mid}_${Date.now()}.wav`, { type: 'audio/wav' });
-          await uploadBatchAudio(file, undefined, { meetingId: mid, kind: 'gap_fill' });
-          showToast('Аудио из офлайна отправлено на дораспознавание', 'success');
-        }
-      } catch {
-        showToast('Не удалось отправить офлайн-аудио', 'error');
-      } finally {
-        flushingRef.current = false;
-      }
-    })();
-  }, [store.isConnected, showToast]);
 
   // Встреча (строка в БД) создаётся ТОЛЬКО вручную: старт записи / «Новая встреча» /
   // выбор заказчика. Открытие или reload портала НИЧЕГО не создаёт.
@@ -271,6 +106,15 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     });
   }, []);
 
+  const audio = useMeetingAudioCapture({
+    sendJSON, sendBinary, getSocket, isConnected: store.isConnected, showToast, startSession, waitForConnected,
+  });
+  const { handleStartListening, handleStopListening } = audio;
+  const speakers = useMeetingSpeakers(store.currentMeetingId, sendJSON);
+  const { pushContext, handleWeaknessesChange, handleMeetingNameChange, refreshMeetingMeta } = useMeetingContextSync(
+    sendJSON, store.meetingName, store.selectedCustomerName, store.selectedObjectName,
+  );
+
   useEffect(() => {
     // НЕ создаём встречу при заходе. Подключаемся к встрече из URL (meetingId)
     // или к уже выбранной в сторе (draft / текущая).
@@ -295,155 +139,23 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     }
     getSettings().then((s) => {
       setSettings(s);
-      store.setCustomSuggestionTypes(s.custom_suggestion_types);
+      useMeetingStore.getState().setCustomSuggestionTypes(s.custom_suggestion_types);
       // дефолт числа спикеров (до live meeting_settings_updated по WS)
       useMeetingStore.getState().setMaxSpeakers(s.diarization_max_speakers || 3);
     }).catch(() => {});
     return () => {
       disconnect();
-      if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
-      if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current);
     };
+    // Только при монтировании: встреча/подключение выбираются один раз при заходе на страницу.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Этап 7: подтянуть persisted-стороны спикеров при открытии встречи (до live broadcast)
-  useEffect(() => {
-    const mid = store.currentMeetingId;
-    if (mid == null) return;
-    getSpeakerRoles(mid)
-      .then((rows) => {
-        const map: Record<string, PublicSpeakerSide> = {};
-        const names: Record<string, string> = {};
-        for (const r of rows) {
-          const side = toPublicSpeakerSide(r.side);
-          if (side) map[r.speaker_label] = side;
-          if (r.display_name) names[r.speaker_label] = r.display_name;
-        }
-        useMeetingStore.getState().setSpeakerRoles(map);
-        useMeetingStore.getState().setSpeakerNames(names);
-      })
-      .catch(() => {});  // тихо игнорируем — роли/имена подтянутся по WS
-    // Этап 8: persisted segment-level коррекции
-    listSpeakerCorrections(mid)
-      .then((rows) => {
-        const map: Record<string, SpeakerSegmentCorrection> = {};
-        for (const r of rows) map[r.segment_key] = r;
-        useMeetingStore.getState().setSpeakerCorrections(map);
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.currentMeetingId]);
-
-  // Этап 8.1: исправить ОДНУ реплику (side и/или corrected_speaker_label). Merge с существующей
-  // коррекцией, оптимистично + REST. Пустой результат → delete. Встречу НЕ создаёт.
-  const handleSetSegmentCorrection = useCallback(async (
-    segmentKey: string,
-    originalSpeaker: string,
-    patch: { side?: PublicSpeakerSide | ''; correctedSpeakerLabel?: string | null },
-  ) => {
-    const st = useMeetingStore.getState();
-    const mid = st.currentMeetingId;
-    if (mid == null || !segmentKey) return;
-    const existing = st.speakerCorrections[segmentKey];
-    const side: PublicSpeakerSide | '' = patch.side !== undefined
-      ? patch.side
-      : (toPublicSpeakerSide(existing?.side));
-    const correctedLabel: string | null = patch.correctedSpeakerLabel !== undefined
-      ? (patch.correctedSpeakerLabel || null)
-      : (existing?.corrected_speaker_label ?? null);
-    const prev = st.speakerCorrections;
-    try {
-      if (!side && !correctedLabel) {
-        await deleteSpeakerCorrection(mid, segmentKey);
-        const map = { ...prev };
-        delete map[segmentKey];
-        useMeetingStore.getState().setSpeakerCorrections(map);
-      } else {
-        const rows = await putSpeakerCorrection(mid, segmentKey, {
-          side: side || '', corrected_speaker_label: correctedLabel,
-          original_speaker_label: originalSpeaker,
-        });
-        const map: Record<string, SpeakerSegmentCorrection> = {};
-        for (const r of rows) map[r.segment_key] = r;
-        useMeetingStore.getState().setSpeakerCorrections(map);
-      }
-    } catch {
-      useMeetingStore.getState().setError('Не удалось сохранить исправление реплики');
-    }
-  }, []);
-
-  // Клик по бейджу реплики циклит сторону, сохраняя corrected_speaker_label.
-  const handleCorrectSegment = useCallback((segmentKey: string, originalSpeaker: string) => {
-    const current = segmentOverrideSide(useMeetingStore.getState().speakerCorrections, segmentKey);
-    handleSetSegmentCorrection(segmentKey, originalSpeaker, { side: nextPublicSpeakerSide(current) });
-  }, [handleSetSegmentCorrection]);
-
-  // Единый сеттер стороны спикера: optimistic + WS (или REST fallback). Встречу НЕ создаёт.
-  const handleSetSpeakerSide = useCallback(async (name: string, side: PublicSpeakerSide | '' | null) => {
-    const label = name.trim();
-    if (!label) return;
-    const normalized = toPublicSpeakerSide(side);
-    const st = useMeetingStore.getState();
-    const prev = st.speakerRoles;
-    const next: Record<string, string> = { ...prev };
-    if (normalized) next[label] = normalized;
-    else delete next[label];
-    st.setSpeakerRoles(next);
-
-    if (st.isConnected) {
-      sendJSON({ type: 'set_speaker_role', name: label, side: normalized || '' });
-    } else if (st.currentMeetingId != null) {
-      try {
-        await putSpeakerRole(st.currentMeetingId, label, { side: normalized || '' });
-      } catch {
-        useMeetingStore.getState().setSpeakerRoles(prev);  // откат optimistic
-        useMeetingStore.getState().setError('Не удалось сохранить сторону спикера');
-      }
-    }
-    // нет соединения и нет встречи → только локальный optimistic (встречу не создаём)
-  }, [sendJSON]);
-
-  // Имя спикера: optimistic + WS (или REST fallback). Сторону спикера сохраняем (шлём текущую).
-  const handleSetSpeakerName = useCallback(async (name: string, displayName: string) => {
-    const label = name.trim();
-    if (!label) return;
-    const trimmed = displayName.trim();
-    const st = useMeetingStore.getState();
-    const prev = st.speakerNames;
-    const next: Record<string, string> = { ...prev };
-    if (trimmed) next[label] = trimmed;
-    else delete next[label];
-    st.setSpeakerNames(next);
-
-    const side = toPublicSpeakerSide(st.speakerRoles[label]);
-    if (st.isConnected) {
-      sendJSON({ type: 'set_speaker_role', name: label, side: side || '', display_name: trimmed });
-    } else if (st.currentMeetingId != null) {
-      try {
-        await putSpeakerRole(st.currentMeetingId, label, { side: side || '', display_name: trimmed });
-      } catch {
-        useMeetingStore.getState().setSpeakerNames(prev);  // откат optimistic
-        useMeetingStore.getState().setError('Не удалось сохранить имя спикера');
-      }
-    }
-  }, [sendJSON]);
-
-  // Число спикеров диаризации — per-meeting. Optimistic + WS (бэкенд персистит на встречу
-  // и при активной записи перезапускает Speechmatics с новым значением).
-  const handleMaxSpeakersChange = useCallback((n: number) => {
-    const v = Math.max(2, Math.min(6, Math.round(n) || 3));
-    useMeetingStore.getState().setMaxSpeakers(v);
-    sendJSON({ type: 'change_settings', diarization_max_speakers: v });
-  }, [sendJSON]);
 
   // Conversation Tree: начальная загрузка дерева при открытии встречи
   useEffect(() => {
     if (store.currentMeetingId == null) return;
     getConversationTree(store.currentMeetingId)
-      .then((tree) => store.setConversationTree(tree.topics, tree.tree_version, tree.unassigned_speakers))
+      .then((tree) => useMeetingStore.getState().setConversationTree(tree.topics, tree.tree_version, tree.unassigned_speakers))
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentMeetingId]);
 
   useEffect(() => {
@@ -455,73 +167,6 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [store.isListening, store.messages.length]);
-
-  const handleStartListening = useCallback(async () => {
-    // Этап 3: если активный источник аудио — другое устройство (телефон), не стартуем
-    let st = useMeetingStore.getState();
-    if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-      store.setError('Источник аудио занят (идёт запись с устройства)');
-      return;
-    }
-    // Звук встречи запрашиваем ДО любых await: getDisplayMedia работает только по свежему
-    // клику, а ниже мы можем успеть создать встречу и дождаться WS. Отказ не отменяет запись.
-    let systemStream: MediaStream | null = null;
-    if (onlineAudioRef.current && isSystemAudioSupported()) {
-      try {
-        systemStream = await captureSystemAudio();
-      } catch (err) {
-        const code = err instanceof SystemAudioError ? err.code : 'failed';
-        handleSystemAudioState({ active: false, error: code, message: SYSTEM_AUDIO_ERROR_TEXT[code] });
-      }
-    }
-    const abort = (message: string) => {
-      stopSystemAudio(systemStream);
-      store.setError(message);
-    };
-    // Встреча создаётся вручную при первом старте записи (не при заходе на портал).
-    if (st.currentMeetingId == null || !st.isConnected) {
-      const id = await startSession(false);
-      if (id == null) { abort('Не удалось создать встречу'); return; }
-      const ok = await waitForConnected();
-      if (!ok) { abort('Не удалось подключиться к встрече'); return; }
-      st = useMeetingStore.getState();
-      if (st.activeAudioSource && st.activeAudioSource !== st.connectionId) {
-        abort('Источник аудио занят (идёт запись с устройства)');
-        return;
-      }
-    }
-    try {
-      await startAudio(systemStream);
-      void wakeLock.request();
-      setRecordingPaused(false);
-      sendJSON({ type: 'start_audio' });
-      store.setListening(true);
-    } catch {
-      abort('Не удалось получить доступ к микрофону');
-    }
-  }, [startAudio, sendJSON, startSession, waitForConnected, store, wakeLock, handleSystemAudioState]);
-
-  const handleStopListening = useCallback(() => {
-    stopAudio();
-    wakeLock.release();
-    setRecordingPaused(false);
-    sendJSON({ type: 'stop_audio' });
-    store.setListening(false);
-  }, [stopAudio, sendJSON, store, wakeLock]);
-
-  // Возобновление после прерывания ОС: пересоздаём захват (старый трек/контекст мертвы).
-  // Тап по кнопке = гарантированный user-gesture, который iOS требует для getUserMedia.
-  const handleResumeListening = useCallback(async () => {
-    try {
-      stopAudio();
-      await startAudio();
-      void wakeLock.request();
-      sendJSON({ type: 'start_audio' });
-      setRecordingPaused(false);
-    } catch {
-      store.setError('Не удалось возобновить запись');
-    }
-  }, [stopAudio, startAudio, sendJSON, store, wakeLock]);
 
   // Hotkeys: Space — toggle listening, H — suggestion, S — strengthen
   useEffect(() => {
@@ -552,9 +197,9 @@ export function MeetingPage({ meetingId, onBack }: Props) {
 
   // Калибровка сторон «держу — говорим мы»: очная встреча на провайдере с диаризацией.
   // В онлайне сторону даёт источник звука, у ElevenLabs нет меток голосов — там не нужна.
-  const sideCalibrationOn = store.isListening && !systemAudioState?.active
-    && (settings?.stt_provider === 'deepgram' || settings?.stt_provider === 'speechmatics')
+  const diarizationAvailable = (settings?.stt_provider === 'deepgram' || settings?.stt_provider === 'speechmatics')
     && !!settings?.diarization;
+  const sideCalibrationOn = store.isListening && !audio.systemAudioState?.active && diarizationAvailable;
   const selfHold = useSelfHold(sideCalibrationOn, sendJSON);
   // Каждый старт записи — новая нумерация голосов у провайдера: считаем реплики с этого места.
   const [sessionMsgStart, setSessionMsgStart] = useState(0);
@@ -564,56 +209,6 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     if (store.isListening) setSessionMsgStart(store.messages.length);
   }
 
-  // Дебаунс отправки контекста: локальный стор обновляется мгновенно (поле/шапка
-  // реагируют сразу), а update_meeting_context уходит на сервер с задержкой —
-  // вместе с guard contextEditedAt это гасит self-echo (символы не пропадают).
-  // Единый отправитель контекста: читает ВСЕ поля из стора в момент отправки.
-  // Поля раскиданы по разным карточкам — кортеж собрать неоткуда, поэтому источник
-  // истины один (стор). markContextEdited + debounce 350ms гасят self-echo.
-  const pushContext = useCallback(() => {
-    useMeetingStore.getState().markContextEdited();
-    if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
-    ctxSendTimer.current = setTimeout(() => {
-      const st = useMeetingStore.getState();
-      sendJSON({ type: 'update_meeting_context', title: st.meetingName || undefined, topic: st.meetingTopic, notes: st.meetingNotes, negotiation_type: st.negotiationType, meeting_role: st.meetingRole, opponent_weaknesses: st.opponentWeaknesses });
-    }, 350);
-  }, [sendJSON]);
-
-  const handleWeaknessesChange = useCallback((v: string) => { useMeetingStore.getState().setOpponentWeaknesses(v); pushContext(); }, [pushContext]);
-
-  const handleMeetingNameChange = useCallback((name: string) => {
-    const s = useMeetingStore.getState();
-    s.setMeetingName(name);
-    s.markContextEdited();
-    if (ctxSendTimer.current) clearTimeout(ctxSendTimer.current);
-    ctxSendTimer.current = setTimeout(() => {
-      const st = useMeetingStore.getState();
-      sendJSON({ type: 'update_meeting_context', title: name, topic: st.meetingTopic, notes: st.meetingNotes, negotiation_type: st.negotiationType, meeting_role: st.meetingRole, opponent_weaknesses: st.opponentWeaknesses });
-    }, 350);
-  }, [sendJSON]);
-
-  // Дефолт названия встречи «Заказчик_Объект_Дата» — только когда поле пустое и
-  // известен заказчик/объект. Не затирает то, что пользователь уже ввёл/подтянуто из БД.
-  useEffect(() => {
-    if (store.meetingName) return;
-    if (!store.selectedCustomerName && !store.selectedObjectName) return;
-    useMeetingStore.getState().setMeetingName(
-      buildDefaultMeetingName(store.selectedCustomerName, store.selectedObjectName),
-    );
-  }, [store.meetingName, store.selectedCustomerName, store.selectedObjectName]);
-
-  // После финализации подтянуть сгенерированную тему/название из БД (read-only поле).
-  const refreshMeetingMeta = useCallback(() => {
-    const id = useMeetingStore.getState().currentMeetingId;
-    if (id == null) return;
-    getMeetingDetail(id).then((d) => {
-      const s2 = useMeetingStore.getState();
-      s2.setMeetingTopic(d.meeting_topic ?? '');
-      if (d.started_at) s2.setMeetingStartedAt(d.started_at);
-      if (d.title) s2.setMeetingName(d.title);
-    }).catch(() => {});
-  }, []);
-
   const [savingMeeting, setSavingMeeting] = useState(false);
 
   const handleSaveMeeting = useCallback(() => {
@@ -621,142 +216,43 @@ export function MeetingPage({ meetingId, onBack }: Props) {
     setSavingMeeting(true);
     sendJSON({ type: 'finalize_meeting', meeting_name: store.meetingName || undefined });
     showToast('Встреча сохранена', 'success');
-    setTimeout(() => setSavingMeeting(false), 2000);
+    setTimeout(() => setSavingMeeting(false), SAVE_COOLDOWN_MS);
   }, [sendJSON, store.meetingName, savingMeeting, showToast]);
 
   const handleRoleSelect = useCallback((roleId: number) => {
     sendJSON({ type: 'change_role', role_id: roleId });
   }, [sendJSON]);
 
-  const copyMeetingLink = useCallback(() => {
-    const id = useMeetingStore.getState().currentMeetingId;
-    if (id == null) return;
-    const url = window.location.origin + paths.meetingRoom(id);
-    const done = () => {
-      // Инлайн-фидбек прямо под кнопкой (вместо тоста): чек + всплывающая подпись.
-      setLinkCopied(true);
-      if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current);
-      linkCopiedTimer.current = setTimeout(() => setLinkCopied(false), 2000);
-    };
-    const fail = () => showToast('Не удалось скопировать ссылку', 'error');
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, fail);
-    else fail();
-  }, [showToast]);
-
-  // Дата встречи (начало записи) для шапки.
-  const meetingDate = formatMeetingDate(store.meetingStartedAt);
-  // Инлайн-уведомление о копировании ссылки (panel-reveal под кнопкой).
-  const copyNote = useExitTransition(linkCopied, { closeVar: '--panel-close-dur', fallbackMs: 350 });
-
-  // Верхняя панель встречи: «назад» + переключатель вида (диктофон/полный) + ссылка.
-  // Общая для обоих режимов — переключатель доступен и в диктофоне, и в полном.
   const topBar = (
-    <div style={styles.topBar}>
-      <style>{`
-        @media (max-width: 767px) {
-          .mp-ref-label { display: none !important; }
-          .mp-ref { gap: 10px !important; }
-          .mp-btn-label { display: none !important; }
-        }
-      `}</style>
-      <button onClick={onBack} className="t-btn" style={styles.backBtn} aria-label="Назад" title="В главное меню">
-        <span>←</span><span className="mp-btn-label"> Назад</span>
-      </button>
-      {/* Заказчик/объект/дата — справочно, read-only (привязка задаётся при создании встречи) */}
-      {(store.selectedCustomerName || store.selectedObjectName || meetingDate) && (
-        <div className="mp-ref" style={styles.refInfo}>
-          {store.selectedCustomerName && (
-            <span style={styles.refItem} title={`Заказчик: ${store.selectedCustomerName}`}>
-              <span className="mp-ref-label" style={styles.refLabel}>Заказчик</span>
-              <span style={styles.refVal}>{store.selectedCustomerName}</span>
-            </span>
-          )}
-          {store.selectedObjectName && (
-            <span style={styles.refItem} title={`Объект: ${store.selectedObjectName}`}>
-              <span className="mp-ref-label" style={styles.refLabel}>Объект</span>
-              <span style={styles.refVal}>{store.selectedObjectName}</span>
-            </span>
-          )}
-          {meetingDate && (
-            <span style={styles.refItem} title={`Дата встречи: ${meetingDate}`}>
-              <span className="mp-ref-label" style={styles.refLabel}>Дата</span>
-              <span style={styles.refVal}>{meetingDate}</span>
-            </span>
-          )}
-        </div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <RecordingIndicator />
-        <ModeSwitch />
-        {store.currentMeetingId != null && (
-          <div style={styles.linkWrap}>
-            <button onClick={copyMeetingLink} className="t-btn" style={styles.linkBtn} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">
-              <IconSwap state={linkCopied ? 'b' : 'a'} a="🔗" b="✓" />
-              <span className="mp-btn-label"> Ссылка</span>
-            </button>
-            {copyNote.mounted && (
-              <div
-                className="t-panel-slide"
-                data-open={copyNote.open ? 'true' : 'false'}
-                style={{ ...styles.copyNote, ['--panel-translate-y']: '-6px' } as React.CSSProperties}
-              >
-                Ссылка скопирована
-              </div>
-            )}
-          </div>
-        )}
-        <MeetingAudioSettings
-          onConfigChange={onAudioCaptureConfig}
-          enabled={onlineAudio}
-          onToggle={handleOnlineAudioToggle}
-          state={systemAudioState}
-          levels={sourceLevels}
-          isListening={store.isListening}
-        />
-      </div>
-    </div>
-  );
-
-  const toastEl = toast && (
-    <div
-      key={toast.message + Date.now()}
-      style={{
-        ...styles.toast,
-        borderColor: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-        background: toast.type === 'success' ? 'rgba(46,229,157,0.12)' : 'rgba(255,75,110,0.12)',
+    <MeetingTopBar
+      onBack={onBack}
+      customerName={store.selectedCustomerName}
+      objectName={store.selectedObjectName}
+      // Дата встречи (начало записи) для шапки.
+      meetingDate={formatMeetingDate(store.meetingStartedAt)}
+      meetingId={store.currentMeetingId}
+      showToast={showToast}
+      audioSettings={{
+        onConfigChange: audio.onAudioCaptureConfig,
+        enabled: audio.onlineAudio,
+        onToggle: audio.handleOnlineAudioToggle,
+        state: audio.systemAudioState,
+        levels: audio.sourceLevels,
+        isListening: store.isListening,
       }}
-    >
-      <span style={{
-        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-        background: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-      }} />
-      <span style={{
-        color: toast.type === 'success' ? theme.accent.green : theme.accent.red,
-        fontSize: 12, fontFamily: theme.font.mono, fontWeight: 500,
-      }}>
-        {toast.message}
-      </span>
-    </div>
+    />
   );
 
-  // Баннер записи: после прерывания ОС — кнопка «Продолжить»; иначе во время записи —
-  // подсказка «не блокируйте экран» (только мобильные, через CSS-класс). Wake Lock держит
-  // экран сам; iPhone в фоне при выключенном экране писать не может — об этом и предупреждаем.
-  const recordingBanner = recordingPaused ? (
-    <div style={styles.recoveryBanner} role="alert">
-      <span>Запись приостановлена (экран был заблокирован).</span>
-      <button style={styles.recoveryBtn} onClick={handleResumeListening}>Продолжить запись</button>
-    </div>
-  ) : store.isListening ? (
-    // display управляется классом (none на десктопе, block на мобиле) — без inline display.
-    <div className="mp-rec-hint" style={styles.recHint}>
-      <style>{`
-        .mp-rec-hint { display: none; }
-        @media (max-width: 767px) { .mp-rec-hint { display: block; } }
-      `}</style>
-      Не блокируйте экран. На iPhone запись в фоне при выключенном экране невозможна.
-    </div>
-  ) : null;
+  // key меняется на каждый рендер — как и раньше, тост проигрывает анимацию заново
+  const toastEl = toast && <MeetingToast key={toast.message + Date.now()} toast={toast} />;
+
+  const recordingBanner = (
+    <RecordingBanner
+      recordingPaused={audio.recordingPaused}
+      isListening={store.isListening}
+      onResume={audio.handleResumeListening}
+    />
+  );
 
   const sideCalibration = (compact: boolean) => sideCalibrationOn && (
     <SideCalibration
@@ -764,7 +260,7 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       holding={selfHold.holding}
       onPress={selfHold.press}
       onRelease={selfHold.release}
-      onSetSide={handleSetSpeakerSide}
+      onSetSide={speakers.handleSetSpeakerSide}
       compact={compact}
     />
   );
@@ -773,13 +269,13 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   // Переключение режима — единым слайдером роли «Админ ⟷ Пользователь» в шапке.
   if (store.uiMode === 'simple') {
     return (
-      <div style={styles.container}>
+      <div className={styles.container}>
         {topBar}
         <OfflineBanner />
         {recordingBanner}
         <HelperPanel />
         <DictaphoneView
-          level={level}
+          level={audio.level}
           isListening={store.isListening}
           isConnected={store.isConnected}
           onStart={handleStartListening}
@@ -792,23 +288,18 @@ export function MeetingPage({ meetingId, onBack }: Props) {
   }
 
   return (
-    <div style={styles.container}>
+    <div className={styles.container}>
       {topBar}
       <OfflineBanner />
       {recordingBanner}
       <HelperPanel />
       {/* Tab bar + бейдж участников справа */}
-      <div className="meeting-tabs" style={styles.tabs}>
+      <div className={`meeting-tabs ${styles.tabs}`}>
         {TABS.map((tab, i) => (
           <button
             key={tab}
             onClick={() => setActiveTab(i)}
-            className="t-btn"
-            style={{
-              ...styles.tab,
-              borderBottom: activeTab === i ? `2px solid ${theme.accent.amber}` : '2px solid transparent',
-              color: activeTab === i ? theme.accent.amber : theme.text.muted,
-            }}
+            className={`t-btn ${styles.tab}${activeTab === i ? ` ${styles.tabActive}` : ''}`}
           >
             {tab}
           </button>
@@ -817,207 +308,28 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       </div>
 
       {/* Tab content */}
-      <div style={activeTab === 0 ? styles.contentNegotiations : styles.content}>
-        {/* Переговоры */}
+      <div className={activeTab === 0 ? styles.contentNegotiations : styles.content}>
         {activeTab === 0 && (
-          <div style={styles.negotiationWrap}>
-            {/* Mobile stats strip */}
-            <div className="mobile-stats-strip">
-              <div className="stat-chip">
-                <div className="stat-chip-val" style={{ color: store.meetingStats.positionStrength >= 60 ? theme.accent.green : theme.accent.amber }}>
-                  <PopNumber value={`${store.meetingStats.positionStrength}%`} />
-                </div>
-                <div className="stat-chip-lbl">Позиция</div>
-              </div>
-              <div className="stat-chip">
-                <div className="stat-chip-val" style={{ color: theme.accent.green }}>
-                  <PopNumber value={store.meetingStats.suggestionsUsed} />
-                </div>
-                <div className="stat-chip-lbl">Принято</div>
-              </div>
-              <div className="stat-chip">
-                <div className="stat-chip-val" style={{ color: store.meetingStats.activeObjections > 0 ? theme.accent.red : theme.text.primary }}>
-                  <PopNumber value={store.meetingStats.activeObjections} />
-                </div>
-                <div className="stat-chip-lbl">Возраж.</div>
-              </div>
-            </div>
-
-            <div className="meeting-layout" style={styles.meetingLayout}>
-              {/* Left: suggestions (wide) */}
-              <div style={styles.leftPanel}>
-                <SuggestionPanel />
-              </div>
-              {/* Right: transcript (bottom sheet on mobile) */}
-              {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
-              <div className={`meeting-right-panel${drawerOpen ? ' drawer-open' : ''}`} style={styles.rightPanel}>
-                <div className="sheet-handle-row">
-                  <div style={{ width: 24 }} />
-                  <div className="sheet-title">
-                    <span className="sheet-dot" />
-                    Транскрипция
-                  </div>
-                  <button className="sheet-close t-btn" onClick={() => setDrawerOpen(false)}>&times;</button>
-                </div>
-                <SpeakerSideAssignmentPanel
-                  meetingId={store.currentMeetingId}
-                  canEdit={store.canSendAudio}
-                  compact
-                  onSetSpeakerSide={handleSetSpeakerSide}
-                  onSetSpeakerName={handleSetSpeakerName}
-                  onSetMaxSpeakers={
-                    store.canSendAudio
-                    && (settings?.stt_provider === 'speechmatics' || settings?.stt_provider === 'deepgram')
-                    && settings?.diarization
-                      ? handleMaxSpeakersChange : undefined
-                  }
-                />
-                <SpeakerIdentityReviewPanel
-                  meetingId={store.currentMeetingId}
-                  canEdit={store.canSendAudio}
-                  transcriptItems={store.messages}
-                  actualChannelCount={store.multiChannelLiveState?.channel_count ?? 0}
-                  multichannelShadowEnabled={loadMultichannelShadowEnabled()}
-                />
-                <ChatDisplay
-                  onSetSpeakerRole={handleSetSpeakerSide}
-                  onCorrectSegment={handleCorrectSegment}
-                  onSetSegmentCorrection={handleSetSegmentCorrection}
-                />
-                <MeetingStats onSaveToHistory={() => sendJSON({ type: 'save_to_history' })} />
-              </div>
-              {/* Third column: дерево общения (скрывается на узких экранах через CSS) */}
-              <div className="meeting-tree-panel" style={styles.treePanel}>
-                <ConversationTreePanel meetingId={store.currentMeetingId} />
-              </div>
-            </div>
-          </div>
+          <NegotiationsTab
+            drawerOpen={drawerOpen}
+            onCloseDrawer={() => setDrawerOpen(false)}
+            speakers={speakers}
+            canSetMaxSpeakers={diarizationAvailable}
+            onSaveToHistory={() => sendJSON({ type: 'save_to_history' })}
+          />
         )}
-
-        {/* Контекст встречи */}
-        {activeTab === 1 && (() => {
-          const ctxMeetingId = store.currentMeetingId ?? store.draftMeetingId ?? null;
-          return (
-          <div className="mobile-content-pad" style={styles.contextPanel}>
-            {/* A. Брифинг встречи: две сбалансированные карточки рядом */}
-            <div className="context-columns" style={styles.briefGrid}>
-              {/* Встреча — название/тема (стек) + статус */}
-              <div style={styles.contextCard}>
-                <div style={styles.sectionHeader}>
-                  <span style={styles.dot} />
-                  <span style={styles.sectionTitle}>Встреча</span>
-                  {store.currentMeetingId != null && (
-                    <span style={styles.roomBadge}>
-                      <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
-                      {store.roomConnected ? (store.recording ? 'REC' : 'online') : 'offline'}
-                    </span>
-                  )}
-                </div>
-
-                <div style={styles.meetingField}>
-                  <label style={styles.miniLabel}>Название встречи</label>
-                  <input
-                    type="text"
-                    placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
-                    value={store.meetingName}
-                    onChange={(e) => handleMeetingNameChange(e.target.value)}
-                    style={styles.contextInput}
-                  />
-                </div>
-                <div style={styles.meetingField}>
-                  <label style={styles.miniLabel}>Тема / цель встречи</label>
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder="Сформируется автоматически после завершения встречи"
-                    value={store.meetingTopic}
-                    title="Краткое наименование формируется ИИ после распознавания всех переговоров"
-                    style={styles.contextInputReadonly}
-                  />
-                </div>
-
-                {store.currentMeetingId != null && (
-                  <div style={styles.roomStatus}>
-                    <span style={styles.roomStatusItem}>Meeting ID: <b style={{ color: theme.text.primary }}>{store.currentMeetingId}</b></span>
-                    <span style={styles.roomStatusItem}>
-                      <span style={{ ...styles.roomDot, background: store.roomConnected ? theme.accent.green : theme.text.muted }} />
-                      {store.roomConnected ? 'Room connected' : 'Room offline'}
-                    </span>
-                    <span style={styles.roomStatusItem}>
-                      Active audio: <b style={{ color: store.recording ? theme.accent.green : theme.text.muted }}>
-                        {store.recording ? (store.deviceRole || 'устройство') : 'none'}
-                      </b>
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Краткие настройки — тип переговоров + ключевые условия */}
-              <CollapsibleSection title="Краткие настройки" defaultOpen>
-                <MeetingContext pushContext={pushContext} />
-              </CollapsibleSection>
-            </div>
-
-            {/* B. Источники контекста — на всю ширину */}
-            <ContextBasket
-              meetingId={ctxMeetingId}
-              customerId={store.selectedCustomerId}
-              objectId={store.selectedObjectId}
-              ensureMeetingId={async () => {
-                const st = useMeetingStore.getState();
-                if (st.currentMeetingId != null) return st.currentMeetingId;
-                return await startSession(false);
-              }}
-              ragAdapter={ragContextApiAdapter}
-            />
-
-            {/* C. Расширенные настройки */}
-            <CollapsibleSection title="Расширенные настройки">
-              {/* AI-настройки встречи */}
-              {ctxMeetingId != null && <MeetingAISettingsBlock meetingId={ctxMeetingId} />}
-
-              {/* Слабые стороны оппонента */}
-              <CollapsibleSection title="Слабые стороны оппонента">
-                <textarea
-                  placeholder={"Известные проблемы, сорванные сроки, рыночная позиция..."}
-                  value={store.opponentWeaknesses}
-                  onChange={(e) => handleWeaknessesChange(e.target.value)}
-                  rows={3}
-                  style={styles.weakTextarea}
-                />
-              </CollapsibleSection>
-
-              {/* Активная роль (live, через WS change_role) */}
-              <div style={styles.contextCard}>
-                <div style={styles.sectionHeader}>
-                  <span style={styles.dot} />
-                  <span style={styles.sectionTitle}>Активная роль (для подсказок)</span>
-                </div>
-                <RoleSelector onRoleSelect={handleRoleSelect} />
-              </div>
-
-              {/* Сохранить встречу */}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  className="save-meeting-btn t-btn t-btn-amber"
-                  onClick={handleSaveMeeting}
-                  disabled={savingMeeting}
-                  style={{
-                    ...styles.saveMeetingBtn,
-                    opacity: savingMeeting ? 0.6 : 1,
-                    cursor: savingMeeting ? 'wait' : 'pointer',
-                  }}
-                >
-                  {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
-                </button>
-              </div>
-
-              {/* Этап 5: итоги встречи / протокол */}
-              <FinalizationPanel meetingId={store.currentMeetingId} onFinalized={refreshMeetingMeta} />
-            </CollapsibleSection>
-          </div>
-          );
-        })()}
+        {activeTab === 1 && (
+          <MeetingContextTab
+            pushContext={pushContext}
+            onMeetingNameChange={handleMeetingNameChange}
+            onWeaknessesChange={handleWeaknessesChange}
+            onRoleSelect={handleRoleSelect}
+            onSaveMeeting={handleSaveMeeting}
+            savingMeeting={savingMeeting}
+            onFinalized={refreshMeetingMeta}
+            startSession={startSession}
+          />
+        )}
       </div>
 
       {activeTab === 0 && sideCalibration(true)}
@@ -1060,183 +372,4 @@ export function MeetingPage({ meetingId, onBack }: Props) {
       </nav>
     </div>
   );
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' },
-  topBar: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-    padding: '8px 20px', background: theme.bg.secondary,
-    borderBottom: `1px solid ${theme.border.default}`, flexShrink: 0,
-  },
-  backBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-    background: 'transparent', border: `1px solid ${theme.accent.amber}`, borderRadius: 6,
-    color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em', flexShrink: 0,
-  },
-  refInfo: {
-    display: 'flex', alignItems: 'center', gap: 18, flex: 1, minWidth: 0,
-    overflow: 'hidden', paddingLeft: 4,
-  },
-  refItem: {
-    display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0,
-  },
-  refLabel: {
-    fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const, color: theme.text.muted, flexShrink: 0,
-  },
-  refVal: {
-    fontFamily: theme.font.body, fontSize: 13, fontWeight: 600, color: theme.text.primary,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  linkWrap: { position: 'relative', flexShrink: 0 },
-  linkBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-    background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 6,
-    color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em',
-  },
-  copyNote: {
-    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
-    display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-    padding: '5px 10px', borderRadius: 6,
-    background: 'rgba(46,229,157,0.12)', border: `1px solid ${theme.accent.green}`,
-    color: theme.accent.green, fontSize: 11, fontFamily: theme.font.mono, fontWeight: 500,
-  },
-  tabs: {
-    display: 'flex', gap: 0, alignItems: 'center',
-    borderBottom: `1px solid ${theme.border.default}`,
-    padding: '0 24px', background: theme.bg.secondary, flexShrink: 0,
-  },
-  simpleBar: {
-    display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-    padding: '8px 16px', borderBottom: `1px solid ${theme.border.default}`,
-    background: theme.bg.secondary, flexShrink: 0,
-  },
-  tab: {
-    padding: '10px 16px', background: 'transparent', border: 'none',
-    cursor: 'pointer', fontSize: 12, fontWeight: 500,
-    fontFamily: theme.font.body, letterSpacing: '0.02em', transition: 'color 0.2s',
-  },
-  content: { flex: 1, overflow: 'auto', padding: 20 },
-  contentNegotiations: { flex: 1, overflow: 'hidden', padding: '16px 20px 0' },
-
-  /* Переговоры */
-  negotiationWrap: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
-  meetingLayout: { display: 'flex', gap: 16, flex: 1, minHeight: 0 },
-  leftPanel: { flex: 3, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 },
-  rightPanel: { width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0 },
-  treePanel: { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 },
-
-  /* Контекст встречи */
-  contextPanel: { display: 'flex', flexDirection: 'column', gap: 20 },
-  roomStatus: {
-    display: 'flex', gap: 18, flexWrap: 'wrap' as const, alignItems: 'center',
-    padding: '8px 14px', background: theme.bg.tertiary,
-    border: `1px solid ${theme.border.default}`, borderRadius: 8,
-    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary,
-  },
-  roomStatusItem: { display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.04em' },
-  roomDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
-  roomBadge: {
-    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-    padding: '3px 10px', borderRadius: 20, background: theme.bg.tertiary,
-    border: `1px solid ${theme.border.default}`, fontFamily: theme.font.mono,
-    fontSize: 10, letterSpacing: '0.06em', color: theme.text.secondary,
-    textTransform: 'uppercase' as const,
-  },
-  meetingField: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
-  miniLabel: {
-    fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber,
-    letterSpacing: '0.08em', textTransform: 'uppercase' as const,
-  },
-  briefGrid: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr',
-    gap: 20, alignItems: 'start',
-  },
-  weakTextarea: {
-    padding: '10px 14px', background: theme.bg.input, border: `1px solid ${theme.border.default}`,
-    borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body,
-    outline: 'none', resize: 'vertical' as const, width: '100%', boxSizing: 'border-box' as const,
-  },
-  contextInput: {
-    padding: '10px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box' as const,
-  },
-  contextInputReadonly: {
-    padding: '10px 14px',
-    background: theme.bg.tertiary,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.secondary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box' as const,
-    cursor: 'default',
-  },
-  saveMeetingBtn: {
-    padding: '12px 28px',
-    background: theme.accent.amber,
-    border: 'none',
-    borderRadius: 8,
-    color: '#080A0F',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 600,
-    fontFamily: theme.font.body,
-    alignSelf: 'flex-start',
-    transition: 'opacity 0.2s',
-    letterSpacing: '0.02em',
-  },
-  contextCard: {
-    background: theme.bg.card, border: `1px solid ${theme.border.default}`,
-    borderRadius: 12, padding: 20,
-    display: 'flex', flexDirection: 'column', gap: 14,
-  },
-
-  /* Shared section header */
-  sectionHeader: { display: 'flex', alignItems: 'center', gap: 8 },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  sectionTitle: {
-    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11,
-    letterSpacing: '0.14em', textTransform: 'uppercase' as const,
-    color: theme.text.primary, flex: 1,
-  },
-  toast: {
-    position: 'fixed' as const, bottom: 24, right: 24, zIndex: 9999,
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 18px', borderRadius: 8,
-    border: '1px solid',
-    backdropFilter: 'blur(12px)',
-    animation: 'toastSlideIn 0.3s ease-out',
-  },
-  recHint: {
-    flexShrink: 0, padding: '8px 14px', margin: '0 12px',
-    borderRadius: 8, border: `1px solid ${theme.border.default}`,
-    background: theme.bg.elevated,
-    color: theme.text.secondary, fontFamily: theme.font.mono, fontSize: 11, lineHeight: 1.4,
-  },
-  recoveryBanner: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' as const,
-    flexShrink: 0, padding: '10px 14px', margin: '0 12px',
-    borderRadius: 8, border: `1px solid ${theme.accent.amber}`,
-    background: 'rgba(245,166,35,0.12)',
-    color: theme.text.primary, fontFamily: theme.font.mono, fontSize: 12,
-  },
-  recoveryBtn: {
-    padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: theme.accent.amber, color: '#080A0F',
-    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: theme.font.body,
-  },
 };

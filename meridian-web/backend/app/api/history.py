@@ -2,7 +2,7 @@
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("meridian.history")
@@ -37,7 +37,7 @@ from ..services.access import (
     can_record_meeting,
 )
 from ..api.objects import resolve_or_create_customer
-from ..services.meeting_room import room_registry, compute_live_state
+from ..services.meeting_room import compute_live_state
 from ..services.meeting_finalize import close_and_request_finalization, request_finalization
 from ..schemas.document import MeetingDocumentItem, MeetingDocumentPatch
 from ..schemas.finalization import (

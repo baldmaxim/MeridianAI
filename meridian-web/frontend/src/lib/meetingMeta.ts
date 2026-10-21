@@ -7,8 +7,8 @@ export const FIN_LABELS: Record<string, string> = {
 };
 
 export function finBadgeStyle(s: FinalizationStatus): React.CSSProperties {
-  const color = s === 'completed' ? '#2EE59D' : s === 'error' ? '#FF4B6E'
-    : s === 'partial' ? '#F5A623' : '#5B9CF6';
+  const color = s === 'completed' ? 'var(--accent-green)' : s === 'error' ? 'var(--accent-red)'
+    : s === 'partial' ? 'var(--accent-amber)' : 'var(--accent-blue)';
   return {
     padding: '2px 8px', background: 'transparent', border: `1px solid ${color}`,
     borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9,

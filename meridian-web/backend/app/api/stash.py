@@ -8,7 +8,6 @@ Presigned-S3 поток (§15): браузер грузит/скачивает �
 import logging
 import os
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException

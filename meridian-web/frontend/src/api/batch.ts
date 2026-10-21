@@ -1,5 +1,6 @@
 import api from './client';
 import { filenameFromDisposition, saveBlob } from './download';
+import { errorStatus } from '../lib/errorDetail';
 
 export interface BatchJob {
   id: number;
@@ -100,9 +101,9 @@ export async function uploadBatchAudio(
       kind: opts?.kind,
     });
     return data;
-  } catch (e: any) {
+  } catch (e) {
     // S3 не настроен → fallback на загрузку через backend
-    if (e?.response?.status === 503) {
+    if (errorStatus(e) === 503) {
       const form = new FormData();
       form.append('file', file);
       if (opts?.meetingId != null) form.append('meeting_id', String(opts.meetingId));

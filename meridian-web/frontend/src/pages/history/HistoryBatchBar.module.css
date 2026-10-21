@@ -1,0 +1,61 @@
+.batchBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.selectAllBtn,
+.batchDeleteBtn,
+.confirmYes,
+.confirmNo {
+  min-height: 44px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.selectAllBtn,
+.batchDeleteBtn {
+  background: transparent;
+  border-radius: 5px;
+  letter-spacing: 0.04em;
+}
+
+.selectAllBtn {
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.batchDeleteBtn {
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  font-weight: 600;
+}
+
+.confirmText {
+  color: var(--accent-red);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.confirmYes,
+.confirmNo {
+  border-radius: 4px;
+}
+
+.confirmYes {
+  background: var(--danger);
+  border: none;
+  color: var(--on-danger);
+  font-weight: 600;
+}
+
+.confirmNo {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}

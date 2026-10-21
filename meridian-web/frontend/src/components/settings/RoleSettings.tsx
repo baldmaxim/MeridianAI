@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { getRoles, createRole, updateRole, deleteRole } from '../../api/roles';
 import { theme } from '../../styles/theme';
-import { Select } from '../common';
+import { Select, TextInput } from '../common';
 import type { NegotiationRole } from '../../types';
+import styles from './RoleSettings.module.css';
+import { cx } from '../../utils/cx';
 
 const EMPTY_FORM = {
   name: '',
@@ -98,36 +100,32 @@ ${r.custom_instructions || '(не указаны)'}`;
   const isEditing = creating || editingId !== null;
 
   return (
-    <div className="roles-container" style={s.container}>
+    <div className={cx('roles-container', styles.container)}>
       {/* Role list */}
-      <div style={s.roleList}>
-        <div style={s.listHeader}>
-          <span style={s.dot} />
-          <span style={s.headerTitle}>Роли переговоров</span>
+      <div className={styles.roleList}>
+        <div className={styles.listHeader}>
+          <span className={styles.dot} />
+          <span className={styles.headerTitle}>Роли переговоров</span>
         </div>
 
         {roles.map((role) => (
           <div
             key={role.id}
             onClick={() => startEdit(role)}
-            style={{
-              ...s.roleCard,
-              borderColor: editingId === role.id ? theme.accent.amber : theme.border.default,
-              background: editingId === role.id ? theme.accent.amberGlow : theme.bg.elevated,
-            }}
+            className={cx(styles.roleCard, editingId === role.id && styles.roleCardActive)}
           >
-            <div style={s.roleCardTop}>
-              <span style={s.roleName}>{role.name}</span>
-              {role.is_default && <span style={s.badge}>По умолч.</span>}
+            <div className={styles.roleCardTop}>
+              <span className={styles.roleName}>{role.name}</span>
+              {role.is_default && <span className={styles.badge}>По умолч.</span>}
             </div>
-            <div style={s.roleDesc}>{role.description}</div>
-            <div style={s.roleActions}>
-              <button style={s.linkBtn} onClick={(e) => { e.stopPropagation(); startEdit(role); }}>
+            <div className={styles.roleDesc}>{role.description}</div>
+            <div className={styles.roleActions}>
+              <button className={styles.linkBtn} onClick={(e) => { e.stopPropagation(); startEdit(role); }}>
                 Редактировать
               </button>
               {!role.is_default && (
                 <button
-                  style={{ ...s.linkBtn, color: theme.accent.red }}
+                  className={cx(styles.linkBtn, styles.dangerLinkBtn)}
                   onClick={(e) => { e.stopPropagation(); handleDelete(role.id); }}
                 >
                   Удалить
@@ -137,55 +135,59 @@ ${r.custom_instructions || '(не указаны)'}`;
           </div>
         ))}
 
-        <button style={s.addBtn} onClick={startCreate}>+ Новая роль</button>
+        <button className={styles.addBtn} onClick={startCreate}>+ Новая роль</button>
       </div>
 
       {/* Edit / Create form */}
-      <div style={s.detail}>
+      <div className={styles.detail}>
         {isEditing ? (
-          <div style={s.formCard}>
-            <div style={s.listHeader}>
-              <span style={s.dot} />
-              <span style={s.headerTitle}>{creating ? 'Новая роль' : 'Редактирование'}</span>
+          <div className={styles.formCard}>
+            <div className={styles.listHeader}>
+              <span className={styles.dot} />
+              <span className={styles.headerTitle}>{creating ? 'Новая роль' : 'Редактирование'}</span>
             </div>
 
-            <label style={s.label}>Название роли</label>
-            <input
-              style={s.input}
+            <label className={styles.label}>Название роли</label>
+            <TextInput
+              inputClassName={styles.input}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onClear={() => setForm({ ...form, name: '' })}
+              clearLabel="название роли"
               placeholder="Например: Генподрядчик, Заказчик, Инвестор..."
             />
 
-            <label style={s.label}>Описание — кто вы</label>
+            <label className={styles.label}>Описание — кто вы</label>
             <textarea
-              style={s.textarea}
+              className={styles.textarea}
               rows={2}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Генеральный подрядчик в строительной отрасли"
             />
 
-            <label style={s.label}>Чьи интересы защищать</label>
+            <label className={styles.label}>Чьи интересы защищать</label>
             <textarea
-              style={s.textarea}
+              className={styles.textarea}
               rows={2}
               value={form.interests}
               onChange={(e) => setForm({ ...form, interests: e.target.value })}
               placeholder="Максимизация прибыли, защита от рисков, контроль сроков"
             />
 
-            <label style={s.label}>Против кого переговоры</label>
-            <input
-              style={s.input}
+            <label className={styles.label}>Против кого переговоры</label>
+            <TextInput
+              inputClassName={styles.input}
               value={form.opponents}
               onChange={(e) => setForm({ ...form, opponents: e.target.value })}
+              onClear={() => setForm({ ...form, opponents: '' })}
+              clearLabel="оппонентов"
               placeholder="Заказчики и субподрядчики"
             />
 
-            <label style={s.label}>Дополнительные инструкции для ИИ</label>
+            <label className={styles.label}>Дополнительные инструкции для ИИ</label>
             <Select
-              style={s.select}
+              style={selectStyle}
               value=""
               placeholder="Выбрать из шаблонов..."
               ariaLabel="Шаблоны инструкций"
@@ -198,7 +200,7 @@ ${r.custom_instructions || '(не указаны)'}`;
               options={PRESET_INSTRUCTIONS.map((text) => ({ value: text, label: text }))}
             />
             <textarea
-              style={s.textarea}
+              className={styles.textarea}
               rows={3}
               value={form.custom_instructions}
               onChange={(e) => setForm({ ...form, custom_instructions: e.target.value })}
@@ -207,25 +209,25 @@ ${r.custom_instructions || '(не указаны)'}`;
 
             {/* Prompt preview */}
             <button
-              style={s.toggleBtn}
+              className={styles.toggleBtn}
               onClick={() => setShowPrompts(!showPrompts)}
             >
               {showPrompts ? 'Скрыть промт' : 'Показать собранный промт'}
             </button>
             {showPrompts && (
-              <pre style={s.promptPreview}>{buildPreviewPrompt(form)}</pre>
+              <pre className={styles.promptPreview}>{buildPreviewPrompt(form)}</pre>
             )}
 
-            <div style={s.formActions}>
-              <button style={s.saveBtn} onClick={handleSave} disabled={saving || !form.name.trim()}>
+            <div className={styles.formActions}>
+              <button className={styles.saveBtn} onClick={handleSave} disabled={saving || !form.name.trim()}>
                 {saving ? 'Сохранение...' : 'Сохранить'}
               </button>
-              <button style={s.cancelBtn} onClick={cancel}>Отмена</button>
+              <button className={styles.cancelBtn} onClick={cancel}>Отмена</button>
             </div>
           </div>
         ) : (
-          <div style={s.formCard}>
-            <div style={{ color: theme.text.muted, fontSize: 13 }}>
+          <div className={styles.formCard}>
+            <div className={styles.hintText}>
               Выберите роль для редактирования или создайте новую
             </div>
           </div>
@@ -235,205 +237,16 @@ ${r.custom_instructions || '(не указаны)'}`;
   );
 }
 
-const s: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'grid',
-    gridTemplateColumns: '280px 1fr',
-    gap: 20,
-  },
-  roleList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  listHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: theme.accent.amber,
-    flexShrink: 0,
-  },
-  headerTitle: {
-    fontFamily: theme.font.heading,
-    fontWeight: 700,
-    fontSize: 11,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const,
-    color: theme.text.primary,
-  },
-  roleCard: {
-    padding: '12px 14px',
-    borderRadius: 8,
-    border: `1px solid ${theme.border.default}`,
-    cursor: 'pointer',
-    transition: 'border-color 0.2s',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  roleCardTop: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  roleName: {
-    fontFamily: theme.font.body,
-    fontWeight: 600,
-    fontSize: 13,
-    color: theme.text.primary,
-  },
-  badge: {
-    fontSize: 9,
-    fontFamily: theme.font.mono,
-    color: theme.accent.amber,
-    border: `1px solid ${theme.accent.amber}`,
-    borderRadius: 4,
-    padding: '1px 5px',
-    letterSpacing: '0.05em',
-    textTransform: 'uppercase' as const,
-  },
-  roleDesc: {
-    fontSize: 11,
-    color: theme.text.secondary,
-    fontFamily: theme.font.body,
-  },
-  roleActions: {
-    display: 'flex',
-    gap: 12,
-    marginTop: 4,
-  },
-  linkBtn: {
-    background: 'none',
-    border: 'none',
-    color: theme.accent.amber,
-    fontSize: 10,
-    fontFamily: theme.font.mono,
-    cursor: 'pointer',
-    padding: 0,
-    letterSpacing: '0.04em',
-  },
-  addBtn: {
-    padding: '10px 14px',
-    background: 'transparent',
-    border: `1px dashed ${theme.border.default}`,
-    borderRadius: 8,
-    color: theme.text.secondary,
-    fontSize: 12,
-    fontFamily: theme.font.body,
-    cursor: 'pointer',
-    textAlign: 'left' as const,
-    transition: 'border-color 0.2s, color 0.2s',
-  },
-  detail: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  formCard: {
-    background: theme.bg.card,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 12,
-    padding: 20,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  label: {
-    fontSize: 10,
-    fontFamily: theme.font.mono,
-    color: theme.accent.amber,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase' as const,
-    marginTop: 8,
-  },
-  input: {
-    padding: '10px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    outline: 'none',
-  },
-  textarea: {
-    padding: '10px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    outline: 'none',
-    resize: 'vertical' as const,
-  },
-  select: {
-    padding: '10px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.secondary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    outline: 'none',
-    cursor: 'pointer',
-    appearance: 'auto' as const,
-  },
-  toggleBtn: {
-    background: 'none',
-    border: 'none',
-    color: theme.text.secondary,
-    fontSize: 11,
-    fontFamily: theme.font.mono,
-    cursor: 'pointer',
-    padding: '6px 0',
-    textAlign: 'left' as const,
-    letterSpacing: '0.04em',
-    marginTop: 8,
-  },
-  promptPreview: {
-    background: theme.bg.primary,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    padding: 14,
-    color: theme.text.secondary,
-    fontSize: 11,
-    fontFamily: theme.font.mono,
-    lineHeight: 1.6,
-    whiteSpace: 'pre-wrap' as const,
-    overflowX: 'auto' as const,
-    maxHeight: 300,
-    overflowY: 'auto' as const,
-  },
-  formActions: {
-    display: 'flex',
-    gap: 10,
-    marginTop: 12,
-  },
-  saveBtn: {
-    padding: '9px 22px',
-    background: theme.accent.amber,
-    border: 'none',
-    borderRadius: 7,
-    color: '#080A0F',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontWeight: 600,
-    fontFamily: theme.font.body,
-  },
-  cancelBtn: {
-    padding: '9px 22px',
-    background: 'transparent',
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.secondary,
-    cursor: 'pointer',
-    fontSize: 12,
-    fontFamily: theme.font.body,
-  },
+/** Стиль триггера <Select>: компонент принимает только style (не className). */
+const selectStyle: React.CSSProperties = {
+  padding: '10px 14px',
+  background: theme.bg.input,
+  border: `1px solid ${theme.border.default}`,
+  borderRadius: 7,
+  color: theme.text.secondary,
+  fontSize: 13,
+  fontFamily: theme.font.body,
+  outline: 'none',
+  cursor: 'pointer',
+  appearance: 'auto',
 };

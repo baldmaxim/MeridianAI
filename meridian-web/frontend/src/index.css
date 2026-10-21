@@ -1,3 +1,130 @@
+/* ── Дизайн-токены: тёмная (по умолчанию) и светлая темы ──
+   Тема ставится через data-theme на <html> (public/theme-init.js, hooks/useTheme.ts).
+   Цвета в компонентах — только через эти переменные (styles/theme.ts). */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* базовые */
+  --bg: #080A0F;
+  --surface: #111520;
+  --text: #EDF2FF;
+  --muted: #7A859E; /* бренд #4A5568 давал 2.6:1 — поднят до 5.3:1 (правило ≥4.5) */
+  --border: rgba(255, 255, 255, 0.06);
+  --accent: #F5A623;
+  --danger: #FF4B6E;
+  --on-accent: #080A0F;
+  --on-danger: #FFFFFF;
+
+  /* фоны (theme.bg) */
+  --bg-secondary: #0D1018;
+  --bg-tertiary: #111520;
+  --bg-elevated: #161C2C;
+  --bg-card: #1A2135;
+  --bg-chat: #0D1018;
+  --bg-suggestion: #0D1018;
+  --bg-input: #111520;
+  --bg-hover: #161C2C;
+
+  /* текст (theme.text) */
+  --text-secondary: #8896B3;
+  --text-suggestion: #F5A623;
+  --text-muted: var(--muted);
+
+  /* акценты (theme.accent) */
+  --accent-amber: var(--accent);
+  --accent-amber-dim: #C4851A;
+  --accent-amber-glow: rgba(245, 166, 35, 0.12);
+  --accent-blue: #5B9CF6;
+  --accent-red: var(--danger);
+  --accent-red-dim: rgba(255, 75, 110, 0.15);
+  --accent-green: #2EE59D;
+  --accent-green-dim: rgba(46, 229, 157, 0.15);
+  --accent-blue-hover: #4A8BE5;
+  --accent-green-hover: #26CC8A;
+  --accent-yellow: #F5A623;
+
+  /* реплики по спикерам (theme.speaker) */
+  --speaker-customer: rgba(91, 156, 246, 0.08);
+  --speaker-subcontractor: rgba(46, 229, 157, 0.08);
+  --speaker-you: rgba(245, 166, 35, 0.08);
+  --speaker-system: #111520;
+  --speaker-unknown: #0D1018;
+  --speaker-red: rgba(255, 75, 110, 0.08);
+
+  /* границы (theme.border) */
+  --border-default: var(--border);
+  --border-focus: var(--accent);
+  --border-amber: rgba(245, 166, 35, 0.25);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  --disabled: #2A3040;
+
+  /* служебные */
+  --overlay: rgba(0, 0, 0, 0.5);
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #F3F5F9;
+  --surface: #FFFFFF;
+  --text: #141A29;
+  --muted: #5B677E;
+  --border: rgba(20, 26, 41, 0.12);
+  --accent: #935B00;
+  --danger: #C41E3F;
+  --on-accent: #FFFFFF;
+  --on-danger: #FFFFFF;
+
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #FFFFFF;
+  --bg-elevated: #E9EDF4;
+  --bg-card: #FFFFFF;
+  --bg-chat: #FFFFFF;
+  --bg-suggestion: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-hover: #E9EDF4;
+
+  --text-secondary: #4A5670;
+  --text-suggestion: #935B00;
+
+  --accent-amber-dim: #B8741A;
+  --accent-amber-glow: rgba(147, 91, 0, 0.1);
+  --accent-blue: #1D5CC0;
+  --accent-red-dim: rgba(196, 30, 63, 0.1);
+  --accent-green: #0A7348;
+  --accent-green-dim: rgba(10, 115, 72, 0.1);
+  --accent-blue-hover: #174A9C;
+  --accent-green-hover: #085C3A;
+  --accent-yellow: #935B00;
+
+  --speaker-customer: rgba(29, 92, 192, 0.07);
+  --speaker-subcontractor: rgba(10, 115, 72, 0.07);
+  --speaker-you: rgba(147, 91, 0, 0.07);
+  --speaker-system: #F3F5F9;
+  --speaker-unknown: #FFFFFF;
+  --speaker-red: rgba(196, 30, 63, 0.07);
+
+  --border-amber: rgba(147, 91, 0, 0.35);
+  --border-strong: rgba(20, 26, 41, 0.2);
+
+  --disabled: #C5CCD9;
+
+  --overlay: rgba(20, 26, 41, 0.4);
+  --shadow-color: rgba(20, 26, 41, 0.18);
+}
+
+/* Цвета сторон в транскрипте (theme.speakerTextColors) — алиасы на акценты темы */
+:root {
+  --speaker-text-customer: var(--accent-blue);
+  --speaker-text-subcontractor: var(--accent-green);
+  --speaker-text-you: var(--accent);
+  --speaker-text-system: var(--muted);
+  --speaker-text-unknown: var(--text-secondary);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -8,8 +135,16 @@ html, body, #root {
   height: 100%;
   width: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #080A0F;
-  color: #EDF2FF;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
 }
 
 /* Страховка от горизонтального скролла на узких экранах */
@@ -27,23 +162,36 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #161C2C;
+  background: var(--bg-elevated);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #1A2135;
+  background: var(--bg-card);
 }
 
 /* Focus — amber */
 input:focus, select:focus, textarea:focus {
-  border-color: #F5A623 !important;
+  border-color: var(--accent) !important;
   outline: none;
 }
 
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Прокрутка внутри контейнеров не «протекает» на страницу (iOS/Android) */
+.chat-display,
+.suggestion-panel,
+.meeting-right-panel,
+.meeting-tree-panel,
+.detail-panels,
+.admin-container,
+.history-container,
+.detail-container,
+.objects-page {
+  overscroll-behavior: contain;
 }
 
 /* Pulse dot animation */
@@ -147,11 +295,11 @@ button:disabled {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 72px;
-    background: #0D1018;
-    border-top: 1px solid rgba(255,255,255,0.06);
+    height: calc(72px + env(safe-area-inset-bottom));
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
     align-items: flex-start;
-    padding: 10px 0 0;
+    padding: 10px env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     z-index: 60;
     transition: transform 0.3s ease;
   }
@@ -171,25 +319,25 @@ button:disabled {
   }
   .mobile-nav-item .nav-ico {
     font-size: 20px;
-    color: #4A5568;
+    color: var(--muted);
   }
   .mobile-nav-item .nav-lbl {
     font-family: 'JetBrains Mono', monospace;
     font-size: 8px;
     letter-spacing: 0.06em;
-    color: #4A5568;
+    color: var(--muted);
   }
   .mobile-nav-item.active .nav-ico {
-    color: #F5A623;
+    color: var(--accent);
   }
   .mobile-nav-item.active .nav-lbl {
-    color: #F5A623;
+    color: var(--accent);
   }
   .mobile-nav-item .nav-dot {
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: #F5A623;
+    background: var(--accent);
   }
 
   /* ── Mobile stats strip ── */
@@ -201,8 +349,8 @@ button:disabled {
   }
   .mobile-stats-strip .stat-chip {
     flex: 1;
-    background: #161C2C;
-    border: 1px solid rgba(255,255,255,0.06);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
     text-align: center;
@@ -215,7 +363,7 @@ button:disabled {
   }
   .mobile-stats-strip .stat-chip-lbl {
     font-size: 9px;
-    color: #4A5568;
+    color: var(--muted);
     margin-top: 4px;
     letter-spacing: 0.04em;
   }
@@ -230,16 +378,18 @@ button:disabled {
     left: 0 !important;
     right: 0 !important;
     width: auto !important;
-    max-height: 65vh !important;
+    max-height: 65dvh !important;
     min-width: unset !important;
     transform: translateY(100%);
     transition: transform 0.3s cubic-bezier(.25,.46,.45,.94);
     z-index: 55;
-    background: #0D1018 !important;
+    background: var(--bg-secondary) !important;
     border-radius: 24px 24px 0 0 !important;
-    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    border-top: 1px solid var(--border-strong) !important;
     overflow: hidden !important;
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+    box-shadow: 0 -10px 40px var(--shadow-color);
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior: contain;
   }
   .meeting-right-panel.drawer-open {
     transform: translateY(0) !important;
@@ -261,26 +411,26 @@ button:disabled {
     font-size: 10px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #8896B3;
+    color: var(--text-secondary);
   }
   .sheet-dot {
     display: inline-block;
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #5B9CF6;
+    background: var(--accent-blue);
   }
   .sheet-close {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: #161C2C;
-    border: 1px solid rgba(255,255,255,0.06);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    color: #4A5568;
+    color: var(--muted);
     cursor: pointer;
   }
 
@@ -289,7 +439,7 @@ button:disabled {
     display: block !important;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: var(--overlay);
     z-index: 50;
   }
 
@@ -306,13 +456,13 @@ button:disabled {
   .drawer-toggle .drawer-handle {
     width: 32px;
     height: 3px;
-    background: rgba(255,255,255,0.15);
+    background: var(--border-strong);
     border-radius: 2px;
   }
   .drawer-toggle .drawer-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 9px;
-    color: #4A5568;
+    color: var(--muted);
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
@@ -321,9 +471,9 @@ button:disabled {
   .control-buttons {
     flex-wrap: nowrap !important;
     height: auto !important;
-    padding: 0 16px 84px !important;
+    padding: 0 max(16px, env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
     border-top: none !important;
-    background: linear-gradient(to top, #080A0F 70%, transparent) !important;
+    background: linear-gradient(to top, var(--bg) 70%, transparent) !important;
     gap: 10px !important;
     align-items: stretch !important;
   }
@@ -353,7 +503,7 @@ button:disabled {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.6);
+    background: color-mix(in srgb, currentColor 60%, transparent);
     animation: pulse-dot 1s ease-in-out infinite;
     flex-shrink: 0;
   }
@@ -373,13 +523,13 @@ button:disabled {
   }
   .control-btn-suggest {
     order: 1;
-    background: #161C2C !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border) !important;
   }
   .control-btn-strengthen {
     order: 3;
-    background: #161C2C !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border) !important;
   }
   .control-btn-suggest .btn-text,
   .control-btn-strengthen .btn-text {
@@ -392,8 +542,8 @@ button:disabled {
 
   /* ── Header compact ── */
   .header-inner {
-    padding: 0 14px !important;
-    height: 44px !important;
+    padding: env(safe-area-inset-top) 14px 0 !important; /* боковые отступы — на контейнере AppLayout */
+    height: calc(44px + env(safe-area-inset-top)) !important;
   }
   .header-logo svg {
     width: 18px !important;
@@ -455,7 +605,7 @@ button:disabled {
 
   /* ── Admin ── */
   .admin-container {
-    padding: 16px 14px 80px !important;
+    padding: 16px 14px calc(80px + env(safe-area-inset-bottom)) !important;
   }
   .admin-title {
     font-size: 22px !important;
@@ -528,7 +678,7 @@ button:disabled {
   .roles-container {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
-    padding-bottom: 80px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
   /* ── Role: hide desktop badge, show mobile strip ── */
@@ -555,7 +705,7 @@ button:disabled {
 
   /* ── Content padding for bottom nav ── */
   .mobile-content-pad {
-    padding-bottom: 80px !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
   }
 
   /* ── Mobile font size boost ── */
@@ -600,6 +750,11 @@ button:disabled {
     font-size: 13px !important;
   }
 
+  /* iOS Safari зумит форму при фокусе, если шрифт поля < 16px */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
   /* Auth form inputs bigger */
   .auth-form input,
   .auth-form button {
@@ -609,12 +764,12 @@ button:disabled {
 
   /* ── History page ── */
   .history-container {
-    padding: 16px 16px 80px !important;
+    padding: 16px 16px calc(80px + env(safe-area-inset-bottom)) !important;
   }
 
   /* ── Meeting detail ── */
   .detail-container {
-    padding: 12px 12px 80px !important;
+    padding: 12px 12px calc(80px + env(safe-area-inset-bottom)) !important;
   }
   .detail-panels {
     flex-direction: column !important;
@@ -650,13 +805,13 @@ button:disabled {
     min-height: 48px !important;
   }
   .header-inner {
-    padding: 0 10px !important;
+    padding: env(safe-area-inset-top) 10px 0 !important;
   }
   .objects-page {
     padding: 12px 10px !important;
   }
   .admin-container {
-    padding: 12px 10px 80px !important;
+    padding: 12px 10px calc(80px + env(safe-area-inset-bottom)) !important;
   }
   .admin-title {
     font-size: 20px !important;
@@ -733,4 +888,15 @@ button:disabled {
 }
 @media (min-width: 1024px) {
   .dk-wrap { gap: 20px; }
+}
+
+/* Планшет и узкий десктоп: десктоп-навигация шапки не помещается (до 1279px вылезала за край) — уходит в гамбургер */
+@media (max-width: 1279px) {
+  .header-desktop-btn,
+  .header-roleswitch {
+    display: none !important;
+  }
+  .header-burger {
+    display: flex !important;
+  }
 }

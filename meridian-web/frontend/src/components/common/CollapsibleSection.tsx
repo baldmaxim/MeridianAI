@@ -1,62 +1,34 @@
 import { useState } from 'react';
-import { theme } from '../../styles/theme';
+import type { FC, ReactNode } from 'react';
 import { Collapse } from './Collapse';
+import styles from './CollapsibleSection.module.css';
 
-interface Props {
+interface ICollapsibleSectionProps {
   title: string;
   defaultOpen?: boolean;
-  children: React.ReactNode;
-  right?: React.ReactNode;
+  children: ReactNode;
+  right?: ReactNode;
 }
 
-export function CollapsibleSection({ title, defaultOpen, children, right }: Props) {
+export const CollapsibleSection: FC<ICollapsibleSectionProps> = ({ title, defaultOpen, children, right }) => {
   const [open, setOpen] = useState(defaultOpen ?? false);
 
   return (
-    <div style={styles.card}>
-      <div style={styles.header}>
+    <div className={styles.card}>
+      <div className={styles.header}>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          style={styles.toggle}
+          className={styles.toggle}
         >
-          <span style={{ ...styles.chevron, transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
-          <span style={styles.dot} />
-          <span style={styles.title}>{title}</span>
+          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}>▶</span>
+          <span className={styles.dot} />
+          <span className={styles.title}>{title}</span>
         </button>
-        {right && <div style={{ flexShrink: 0 }}>{right}</div>}
+        {right && <div className={styles.right}>{right}</div>}
       </div>
-      <Collapse open={open} style={styles.body}>{children}</Collapse>
+      <Collapse open={open} className={styles.body}>{children}</Collapse>
     </div>
   );
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  card: {
-    background: theme.bg.card,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 12,
-    padding: 16,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
-  },
-  header: { display: 'flex', alignItems: 'center', gap: 10 },
-  toggle: {
-    display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0,
-    background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-    textAlign: 'left' as const,
-  },
-  chevron: {
-    fontSize: 9, color: theme.text.secondary, flexShrink: 0,
-    transition: 'transform 0.18s ease',
-  },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  title: {
-    fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11,
-    letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  body: { display: 'flex', flexDirection: 'column', gap: 16 },
 };

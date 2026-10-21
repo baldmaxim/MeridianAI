@@ -1,0 +1,59 @@
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-top: 1px solid var(--border-default);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggleRowDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toggleLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+.toggleDesc {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  margin-top: 2px;
+}
+
+.toggle {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  transition: background-color 0.2s;
+}
+
+.toggleOn {
+  justify-content: flex-end;
+  background: var(--accent-amber);
+}
+
+.toggleKnob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--on-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle {
+    transition: none;
+  }
+}

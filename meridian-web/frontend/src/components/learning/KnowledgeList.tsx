@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
 import { useKnowledgeList, useArchiveKnowledgeItem } from '../../hooks/queries/knowledge';
 import type {
   GlossaryTerm, TriggerPhrase, NegotiationPlaybook, CounterpartyTrait, ForbiddenPhrase, KnowledgeKind,
 } from '../../types';
+import styles from './KnowledgeList.module.css';
 
 interface Props { kind: KnowledgeKind; }
 
@@ -57,41 +57,28 @@ export function KnowledgeList({ kind }: Props) {
     } catch (e) { setActionError(apiErrorMessage(e, 'Не удалось архивировать')); }
   }
 
-  if (isPending) return <div style={styles.muted}>Загрузка…</div>;
+  if (isPending) return <div className={styles.muted}>Загрузка…</div>;
   const error = actionError ?? (queryError ? apiErrorMessage(queryError, 'Не удалось загрузить') : null);
-  if (error) return <div style={styles.error}>{error}</div>;
-  if (items.length === 0) return <div style={styles.muted}>Пока пусто. Элементы добавляются после проверки кандидатов.</div>;
+  if (error) return <div className={styles.error}>{error}</div>;
+  if (items.length === 0) return <div className={styles.muted}>Пока пусто. Элементы добавляются после проверки кандидатов.</div>;
 
   return (
-    <div style={styles.list}>
+    <div className={styles.list}>
       {items.map((it) => {
         const r = renderItem(kind, it);
         return (
-          <div key={it.id} style={styles.card}>
-            <div style={styles.row}>
-              <span style={styles.scope}>{SCOPE_LABEL[(it as { scope?: string }).scope || 'global'] || 'Общее'}</span>
-              {r.meta && <span style={styles.meta}>{r.meta}</span>}
-              <span style={{ flex: 1 }} />
-              <button style={styles.archive} disabled={archiveMut.isPending && archiveMut.variables?.id === it.id} onClick={() => archive(it.id)}>В архив</button>
+          <div key={it.id} className={styles.card}>
+            <div className={styles.row}>
+              <span className={styles.scope}>{SCOPE_LABEL[(it as { scope?: string }).scope || 'global'] || 'Общее'}</span>
+              {r.meta && <span className={styles.meta}>{r.meta}</span>}
+              <span className={styles.spacer} />
+              <button className={styles.archive} disabled={archiveMut.isPending && archiveMut.variables?.id === it.id} onClick={() => archive(it.id)}>В архив</button>
             </div>
-            <div style={styles.main}>{r.main}</div>
-            {r.sub && <div style={styles.sub}>{r.sub}</div>}
+            <div className={styles.main}>{r.main}</div>
+            {r.sub && <div className={styles.sub}>{r.sub}</div>}
           </div>
         );
       })}
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 9, padding: 12, display: 'flex', flexDirection: 'column', gap: 5 },
-  row: { display: 'flex', alignItems: 'center', gap: 8 },
-  scope: { padding: '2px 8px', border: `1px solid ${theme.border.amber}`, borderRadius: 10, fontFamily: theme.font.mono, fontSize: 9, color: theme.accent.amber, letterSpacing: '0.06em', textTransform: 'uppercase' as const },
-  meta: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
-  main: { fontSize: 13, fontWeight: 600, color: theme.text.primary },
-  sub: { fontSize: 12, color: theme.text.secondary, lineHeight: 1.4 },
-  archive: { padding: '4px 10px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 5, color: theme.text.muted, cursor: 'pointer', fontSize: 10, fontFamily: theme.font.mono },
-  muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
-  error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
-};

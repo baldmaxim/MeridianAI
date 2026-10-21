@@ -1,45 +1,24 @@
-import { theme } from '../../styles/theme';
+import styles from './BatchStatusBadge.module.css';
+import { cx } from '../../utils/cx';
 
-const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  uploaded: { label: 'Загружено', color: theme.text.secondary, bg: 'rgba(136,150,179,0.1)' },
-  compressing: { label: 'Сжатие...', color: theme.accent.blue, bg: 'rgba(91,156,246,0.1)' },
-  transcribing: { label: 'Транскрипция...', color: theme.accent.amber, bg: theme.accent.amberGlow },
-  translating: { label: 'Перевод...', color: theme.accent.amber, bg: theme.accent.amberGlow },
-  generating_protocol: { label: 'Протокол...', color: theme.accent.amber, bg: theme.accent.amberGlow },
-  done: { label: 'Готово', color: theme.accent.green, bg: theme.accent.greenDim },
-  error: { label: 'Ошибка', color: theme.accent.red, bg: theme.accent.redDim },
+/** Цвет и подпись по статусу; цвета — токены темы (классы в BatchStatusBadge.module.css). */
+const STATUS_MAP: Record<string, { label: string; tone: string }> = {
+  uploaded: { label: 'Загружено', tone: styles.toneNeutral },
+  compressing: { label: 'Сжатие...', tone: styles.toneBlue },
+  transcribing: { label: 'Транскрипция...', tone: styles.toneAmber },
+  translating: { label: 'Перевод...', tone: styles.toneAmber },
+  generating_protocol: { label: 'Протокол...', tone: styles.toneAmber },
+  done: { label: 'Готово', tone: styles.toneGreen },
+  error: { label: 'Ошибка', tone: styles.toneRed },
 };
+
+const IN_PROGRESS = ['compressing', 'transcribing', 'translating', 'generating_protocol'];
 
 export function BatchStatusBadge({ status }: { status: string }) {
   const info = STATUS_MAP[status] || STATUS_MAP.uploaded;
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        padding: '3px 10px',
-        borderRadius: 12,
-        fontSize: 10,
-        fontFamily: theme.font.mono,
-        fontWeight: 600,
-        letterSpacing: '0.06em',
-        color: info.color,
-        background: info.bg,
-        border: `1px solid ${info.color}33`,
-      }}
-    >
-      {['compressing', 'transcribing', 'translating', 'generating_protocol'].includes(status) && (
-        <span
-          style={{
-            width: 5,
-            height: 5,
-            borderRadius: '50%',
-            background: info.color,
-            animation: 'pulse 1.5s infinite',
-          }}
-        />
-      )}
+    <span className={cx(styles.badge, info.tone)}>
+      {IN_PROGRESS.includes(status) && <span className={styles.pulseDot} />}
       {info.label}
     </span>
   );

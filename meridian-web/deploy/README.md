@@ -8,10 +8,12 @@ Portal-scoped деплой: один портал = один Docker Compose proj
 ```
 deploy/
 ├── build.sh                 # сборка+push образов (на dev/CI, НЕ на проде)
+├── deploy-ghcr.sh           # деплой из GHCR: TAG обязателен (immutable sha, не latest)
 ├── deploy.sh                # деплой на VPS (pull→migrate→health-gate→up), portal-scoped
 ├── portal/
-│   ├── docker-compose.yml   # api, (worker — фаза 4), migrate, postgres, backup, frontend
+│   ├── docker-compose.yml   # api, worker, migrate, frontend (БД — Yandex Managed PG)
 │   └── meridian.env.example # → meridian.env (НЕ в git, chmod 600)
+├── backup/                  # ежедневный pg_dump на хосте: .sh + systemd .service/.timer
 └── infra-nginx/             # ingress: nginx + certbot (только если нет общего nginx — см. ниже)
     ├── docker-compose.yml
     ├── nginx.conf
@@ -60,16 +62,46 @@ TAG=<new-sha> ./deploy.sh                   # VPS — health-gated, откат =
 
 ## Backup / Restore (§26)
 
-Бэкап: сервис `backup` делает `pg_dump | gzip` раз в сутки в том `pg_backups` (хранит 7).
-В фазе 5 — выгрузка в S3.
+БД прод — Yandex Managed PostgreSQL 17: управляемые бэкапы делает YC (они же — PITR). Локального
+postgres-контейнера и сервиса `backup` в compose нет. Дополнительно на хосте Selectel работает свой
+ежедневный логический дамп (`pg_dump -Fc`) по systemd-таймеру: `backup/meridian-pg-backup.{sh,service,timer}`.
+
+- Время: 03:30 локально (+ до 5 мин случайной задержки), `Persistent=true` — пропущенный запуск догоняется.
+- Куда: `/opt/backups/meridian/meridian-<UTC>.dump` (каталог 700, файлы 600), хранится 7 последних.
+- Пароль берётся из `DATABASE_URL` в `portal/meridian.env`, на экран/в логи не выводится.
+- После дампа `pg_restore --list` проверяет, что в оглавлении есть объекты; иначе файл удаляется, код выхода 1.
+
+Установка на сервере (один раз; нужны docker и python3):
 
 ```bash
-# ручной бэкап
-docker compose -p meridian exec postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_dump -U meridian meridian' | gzip > backup.sql.gz
-
-# restore в чистую БД
-gunzip -c backup.sql.gz | docker compose -p meridian exec -T postgres psql -U meridian -d meridian
+cd /opt/portals/meridian/meridian-web/deploy/backup
+chmod +x meridian-pg-backup.sh
+sudo cp meridian-pg-backup.service meridian-pg-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now meridian-pg-backup.timer
+sudo systemctl start meridian-pg-backup.service        # пробный прогон
+journalctl -u meridian-pg-backup.service -n 20         # лог: "OK: <файл> <размер>, объектов: N"
+systemctl list-timers meridian-pg-backup.timer
 ```
+
+Другой путь к env-файлу: `Environment=ENV_FILE=...` в юните (`systemctl edit meridian-pg-backup.service`).
+Путь `ExecStart` в юните — `/opt/portals/meridian/...`; если репозиторий лежит в другом месте, поправьте.
+
+Восстановление (в **новую/чистую** БД, не поверх живой без бэкапа):
+
+```bash
+# 1. посмотреть содержимое
+docker run --rm -i postgres:17-alpine pg_restore --list < /opt/backups/meridian/meridian-<UTC>.dump | head
+
+# 2. восстановить в целевую БД (пароль — через окружение, не в аргументах)
+export PGPASSWORD='<пароль>'
+docker run --rm -i -e PGPASSWORD -e PGSSLMODE=require postgres:17-alpine \
+  pg_restore --no-owner --no-privileges --clean --if-exists \
+  -h <host> -p 6432 -U <user> -d <dbname> < /opt/backups/meridian/meridian-<UTC>.dump
+unset PGPASSWORD
+```
+
+Перед деструктивными операциями на проде делайте свежий дамп вручную: `sudo systemctl start meridian-pg-backup.service`.
 
 ## Запрещено на проде (§19)
 

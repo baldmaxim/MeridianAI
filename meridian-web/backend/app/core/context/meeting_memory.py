@@ -8,9 +8,9 @@ Layers:
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Set, TYPE_CHECKING
+from typing import List, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..llm.client import LLMClient

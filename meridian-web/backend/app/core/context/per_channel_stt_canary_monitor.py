@@ -152,7 +152,7 @@ def analyze_per_channel_stt_canary_run(
     max_channels_seen = int(L.get("max_channels_seen", 0) or 0)
     avg_dominance = L.get("average_dominance")
     latency_p95 = L.get("average_transcribe_latency_ms")
-    provider = L.get("provider")
+    L.get("provider")
     last_error_kind = L.get("last_error_kind")
     by_provider = _counter(per_channel_stt_events, "provider")
     by_last_error_kind = _counter(per_channel_stt_events, "last_error_kind")
@@ -187,8 +187,6 @@ def analyze_per_channel_stt_canary_run(
 
     provider_noop_only = bool(by_provider) and set(by_provider) <= {"noop"}
     dominance_ok = avg_dominance is None or avg_dominance >= min_avg_dominance_p50
-    severe_provider = (timeout_rate > max_timeout_rate or provider_error_rate > max_provider_error_rate
-                       or (latency_p95 is not None and latency_p95 > max_avg_latency_p95_ms))
 
     # --- основной разбор ---
     if pcs_total == 0 and sr_total == 0 and se_total == 0:

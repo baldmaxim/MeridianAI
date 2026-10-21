@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useLayoutEffect, useState } from 'react';
 import type {
   AudioCaptureMetadataClient,
   AudioConstraintPreset,
@@ -100,10 +100,10 @@ export function useAudioRecorder(
   const levelsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // onInterrupt держим в ref — чтобы инлайн-колбэк не пересоздавал start/stop.
   const onInterruptRef = useRef(onInterrupt);
-  onInterruptRef.current = onInterrupt;
+  useLayoutEffect(() => { onInterruptRef.current = onInterrupt; }, [onInterrupt]);
   // captureOptions держим в ref — чтобы свежий выбор устройства читался на каждом start().
   const captureRef = useRef(captureOptions);
-  captureRef.current = captureOptions;
+  useLayoutEffect(() => { captureRef.current = captureOptions; }, [captureOptions]);
 
   /**
    * preCapturedSystemStream — уже полученный поток вкладки/экрана. Нужен потому, что

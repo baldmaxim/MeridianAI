@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
 import { useMeetingStore } from '../../store/meetingStore';
 import {
@@ -9,6 +8,8 @@ import {
 import type { MeetingContextSource, PreviousMeetingCandidate } from '../../types';
 import { ContextSourceCard } from './ContextSourceCard';
 import { Modal } from '../common/Modal';
+import { TextInput } from '../common';
+import styles from './PreviousMeetingsContext.module.css';
 import {
   previousMeetingSourceToContextSourceViewModel,
   previousMeetingCandidateToContextSourceViewModel,
@@ -35,9 +36,11 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
   const customerName = useMeetingStore((s) => s.selectedCustomerName);
 
   // Строгий скоуп: текущий объект (если задан), иначе текущий заказчик.
+  const scopeKind: 'object' | 'customer' | null =
+    currentObjectId != null ? 'object' : currentCustomerId != null ? 'customer' : null;
   const scope: { kind: 'object' | 'customer'; name: string | null } | null =
-    currentObjectId != null ? { kind: 'object', name: objectName }
-    : currentCustomerId != null ? { kind: 'customer', name: customerName }
+    scopeKind === 'object' ? { kind: 'object', name: objectName }
+    : scopeKind === 'customer' ? { kind: 'customer', name: customerName }
     : null;
 
   const prevSources = sources.filter((s) => s.source_type === 'previous_meeting');
@@ -48,23 +51,25 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
   }, [meetingId]);
 
   const loadCandidates = useCallback(async () => {
-    if (!scope) { setCandidates([]); return; }
+    if (!scopeKind) { setCandidates([]); return; }
     try {
       setCandidates(await listContextCandidates(meetingId, {
         q: q || undefined,
-        object_id: scope.kind === 'object' ? currentObjectId ?? undefined : undefined,
-        customer_id: scope.kind === 'customer' ? currentCustomerId ?? undefined : undefined,
+        object_id: scopeKind === 'object' ? currentObjectId ?? undefined : undefined,
+        customer_id: scopeKind === 'customer' ? currentCustomerId ?? undefined : undefined,
       }));
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось загрузить кандидатов')); }
-  }, [meetingId, q, scope, currentCustomerId, currentObjectId]);
+  }, [meetingId, q, scopeKind, currentCustomerId, currentObjectId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- setState внутри loadSources только после await (асинхронно)
   useEffect(() => { loadSources(); }, [loadSources]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- setState внутри loadCandidates: сброс без скоупа либо после await
   useEffect(() => { if (showAdd && !readOnly) loadCandidates(); }, [showAdd, readOnly, loadCandidates]);
 
   // Сводка для корзины (только выбранные прошлые встречи). Колбэк в ref → effect
   // зависит лишь от sources, без render-loop.
   const onSummaryChangeRef = useRef(onSummaryChange);
-  onSummaryChangeRef.current = onSummaryChange;
+  useEffect(() => { onSummaryChangeRef.current = onSummaryChange; });
   useEffect(() => {
     if (!onSummaryChangeRef.current) return;
     const ps = sources.filter((s) => s.source_type === 'previous_meeting');
@@ -104,25 +109,25 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
   }
 
   return (
-    <div style={styles.card}>
-      <div style={styles.header}>
-        <span style={styles.dot} />
-        <span style={styles.title}>Предыдущие встречи как контекст</span>
-        <span style={{ flex: 1 }} />
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <span className={styles.dot} />
+        <span className={styles.title}>Предыдущие встречи как контекст</span>
+        <span className={styles.spacer} />
         {!readOnly && (
-          <button style={styles.addToggle} onClick={() => setShowAdd(true)}>
+          <button className={styles.addToggle} onClick={() => setShowAdd(true)}>
             + Добавить
           </button>
         )}
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
 
       {/* выбранные источники */}
       {prevSources.length === 0 ? (
-        <div style={styles.muted}>Прошлые встречи не выбраны. Итоги выбранных встреч попадут в подсказки.</div>
+        <div className={styles.muted}>Прошлые встречи не выбраны. Итоги выбранных встреч попадут в подсказки.</div>
       ) : (
-        <div style={styles.list}>
+        <div className={styles.list}>
           {prevSources.map((s) => (
             <ContextSourceCard
               key={s.id}
@@ -138,38 +143,39 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
 
       {/* модалка добавления — строго в рамках текущего объекта/заказчика */}
       <Modal open={!readOnly && showAdd} onClose={() => setShowAdd(false)} maxWidth={560}>
-        <div style={styles.modalHead}>
-          <span style={styles.title}>Добавить прошлую встречу</span>
-          <span style={{ flex: 1 }} />
-          <button style={styles.modalClose} onClick={() => setShowAdd(false)} aria-label="Закрыть">×</button>
+        <div className={styles.modalHead}>
+          <span className={styles.title}>Добавить прошлую встречу</span>
+          <span className={styles.spacer} />
+          <button className={styles.modalClose} onClick={() => setShowAdd(false)} aria-label="Закрыть">×</button>
         </div>
 
         {scope ? (
-          <div style={styles.scopeRow}>
-            <span style={styles.scopeLabel}>{scope.kind === 'object' ? 'Объект' : 'Заказчик'}</span>
-            <span style={styles.scopeName}>{scope.name || (scope.kind === 'object' ? 'текущий объект' : 'текущий заказчик')}</span>
+          <div className={styles.scopeRow}>
+            <span className={styles.scopeLabel}>{scope.kind === 'object' ? 'Объект' : 'Заказчик'}</span>
+            <span className={styles.scopeName}>{scope.name || (scope.kind === 'object' ? 'текущий объект' : 'текущий заказчик')}</span>
           </div>
         ) : (
-          <div style={styles.muted}>Выберите заказчика или объект, чтобы подобрать прошлые встречи.</div>
+          <div className={styles.muted}>Выберите заказчика или объект, чтобы подобрать прошлые встречи.</div>
         )}
 
         {scope && (
           <>
-            <input
-              style={styles.search} placeholder="Поиск по названию/итогу…"
+            <TextInput
+              inputClassName={styles.search} placeholder="Поиск по названию/итогу…"
+              clearLabel="поиск" onClear={() => setQ('')}
               value={q} onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadCandidates()}
             />
             {candidates.length === 0 ? (
-              <div style={styles.muted}>Нет подходящих завершённых встреч.</div>
+              <div className={styles.muted}>Нет подходящих завершённых встреч.</div>
             ) : (
-              <div style={styles.list}>
+              <div className={styles.list}>
                 {candidates.map((c) => (
                   <ContextSourceCard
                     key={c.meeting_id}
                     source={previousMeetingCandidateToContextSourceViewModel(c)}
                     compact
-                    right={c.already_added ? <span style={styles.badgeOn}>добавлена</span> : undefined}
+                    right={c.already_added ? <span className={styles.badgeOn}>добавлена</span> : undefined}
                     onPrimaryAction={c.already_added ? undefined : () => add(c)}
                     primaryActionLabel={c.already_added ? undefined : 'Добавить'}
                   />
@@ -182,21 +188,3 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  card: { background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 10 },
-  header: { display: 'flex', alignItems: 'center', gap: 8 },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  title: { fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary },
-  addToggle: { padding: '5px 12px', background: theme.accent.amberGlow, border: `1px solid ${theme.accent.amber}`, borderRadius: 6, color: theme.accent.amber, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
-  list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  modalHead: { display: 'flex', alignItems: 'center', gap: 8 },
-  modalClose: { background: 'transparent', border: 'none', color: theme.text.secondary, cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0, width: 28, height: 28 },
-  scopeRow: { display: 'inline-flex', alignItems: 'baseline', gap: 8, padding: '6px 12px', borderRadius: 8, background: theme.bg.tertiary, border: `1px solid ${theme.border.default}`, alignSelf: 'flex-start' },
-  scopeLabel: { fontFamily: theme.font.mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: theme.text.muted },
-  scopeName: { fontFamily: theme.font.body, fontSize: 13, fontWeight: 600, color: theme.text.primary },
-  search: { padding: '8px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.primary, fontSize: 12, fontFamily: theme.font.body, outline: 'none' },
-  badgeOn: { padding: '3px 9px', border: `1px solid ${theme.accent.green}`, borderRadius: 10, fontFamily: theme.font.mono, fontSize: 9, color: theme.accent.green, flexShrink: 0 },
-  muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
-  error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
-};

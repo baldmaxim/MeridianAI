@@ -4,7 +4,7 @@
 решение attach/shadow в чистые тестируемые функции. Никаких побочных эффектов и LLM.
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel
 

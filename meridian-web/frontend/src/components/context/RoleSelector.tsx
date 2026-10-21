@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { getRoles } from '../../api/roles';
 import { useMeetingStore } from '../../store/meetingStore';
-import { theme } from '../../styles/theme';
 import { Select } from '../common';
 import type { NegotiationRole } from '../../types';
+import s from './RoleSelector.module.css';
 
 interface Props {
   onRoleSelect: (roleId: number) => void;
@@ -36,41 +36,16 @@ export function RoleSelector({ onRoleSelect }: Props) {
   };
 
   return (
-    <div style={s.wrap}>
+    <div className={s.wrap}>
       <Select
-        style={s.select}
+        triggerClassName={s.select}
         value={activeRoleId != null ? String(activeRoleId) : ''}
         placeholder="Выберите роль..."
         ariaLabel="Активная роль для подсказок"
         onChange={handleChange}
         options={roles.map((r) => ({ value: String(r.id), label: r.name }))}
       />
-      <span style={s.hint}>Создать или изменить роли можно в «Настройки → Роли переговоров»</span>
+      <span className={s.hint}>Создать или изменить роли можно в «Настройки → Роли переговоров»</span>
     </div>
   );
 }
-
-const s: Record<string, React.CSSProperties> = {
-  wrap: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  },
-  select: {
-    padding: '10px 14px',
-    background: theme.bg.input,
-    border: `1px solid ${theme.border.default}`,
-    borderRadius: 7,
-    color: theme.text.primary,
-    fontSize: 13,
-    fontFamily: theme.font.body,
-    outline: 'none',
-    cursor: 'pointer',
-    appearance: 'auto' as const,
-  },
-  hint: {
-    fontSize: 11,
-    color: theme.text.muted,
-    fontFamily: theme.font.body,
-  },
-};

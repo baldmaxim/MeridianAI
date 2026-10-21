@@ -1,0 +1,53 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 360px;
+  padding: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+}
+
+.title {
+  color: var(--text);
+  margin: 0;
+  text-align: center;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.button {
+  padding: 10px 14px;
+  background: var(--accent-amber);
+  border: none;
+  border-radius: 7px;
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+
+.error {
+  padding: 8px;
+  background: var(--accent-red-dim);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 20%, transparent);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-size: 13px;
+}
+
+.switch {
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 13px;
+  margin: 0;
+}
+
+.link {
+  color: var(--accent-amber);
+  cursor: pointer;
+}

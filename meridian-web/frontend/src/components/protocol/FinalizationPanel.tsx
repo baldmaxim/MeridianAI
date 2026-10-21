@@ -8,8 +8,11 @@ import { apiErrorMessage } from '../../lib/apiError';
 import { ProtocolView } from './ProtocolView';
 import { LearningCandidates } from '../learning/LearningCandidates';
 import { SuccessCheck } from '../common/SuccessCheck';
+import { TextInput } from '../common';
 import { useMeetingStore } from '../../store/meetingStore';
 import type { FinalizationStatus, MeetingProtocol } from '../../types';
+import styles from './FinalizationPanel.module.css';
+import { cx } from '../../utils/cx';
 
 interface Props {
   meetingId: number | null;
@@ -27,12 +30,12 @@ const STATUS_TEXT: Record<FinalizationStatus, string> = {
   error: 'Ошибка формирования протокола',
 };
 
-function statusColor(s: FinalizationStatus): string {
-  if (s === 'completed') return theme.accent.green;
-  if (s === 'error') return theme.accent.red;
-  if (s === 'partial') return theme.accent.amber;
-  if (s === 'queued' || s === 'running') return theme.accent.blue;
-  return theme.text.muted;
+function statusTone(s: FinalizationStatus): string {
+  if (s === 'completed') return styles.toneGreen;
+  if (s === 'error') return styles.toneRed;
+  if (s === 'partial') return styles.toneAmber;
+  if (s === 'queued' || s === 'running') return styles.toneBlue;
+  return styles.toneMuted;
 }
 
 export function FinalizationPanel({ meetingId, onFinalized }: Props) {
@@ -134,81 +137,64 @@ export function FinalizationPanel({ meetingId, onFinalized }: Props) {
   if (meetingId == null) return null;
 
   return (
-    <div style={styles.card}>
-      <div style={styles.header}>
-        <span style={styles.dot} />
-        <span style={styles.title}>Итоги встречи</span>
-        <span style={{ flex: 1 }} />
-        <span style={{ ...styles.statusBadge, color: statusColor(status), borderColor: statusColor(status) }}>
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <span className={styles.dot} />
+        <span className={styles.title}>Итоги встречи</span>
+        <span className={styles.spacer} />
+        <span className={cx(styles.statusBadge, statusTone(status))}>
           {STATUS_TEXT[status]}
         </span>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
 
       {status === 'not_started' && (
-        <button style={styles.primaryBtn} onClick={doFinalize} disabled={busy}>
+        <button className={styles.primaryBtn} onClick={doFinalize} disabled={busy}>
           Завершить и сформировать протокол
         </button>
       )}
 
       {(status === 'queued' || status === 'running') && (
-        <div style={styles.muted}>Формируется протокол — подождите…</div>
+        <div className={styles.muted}>Формируется протокол — подождите…</div>
       )}
 
       {status === 'error' && (
-        <button style={styles.retryBtn} onClick={doRetry} disabled={busy}>Повторить формирование</button>
+        <button className={styles.retryBtn} onClick={doRetry} disabled={busy}>Повторить формирование</button>
       )}
 
       {(status === 'completed' || status === 'partial') && (
         <>
           {/* Редактирование */}
-          <label style={styles.lbl}>Название</label>
-          <input style={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} />
-          <label style={styles.lbl}>Краткое описание</label>
-          <textarea style={styles.textarea} rows={2} value={micro} onChange={(e) => setMicro(e.target.value)} />
-          <label style={styles.lbl}>Теги (через запятую)</label>
-          <input style={styles.input} value={tags} onChange={(e) => setTags(e.target.value)} />
-          <label style={styles.lbl}>Протокол (markdown)</label>
-          <textarea style={styles.textarea} rows={8} value={markdown} onChange={(e) => setMarkdown(e.target.value)} />
-          <div style={styles.actions}>
-            <button style={styles.primaryBtn} onClick={saveEdits} disabled={busy}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SuccessCheck show={saved} size={14} color="#080A0F" />
+          <label className={styles.lbl}>Название</label>
+          <TextInput inputClassName={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} onClear={() => setTitle('')} clearLabel="название" />
+          <label className={styles.lbl}>Краткое описание</label>
+          <textarea className={styles.textarea} rows={2} value={micro} onChange={(e) => setMicro(e.target.value)} />
+          <label className={styles.lbl}>Теги (через запятую)</label>
+          <TextInput inputClassName={styles.input} value={tags} onChange={(e) => setTags(e.target.value)} onClear={() => setTags('')} clearLabel="теги" />
+          <label className={styles.lbl}>Протокол (markdown)</label>
+          <textarea className={styles.textarea} rows={8} value={markdown} onChange={(e) => setMarkdown(e.target.value)} />
+          <div className={styles.actions}>
+            <button className={styles.primaryBtn} onClick={saveEdits} disabled={busy}>
+              <span className={styles.saveLabel}>
+                <SuccessCheck show={saved} size={14} color={theme.onAccent} />
                 {saved ? 'Сохранено' : 'Сохранить правки'}
               </span>
             </button>
-            <button style={styles.retryBtn} onClick={doRetry} disabled={busy}>Сформировать заново</button>
+            <button className={styles.retryBtn} onClick={doRetry} disabled={busy}>Сформировать заново</button>
           </div>
 
           {protocol && <ProtocolView p={protocol} />}
 
           {/* Этап 7: кандидаты в базу знаний по итогам встречи */}
-          <div style={styles.learnHeader}>
-            <span style={styles.dot} />
-            <span style={styles.title}>AI нашёл новые элементы для базы знаний</span>
+          <div className={styles.learnHeader}>
+            <span className={styles.dot} />
+            <span className={styles.title}>AI нашёл новые элементы для базы знаний</span>
           </div>
-          <div style={styles.muted}>Проверьте и одобрите нужное — применяется только вручную.</div>
+          <div className={styles.muted}>Проверьте и одобрите нужное — применяется только вручную.</div>
           <LearningCandidates meetingId={meetingId} compact />
         </>
       )}
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  card: { background: theme.bg.card, border: `1px solid ${theme.border.default}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 10 },
-  header: { display: 'flex', alignItems: 'center', gap: 8 },
-  learnHeader: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.border.default}` },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: theme.accent.amber, flexShrink: 0 },
-  title: { fontFamily: theme.font.heading, fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: theme.text.primary },
-  statusBadge: { padding: '3px 10px', border: '1px solid', borderRadius: 12, fontFamily: theme.font.mono, fontSize: 10 },
-  lbl: { fontSize: 10, fontFamily: theme.font.mono, color: theme.accent.amber, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 6 },
-  input: { padding: '9px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none' },
-  textarea: { padding: '9px 12px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 7, color: theme.text.primary, fontSize: 13, fontFamily: theme.font.body, outline: 'none', resize: 'vertical' as const },
-  actions: { display: 'flex', gap: 10, flexWrap: 'wrap' as const, marginTop: 4 },
-  primaryBtn: { padding: '10px 18px', background: theme.accent.amber, border: 'none', borderRadius: 8, color: '#080A0F', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: theme.font.body },
-  retryBtn: { padding: '10px 16px', background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 8, color: theme.accent.amber, cursor: 'pointer', fontSize: 12, fontFamily: theme.font.mono },
-  muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
-  error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
-};

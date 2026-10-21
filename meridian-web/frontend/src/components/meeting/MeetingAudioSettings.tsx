@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { theme } from '../../styles/theme';
+import { useState } from 'react';
 import { Dropdown } from '../common';
 import { isSystemAudioSupported } from '../../audio/systemAudio';
 import type { AudioRecorderCaptureConfig, AudioSourceLevels, SystemAudioState } from '../../hooks/useAudioRecorder';
 import { AudioPreflightPanel } from './AudioPreflightPanel';
 import { OnlineAudioPanel } from './OnlineAudioPanel';
+import styles from './MeetingAudioSettings.module.css';
+import tone from './Tone.module.css';
 
 interface MeetingAudioSettingsProps {
   onConfigChange: (cfg: AudioRecorderCaptureConfig) => void;
@@ -27,21 +28,14 @@ export function MeetingAudioSettings({
 
   // Точка на кнопке — статус захвата звука встречи (сам блок теперь скрыт в панели).
   const showDot = enabled && isSystemAudioSupported();
-  const dotColor = state?.active ? theme.accent.green
-    : state?.error ? theme.accent.red : theme.accent.amber;
+  const dotTone = state?.active ? tone.bgGreen
+    : state?.error ? tone.bgRed : tone.bgAmber;
 
   return (
-    <div style={styles.wrap}>
-      <style>{`
-        @media (max-width: 767px) {
-          .mas-label { display: none !important; }
-          .mas-pop select { font-size: 16px !important; }
-        }
-      `}</style>
+    <div className={styles.wrap}>
       <button
         type="button"
-        className="t-btn"
-        style={styles.btn}
+        className={`t-btn ${styles.btn}`}
         // Иначе mousedown «вне панели» закроет её, а click тут же откроет снова.
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => setOpen((v) => !v)}
@@ -50,15 +44,14 @@ export function MeetingAudioSettings({
         title="Микрофон и звук онлайн-встречи"
       >
         <span>⚙</span>
-        <span className="mas-label"> Настройки</span>
-        {showDot && <span style={{ ...styles.dot, background: dotColor }} />}
+        <span className={styles.label}> Настройки</span>
+        {showDot && <span className={`${styles.dot} ${dotTone}`} />}
       </button>
       <Dropdown
         open={open}
         onClose={() => setOpen(false)}
         origin="top-right"
-        className="mas-pop"
-        style={styles.pop}
+        className={styles.pop}
       >
         <AudioPreflightPanel onConfigChange={onConfigChange} />
         <OnlineAudioPanel
@@ -72,21 +65,3 @@ export function MeetingAudioSettings({
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { position: 'relative', flexShrink: 0 },
-  btn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-    background: 'transparent', border: `1px solid ${theme.border.amber}`, borderRadius: 6,
-    color: theme.accent.amber, cursor: 'pointer', fontSize: 12,
-    fontFamily: theme.font.mono, fontWeight: 500, letterSpacing: '0.04em',
-  },
-  dot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
-  pop: {
-    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60,
-    width: 'min(380px, calc(100vw - 24px))', maxHeight: 'calc(100dvh - 96px)',
-    overflowY: 'auto', overscrollBehavior: 'contain',
-    background: theme.bg.elevated, border: `1px solid ${theme.border.default}`,
-    borderRadius: 8, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-  },
-};

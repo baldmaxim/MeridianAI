@@ -136,7 +136,7 @@ async def oidc_callback(
     user = await _link_or_create_user(db, sub, email, email_verified, roles)
     await db.commit()
 
-    token = create_access_token(user.id, user.role)
+    token = create_access_token(user.id, user.role, user.token_version)
     await audit("sso_login", actor_user_id=user.id, ip=client_ip(request), email_hmac=hmac_email(email))
 
     front = s.frontend_url or (s.cors_origins[0] if s.cors_origins else "")

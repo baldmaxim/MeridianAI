@@ -1,0 +1,307 @@
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.messages {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.placeholder {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 30px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.message {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.speaker {
+  display: block;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 2px;
+}
+
+.text {
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+}
+
+.roleBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
+
+.correctedMark {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 9px;
+  color: var(--accent-amber);
+  vertical-align: middle;
+}
+
+.speakerRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reconSuggest {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  background: color-mix(in srgb, var(--accent-amber) 15%, transparent);
+  color: var(--accent-amber);
+  vertical-align: middle;
+}
+
+.reconConflict {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  color: var(--accent-red);
+  vertical-align: middle;
+}
+
+.reconConfirmed {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  background: color-mix(in srgb, var(--accent-green) 13%, transparent);
+  color: var(--accent-green);
+  vertical-align: middle;
+}
+
+.authBadge {
+  margin-left: 8px;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: color-mix(in srgb, var(--accent-green) 13%, transparent);
+  color: var(--accent-green);
+}
+
+.authBanner {
+  margin: 0 0 6px;
+  padding: 4px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 8%, transparent);
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+.hintRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 3px 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--accent-amber-glow);
+  border: 1px solid var(--border-amber);
+}
+
+.hintText {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--accent-amber);
+}
+
+.hintApply {
+  padding: 3px 9px;
+  background: var(--accent-amber);
+  border: none;
+  border-radius: 5px;
+  color: var(--on-accent);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+}
+
+.hintSkip {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.menuBtn {
+  padding: 0 6px;
+  height: 16px;
+  line-height: 14px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 6px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  max-width: 280px;
+}
+
+.menuItem {
+  text-align: left;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+}
+
+.menuLabelTitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.menuLabels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.menuLabelBtn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-amber);
+  border-radius: 6px;
+  color: var(--accent-amber);
+  cursor: pointer;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.menuEmpty {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.menuReset {
+  text-align: left;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+  color: var(--accent-red);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+
+.lowConfBadge {
+  display: inline-block;
+  margin-left: 4px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-amber) 19%, transparent);
+  color: var(--accent-amber);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.speakerClickable {
+  cursor: pointer;
+}
+
+.messageLowConf {
+  opacity: 0.7;
+}
+
+.messagePartial {
+  opacity: 0.6;
+}

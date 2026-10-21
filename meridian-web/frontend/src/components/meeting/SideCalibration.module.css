@@ -1,0 +1,136 @@
+.wrap {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px auto 0;
+}
+
+.wrapCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 12px;
+  flex-shrink: 0;
+}
+
+.holdBtn {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.holdBtnCompact {
+  min-height: 56px;
+  border-radius: 10px;
+}
+
+.holdBtnOn {
+  background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+}
+
+.holdTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.holdSub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.done {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.num {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  background: var(--accent-amber-glow);
+  border: 1px solid var(--border-amber);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.askText {
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  overflow-wrap: anywhere;
+  flex: 1 1 180px;
+}
+
+.askBtns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.askSelf {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+}
+
+.askOpp {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+}
+
+/* Подсказка про клавишу M — только на десктопе */
+.keyHint {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .keyHint {
+    display: inline;
+  }
+}

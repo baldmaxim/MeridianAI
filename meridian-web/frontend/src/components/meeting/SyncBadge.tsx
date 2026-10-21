@@ -1,14 +1,14 @@
-import { theme } from '../../styles/theme';
 import type { DeviceSyncState, ClockSyncQuality } from '../../types';
+import styles from './SyncBadge.module.css';
 
 // Этап 9.1: индикатор качества синхронизации часов устройства с backend.
 // Точка-цвет по quality + RTT мс; tooltip — offset и время последней синхронизации.
 
-const QUALITY_COLOR: Record<ClockSyncQuality, string> = {
-  excellent: theme.accent.green,
-  good: theme.accent.green,
-  fair: theme.accent.amber,
-  poor: theme.accent.red,
+const QUALITY_TONE: Record<ClockSyncQuality, { text: string; dot: string }> = {
+  excellent: { text: styles.textGreen, dot: styles.dotGreen },
+  good: { text: styles.textGreen, dot: styles.dotGreen },
+  fair: { text: styles.textAmber, dot: styles.dotAmber },
+  poor: { text: styles.textRed, dot: styles.dotRed },
 };
 
 const QUALITY_LABEL: Record<ClockSyncQuality, string> = {
@@ -26,35 +26,23 @@ interface Props {
 export function SyncBadge({ sync, compact = false }: Props) {
   if (!sync) {
     return (
-      <span style={styles.wrap} title="Часы устройства ещё не синхронизированы">
-        <span style={dot(theme.text.muted)} />
-        {!compact && <span style={styles.text}>sync…</span>}
+      <span className={styles.wrap} title="Часы устройства ещё не синхронизированы">
+        <span className={`${styles.dot} ${styles.dotMuted}`} />
+        {!compact && <span className={styles.text}>sync…</span>}
       </span>
     );
   }
-  const color = QUALITY_COLOR[sync.quality];
+  const qTone = QUALITY_TONE[sync.quality];
   const tip =
     `Синхронизация часов: ${QUALITY_LABEL[sync.quality]}\n` +
     `RTT ≈ ${Math.round(sync.rttMs)} мс · offset ≈ ${Math.round(sync.offsetMs)} мс\n` +
     `выборок: ${sync.samples}`;
   return (
-    <span style={styles.wrap} title={tip}>
-      <span style={dot(color)} />
-      <span style={{ ...styles.text, color }}>
+    <span className={styles.wrap} title={tip}>
+      <span className={`${styles.dot} ${qTone.dot}`} />
+      <span className={`${styles.text} ${qTone.text}`}>
         {compact ? `${Math.round(sync.rttMs)}мс` : `sync ${Math.round(sync.rttMs)} мс`}
       </span>
     </span>
   );
 }
-
-const dot = (color: string): React.CSSProperties => ({
-  width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0,
-});
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { display: 'inline-flex', alignItems: 'center', gap: 5 },
-  text: {
-    fontSize: 10, fontFamily: theme.font.mono, letterSpacing: '0.06em',
-    color: theme.text.muted,
-  },
-};

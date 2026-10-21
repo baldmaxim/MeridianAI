@@ -3,18 +3,27 @@ import type { User } from '../types';
 import { login as apiLogin, register as apiRegister, getMe } from '../api/auth';
 import { queryClient } from '../lib/queryClient';
 import { authKeys } from './queries/auth';
+import { API_CACHE_NAME } from '../lib/swCache';
+
+// SSO session bridging: callback вернул локальный JWT во fragment (#sso_token=...).
+// Идемпотентна: после первого вызова hash очищен.
+function consumeSsoToken() {
+  const m = window.location.hash.match(/sso_token=([^&]+)/);
+  if (m) {
+    localStorage.setItem('token', decodeURIComponent(m[1]));
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Без токена загрузка не нужна — сразу false (без setState в эффекте).
+  const [loading, setLoading] = useState(() => {
+    consumeSsoToken();
+    return !!localStorage.getItem('token');
+  });
 
   useEffect(() => {
-    // SSO session bridging: callback вернул локальный JWT во fragment (#sso_token=...)
-    const m = window.location.hash.match(/sso_token=([^&]+)/);
-    if (m) {
-      localStorage.setItem('token', decodeURIComponent(m[1]));
-      history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
     const token = localStorage.getItem('token');
     if (token) {
       getMe()
@@ -28,8 +37,6 @@ export function useAuth() {
           setUser(null);
         })
         .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
   }, []);
 
@@ -56,6 +63,8 @@ export function useAuth() {
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     queryClient.clear(); // очистить весь кэш данных при выходе
+    // SW-кэш GET /api/* (NetworkFirst) не привязан к пользователю — сбрасываем, чтобы следующий вход не увидел чужое
+    if ('caches' in window) void caches.delete(API_CACHE_NAME).catch(() => false);
     setUser(null);
   }, []);
 

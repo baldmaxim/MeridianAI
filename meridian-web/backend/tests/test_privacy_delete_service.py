@@ -1,7 +1,6 @@
 """Этап 25: privacy delete — dry-run план + confirmation token, гейты hard delete, shared skip,
 local guard, S3 delete через fake storage, partial failure."""
 
-import pytest
 from sqlalchemy import func, select
 
 from app.config import get_settings

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { theme } from '../../styles/theme';
+import styles from './BatchUpload.module.css';
+import { cx } from '../../utils/cx';
 
 interface Props {
   onUpload: (file: File) => void;
@@ -40,51 +41,24 @@ export function BatchUpload({ onUpload, uploading }: Props) {
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
       onClick={() => !uploading && inputRef.current?.click()}
-      style={{
-        border: `2px dashed ${dragOver ? theme.accent.amber : theme.border.default}`,
-        borderRadius: 12,
-        padding: '32px 24px',
-        textAlign: 'center',
-        cursor: uploading ? 'wait' : 'pointer',
-        background: dragOver ? theme.accent.amberGlow : theme.bg.card,
-        transition: 'all 0.2s',
-      }}
+      className={cx(styles.dropZone, dragOver && styles.dropZoneActive, uploading && styles.dropZoneBusy)}
     >
       <input
         ref={inputRef}
         type="file"
         accept={ACCEPT}
         onChange={handleChange}
-        style={{ display: 'none' }}
+        className={styles.fileInput}
       />
-      <div
-        style={{
-          fontSize: 28,
-          marginBottom: 8,
-          opacity: 0.6,
-        }}
-      >
+      <div className={styles.dropIcon}>
         {uploading ? '\u23F3' : '\uD83C\uDFA4'}
       </div>
-      <div
-        style={{
-          fontFamily: theme.font.body,
-          fontSize: 13,
-          color: theme.text.secondary,
-          marginBottom: 4,
-        }}
-      >
+      <div className={styles.dropText}>
         {uploading
           ? 'Загрузка...'
           : 'Перетащите аудиофайл или нажмите для выбора'}
       </div>
-      <div
-        style={{
-          fontFamily: theme.font.mono,
-          fontSize: 10,
-          color: theme.text.muted,
-        }}
-      >
+      <div className={styles.dropHint}>
         MP3, WAV, M4A, OGG, FLAC, OPUS, WEBM (макс. 500MB)
       </div>
     </div>

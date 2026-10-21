@@ -26,90 +26,6 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
   const onMeetingClosedRef = useRef(onMeetingClosed);
   useEffect(() => { onMeetingClosedRef.current = onMeetingClosed; }, [onMeetingClosed]);
 
-  const connect = useCallback((opts?: ConnectOpts) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    if (opts) connectOpts.current = opts;
-
-    const { meetingId, deviceRole = 'desktop' } = connectOpts.current;
-    closedIntentionally.current = false;
-    // Этап 2: по возможности подключаемся к конкретной встрече; иначе — legacy fallback
-    const url = meetingId != null
-      ? `${getWsBase()}/ws/meetings/${meetingId}?token=${token}&device_role=${deviceRole}`
-      : `${getWsBase()}/ws/meeting?token=${token}`;
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      const s = useMeetingStore.getState();
-      s.setConnected(true);
-      s.setStatus('Подключено к серверу');
-      s.setError(null);
-      // Этап 9.1: синхронизация часов устройства с backend
-      clockRef.current?.stop();
-      clockRef.current = new ClockSyncController({
-        send: (m) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); },
-        onResult: (st) => useMeetingStore.getState().setDeviceSync(st),
-      });
-      clockRef.current.start();
-      // Этап 9.6/9.7: после (ре)коннекта запросить актуальные snapshot'ы
-      try { ws.send(JSON.stringify({ type: 'multi_channel_live_get_snapshot' })); } catch { /* ignore */ }
-      try { ws.send(JSON.stringify({ type: 'multi_channel_reconciliation_get_snapshot' })); } catch { /* ignore */ }
-      // Этап 9.8: актуальное состояние авторитетного источника транскрипта
-      try { ws.send(JSON.stringify({ type: 'get_transcription_authority' })); } catch { /* ignore */ }
-    };
-
-    ws.onclose = () => {
-      const s = useMeetingStore.getState();
-      s.setConnected(false);
-      s.setRoomConnected(false);
-      s.setStatus('Отключено от сервера');
-      clockRef.current?.stop();
-      clockRef.current = null;
-      // Auto-reconnect only if not intentionally closed
-      if (!closedIntentionally.current) {
-        reconnectTimer.current = setTimeout(() => connect(), 3000);
-      }
-    };
-
-    ws.onerror = () => {
-      useMeetingStore.getState().setError('Ошибка WebSocket соединения');
-    };
-
-    ws.onmessage = (event) => {
-      if (typeof event.data === 'string') {
-        try {
-          const data: WSMessageFromServer = JSON.parse(event.data);
-          handleMessage(data);
-        } catch {
-          console.error('Invalid WS message:', event.data);
-        }
-      }
-    };
-  }, []);
-
-  const disconnect = useCallback(() => {
-    closedIntentionally.current = true;
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    useMeetingStore.getState().setConnected(false);
-  }, []);
-
-  const sendJSON = useCallback((msg: WSMessageToServer) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg));
-    }
-  }, []);
-
-  const sendBinary = useCallback((data: ArrayBuffer) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(data);
-    }
-  }, []);
-
   function handleMessage(data: WSMessageFromServer) {
     const s = useMeetingStore.getState();
 
@@ -420,6 +336,7 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
 
       // Этап 9.6: realtime multi-channel live STT shadow
       case 'multi_channel_live_state': {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- type отбрасываем деструктуризацией
         const { type: _t, ...state } = data;
         s.setMultiChannelLiveState(state);
         break;
@@ -446,6 +363,7 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
 
       // Этап 9.8: production cutover (авторитетный источник транскрипта)
       case 'transcription_authority_state': {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- type отбрасываем деструктуризацией
         const { type: _t, ...state } = data;
         s.setTranscriptionAuthority(state);
         break;
@@ -464,6 +382,90 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
         break;
     }
   }
+
+  const connect = useCallback(function connectImpl(opts?: ConnectOpts) {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    if (opts) connectOpts.current = opts;
+
+    const { meetingId, deviceRole = 'desktop' } = connectOpts.current;
+    closedIntentionally.current = false;
+    // Этап 2: по возможности подключаемся к конкретной встрече; иначе — legacy fallback
+    const url = meetingId != null
+      ? `${getWsBase()}/ws/meetings/${meetingId}?token=${token}&device_role=${deviceRole}`
+      : `${getWsBase()}/ws/meeting?token=${token}`;
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      const s = useMeetingStore.getState();
+      s.setConnected(true);
+      s.setStatus('Подключено к серверу');
+      s.setError(null);
+      // Этап 9.1: синхронизация часов устройства с backend
+      clockRef.current?.stop();
+      clockRef.current = new ClockSyncController({
+        send: (m) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); },
+        onResult: (st) => useMeetingStore.getState().setDeviceSync(st),
+      });
+      clockRef.current.start();
+      // Этап 9.6/9.7: после (ре)коннекта запросить актуальные snapshot'ы
+      try { ws.send(JSON.stringify({ type: 'multi_channel_live_get_snapshot' })); } catch { /* ignore */ }
+      try { ws.send(JSON.stringify({ type: 'multi_channel_reconciliation_get_snapshot' })); } catch { /* ignore */ }
+      // Этап 9.8: актуальное состояние авторитетного источника транскрипта
+      try { ws.send(JSON.stringify({ type: 'get_transcription_authority' })); } catch { /* ignore */ }
+    };
+
+    ws.onclose = () => {
+      const s = useMeetingStore.getState();
+      s.setConnected(false);
+      s.setRoomConnected(false);
+      s.setStatus('Отключено от сервера');
+      clockRef.current?.stop();
+      clockRef.current = null;
+      // Auto-reconnect only if not intentionally closed
+      if (!closedIntentionally.current) {
+        reconnectTimer.current = setTimeout(() => connectImpl(), 3000);
+      }
+    };
+
+    ws.onerror = () => {
+      useMeetingStore.getState().setError('Ошибка WebSocket соединения');
+    };
+
+    ws.onmessage = (event) => {
+      if (typeof event.data === 'string') {
+        try {
+          const data: WSMessageFromServer = JSON.parse(event.data);
+          handleMessage(data);
+        } catch {
+          console.error('Invalid WS message:', event.data);
+        }
+      }
+    };
+  }, []);
+
+  const disconnect = useCallback(() => {
+    closedIntentionally.current = true;
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    useMeetingStore.getState().setConnected(false);
+  }, []);
+
+  const sendJSON = useCallback((msg: WSMessageToServer) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(msg));
+    }
+  }, []);
+
+  const sendBinary = useCallback((data: ArrayBuffer) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(data);
+    }
+  }, []);
 
   // Возврат вкладки из фона: таймер reconnect (setTimeout) в фоне «засыпает», поэтому
   // при возврате в видимость немедленно переподключаемся, если сокет мёртв и закрытие

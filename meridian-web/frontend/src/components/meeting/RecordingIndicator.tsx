@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { theme } from '../../styles/theme';
 import { useMeetingStore } from '../../store/meetingStore';
+import styles from './RecordingIndicator.module.css';
 
 /**
  * Задача 2b: индикатор активной записи в шапке встречи (рядом с заказчик/объект/дата).
@@ -37,27 +37,10 @@ export function RecordingIndicator() {
   const who = byOther ? (activeAudioUserLabel || 'другое устройство') : 'вы';
 
   return (
-    <span style={styles.wrap} title={`Идёт запись: ${who} · ${mm}:${ss}`}>
-      <span style={styles.dot} />
-      <span style={styles.who}>{who}</span>
-      <span style={styles.time}>{mm}:{ss}</span>
+    <span className={styles.wrap} title={`Идёт запись: ${who} · ${mm}:${ss}`}>
+      <span className={styles.dot} />
+      <span className={styles.who}>{who}</span>
+      <span className={styles.time}>{mm}:{ss}</span>
     </span>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: {
-    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
-    padding: '4px 10px', borderRadius: 999,
-    border: `1px solid ${theme.accent.red}`, background: 'rgba(255,75,110,0.10)',
-  },
-  dot: { width: 8, height: 8, borderRadius: '50%', background: theme.accent.red },
-  who: {
-    fontFamily: theme.font.mono, fontSize: 11, color: theme.text.secondary,
-    maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  time: {
-    fontFamily: theme.font.mono, fontSize: 12, fontWeight: 700,
-    color: theme.accent.red, fontVariantNumeric: 'tabular-nums',
-  },
-};

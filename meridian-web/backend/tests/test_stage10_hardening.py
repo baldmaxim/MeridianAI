@@ -18,7 +18,6 @@ from app.services.ai_settings import resolve_for_meeting
 from app.utils.files import safe_filename
 from app.api.health import health, config_summary
 from app.api.history import list_meeting_documents
-from sqlalchemy import select, func
 
 
 async def _mk_user(db, email, role="user"):

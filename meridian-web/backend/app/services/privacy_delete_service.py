@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
@@ -32,7 +32,7 @@ from ..models.directory import MeetingParticipant
 from ..models.knowledge import LearningCandidate
 from ..models.file import FileRecord
 from ..models.batch_job import BatchJob
-from ..models.document import DocumentRecord, DocumentChunk
+from ..models.document import DocumentRecord
 from . import document_storage
 from . import privacy_data_inventory as inv
 

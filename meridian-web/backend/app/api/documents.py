@@ -6,7 +6,6 @@ Legacy multipart-загрузка (/upload, /session-docs*) сохранена �
 
 import logging
 import os
-import shutil
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Response
 from sqlalchemy import select, func, delete as sa_delete
@@ -28,6 +27,7 @@ from ..schemas.document import (
     DocumentResponse,
 )
 from ..services import document_storage
+from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..services.jobs import enqueue
 
 logger = logging.getLogger("meridian.documents")
@@ -324,8 +324,11 @@ async def upload_document_legacy(
     user_upload_dir = os.path.join(settings.upload_dir, str(user.id))
     os.makedirs(user_upload_dir, exist_ok=True)
     file_path = os.path.join(user_upload_dir, safe_filename(file.filename))
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    max_mb = settings.document_max_upload_mb
+    try:
+        await save_upload_limited(file, file_path, max_mb * 1024 * 1024)
+    except UploadTooLargeError:
+        raise HTTPException(413, f"Файл слишком большой (макс. {max_mb} МБ)")
 
     session = get_session_manager(user.id)
     try:

@@ -6,10 +6,9 @@
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import httpx
-import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

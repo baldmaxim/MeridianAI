@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { theme } from '../../styles/theme';
 import { apiErrorMessage } from '../../lib/apiError';
 import { useCandidates, useApproveCandidate, useRejectCandidate, usePatchCandidate } from '../../hooks/queries/learning';
 import type { LearningCandidate, LearningCandidateType } from '../../types';
+import styles from './LearningCandidates.module.css';
+import { cx } from '../../utils/cx';
+import { TextInput } from '../common';
 
 interface Props {
   meetingId?: number | null;   // если задан — только кандидаты этой встречи
@@ -18,12 +20,12 @@ const TYPE_LABEL: Record<LearningCandidateType, string> = {
   forbidden_phrase: 'Не говорить',
 };
 
-const TYPE_COLOR: Record<LearningCandidateType, string> = {
-  term: theme.accent.blue,
-  trigger_phrase: theme.accent.amber,
-  playbook: theme.accent.green,
-  counterparty_trait: theme.accent.amber,
-  forbidden_phrase: theme.accent.red,
+const TYPE_TONES: Record<LearningCandidateType, string> = {
+  term: styles.toneBlue,
+  trigger_phrase: styles.toneAmber,
+  playbook: styles.toneGreen,
+  counterparty_trait: styles.toneAmber,
+  forbidden_phrase: styles.toneRed,
 };
 
 // Поля для редактирования по типу: [ключ payload, подпись, многострочное?]
@@ -86,57 +88,57 @@ export function LearningCandidates({ meetingId, onChange, compact }: Props) {
     finally { setBusyId(null); }
   }
 
-  if (isPending) return <div style={styles.muted}>Загрузка кандидатов…</div>;
+  if (isPending) return <div className={styles.muted}>Загрузка кандидатов…</div>;
   const error = actionError ?? (queryError ? apiErrorMessage(queryError, 'Не удалось загрузить кандидатов') : null);
-  if (error) return <div style={styles.error}>{error}</div>;
+  if (error) return <div className={styles.error}>{error}</div>;
   if (items.length === 0) {
-    return <div style={styles.muted}>{meetingId != null ? 'Новых элементов не предложено' : 'Нет кандидатов на проверку'}</div>;
+    return <div className={styles.muted}>{meetingId != null ? 'Новых элементов не предложено' : 'Нет кандидатов на проверку'}</div>;
   }
 
   return (
-    <div style={styles.list}>
+    <div className={styles.list}>
       {items.map((c) => (
-        <div key={c.id} style={styles.card}>
-          <div style={styles.row}>
-            <span style={{ ...styles.badge, color: TYPE_COLOR[c.candidate_type], borderColor: TYPE_COLOR[c.candidate_type] }}>
+        <div key={c.id} className={styles.card}>
+          <div className={styles.row}>
+            <span className={cx(styles.badge, TYPE_TONES[c.candidate_type])}>
               {TYPE_LABEL[c.candidate_type]}
             </span>
-            {c.confidence != null && <span style={styles.conf}>{Math.round(c.confidence * 100)}%</span>}
-            <span style={{ flex: 1 }} />
+            {c.confidence != null && <span className={styles.conf}>{Math.round(c.confidence * 100)}%</span>}
+            <span className={styles.spacer} />
           </div>
 
           {editId === c.id ? (
-            <div style={styles.editBox}>
-              <label style={styles.lbl}>Заголовок</label>
-              <input style={styles.input} value={draft.__title || ''} onChange={(e) => setDraft({ ...draft, __title: e.target.value })} />
+            <div className={styles.editBox}>
+              <label className={styles.lbl}>Заголовок</label>
+              <TextInput inputClassName={styles.input} value={draft.__title || ''} onChange={(e) => setDraft({ ...draft, __title: e.target.value })} onClear={() => setDraft({ ...draft, __title: '' })} clearLabel="заголовок" />
               {EDIT_FIELDS[c.candidate_type].map(([key, label, multi]) => (
                 <div key={key}>
-                  <label style={styles.lbl}>{label}</label>
+                  <label className={styles.lbl}>{label}</label>
                   {multi ? (
-                    <textarea style={styles.textarea} rows={2} value={draft[key] || ''} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+                    <textarea className={styles.textarea} rows={2} value={draft[key] || ''} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
                   ) : (
-                    <input style={styles.input} value={draft[key] || ''} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+                    <TextInput inputClassName={styles.input} value={draft[key] || ''} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} onClear={() => setDraft({ ...draft, [key]: '' })} clearLabel={label} />
                   )}
                 </div>
               ))}
-              <div style={styles.actions}>
-                <button style={styles.approve} disabled={busyId === c.id} onClick={() => saveEdit(c)}>Сохранить</button>
-                <button style={styles.ghost} disabled={busyId === c.id} onClick={() => setEditId(null)}>Отмена</button>
+              <div className={styles.actions}>
+                <button className={styles.approve} disabled={busyId === c.id} onClick={() => saveEdit(c)}>Сохранить</button>
+                <button className={styles.ghost} disabled={busyId === c.id} onClick={() => setEditId(null)}>Отмена</button>
               </div>
             </div>
           ) : (
             <>
-              <div style={styles.title}>{c.title}</div>
-              {!compact && <div style={styles.summary}>{summary(c)}</div>}
-              {c.source_text && <div style={styles.source}>«{c.source_text}»</div>}
+              <div className={styles.title}>{c.title}</div>
+              {!compact && <div className={styles.summary}>{summary(c)}</div>}
+              {c.source_text && <div className={styles.source}>«{c.source_text}»</div>}
             </>
           )}
 
           {editId !== c.id && (
-            <div style={styles.actions}>
-              <button style={styles.approve} disabled={busyId === c.id} onClick={() => act(c.id, (id) => approveMut.mutateAsync(id))}>В базу знаний</button>
-              <button style={styles.reject} disabled={busyId === c.id} onClick={() => act(c.id, (id) => rejectMut.mutateAsync(id))}>Отклонить</button>
-              <button style={styles.ghost} disabled={busyId === c.id} onClick={() => startEdit(c)}>Изменить</button>
+            <div className={styles.actions}>
+              <button className={styles.approve} disabled={busyId === c.id} onClick={() => act(c.id, (id) => approveMut.mutateAsync(id))}>В базу знаний</button>
+              <button className={styles.reject} disabled={busyId === c.id} onClick={() => act(c.id, (id) => rejectMut.mutateAsync(id))}>Отклонить</button>
+              <button className={styles.ghost} disabled={busyId === c.id} onClick={() => startEdit(c)}>Изменить</button>
             </div>
           )}
         </div>
@@ -144,24 +146,3 @@ export function LearningCandidates({ meetingId, onChange, compact }: Props) {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: theme.bg.elevated, border: `1px solid ${theme.border.default}`, borderRadius: 9, padding: 12, display: 'flex', flexDirection: 'column', gap: 7 },
-  row: { display: 'flex', alignItems: 'center', gap: 8 },
-  badge: { padding: '2px 9px', border: '1px solid', borderRadius: 10, fontFamily: theme.font.mono, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const },
-  conf: { fontFamily: theme.font.mono, fontSize: 10, color: theme.text.muted },
-  title: { fontSize: 13, fontWeight: 600, color: theme.text.primary },
-  summary: { fontSize: 12, color: theme.text.secondary, lineHeight: 1.4 },
-  source: { fontSize: 11, color: theme.text.muted, fontStyle: 'italic' as const, borderLeft: `2px solid ${theme.border.amber}`, paddingLeft: 8 },
-  actions: { display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginTop: 2 },
-  approve: { padding: '6px 12px', background: theme.accent.green, border: 'none', borderRadius: 6, color: '#080A0F', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: theme.font.body },
-  reject: { padding: '6px 12px', background: 'transparent', border: `1px solid ${theme.accent.red}`, borderRadius: 6, color: theme.accent.red, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
-  ghost: { padding: '6px 12px', background: 'transparent', border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.secondary, cursor: 'pointer', fontSize: 11, fontFamily: theme.font.mono },
-  editBox: { display: 'flex', flexDirection: 'column', gap: 4 },
-  lbl: { fontSize: 9, fontFamily: theme.font.mono, color: theme.accent.amber, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4 },
-  input: { padding: '7px 10px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.primary, fontSize: 12, fontFamily: theme.font.body, outline: 'none', width: '100%', boxSizing: 'border-box' as const },
-  textarea: { padding: '7px 10px', background: theme.bg.input, border: `1px solid ${theme.border.default}`, borderRadius: 6, color: theme.text.primary, fontSize: 12, fontFamily: theme.font.body, outline: 'none', resize: 'vertical' as const, width: '100%', boxSizing: 'border-box' as const },
-  muted: { color: theme.text.muted, fontFamily: theme.font.mono, fontSize: 12 },
-  error: { color: theme.accent.red, fontFamily: theme.font.mono, fontSize: 11 },
-};

@@ -1,4 +1,5 @@
 /** Утилиты скачивания: имя из Content-Disposition (RFC 5987) и сохранение blob. */
+import axios from 'axios';
 
 /** Имя файла из Content-Disposition: сначала filename*=UTF-8'' , затем filename="". */
 export function filenameFromDisposition(disposition: string | undefined, fallback: string): string {
@@ -29,8 +30,8 @@ export function saveBlob(blob: Blob, filename: string): void {
 }
 
 /** Текст ошибки из ответа с responseType: 'blob' (detail внутри blob, а не в data). */
-export async function errorTextFromBlob(e: any, fallback: string): Promise<string> {
-  const data = e?.response?.data;
+export async function errorTextFromBlob(e: unknown, fallback: string): Promise<string> {
+  const data: unknown = axios.isAxiosError(e) ? e.response?.data : undefined;
   if (data instanceof Blob) {
     try {
       const parsed = JSON.parse(await data.text());
@@ -39,7 +40,8 @@ export async function errorTextFromBlob(e: any, fallback: string): Promise<strin
       /* не JSON — отдаём фолбэк */
     }
   }
-  return data?.detail || e?.message || fallback;
+  const detail = (data as { detail?: string } | undefined)?.detail;
+  return detail || (e instanceof Error ? e.message : '') || fallback;
 }
 
 /** Скачать URL в blob с таймаутом (cross-origin S3 может «зависнуть» без него). */

@@ -1,0 +1,88 @@
+.emptyPanel {
+  padding: 20px 16px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.contextFields {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.contextLabel {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.contextValue {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.docList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+}
+
+.docExt {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  min-width: 30px;
+}
+
+/* Цвет расширения документа */
+.pdf {
+  color: var(--accent-red);
+}
+
+.docx {
+  color: var(--accent-blue);
+}
+
+.xlsx {
+  color: var(--accent-green);
+}
+
+.other {
+  color: var(--text-secondary);
+}
+
+.docName {
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docMeta {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+}

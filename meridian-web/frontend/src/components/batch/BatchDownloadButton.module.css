@@ -1,0 +1,12 @@
+.btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border-amber);
+  border-radius: 5px;
+  color: var(--accent-amber);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}

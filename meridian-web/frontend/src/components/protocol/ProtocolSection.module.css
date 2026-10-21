@@ -1,0 +1,38 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 3px 10px;
+  border: 1px solid var(--tone);
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--tone);
+}
+
+.toneGreen { --tone: var(--accent-green); }
+.toneRed { --tone: var(--accent-red); }
+.toneAmber { --tone: var(--accent-amber); }
+.toneBlue { --tone: var(--accent-blue); }
+
+.toggle {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border-amber);
+  border-radius: 7px;
+  color: var(--accent-amber);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}

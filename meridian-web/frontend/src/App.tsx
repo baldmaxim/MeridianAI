@@ -24,6 +24,7 @@ import { useMeetingStore } from './store/meetingStore';
 import { createMeeting } from './api/meetings';
 import { meetingDisplayName } from './lib/meetingName';
 import type { ProjectObject } from './types';
+import styles from './App.module.css';
 
 type Page = 'objects' | 'object-detail' | 'meeting' | 'history' | 'history-detail' | 'batch'
   | 'files' | 'knowledge' | 'letters' | 'project-links' | 'ai-settings' | 'settings' | 'desktop';
@@ -86,7 +87,7 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080A0F', color: '#EDF2FF' }}>
+      <div className={styles.loading}>
         Загрузка...
       </div>
     );
@@ -277,7 +278,7 @@ function App() {
     >
       <PageTransition
         routeKey={`${currentPage}:${selectedObjectId ?? ''}:${selectedMeetingId ?? ''}`}
-        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+        className={styles.page}
       >
         {renderPage()}
       </PageTransition>
