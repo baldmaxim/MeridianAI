@@ -1,7 +1,10 @@
 //! HTTP client of the Meridian server's `/api/desktop` API. Every call is a
 //! plain request; retries and ordering belong to the engine.
 
+mod documents;
 mod library;
+
+pub use documents::{DocumentUploadBody, ServerDocument};
 
 use std::fmt;
 use std::io::Read;
@@ -385,13 +388,19 @@ impl ApiClient {
     /// Sends the file to the presigned URL, reading it piece by piece. The
     /// storage is not the Meridian API: whatever it answers (even 401/403) is
     /// a reason to try again with a fresh URL, not to sign out.
-    pub async fn put_file(&self, upload_url: &str, path: &Path, size: u64) -> Result<(), ApiError> {
+    pub async fn put_file(
+        &self,
+        upload_url: &str,
+        path: &Path,
+        size: u64,
+        content_type: &str,
+    ) -> Result<(), ApiError> {
         let file = std::fs::File::open(path)
-            .map_err(|e| ApiError::Local(format!("Не удалось открыть файл звука: {e}")))?;
+            .map_err(|e| ApiError::Local(format!("Не удалось открыть файл: {e}")))?;
         let request = self
             .upload
             .put(upload_url)
-            .header(CONTENT_TYPE, "audio/wav")
+            .header(CONTENT_TYPE, content_type)
             .header(CONTENT_LENGTH, size)
             .body(file_body(file));
         let response = request.send().await.map_err(network_error)?;
@@ -401,7 +410,7 @@ impl ApiClient {
         }
         Err(ApiError::Retry {
             status: Some(status.as_u16()),
-            message: format!("Хранилище не приняло звук (код {})", status.as_u16()),
+            message: format!("Хранилище не приняло файл (код {})", status.as_u16()),
         })
     }
 

@@ -110,6 +110,28 @@ pub(super) static MIGRATIONS: &[M] = &[
         PRIMARY KEY (meeting_id, label)
     );",
     ),
+    // Sources of a meeting (files dropped onto the window): the upload queue.
+    // `meeting_id` is the local meeting (`NULL` for a meeting of the site opened
+    // from the library), `server_meeting_id` is filled once the server has the
+    // meeting. States: pending, uploading, uploaded, error (see `db_documents.rs`).
+    M::up(
+        "CREATE TABLE document_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meeting_id TEXT REFERENCES meetings(id) ON DELETE CASCADE,
+        server_meeting_id INTEGER,
+        file_path TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        mime TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        server_document_id INTEGER,
+        error TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_document_queue_meeting ON document_queue(meeting_id);
+    CREATE INDEX idx_document_queue_server ON document_queue(server_meeting_id);",
+    ),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one

@@ -633,6 +633,49 @@ async searchMeetings(query: string, limit: number | null) : Promise<Result<Searc
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Copies the files into the app's data folder and queues them; the upload
+ * starts at once when there is a connection. A refused file is reported in
+ * the result and does not stop the others.
+ */
+async meetingDocumentsAdd(meetingId: string | null, serverMeetingId: number | null, paths: string[]) : Promise<Result<AddDocumentsResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_documents_add", { meetingId, serverMeetingId, paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingDocumentsList(meetingId: string | null, serverMeetingId: number | null) : Promise<Result<MeetingDocuments, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_documents_list", { meetingId, serverMeetingId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Includes a document into the meeting's context or leaves it out.
+ */
+async meetingDocumentSetIncluded(serverMeetingId: number, documentId: number, included: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_document_set_included", { serverMeetingId, documentId, included }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Takes a file out of the upload queue and deletes its local copy.
+ */
+async meetingDocumentRemoveQueued(queueId: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_document_remove_queued", { queueId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getAvailableModels() : Promise<Result<ModelInfo[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_available_models") };
@@ -949,6 +992,7 @@ export type AccountInfo = { server_url: string; user: AccountUser; device_id: nu
 export type AccountLoginRequest = { server_url: string; email: string; password: string }
 export type AccountUser = { id: number; email: string; display_name: string | null }
 export type ActiveMeetingState = { meeting: MeetingInfo; elapsed_seconds: number; queue_len: number; levels: MeetingLevels }
+export type AddDocumentsResult = { added: number; rejected: RejectedDocument[] }
 /**
  * The container-level `serde(default)` (backed by the `Default` impl below)
  * guarantees every field — including ones added in the future — falls back to
@@ -1036,6 +1080,11 @@ export type ChineseScript =
  * Keep whatever script the model produced.
  */
 "as_transcribed" | "simplified" | "traditional"
+/**
+ * What the server read out of the document; every part may be missing.
+ */
+export type DocumentMeta = { number?: string | null; date?: string | null; counterparty_name?: string | null }
+export type DocumentTag = { key: string; label: string }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
@@ -1062,6 +1111,22 @@ offline: boolean; signed_in: boolean }
 export type LibrarySource = "desktop" | "web"
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MeetingDetails = { meeting: MeetingInfo; segments: Segment[]; notes: Note[] }
+/**
+ * Files of a meeting: the queue, and the server's list when it could be had.
+ */
+export type MeetingDocuments = { 
+/**
+ * Not on the server yet: waiting, being uploaded, or refused.
+ */
+queued: QueuedDocument[]; 
+/**
+ * `None`: not asked or no answer (see `offline`).
+ */
+server: ServerDocument[] | null; 
+/**
+ * The server could not be reached.
+ */
+offline: boolean }
 export type MeetingInfo = { id: string; title: string; capture_mode: CaptureMode; started_at: string; ended_at: string | null; status: MeetingStatus; duration_seconds: number; server_meeting_id: number | null; sync_state: string; sync_error: string | null; synced_at: string | null; customer_id: number | null; object_id: number | null; 
 /**
  * Names of the project, for showing it without the server's reference book.
@@ -1215,7 +1280,28 @@ export type PostProcessProvider = { id: string; label: string; base_url: string;
  */
 export type ProjectCustomer = { id: number; name: string; objects: ProjectObject[] }
 export type ProjectObject = { id: number; name: string; address: string | null }
+/**
+ * A file that has not reached the server, as the UI shows it.
+ */
+export type QueuedDocument = { id: number; original_name: string; size: number; 
+/**
+ * `pending`, `uploading` or `error`.
+ */
+state: string; error: string | null }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
+/**
+ * Why a dropped file was not taken.
+ */
+export type RejectReason = 
+/**
+ * Not a type the server takes as a source.
+ */
+"extension" | "too_large" | "empty" | 
+/**
+ * Not a file, or it could not be read or copied.
+ */
+"unreadable"
+export type RejectedDocument = { name: string; reason: RejectReason }
 /**
  * A retired ONNX model found on disk.
  */
@@ -1241,6 +1327,15 @@ channel: string; start_time: number; end_time: number; text: string; created_at:
  * a too short phrase, a meeting from before voices).
  */
 voice: string | null }
+/**
+ * A document of a meeting as the server describes it. Type and tags are
+ * found by the server and only shown here.
+ */
+export type ServerDocument = { document_id: number; name: string | null; status: string | null; doc_type: string | null; doc_type_label: string | null; doc_tags: DocumentTag[]; doc_meta: DocumentMeta | null; 
+/**
+ * `meeting`, `customer` or `object`.
+ */
+source: string; included: boolean; page_count: number | null }
 export type StartMeetingRequest = { title: string; capture_mode: CaptureMode; 
 /**
  * `None`: the microphone chosen in settings, else the system default.

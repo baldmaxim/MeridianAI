@@ -7,7 +7,8 @@
 //! 3. the sides of the voices (`meeting_voices.side_synced`),
 //! 4. title, end time and the whole list of notes,
 //! 5. audio, channel by channel (`audio_state`, `audio_done`),
-//! 6. finalize.
+//! 6. the meeting's sources (`document_queue`, see `documents.rs`),
+//! 7. finalize.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -60,7 +61,7 @@ fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
-fn db_error(e: impl std::fmt::Display) -> ApiError {
+pub(super) fn db_error(e: impl std::fmt::Display) -> ApiError {
     ApiError::Local(format!("Ошибка базы встреч: {e}"))
 }
 
@@ -150,6 +151,11 @@ impl Engine<'_> {
                 .map_err(db_error)?
                 .is_empty()
             && self.db.list_notes(meeting_id).map_err(db_error)?.is_empty()
+            && self
+                .db
+                .list_queued_documents(Some(meeting_id), None)
+                .map_err(db_error)?
+                .is_empty()
         {
             self.db
                 .set_sync_state(meeting_id, "empty", None, None)
@@ -162,6 +168,9 @@ impl Engine<'_> {
         self.send_voices(meeting_id).await?;
         self.send_details(&meeting, server_id).await?;
         self.send_audio(&meeting, server_id).await?;
+        // The sources go before the finalization, so the protocol can use them.
+        // A file that fails stays in its queue and does not hold the meeting back.
+        self.send_documents(Some(meeting_id)).await?;
 
         // Recorded again while we were sending: finalize after the next stop.
         match self.db.get_meeting(meeting_id).map_err(db_error)? {
@@ -409,7 +418,7 @@ impl Engine<'_> {
             Err(e) => return Err(e),
         };
         if let Some(url) = &upload.upload_url {
-            self.client.put_file(url, &wav, size).await?;
+            self.client.put_file(url, &wav, size, "audio/wav").await?;
             self.client.audio_confirm(server_id, upload.file_id).await?;
         }
         self.db

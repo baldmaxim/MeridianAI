@@ -8,14 +8,14 @@ import { useLibraryStore } from "@/stores/libraryStore";
 import { formatDateChip, formatTimeRange } from "@/lib/utils/meetingFormat";
 import { AskPane } from "./AskPane";
 import { DateTimeChips } from "./DateTimeChips";
-import { DocumentsPane } from "./DocumentsPane";
 import { ServerContextTab } from "./ServerContextTab";
 import { ProjectChip } from "./ProjectChip";
 import { ProtocolPane } from "./ProtocolPane";
 import { ServerTranscriptPane } from "./ServerTranscriptPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
+import { SourcesPanel } from "./SourcesPanel";
 
-type PanelTab = "transcript" | "context" | "documents" | "ask";
+type PanelTab = "transcript" | "context" | "ask";
 
 interface ServerMeetingScreenProps {
   serverMeetingId: number;
@@ -69,7 +69,6 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
   const tabs: SidePanelTab<PanelTab>[] = [
     { id: "transcript", label: t("meetings.view.tabTranscript") },
     { id: "context", label: t("meetings.view.tabContext") },
-    { id: "documents", label: t("meetings.view.tabDocuments") },
     { id: "ask", label: t("meetings.view.tabAsk") },
   ];
   const title =
@@ -113,6 +112,7 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
       </div>
 
       <div className="flex min-h-0 flex-1">
+        <SourcesPanel meetingId={null} serverMeetingId={serverMeetingId} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
           <section
             aria-label={t("meetings.view.tabProtocol")}
@@ -136,7 +136,6 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
             <ServerTranscriptPane segments={view.segments} />
           )}
           {tab === "context" && <ServerContextTab view={view} />}
-          {tab === "documents" && <DocumentsPane documents={view.documents} />}
           {tab === "ask" && (
             <AskPane serverMeetingId={serverMeetingId} chat={chat} />
           )}

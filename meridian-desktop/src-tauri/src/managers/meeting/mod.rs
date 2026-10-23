@@ -15,8 +15,10 @@ mod api;
 mod capture;
 mod db;
 mod db_context;
+mod db_documents;
 mod db_sync;
 mod db_voices;
+mod documents;
 mod echo;
 mod queries;
 mod recognizer;
@@ -48,7 +50,9 @@ pub use api::{
 };
 pub use capture::CaptureDevice;
 pub use db::{CaptureMode, MeetingDb, MeetingInfo, MeetingStatus, Note, Segment};
+pub use db_documents::{DocumentRow, QueuedDocument, DOC_ERROR, DOC_PENDING};
 pub use db_voices::MeetingVoice;
+pub use documents::AddDocumentsResult;
 use session::{Session, Slot};
 pub use storage::export_channel_wav;
 

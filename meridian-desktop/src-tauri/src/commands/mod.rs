@@ -1,5 +1,6 @@
 pub mod account;
 pub mod audio;
+pub mod documents;
 pub mod history;
 pub mod library;
 pub mod meetings;

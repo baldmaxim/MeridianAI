@@ -577,7 +577,6 @@
       "tabProtocol": "Protocol",
       "tabContext": "Context",
       "tabAsk": "Ask",
-      "tabDocuments": "Documents",
       "collapsePanel": "Collapse panel",
       "expandPanel": "Expand panel",
       "panelLabel": "Meeting data"
@@ -732,10 +731,44 @@
       "loadFailed": "Could not open the meeting",
       "retry": "Retry",
       "fromCache": "From cache",
-      "fromCacheHint": "The server is unreachable — showing saved data",
-      "documentsEmpty": "No documents attached to the meeting",
-      "documentUnnamed": "Unnamed",
-      "pages": "Pages: {{count}}"
+      "fromCacheHint": "The server is unreachable — showing saved data"
+    },
+    "sources": {
+      "title": "Sources",
+      "counter": "In context: {{included}} of {{total}}",
+      "add": "Add files",
+      "dialogFilter": "Documents",
+      "dropHint": "Drop the files — the type is detected automatically",
+      "offline": "No connection — files will be sent automatically",
+      "empty": "Drop contracts, letters or estimates here, or press “Add files”",
+      "collapse": "Collapse sources",
+      "expand": "Expand sources",
+      "panelLabel": "Meeting sources",
+      "group": {
+        "meeting": "Meeting files",
+        "customer": "From the counterparty",
+        "object": "From the site"
+      },
+      "queue": {
+        "uploading": "Uploading",
+        "waiting": "Waiting for connection",
+        "remove": "Remove from queue"
+      },
+      "detecting": "Detecting…",
+      "processingFailed": "Could not be processed",
+      "include": "In context",
+      "unnamed": "Unnamed",
+      "pages": "Pages: {{count}}",
+      "number": "No. {{number}}",
+      "addFailed": "Could not add the files",
+      "removeFailed": "Could not remove the file",
+      "includeFailed": "Could not change the source",
+      "reject": {
+        "extension": "{{name}}: this file type is not supported (PDF, DOCX, XLSX, TXT, MD, CSV)",
+        "too_large": "{{name}}: the file is larger than 50 MB",
+        "empty": "{{name}}: the file is empty",
+        "unreadable": "{{name}}: could not read the file"
+      }
     }
   },
   "account": {

@@ -5,9 +5,12 @@
 
 pub mod account;
 mod client;
-mod engine;
 #[cfg(test)]
 mod context_tests;
+mod documents;
+#[cfg(test)]
+mod documents_tests;
+mod engine;
 #[cfg(test)]
 mod project_tests;
 #[cfg(test)]
@@ -28,7 +31,7 @@ use tauri::AppHandle;
 use tauri_specta::Event;
 
 pub use account::{AccountInfo, AccountStore};
-pub use client::{ApiClient, ApiError, LoginBody};
+pub use client::{ApiClient, ApiError, LoginBody, ServerDocument};
 use engine::{Engine, Outcome};
 
 use crate::managers::meeting::{MeetingDb, MeetingManager};
@@ -181,6 +184,11 @@ impl SyncCore {
         let Some(account) = self.accounts.get() else {
             return;
         };
+        // An upload cut short by a crash starts over; this thread is the only
+        // one that uploads, and no upload is under way between two passes.
+        if let Err(e) = self.db.reset_uploading_documents() {
+            warn!("Cannot reset the interrupted uploads of sources: {e:#}");
+        }
         let meetings = match self.db.meetings_for_sync() {
             Ok(meetings) => meetings,
             Err(e) => {
@@ -206,8 +214,24 @@ impl SyncCore {
             }
             Err(e) => warn!("Cannot read the meetings with a changed voice side: {e:#}"),
         }
+        // Sources of meetings that are on the server go regardless of the
+        // meetings' own sync state (a meeting opened from the library).
+        let documents_waiting = self
+            .db
+            .link_documents_to_server_meetings()
+            .and_then(|_| self.db.documents_to_send(None))
+            .map(|rows| !rows.is_empty())
+            .unwrap_or_else(|e| {
+                warn!("Cannot read the queue of sources: {e:#}");
+                false
+            });
         let queue_due = meetings.iter().any(|m| self.due(&m.id));
-        if !queue_due && !context_pending.iter().any(|m| self.due(&context_key(&m.id))) {
+        if !queue_due
+            && !documents_waiting
+            && !context_pending
+                .iter()
+                .any(|m| self.due(&context_key(&m.id)))
+        {
             return;
         }
         let client = ApiClient::new(&account.server_url, Some(&account.device_token));
@@ -258,6 +282,22 @@ impl SyncCore {
                 }
                 Err(e) => self.postpone_context(&key, &meeting.id, &e),
             }
+        }
+        let engine = Engine {
+            db: &self.db,
+            root: &self.root,
+            client: &client,
+            upload_audio,
+        };
+        match engine.send_documents(None).await {
+            Ok(report) => {
+                if let Some(ApiError::Retry { status, .. }) = report.stopped_by {
+                    self.inner().online = status.is_some();
+                } else if report.uploaded > 0 {
+                    self.inner().online = true;
+                }
+            }
+            Err(_) => self.sign_out(),
         }
         self.finish_pass();
     }
@@ -313,25 +353,28 @@ impl SyncCore {
                 inner.online = true;
                 inner.last_error = Some(message);
             }
-            Outcome::Unauthorized => {
-                info!("The server does not accept this device any more; signing out");
-                self.accounts.clear();
-                if let Err(e) = self.db.clear_server_cache() {
-                    warn!("Cannot clear the library cache: {e:#}");
-                }
-                {
-                    let mut inner = self.inner();
-                    inner.online = true;
-                    inner.last_error = Some(ApiError::Unauthorized.to_string());
-                }
-                (self.notify)(Notice::Account(AccountChanged {
-                    account: None,
-                    reason: Some(ApiError::Unauthorized.to_string()),
-                }));
-            }
+            Outcome::Unauthorized => self.sign_out(),
             Outcome::Postponed => {}
         }
         self.announce(Some(id));
+    }
+
+    /// The server does not accept this device any more.
+    fn sign_out(&self) {
+        info!("The server does not accept this device any more; signing out");
+        self.accounts.clear();
+        if let Err(e) = self.db.clear_server_cache() {
+            warn!("Cannot clear the library cache: {e:#}");
+        }
+        {
+            let mut inner = self.inner();
+            inner.online = true;
+            inner.last_error = Some(ApiError::Unauthorized.to_string());
+        }
+        (self.notify)(Notice::Account(AccountChanged {
+            account: None,
+            reason: Some(ApiError::Unauthorized.to_string()),
+        }));
     }
 }
 

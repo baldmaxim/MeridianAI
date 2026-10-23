@@ -19,7 +19,7 @@ fn db(app: &AppHandle) -> Arc<MeetingDb> {
 }
 
 /// The client of the signed-in account; `None` when nobody is signed in.
-fn client(app: &AppHandle) -> Option<ApiClient> {
+pub(super) fn client(app: &AppHandle) -> Option<ApiClient> {
     let account = app.state::<Arc<AccountStore>>().get()?;
     Some(ApiClient::new(&account.server_url, Some(&account.device_token)))
 }
@@ -38,7 +38,7 @@ fn sign_out(app: &AppHandle) -> String {
     reason
 }
 
-fn failure(app: &AppHandle, error: ApiError) -> String {
+pub(super) fn failure(app: &AppHandle, error: ApiError) -> String {
     match error {
         ApiError::Unauthorized => sign_out(app),
         other => other.to_string(),

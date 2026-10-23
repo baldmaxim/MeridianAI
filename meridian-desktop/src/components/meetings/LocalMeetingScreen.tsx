@@ -10,6 +10,7 @@ import { LocalContextTab } from "./LocalContextTab";
 import { LocalProtocolTab } from "./LocalProtocolTab";
 import { NotesPane } from "./NotesPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
+import { SourcesPanel } from "./SourcesPanel";
 import { SystemSilentBanner } from "./SystemSilentBanner";
 import { TranscriptPane } from "./TranscriptPane";
 
@@ -74,6 +75,10 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
       )}
 
       <div className="flex min-h-0 flex-1">
+        <SourcesPanel
+          meetingId={meeting.id}
+          serverMeetingId={serverMeetingId}
+        />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
           <NotesPane notes={notes} segments={segments} />
         </div>
