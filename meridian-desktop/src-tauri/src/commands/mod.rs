@@ -21,6 +21,14 @@ pub fn cancel_operation(app: AppHandle) {
     cancel_current_operation(&app);
 }
 
+/// The frontend reports a found update (`Some(version)`) or its absence, so the
+/// tray menu can offer "Install update X".
+#[tauri::command]
+#[specta::specta]
+pub fn set_update_available(app: AppHandle, version: Option<String>) {
+    crate::tray::set_update_available(&app, version);
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn is_portable() -> bool {

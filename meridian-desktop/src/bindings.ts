@@ -304,6 +304,13 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * The frontend reports a found update (`Some(version)`) or its absence, so the
+ * tray menu can offer "Install update X".
+ */
+async setUpdateAvailable(version: string | null) : Promise<void> {
+    await TAURI_INVOKE("set_update_available", { version });
+},
 async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
 },

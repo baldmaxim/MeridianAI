@@ -59,6 +59,8 @@ struct MenuInputs {
     /// `(id, name)` of downloaded models, sorted by name.
     downloaded_models: Vec<(String, String)>,
     locale: String,
+    /// Version of a found-but-not-installed update; adds an "Install update" item.
+    update_version: Option<String>,
 }
 
 /// Complete description of what the tray should look like.
@@ -89,6 +91,8 @@ struct TrayInner {
     next_seq: u64,
     /// Sequence number of the request that produced `desired`.
     desired_seq: u64,
+    /// Update version reported by the frontend ([`set_update_available`]).
+    update_version: Option<String>,
 }
 
 /// Tauri managed state owning the tray's desired/applied snapshots.
@@ -105,6 +109,7 @@ impl TrayState {
             icons: HashMap::new(),
             next_seq: 0,
             desired_seq: 0,
+            update_version: None,
         }))
     }
 
@@ -209,6 +214,12 @@ pub fn refresh_tray_icon(app: &AppHandle) {
     sync_tray(app);
 }
 
+/// Remembers the available update version (None = no update) and re-syncs
+/// the tray, so the menu shows or hides "Install update X".
+pub fn set_update_available(app: &AppHandle, version: Option<String>) {
+    sync_tray_with(app, |inner| inner.update_version = version);
+}
+
 /// Re-syncs the tray after something the menu depends on changed (model
 /// list/selection/loaded state, language, settings).
 pub fn update_tray_menu(app: &AppHandle) {
@@ -233,11 +244,15 @@ fn sync_tray_with(app: &AppHandle, update: impl FnOnce(&mut TrayInner)) {
 
     // Record intent and claim a sequence number in one critical section, so
     // sequence order == the order in which state changes were requested.
-    let (seq, icon_state) = {
+    let (seq, icon_state, update_version) = {
         let mut inner = state.lock();
         update(&mut inner);
         inner.next_seq += 1;
-        (inner.next_seq, inner.icon_state)
+        (
+            inner.next_seq,
+            inner.icon_state,
+            inner.update_version.clone(),
+        )
     };
 
     // Tray not built yet. The intent is kept and picked up by the first sync
@@ -246,7 +261,7 @@ fn sync_tray_with(app: &AppHandle, update: impl FnOnce(&mut TrayInner)) {
         return;
     }
 
-    let desired = compute_desired(app, icon_state);
+    let desired = compute_desired(app, icon_state, update_version);
 
     // Decode the icon off the main thread, once per path, outside the lock.
     let needs_icon = !state.lock().icons.contains_key(desired.icon_path);
@@ -293,7 +308,11 @@ fn sync_tray_with(app: &AppHandle, update: impl FnOnce(&mut TrayInner)) {
     }
 }
 
-fn compute_desired(app: &AppHandle, icon_state: TrayIconState) -> TrayDesired {
+fn compute_desired(
+    app: &AppHandle,
+    icon_state: TrayIconState,
+    update_version: Option<String>,
+) -> TrayDesired {
     let settings = settings::get_settings(app);
     let theme = get_current_theme(app);
     let model_loaded = app.state::<Arc<TranscriptionManager>>().is_model_loaded();
@@ -315,6 +334,7 @@ fn compute_desired(app: &AppHandle, icon_state: TrayIconState) -> TrayDesired {
             selected_model: settings.selected_model,
             downloaded_models,
             locale: settings.app_language,
+            update_version,
         },
     }
 }
@@ -510,6 +530,13 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
         )?
     };
 
+    if let Some(version) = &inputs.update_version {
+        let label = strings.install_update.replace("{version}", version);
+        let update_i = MenuItem::with_id(app, "install_update", &label, true, None::<&str>)?;
+        menu.insert(&update_i, 0)?;
+        menu.insert(&separator()?, 1)?;
+    }
+
     Ok((menu, version_label))
 }
 
@@ -558,6 +585,7 @@ mod tests {
             selected_model: "small".to_string(),
             downloaded_models: vec![("small".to_string(), "Small".to_string())],
             locale: "en".to_string(),
+            update_version: None,
         }
     }
 
@@ -587,6 +615,13 @@ mod tests {
         };
         assert_ne!(recording.icon_path, transcribing.icon_path);
         assert_eq!(recording.menu, transcribing.menu);
+    }
+
+    #[test]
+    fn update_version_changes_menu_inputs() {
+        let mut with_update = inputs(false);
+        with_update.update_version = Some("0.4.0".to_string());
+        assert_ne!(inputs(false), with_update);
     }
 
     #[test]

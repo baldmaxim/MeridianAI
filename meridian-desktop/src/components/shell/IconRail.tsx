@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Settings, User, Users } from "lucide-react";
 import type { AccountInfo } from "@/bindings";
 import { useSyncStore } from "@/stores/syncStore";
+import { useUpdateStore } from "@/stores/updateStore";
 import type { AppSection, SettingsSection } from "./settingsSections";
 
 interface RailItemProps {
@@ -63,6 +64,7 @@ export const IconRail: React.FC<IconRailProps> = ({
 }) => {
   const { t } = useTranslation();
   const account = useSyncStore((s) => s.account);
+  const updateAvailable = useUpdateStore((s) => s.status === "available");
   const inSettings = section === "settings";
   const accountActive = inSettings && settingsTab === "account";
   const accountLabel = account
@@ -87,7 +89,17 @@ export const IconRail: React.FC<IconRailProps> = ({
           label={t("shell.nav.settings")}
           onClick={onOpenSettings}
         >
-          <Settings className="h-[22px] w-[22px]" strokeWidth={1.8} />
+          <span className="relative">
+            <Settings className="h-[22px] w-[22px]" strokeWidth={1.8} />
+            {updateAvailable && (
+              <span
+                role="img"
+                title={t("shell.update.dot")}
+                aria-label={t("shell.update.dot")}
+                className="absolute -end-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-deep bg-amber"
+              />
+            )}
+          </span>
         </RailItem>
         <button
           type="button"

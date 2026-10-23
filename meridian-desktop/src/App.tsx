@@ -18,10 +18,10 @@ import type {
 } from "./components/shell/settingsSections";
 import { useMeetingEvents } from "./hooks/useMeetingEvents";
 import { useSyncEvents } from "./hooks/useSyncEvents";
+import { useUpdateWatcher } from "./hooks/useUpdateWatcher";
 import { useMeetingStore } from "./stores/meetingStore";
 import { useSettings } from "./hooks/useSettings";
 import { UpdateDialog } from "./components/UpdateDialog";
-import { useUpdateStore } from "./stores/updateStore";
 import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { deleteRetiredModel } from "@/components/onboarding/retiredModels";
@@ -72,14 +72,8 @@ function App() {
 
   useSyncEvents(onboardingStep === "done");
 
-  // Тихая проверка обновлений после запуска (D3); диалог откроется, только если версия нашлась.
-  useEffect(() => {
-    if (onboardingStep !== "done") return;
-    const timer = window.setTimeout(() => {
-      void useUpdateStore.getState().checkForUpdates(true);
-    }, 5000);
-    return () => window.clearTimeout(timer);
-  }, [onboardingStep]);
+  // Проверки обновлений, уведомление и меню трея (D3).
+  useUpdateWatcher(onboardingStep === "done");
 
   // Initialize RTL direction when language changes
   useEffect(() => {

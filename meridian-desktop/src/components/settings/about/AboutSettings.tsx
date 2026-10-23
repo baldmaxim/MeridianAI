@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
 import { Button } from "../../ui/Button";
+import { useMeetingStore } from "@/stores/meetingStore";
 import { useUpdateStore } from "@/stores/updateStore";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
@@ -17,13 +18,19 @@ export const AboutSettings: React.FC = () => {
   const [version, setVersion] = useState("");
   const checking = useUpdateStore((s) => s.status === "checking");
   const checkForUpdates = useUpdateStore((s) => s.checkForUpdates);
+  const pendingUpdate = useUpdateStore((s) =>
+    s.status === "available" || s.status === "installing" ? s.update : null,
+  );
+  const installing = useUpdateStore((s) => s.status === "installing");
+  const installUpdate = useUpdateStore((s) => s.installUpdate);
+  const recording = useMeetingStore((s) => s.active !== null);
 
   const handleCheckUpdates = async () => {
     await checkForUpdates(false);
     const { status, error } = useUpdateStore.getState();
     if (status === "upToDate") {
       toast.success(t("update.check.upToDate"));
-    } else if (status === "error") {
+    } else if (error) {
       toast.error(t("update.check.failed"), {
         description: error ?? undefined,
       });
@@ -73,6 +80,28 @@ export const AboutSettings: React.FC = () => {
             {checking ? t("update.check.checking") : t("update.check.button")}
           </Button>
         </SettingContainer>
+
+        {pendingUpdate && (
+          <SettingContainer
+            title={t("update.about.available", {
+              version: pendingUpdate.version,
+            })}
+            description={
+              recording
+                ? t("update.recordingHint")
+                : t("update.about.description")
+            }
+            grouped={true}
+          >
+            <Button
+              size="sm"
+              disabled={installing || recording}
+              onClick={() => void installUpdate()}
+            >
+              {installing ? t("update.installing") : t("update.about.install")}
+            </Button>
+          </SettingContainer>
+        )}
 
         <AppDataDirectory descriptionMode="tooltip" grouped={true} />
         <LogDirectory grouped={true} />

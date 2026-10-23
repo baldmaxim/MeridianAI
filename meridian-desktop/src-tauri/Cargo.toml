@@ -1,6 +1,6 @@
 [package]
 name = "meridian-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "Meridian Desktop: запись и распознавание встреч"
 authors = ["Meridian"]
 edition = "2021"
@@ -93,6 +93,8 @@ hf-hub = { git = "https://github.com/cjpais/hf-hub", branch = "cancellable-downl
 tauri-plugin-single-instance = "2.3.2"
 # Автообновление (D3). 2.12.x: следующие (2.13+) требуют tauri >= 2.12, у нас 2.11.5.
 tauri-plugin-updater = "=2.12.0"
+# Уведомление «Доступно обновление». 2.4.x: 2.5+ требуют tauri >= 2.12, у нас 2.11.5.
+tauri-plugin-notification = "=2.4.0"
 
 [target.'cfg(windows)'.dependencies]
 # Used to reach ICoreWebView2Settings3 through the webview's controller

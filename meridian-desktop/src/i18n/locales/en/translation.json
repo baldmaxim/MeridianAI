@@ -4,9 +4,14 @@
     "unloadModel": "Unload Model",
     "model": "Model",
     "quit": "Quit",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "installUpdate": "Install update {version}"
   },
   "shell": {
+    "update": {
+      "pill": "Update {{version}}",
+      "dot": "Update available"
+    },
     "nav": {
       "label": "Main navigation",
       "meetings": "Meetings",
@@ -809,6 +814,19 @@
     }
   },
   "update": {
+    "versions": "{{current}} → {{next}}",
+    "notes": "What's new",
+    "installFailed": "Could not install the update: {{error}}",
+    "recordingHint": "Stop the recording — the app will restart",
+    "notification": {
+      "title": "Meridian update available",
+      "body": "Version {{version}} is ready to install. Open the app to update."
+    },
+    "about": {
+      "available": "Version {{version}} is available",
+      "description": "The app restarts after the install",
+      "install": "Install and restart"
+    },
     "title": "Version {{version}} is available",
     "text": "A new version of Meridian, {{version}}, is out. The app restarts after the install; do not update while a meeting is being recorded.",
     "now": "Update now",

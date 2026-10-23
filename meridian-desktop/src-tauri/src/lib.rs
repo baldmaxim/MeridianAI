@@ -36,7 +36,7 @@ use std::sync::Arc;
 use tauri::image::Image;
 
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Listener, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind};
 
 use crate::settings::get_settings;
@@ -86,6 +86,9 @@ fn build_console_filter() -> env_filter::Filter {
 
     builder.build()
 }
+
+/// Frontend event: open the "update available" dialog (tray menu click).
+const UPDATE_OPEN_EVENT: &str = "update-open-requested";
 
 fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
@@ -274,6 +277,12 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "settings" => {
                 show_main_window(app);
+            }
+            "install_update" => {
+                show_main_window(app);
+                if let Err(e) = app.emit(UPDATE_OPEN_EVENT, ()) {
+                    log::error!("Failed to emit {}: {}", UPDATE_OPEN_EVENT, e);
+                }
             }
             "unload_model" => {
                 let transcription_manager = app.state::<Arc<TranscriptionManager>>();
@@ -619,6 +628,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::change_transcribe_gpu_device,
             commands::settings::get_available_accelerators,
             show_main_window_command,
+            commands::set_update_available,
             commands::cancel_operation,
             commands::is_portable,
             commands::get_app_dir_path,
@@ -834,6 +844,7 @@ pub fn run(cli_args: CliArgs) {
         // Автообновление (D3): ключ и endpoint — в tauri.conf.json, проверку и установку
         // запускает фронтенд только по согласию пользователя.
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_opener::init())
