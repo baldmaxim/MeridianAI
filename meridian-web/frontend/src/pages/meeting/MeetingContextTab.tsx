@@ -42,6 +42,46 @@ export const MeetingContextTab: FC<IMeetingContextTabProps> = ({
 
   return (
     <div className={`mobile-content-pad ${styles.contextPanel}`}>
+      <header className={styles.head}>
+        <TextInput
+          type="text"
+          aria-label="Название встречи"
+          placeholder="Название встречи"
+          value={meetingName}
+          onChange={(e) => onMeetingNameChange(e.target.value)}
+          onClear={() => onMeetingNameChange('')}
+          clearLabel="название встречи"
+          inputClassName={styles.titleInput}
+        />
+        <TextInput
+          type="text"
+          readOnly
+          aria-label="Тема / цель встречи"
+          placeholder="Тема / цель встречи — сформируется после завершения"
+          value={meetingTopic}
+          title="Краткое наименование формируется ИИ после распознавания всех переговоров"
+          clearLabel="тему встречи"
+          inputClassName={styles.topicInput}
+        />
+        {currentMeetingId != null && (
+          <div className={styles.roomStatus}>
+            <span className={styles.roomBadge}>
+              <span className={roomDotClass} />
+              {roomConnected ? (recording ? 'REC' : 'online') : 'offline'}
+            </span>
+            <span>Meeting ID: <b className={styles.strong}>{currentMeetingId}</b></span>
+            <span>·</span>
+            <span>Room: <b className={roomConnected ? styles.on : styles.off}>{roomConnected ? 'connected' : 'offline'}</b></span>
+            <span>·</span>
+            <span>
+              Active audio: <b className={recording ? styles.on : styles.off}>
+                {recording ? (deviceRole || 'устройство') : 'none'}
+              </b>
+            </span>
+          </div>
+        )}
+      </header>
+
       <aside className={styles.sourcesCol}>
         {/* Источники контекста: слева на десктопе, над формой на узких экранах */}
         <SourcesPanel
@@ -58,66 +98,10 @@ export const MeetingContextTab: FC<IMeetingContextTabProps> = ({
       </aside>
 
       <div className={styles.mainCol}>
-        {/* A. Брифинг встречи: две сбалансированные карточки рядом */}
-        <div className={`context-columns ${styles.briefGrid}`}>
-          {/* Встреча — название/тема (стек) + статус */}
-          <div className={styles.contextCard}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.dot} />
-              <span className={styles.sectionTitle}>Встреча</span>
-              {currentMeetingId != null && (
-                <span className={styles.roomBadge}>
-                  <span className={roomDotClass} />
-                  {roomConnected ? (recording ? 'REC' : 'online') : 'offline'}
-                </span>
-              )}
-            </div>
-
-            <div className={styles.meetingField}>
-              <label className={styles.miniLabel}>Название встречи</label>
-              <TextInput
-                type="text"
-                placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
-                value={meetingName}
-                onChange={(e) => onMeetingNameChange(e.target.value)}
-                onClear={() => onMeetingNameChange('')}
-                clearLabel="название встречи"
-              />
-            </div>
-            <div className={styles.meetingField}>
-              <label className={styles.miniLabel}>Тема / цель встречи</label>
-              <TextInput
-                type="text"
-                readOnly
-                placeholder="Сформируется автоматически после завершения встречи"
-                value={meetingTopic}
-                title="Краткое наименование формируется ИИ после распознавания всех переговоров"
-                className={styles.readonlyField}
-                clearLabel="тему встречи"
-              />
-            </div>
-
-            {currentMeetingId != null && (
-              <div className={styles.roomStatus}>
-                <span className={styles.roomStatusItem}>Meeting ID: <b className={styles.strong}>{currentMeetingId}</b></span>
-                <span className={styles.roomStatusItem}>
-                  <span className={roomDotClass} />
-                  {roomConnected ? 'Room connected' : 'Room offline'}
-                </span>
-                <span className={styles.roomStatusItem}>
-                  Active audio: <b className={recording ? styles.on : styles.off}>
-                    {recording ? (deviceRole || 'устройство') : 'none'}
-                  </b>
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Краткие настройки — тип переговоров + ключевые условия */}
-          <CollapsibleSection title="Краткие настройки" defaultOpen>
-            <MeetingContext pushContext={pushContext} />
-          </CollapsibleSection>
-        </div>
+        {/* Краткие настройки — тип переговоров + ключевые условия */}
+        <CollapsibleSection title="Краткие настройки" defaultOpen>
+          <MeetingContext pushContext={pushContext} />
+        </CollapsibleSection>
 
         {/* C. Расширенные настройки */}
         <CollapsibleSection title="Расширенные настройки">

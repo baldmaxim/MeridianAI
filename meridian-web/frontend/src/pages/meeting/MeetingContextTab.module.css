@@ -1,4 +1,4 @@
-/* Вкладка «Контекст встречи». Mobile-first: колонка, две колонки брифинга — от 1025px. */
+/* Вкладка «Контекст встречи». Mobile-first: колонка; от 1024px — шапка на всю ширину и две колонки. */
 
 .contextPanel {
   display: flex;
@@ -15,13 +15,6 @@
   flex-direction: column;
   gap: 20px;
   min-width: 0;
-}
-
-.briefGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  align-items: start;
 }
 
 .contextCard {
@@ -59,19 +52,11 @@
 }
 
 .roomBadge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .roomDot {
@@ -89,51 +74,71 @@
   background: var(--text-muted);
 }
 
-.meetingField {
+/* Шапка вкладки: крупное название, компактная тема, приглушённая строка статуса */
+.head {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
-.miniLabel {
-  font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--accent-amber);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.titleInput,
+.topicInput {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
 }
 
-/* Поле «Тема / цель» только для чтения: приглушённый фон и текст (специфичнее .input из TextInput) */
-.readonlyField input {
-  background: var(--bg-tertiary);
+.titleInput {
+  min-height: 52px;
+  padding: 8px;
+  border-bottom-color: var(--border-default);
+  font-family: 'Syne', 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.topicInput {
+  min-height: 44px;
+  padding: 8px;
   color: var(--text-secondary);
+  font-size: 16px; /* ≥16px — иначе Safari зумит форму при фокусе */
   cursor: default;
+  text-overflow: ellipsis;
+}
+
+.titleInput::placeholder,
+.topicInput::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.titleInput:hover,
+.topicInput:hover {
+  background: var(--bg-hover);
+}
+
+.titleInput:focus {
+  background: var(--bg-input);
+  border-color: var(--border-focus);
 }
 
 .roomStatus {
   display: flex;
-  gap: 18px;
+  gap: 4px 8px;
   flex-wrap: wrap;
   align-items: center;
-  padding: 8px 14px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.roomStatusItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  letter-spacing: 0.04em;
+  padding: 0 8px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
 }
 
 .strong {
-  color: var(--text);
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .on {
@@ -188,6 +193,21 @@
   .weakTextarea {
     font-size: 13px;
   }
+
+  .titleInput {
+    font-size: 22px;
+  }
+
+  .topicInput {
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titleInput,
+  .topicInput {
+    transition: none;
+  }
 }
 
 /* Десктоп: слева панель «Источники» (свой скролл), справа форма встречи */
@@ -197,11 +217,8 @@
     grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
     align-items: start;
   }
-}
 
-/* Две карточки брифинга рядом — только когда правой колонки хватает на обе */
-@media (min-width: 1440px) {
-  .briefGrid {
-    grid-template-columns: 1fr 1fr;
+  .head {
+    grid-column: 1 / -1;
   }
 }

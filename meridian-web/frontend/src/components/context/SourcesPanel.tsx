@@ -112,46 +112,87 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
 
   return (
     <section
-      className={styles.panel}
+      className={`${styles.panel} ${dragOver ? styles.panelDrag : ''}`}
       aria-label="Источники"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className={`${styles.overlay} ${dragOver ? styles.overlayActive : ''}`} aria-hidden>
-        <span className={styles.overlayText}>Отпустите файлы — тип определится автоматически</span>
-      </div>
-
       <div className={styles.scroll}>
         <header className={styles.head}>
           <div className={styles.titleRow}>
             <span className={styles.dot} />
             <h2 className={styles.title}>Источники</h2>
-            <button type="button" className={styles.previewBtn} onClick={() => setPreviewOpen(true)}>
-              Предпросмотр контекста
+            <span className={styles.counter}>
+              {sources.counter.included} из {sources.counter.total} в контексте
+            </span>
+            <button
+              type="button"
+              className={styles.previewBtn}
+              onClick={() => setPreviewOpen(true)}
+              aria-label="Предпросмотр контекста"
+              title="Предпросмотр контекста"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
           </div>
-          <div className={styles.counter}>
-            в контексте {sources.counter.included} из {sources.counter.total}
-          </div>
-          <div className={styles.addRow}>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept={FILE_ACCEPT}
-              className={styles.hidden}
-              onChange={(e) => {
-                addFiles(Array.from(e.target.files ?? []));
-                if (fileRef.current) fileRef.current.value = '';
-              }}
-            />
-            <button type="button" className={styles.addBtn} onClick={() => fileRef.current?.click()}>
-              + Добавить файлы
-            </button>
-            <span className={styles.hint}>PDF, DOCX, XLSX, TXT, MD, CSV — можно перетащить в панель</span>
-          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept={FILE_ACCEPT}
+            className={styles.hidden}
+            onChange={(e) => {
+              addFiles(Array.from(e.target.files ?? []));
+              if (fileRef.current) fileRef.current.value = '';
+            }}
+          />
+          <button
+            type="button"
+            className={`${styles.drop} ${hasDocs ? styles.dropCompact : ''} ${dragOver ? styles.dropActive : ''}`}
+            onClick={() => fileRef.current?.click()}
+          >
+            <svg
+              className={styles.dropIcon}
+              width={hasDocs ? 18 : 24}
+              height={hasDocs ? 18 : 24}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />
+            </svg>
+            <span className={styles.dropText}>
+              <span className={styles.dropTitle}>
+                {dragOver
+                  ? 'Отпустите — тип определится автоматически'
+                  : hasDocs ? 'Перетащите файлы или нажмите' : 'Перетащите файлы сюда'}
+              </span>
+              {!hasDocs && !dragOver && (
+                <span className={styles.dropHint}>
+                  или нажмите, чтобы выбрать · PDF, DOCX, XLSX, TXT, MD, CSV
+                </span>
+              )}
+            </span>
+          </button>
         </header>
 
         {sources.error && <div className={styles.error} role="alert">{sources.error}</div>}
@@ -164,7 +205,7 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
           onClearFinished={queue.clearFinished}
         />
 
-        {sources.typeChips.length > 0 && (
+        {sources.typeChips.length >= 2 && (
           <div className={styles.filters} role="group" aria-label="Фильтр по типу документа">
             <button
               type="button"
@@ -188,11 +229,6 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
           </div>
         )}
 
-        {!hasDocs && (
-          <div className={styles.empty}>
-            Файлов пока нет — перетащите их в панель или нажмите «+ Добавить файлы»
-          </div>
-        )}
         {sources.groups.map((g) => (
           <div key={g.source} className={styles.group}>
             <h3 className={styles.groupTitle}>{g.title} · {g.docs.length}</h3>
