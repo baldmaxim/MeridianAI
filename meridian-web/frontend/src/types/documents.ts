@@ -46,6 +46,26 @@ export interface DocumentUploadSession {
   legacy_upload_url?: string;
 }
 
+export type MeetingDocumentSource = 'meeting' | 'customer' | 'object';
+
+export interface DocClassifierItem {
+  key: string;
+  label: string;
+}
+
+export interface DocMeta {
+  number?: string;
+  date?: string;
+  inn?: string[];
+  counterparty_name?: string;
+  amount?: string;
+}
+
+export interface DocClassificationVocab {
+  doc_types: DocClassifierItem[];
+  doc_tags: DocClassifierItem[];
+}
+
 export interface MeetingDocument {
   id: number;
   document_id: number;
@@ -61,6 +81,12 @@ export interface MeetingDocument {
   ocr_note?: string | null;  // скан ждёт распознавания: идёт / компьютер не на связи N ч
   quality_note?: string | null;  // готовый скан: «Сверьте со сканом стр. 42, 74»
   ocr_missing_pages?: number[];  // страницы без текста — можно дораспознать
+  // Автоклассификация (null, пока документ обрабатывается или у старых документов)
+  doc_type?: string | null;
+  doc_type_label?: string | null;
+  doc_tags?: DocClassifierItem[];
+  doc_meta?: DocMeta | null;
+  source?: MeetingDocumentSource;  // откуда документ: встреча / унаследован от контрагента / объекта
 }
 
 export interface DocumentChunkPreview {

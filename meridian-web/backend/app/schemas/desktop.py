@@ -127,6 +127,21 @@ class AudioConfirmResponse(BaseModel):
     size: int | None
 
 
+class DesktopDocumentUploadRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=300)
+    size: int = Field(ge=0)
+    mime_type: str | None = Field(default=None, max_length=100)
+    meeting_id: int  # id встречи на сервере (из ответа POST /meetings)
+
+
+class DesktopDocumentConfirmRequest(BaseModel):
+    meeting_id: int  # к какой встрече прикрепить документ
+
+
+class DesktopDocumentPatchRequest(BaseModel):
+    included: bool
+
+
 class DesktopMeetingItem(BaseModel):
     meeting_id: int
     client_uuid: str

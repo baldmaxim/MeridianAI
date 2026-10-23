@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { ragContextApiAdapter } from '../../api/ragContextAdapter';
 import { CollapsibleSection, TextInput } from '../../components/common';
-import { ContextBasket } from '../../components/context/ContextBasket';
+import { SourcesPanel } from '../../components/context/SourcesPanel';
 import { MeetingAISettingsBlock } from '../../components/context/MeetingAISettings';
 import { MeetingContext } from '../../components/context/MeetingContext';
 import { RoleSelector } from '../../components/context/RoleSelector';
@@ -42,119 +42,123 @@ export const MeetingContextTab: FC<IMeetingContextTabProps> = ({
 
   return (
     <div className={`mobile-content-pad ${styles.contextPanel}`}>
-      {/* A. Брифинг встречи: две сбалансированные карточки рядом */}
-      <div className={`context-columns ${styles.briefGrid}`}>
-        {/* Встреча — название/тема (стек) + статус */}
-        <div className={styles.contextCard}>
-          <div className={styles.sectionHeader}>
-            <span className={styles.dot} />
-            <span className={styles.sectionTitle}>Встреча</span>
+      <aside className={styles.sourcesCol}>
+        {/* Источники контекста: слева на десктопе, над формой на узких экранах */}
+        <SourcesPanel
+          meetingId={ctxMeetingId}
+          customerId={selectedCustomerId}
+          objectId={selectedObjectId}
+          ensureMeetingId={async () => {
+            const st = useMeetingStore.getState();
+            if (st.currentMeetingId != null) return st.currentMeetingId;
+            return await startSession(false);
+          }}
+          ragAdapter={ragContextApiAdapter}
+        />
+      </aside>
+
+      <div className={styles.mainCol}>
+        {/* A. Брифинг встречи: две сбалансированные карточки рядом */}
+        <div className={`context-columns ${styles.briefGrid}`}>
+          {/* Встреча — название/тема (стек) + статус */}
+          <div className={styles.contextCard}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.dot} />
+              <span className={styles.sectionTitle}>Встреча</span>
+              {currentMeetingId != null && (
+                <span className={styles.roomBadge}>
+                  <span className={roomDotClass} />
+                  {roomConnected ? (recording ? 'REC' : 'online') : 'offline'}
+                </span>
+              )}
+            </div>
+
+            <div className={styles.meetingField}>
+              <label className={styles.miniLabel}>Название встречи</label>
+              <TextInput
+                type="text"
+                placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
+                value={meetingName}
+                onChange={(e) => onMeetingNameChange(e.target.value)}
+                onClear={() => onMeetingNameChange('')}
+                clearLabel="название встречи"
+              />
+            </div>
+            <div className={styles.meetingField}>
+              <label className={styles.miniLabel}>Тема / цель встречи</label>
+              <TextInput
+                type="text"
+                readOnly
+                placeholder="Сформируется автоматически после завершения встречи"
+                value={meetingTopic}
+                title="Краткое наименование формируется ИИ после распознавания всех переговоров"
+                className={styles.readonlyField}
+                clearLabel="тему встречи"
+              />
+            </div>
+
             {currentMeetingId != null && (
-              <span className={styles.roomBadge}>
-                <span className={roomDotClass} />
-                {roomConnected ? (recording ? 'REC' : 'online') : 'offline'}
-              </span>
+              <div className={styles.roomStatus}>
+                <span className={styles.roomStatusItem}>Meeting ID: <b className={styles.strong}>{currentMeetingId}</b></span>
+                <span className={styles.roomStatusItem}>
+                  <span className={roomDotClass} />
+                  {roomConnected ? 'Room connected' : 'Room offline'}
+                </span>
+                <span className={styles.roomStatusItem}>
+                  Active audio: <b className={recording ? styles.on : styles.off}>
+                    {recording ? (deviceRole || 'устройство') : 'none'}
+                  </b>
+                </span>
+              </div>
             )}
           </div>
 
-          <div className={styles.meetingField}>
-            <label className={styles.miniLabel}>Название встречи</label>
-            <TextInput
-              type="text"
-              placeholder="Например: Переговоры с заказчиком ЖК Рассвет"
-              value={meetingName}
-              onChange={(e) => onMeetingNameChange(e.target.value)}
-              onClear={() => onMeetingNameChange('')}
-              clearLabel="название встречи"
-            />
-          </div>
-          <div className={styles.meetingField}>
-            <label className={styles.miniLabel}>Тема / цель встречи</label>
-            <TextInput
-              type="text"
-              readOnly
-              placeholder="Сформируется автоматически после завершения встречи"
-              value={meetingTopic}
-              title="Краткое наименование формируется ИИ после распознавания всех переговоров"
-              className={styles.readonlyField}
-              clearLabel="тему встречи"
-            />
-          </div>
-
-          {currentMeetingId != null && (
-            <div className={styles.roomStatus}>
-              <span className={styles.roomStatusItem}>Meeting ID: <b className={styles.strong}>{currentMeetingId}</b></span>
-              <span className={styles.roomStatusItem}>
-                <span className={roomDotClass} />
-                {roomConnected ? 'Room connected' : 'Room offline'}
-              </span>
-              <span className={styles.roomStatusItem}>
-                Active audio: <b className={recording ? styles.on : styles.off}>
-                  {recording ? (deviceRole || 'устройство') : 'none'}
-                </b>
-              </span>
-            </div>
-          )}
+          {/* Краткие настройки — тип переговоров + ключевые условия */}
+          <CollapsibleSection title="Краткие настройки" defaultOpen>
+            <MeetingContext pushContext={pushContext} />
+          </CollapsibleSection>
         </div>
 
-        {/* Краткие настройки — тип переговоров + ключевые условия */}
-        <CollapsibleSection title="Краткие настройки" defaultOpen>
-          <MeetingContext pushContext={pushContext} />
+        {/* C. Расширенные настройки */}
+        <CollapsibleSection title="Расширенные настройки">
+          {/* AI-настройки встречи */}
+          {ctxMeetingId != null && <MeetingAISettingsBlock meetingId={ctxMeetingId} />}
+
+          {/* Слабые стороны оппонента */}
+          <CollapsibleSection title="Слабые стороны оппонента">
+            <textarea
+              placeholder={"Известные проблемы, сорванные сроки, рыночная позиция..."}
+              value={opponentWeaknesses}
+              onChange={(e) => onWeaknessesChange(e.target.value)}
+              rows={3}
+              className={styles.weakTextarea}
+            />
+          </CollapsibleSection>
+
+          {/* Активная роль (live, через WS change_role) */}
+          <div className={styles.contextCard}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.dot} />
+              <span className={styles.sectionTitle}>Активная роль (для подсказок)</span>
+            </div>
+            <RoleSelector onRoleSelect={onRoleSelect} />
+          </div>
+
+          {/* Сохранить встречу */}
+          <div className={styles.saveRow}>
+            <button
+              className={`save-meeting-btn t-btn t-btn-amber ${styles.saveMeetingBtn}`}
+              onClick={onSaveMeeting}
+              disabled={savingMeeting}
+            >
+              {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
+            </button>
+          </div>
+
+          {/* Этап 5: итоги встречи / протокол */}
+          <FinalizationPanel meetingId={currentMeetingId} onFinalized={onFinalized} />
         </CollapsibleSection>
       </div>
-
-      {/* B. Источники контекста — на всю ширину */}
-      <ContextBasket
-        meetingId={ctxMeetingId}
-        customerId={selectedCustomerId}
-        objectId={selectedObjectId}
-        ensureMeetingId={async () => {
-          const st = useMeetingStore.getState();
-          if (st.currentMeetingId != null) return st.currentMeetingId;
-          return await startSession(false);
-        }}
-        ragAdapter={ragContextApiAdapter}
-      />
-
-      {/* C. Расширенные настройки */}
-      <CollapsibleSection title="Расширенные настройки">
-        {/* AI-настройки встречи */}
-        {ctxMeetingId != null && <MeetingAISettingsBlock meetingId={ctxMeetingId} />}
-
-        {/* Слабые стороны оппонента */}
-        <CollapsibleSection title="Слабые стороны оппонента">
-          <textarea
-            placeholder={"Известные проблемы, сорванные сроки, рыночная позиция..."}
-            value={opponentWeaknesses}
-            onChange={(e) => onWeaknessesChange(e.target.value)}
-            rows={3}
-            className={styles.weakTextarea}
-          />
-        </CollapsibleSection>
-
-        {/* Активная роль (live, через WS change_role) */}
-        <div className={styles.contextCard}>
-          <div className={styles.sectionHeader}>
-            <span className={styles.dot} />
-            <span className={styles.sectionTitle}>Активная роль (для подсказок)</span>
-          </div>
-          <RoleSelector onRoleSelect={onRoleSelect} />
-        </div>
-
-        {/* Сохранить встречу */}
-        <div className={styles.saveRow}>
-          <button
-            className={`save-meeting-btn t-btn t-btn-amber ${styles.saveMeetingBtn}`}
-            onClick={onSaveMeeting}
-            disabled={savingMeeting}
-          >
-            {savingMeeting ? 'Сохранение...' : 'Сохранить встречу'}
-          </button>
-        </div>
-
-        {/* Этап 5: итоги встречи / протокол */}
-        <FinalizationPanel meetingId={currentMeetingId} onFinalized={onFinalized} />
-      </CollapsibleSection>
     </div>
   );
 };

@@ -78,3 +78,8 @@
 .iconOther {
   --icon-color: var(--text-secondary);
 }
+
+.iconType {
+  --icon-color: var(--accent-amber);
+  font-size: 18px;
+}

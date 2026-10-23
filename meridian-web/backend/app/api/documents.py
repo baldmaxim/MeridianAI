@@ -25,8 +25,10 @@ from ..schemas.document import (
     DocumentUploadSessionResponse,
     DocumentConfirmResponse,
     DocumentResponse,
+    DocClassificationVocab,
 )
 from ..services import document_storage
+from ..services.document_classify import vocab as classification_vocab
 from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..services.jobs import enqueue
 
@@ -66,29 +68,14 @@ def _to_response(doc: DocumentRecord, chunks_count: int = 0) -> DocumentResponse
 # --- Новый S3-presigned flow ---
 
 
-@router.post("/upload-session", response_model=DocumentUploadSessionResponse)
-async def create_document_upload_session(
-    data: DocumentUploadSessionRequest,
-    response: Response = None,  # FastAPI инжектит реальный Response; None только при прямом вызове в тестах
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    settings = get_settings()
-    # ответ содержит presigned URL (AWS-подпись в query) → запрещаем кэширование (браузер/прокси/HAR)
-    if response is not None:
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-    # Этап 22: S3 выключен/kill-switch → отдаём mode=legacy_multipart (без 503), фронт грузит
-    # через /api/documents/upload. Так dev/local и misconfigured прод не ломаются.
-    if not document_storage.is_enabled():
-        # Этап 23: безопасный маркер для log-анализатора (только user_id, без PII/URL/ключей)
-        logger.info("[DocumentS3Upload] legacy_fallback user_id=%s", user.id)
-        return DocumentUploadSessionResponse(
-            upload_mode="legacy_multipart",
-            legacy_upload_url="/api/documents/upload",
-            max_upload_bytes=settings.document_max_upload_mb * 1024 * 1024,
-        )
+async def create_s3_document_upload(
+    db: AsyncSession, user: User, data: DocumentUploadSessionRequest, *, meeting_id: int | None,
+) -> DocumentUploadSessionResponse:
+    """Создать запись документа + presigned PUT (S3 уже проверен вызывающим).
 
+    Общая часть сайта и десктоп-приложения; meeting_id нужен только для безопасного лога.
+    """
+    settings = get_settings()
     try:
         ext = document_storage.validate_upload(data.filename, data.content_type, data.size_bytes)
     except document_storage.DocumentStorageError as e:
@@ -138,7 +125,7 @@ async def create_document_upload_session(
     await db.commit()
     # безопасный лог: без filename/URL/token/bucket-key (только тех.метаданные + hash-ref)
     logger.info("[DocumentS3Upload] initiated user_id=%s meeting_id=%s content_type=%s size=%s ext=%s ref=%s",
-                user.id, None, _safe_ct(data.content_type), data.size_bytes or 0, ext,
+                user.id, meeting_id, _safe_ct(data.content_type), data.size_bytes or 0, ext,
                 document_storage.safe_storage_ref(key))
     return DocumentUploadSessionResponse(
         upload_mode="s3_presigned",
@@ -148,12 +135,36 @@ async def create_document_upload_session(
     )
 
 
-@router.post("/{document_id}/confirm-upload", response_model=DocumentConfirmResponse)
-async def confirm_document_upload(
-    document_id: int,
+@router.post("/upload-session", response_model=DocumentUploadSessionResponse)
+async def create_document_upload_session(
+    data: DocumentUploadSessionRequest,
+    response: Response = None,  # FastAPI инжектит реальный Response; None только при прямом вызове в тестах
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    settings = get_settings()
+    # ответ содержит presigned URL (AWS-подпись в query) → запрещаем кэширование (браузер/прокси/HAR)
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    # Этап 22: S3 выключен/kill-switch → отдаём mode=legacy_multipart (без 503), фронт грузит
+    # через /api/documents/upload. Так dev/local и misconfigured прод не ломаются.
+    if not document_storage.is_enabled():
+        # Этап 23: безопасный маркер для log-анализатора (только user_id, без PII/URL/ключей)
+        logger.info("[DocumentS3Upload] legacy_fallback user_id=%s", user.id)
+        return DocumentUploadSessionResponse(
+            upload_mode="legacy_multipart",
+            legacy_upload_url="/api/documents/upload",
+            max_upload_bytes=settings.document_max_upload_mb * 1024 * 1024,
+        )
+
+    return await create_s3_document_upload(db, user, data, meeting_id=None)
+
+
+async def confirm_s3_document_upload(
+    db: AsyncSession, user: User, document_id: int, *, meeting_id: int | None,
+) -> DocumentRecord:
+    """HEAD-проверка объекта в S3, статус uploaded и задача обработки. Общая часть сайта и десктопа."""
     settings = get_settings()
     doc = await db.get(DocumentRecord, document_id)
     if not doc or doc.created_by_user_id != user.id:
@@ -187,9 +198,25 @@ async def confirm_document_upload(
     await enqueue(db, "document_process", {"document_id": doc.id})
     await db.commit()
     logger.info("[DocumentS3Upload] completed user_id=%s meeting_id=%s size=%s ext=%s ref=%s",
-                user.id, None, doc.file_size or 0, doc.file_ext,
+                user.id, meeting_id, doc.file_size or 0, doc.file_ext,
                 document_storage.safe_storage_ref(doc.s3_key))
+    return doc
+
+
+@router.post("/{document_id}/confirm-upload", response_model=DocumentConfirmResponse)
+async def confirm_document_upload(
+    document_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    doc = await confirm_s3_document_upload(db, user, document_id, meeting_id=None)
     return DocumentConfirmResponse(document_id=doc.id, status=doc.status)
+
+
+@router.get("/classification-vocab", response_model=DocClassificationVocab)
+async def get_classification_vocab(user: User = Depends(get_current_user)):
+    """Закрытые списки типов и тегов документов с подписями (для иконок/фильтров на фронте)."""
+    return classification_vocab()
 
 
 @router.get("", response_model=list[DocumentResponse])

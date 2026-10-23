@@ -34,3 +34,20 @@ export function makeUploadClientId(file: File): string {
   const rand = Math.random().toString(36).slice(2, 8);
   return `${file.name}:${file.size}:${file.lastModified}:${rand}`;
 }
+
+/** Файлы из drop-события: папки (webkitGetAsEntry) игнорируются. */
+export function extractDroppedFiles(dt: DataTransfer): File[] {
+  if (dt.items && dt.items.length) {
+    const out: File[] = [];
+    for (let i = 0; i < dt.items.length; i++) {
+      const item = dt.items[i];
+      if (item.kind !== 'file') continue;
+      const entry = item.webkitGetAsEntry?.();
+      if (entry && entry.isDirectory) continue;
+      const f = item.getAsFile();
+      if (f) out.push(f);
+    }
+    return out;
+  }
+  return Array.from(dt.files);
+}

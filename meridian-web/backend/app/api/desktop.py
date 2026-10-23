@@ -14,13 +14,14 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.dependencies import get_current_user
 from ..config import get_settings
 from ..database import get_db
+from ..models.document import DocumentRecord
 from ..models.file import FileRecord
 from ..models.meeting import MeetingSession
 from ..models.user import User
@@ -30,6 +31,9 @@ from ..schemas.desktop import (
     AudioUploadRequest,
     AudioUploadResponse,
     DesktopDeviceOut,
+    DesktopDocumentConfirmRequest,
+    DesktopDocumentPatchRequest,
+    DesktopDocumentUploadRequest,
     DesktopLoginRequest,
     DesktopLoginResponse,
     DesktopMeResponse,
@@ -42,10 +46,23 @@ from ..schemas.desktop import (
     SegmentsRequest,
     SegmentsResponse,
 )
+from ..schemas.document import (
+    DocumentConfirmResponse,
+    DocumentUploadSessionRequest,
+    DocumentUploadSessionResponse,
+    MeetingDocumentItem,
+)
 from ..schemas.finalization import FinalizationStatusResponse
 from ..schemas.meeting_ask import MeetingAskRequest, MeetingAskResponse
 from ..schemas.speaker_role import SpeakerRoleOut, SpeakerRolePut
 from ..services import desktop_sync as sync
+from ..services import document_storage
+from ..services.meeting_documents import (
+    attach_document,
+    list_meeting_document_items,
+    meeting_document_item,
+    set_document_inclusion,
+)
 from ..services import s3
 from ..services import speaker_roles as sr
 from ..services.meeting_ask import MeetingAskError, answer_question
@@ -62,6 +79,7 @@ from ..services.desktop_devices import (
     touch_device,
 )
 from .batch import ALLOWED_EXTENSIONS, MAX_FILE_SIZE
+from .documents import confirm_s3_document_upload, create_s3_document_upload
 from .history import _resolve_customer_object
 
 logger = logging.getLogger("meridian.desktop")
@@ -375,3 +393,70 @@ async def meetings_audio_confirm(
         rec.mime = meta.get("content_type")
         await db.commit()
     return AudioConfirmResponse(file_id=rec.id, status=rec.status, size=rec.size)
+
+
+# ── документы встречи ───────────────────────────────────────────────────────
+# Те же внутренности, что у сайта (api/documents.py, services/meeting_documents.py). Мультипарта
+# для десктопа нет: без S3 приложение получит 503 и повторит позже.
+
+
+@router.post("/documents/upload-session", response_model=DocumentUploadSessionResponse)
+async def documents_upload_session(
+    data: DesktopDocumentUploadRequest, response: Response, auth: Device,
+    db: AsyncSession = Depends(get_db),
+):
+    """Presigned PUT для документа. Заказчик и объект берутся из встречи."""
+    # в ответе presigned URL с подписью — не кэшируем
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    if not document_storage.is_enabled():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail="S3-хранилище не настроено")
+    meeting, _ = await _linked(db, auth, data.meeting_id)
+    request = DocumentUploadSessionRequest(
+        filename=data.filename, content_type=data.mime_type, size_bytes=data.size,
+        customer_id=meeting.customer_id, object_id=meeting.object_id,
+    )
+    return await create_s3_document_upload(db, auth.user, request, meeting_id=meeting.id)
+
+
+@router.post("/documents/{document_id}/confirm", response_model=DocumentConfirmResponse)
+async def documents_confirm(
+    document_id: int, data: DesktopDocumentConfirmRequest, auth: Device,
+    db: AsyncSession = Depends(get_db),
+):
+    """Подтвердить загрузку, запустить обработку и прикрепить документ к встрече. Повтор безопасен."""
+    meeting, _ = await _linked(db, auth, data.meeting_id)
+    doc = await db.get(DocumentRecord, document_id)
+    if doc is None or doc.created_by_user_id != auth.user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Документ не найден")
+    if doc.status == "pending":
+        doc = await confirm_s3_document_upload(db, auth.user, document_id, meeting_id=meeting.id)
+    # дальше повтор: обработка уже запущена (или завершена) — заново её не ставим
+    await attach_document(db, meeting, doc, auth.user.id)
+    await db.commit()
+    return DocumentConfirmResponse(document_id=doc.id, status=doc.status)
+
+
+@router.get("/meetings/{meeting_id}/documents", response_model=list[MeetingDocumentItem])
+async def meetings_documents(meeting_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Документы встречи: прикреплённые и унаследованные от заказчика/объекта (source), с типом и тегами."""
+    meeting, _ = await _linked(db, auth, meeting_id)
+    return await list_meeting_document_items(db, meeting)
+
+
+@router.patch("/meetings/{meeting_id}/documents/{document_id}", response_model=MeetingDocumentItem)
+async def meetings_document_patch(
+    meeting_id: int, document_id: int, data: DesktopDocumentPatchRequest, auth: Device,
+    db: AsyncSession = Depends(get_db),
+):
+    """Включить/выключить документ в контексте встречи (унаследованному создаётся своя строка)."""
+    meeting, _ = await _linked(db, auth, meeting_id)
+    found = await set_document_inclusion(
+        db, meeting, document_id, included=data.included, priority=None,
+    )
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Документ не прикреплён к встрече")
+    md, doc = found
+    item = await meeting_document_item(db, meeting, md, doc)
+    await db.commit()
+    return item

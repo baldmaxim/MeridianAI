@@ -1,5 +1,5 @@
 import api from './client';
-import type { DocumentInfo, DocumentRecord, DocumentUploadSession } from '../types';
+import type { DocClassificationVocab, DocumentInfo, DocumentRecord, DocumentUploadSession } from '../types';
 
 export interface DocumentUploadOpts {
   customer_id?: number | null;
@@ -141,4 +141,10 @@ export async function listDocuments(): Promise<DocumentInfo[]> {
 
 export async function removeDocument(filename: string): Promise<void> {
   await api.delete(`/documents/session-docs/${encodeURIComponent(filename)}`);
+}
+
+/** Словарь типов и тегов автоклассификации документов. */
+export async function getClassificationVocab(): Promise<DocClassificationVocab> {
+  const { data } = await api.get<DocClassificationVocab>('/documents/classification-vocab');
+  return data;
 }

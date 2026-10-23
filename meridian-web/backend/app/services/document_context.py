@@ -12,12 +12,12 @@ import re
 from collections import Counter
 from itertools import zip_longest
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..database import async_session
-from ..models.meeting import MeetingDocumentRecord
+from ..models.meeting import MeetingDocumentRecord, MeetingSession
 from ..models.document import DocumentRecord, DocumentChunk
 
 logger = logging.getLogger("meridian.documents")
@@ -82,16 +82,65 @@ def _chunk_clauses(metadata_json: str | None) -> list[str]:
     return [str(c) for c in clauses] if isinstance(clauses, list) else []
 
 
+# Приоритет унаследованного документа (у него нет строки meeting_documents) — как у прикреплённого.
+DEFAULT_DOCUMENT_PRIORITY = 100
+
+
+def inherited_documents_stmt(meeting: MeetingSession):
+    """SELECT DocumentRecord.id готовых документов заказчика/объекта встречи (или None).
+
+    Документы общие для всех сотрудников (services/access.py), поэтому фильтра по пользователю нет:
+    наследуется всё, что привязано к заказчику или объекту этой встречи.
+    """
+    conds = []
+    if meeting.customer_id is not None:
+        conds.append(DocumentRecord.customer_id == meeting.customer_id)
+    if meeting.object_id is not None:
+        conds.append(DocumentRecord.object_id == meeting.object_id)
+    if not conds:
+        return None
+    return select(DocumentRecord.id).where(DocumentRecord.status == "ready", or_(*conds))
+
+
+async def effective_meeting_document_ids(db: AsyncSession, meeting: MeetingSession) -> set[int]:
+    """Документы, попадающие в контекст встречи.
+
+    Прикреплённые (included=true) ∪ готовые документы её заказчика/объекта, кроме тех, у кого
+    есть строка meeting_documents (included=false — пользователь убрал документ из этой встречи).
+    """
+    rows = (
+        await db.execute(
+            select(MeetingDocumentRecord.document_id, MeetingDocumentRecord.included).where(
+                MeetingDocumentRecord.session_id == meeting.id,
+                MeetingDocumentRecord.document_id.isnot(None),
+            )
+        )
+    ).all()
+    with_row = {doc_id for doc_id, _ in rows}
+    ids = {doc_id for doc_id, included in rows if included}
+    inherited = inherited_documents_stmt(meeting)
+    if inherited is not None:
+        ids |= {i for i in (await db.execute(inherited)).scalars().all() if i not in with_row}
+    return ids
+
+
 async def get_relevant_chunks_for_meeting(
     db: AsyncSession, meeting_id: int, query_text: str, limit: int = 6, extra_query: str = "",
 ) -> list[dict]:
     """Top-N релевантных чанков среди included+ready документов встречи.
 
-    Источники: MeetingDocument(included=true) → DocumentRecord(status='ready') → DocumentChunk.
+    Источники: прикреплённые (included=true) и унаследованные от заказчика/объекта документы
+    (effective_meeting_document_ids) → DocumentRecord(status='ready') → DocumentChunk.
     extra_query — формулировки темы в языке договора (document_query). Выдачи по реплике и по
     формулировкам чередуются: прямые попадания по реплике не вытесняются, а находится и то,
     с чем у реплики нет общих слов.
     """
+    meeting = await db.get(MeetingSession, meeting_id)
+    if meeting is None:
+        return []
+    doc_ids = await effective_meeting_document_ids(db, meeting)
+    if not doc_ids:
+        return []
     rows = (
         await db.execute(
             select(
@@ -104,16 +153,16 @@ async def get_relevant_chunks_for_meeting(
                 DocumentChunk.section_title,
                 DocumentChunk.metadata_json,
                 DocumentRecord.original_name,
-                MeetingDocumentRecord.priority,
+                func.coalesce(MeetingDocumentRecord.priority, DEFAULT_DOCUMENT_PRIORITY).label("priority"),
             )
             .join(DocumentRecord, DocumentRecord.id == DocumentChunk.document_id)
-            .join(
+            .outerjoin(
                 MeetingDocumentRecord,
-                MeetingDocumentRecord.document_id == DocumentRecord.id,
+                (MeetingDocumentRecord.document_id == DocumentRecord.id)
+                & (MeetingDocumentRecord.session_id == meeting_id),
             )
             .where(
-                MeetingDocumentRecord.session_id == meeting_id,
-                MeetingDocumentRecord.included == True,  # noqa: E712
+                DocumentRecord.id.in_(doc_ids),
                 DocumentRecord.status == "ready",
             )
         )

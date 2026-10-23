@@ -12,7 +12,7 @@ from ..models.user import User
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord, MeetingSuggestion, MeetingDocumentRecord
 from ..schemas.suggestion import SuggestionCard
 from ..models.directory import Customer, ProjectObject, MeetingParticipant
-from ..models.document import DocumentRecord, DocumentChunk
+from ..models.document import DocumentRecord
 from ..models.protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from ..core.context.document_loader import DOC_TYPE_LABELS
 from ..schemas.meeting import (
@@ -40,6 +40,13 @@ from ..api.objects import resolve_or_create_customer
 from ..services.meeting_room import compute_live_state
 from ..services.meeting_finalize import close_and_request_finalization, request_finalization
 from ..schemas.document import MeetingDocumentItem, MeetingDocumentPatch
+from ..services.meeting_documents import (
+    attach_document,
+    detach_document,
+    list_meeting_document_items,
+    meeting_document_item,
+    set_document_inclusion,
+)
 from ..schemas.finalization import (
     FinalizationStatusResponse,
     MeetingProtocolResponse,
@@ -415,34 +422,13 @@ async def batch_delete_meetings(
 # --- Этап 4: документы встречи ---
 
 
-def _ocr_warnings(doc: DocumentRecord) -> list[dict]:
-    try:
-        warnings = _json.loads(doc.summary_json or "{}").get("ocr_warnings") or []
-    except (ValueError, AttributeError):
-        return []
-    return [w for w in warnings if isinstance(w, dict) and isinstance(w.get("page"), int)]
-
-
-def _meeting_doc_item(md: MeetingDocumentRecord, doc: DocumentRecord, chunks_count: int,
-                      ocr_note: str | None = None) -> MeetingDocumentItem:
-    from app.services.ocr_quality import ocr_quality_note
-    warnings = _ocr_warnings(doc) if doc.status == "ready" else []
-    return MeetingDocumentItem(
-        id=md.id,
-        document_id=doc.id,
-        original_name=doc.original_name,
-        file_ext=doc.file_ext,
-        status=doc.status,
-        included=md.included,
-        priority=md.priority,
-        chunks_count=chunks_count,
-        page_count=doc.page_count,
-        sheet_count=doc.sheet_count,
-        processing_error=doc.processing_error,
-        ocr_note=ocr_note,
-        quality_note=ocr_quality_note(warnings),
-        ocr_missing_pages=sorted(w["page"] for w in warnings if w.get("reason") == "страница не распознана"),
-    )
+async def _get_meeting_or_404(db: AsyncSession, user: User, meeting_id: int) -> MeetingSession:
+    meeting = await db.get(MeetingSession, meeting_id)
+    if not meeting:
+        raise HTTPException(404, "Meeting not found")
+    if not await user_can_access_meeting(db, user.id, meeting_id):
+        raise HTTPException(403, "Нет доступа к встрече")
+    return meeting
 
 
 @router.get("/{meeting_id}/documents", response_model=list[MeetingDocumentItem])
@@ -451,30 +437,13 @@ async def list_meeting_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Прикреплённые документы встречи + документы её заказчика/объекта (source: meeting|customer|object)."""
     if not await user_can_access_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Нет доступа к встрече")
-    chunks_subq = (
-        select(func.count(DocumentChunk.id))
-        .where(DocumentChunk.document_id == DocumentRecord.id)
-        .correlate(DocumentRecord)
-        .scalar_subquery()
-    )
-    rows = (
-        await db.execute(
-            select(MeetingDocumentRecord, DocumentRecord, chunks_subq.label("chunks_count"))
-            .join(DocumentRecord, DocumentRecord.id == MeetingDocumentRecord.document_id)
-            .where(
-                MeetingDocumentRecord.session_id == meeting_id,
-                MeetingDocumentRecord.document_id.isnot(None),
-            )
-            .order_by(MeetingDocumentRecord.priority.desc(), MeetingDocumentRecord.id)
-        )
-    ).all()
-    from app.services.ocr_queue import ocr_waiting_notes
-    # ждёт распознавания целиком — или готов, но пустые страницы досдаются агентом
-    notes = await ocr_waiting_notes(db, [doc.id for _, doc, _ in rows
-                                         if doc.status == "awaiting_ocr" or _ocr_warnings(doc)])
-    return [_meeting_doc_item(md, doc, cc or 0, notes.get(doc.id)) for md, doc, cc in rows]
+    meeting = await db.get(MeetingSession, meeting_id)
+    if meeting is None:
+        return []
+    return await list_meeting_document_items(db, meeting)
 
 
 @router.post("/{meeting_id}/documents/{document_id}", response_model=MeetingDocumentItem)
@@ -484,11 +453,7 @@ async def attach_meeting_document(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    meeting = await db.get(MeetingSession, meeting_id)
-    if not meeting:
-        raise HTTPException(404, "Meeting not found")
-    if not await user_can_access_meeting(db, user.id, meeting_id):
-        raise HTTPException(403, "Нет доступа к встрече")
+    meeting = await _get_meeting_or_404(db, user, meeting_id)
     doc = await db.get(DocumentRecord, document_id)
     if not doc:
         raise HTTPException(404, "Документ не найден")
@@ -498,33 +463,8 @@ async def attach_meeting_document(
     if meeting.object_id and doc.object_id and meeting.object_id != doc.object_id:
         raise HTTPException(422, "Документ привязан к другому объекту, чем встреча")
 
-    existing = (
-        await db.execute(
-            select(MeetingDocumentRecord).where(
-                MeetingDocumentRecord.session_id == meeting_id,
-                MeetingDocumentRecord.document_id == document_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if existing is None:
-        existing = MeetingDocumentRecord(
-            session_id=meeting_id,
-            document_id=document_id,
-            added_by_user_id=user.id,
-            filename=doc.original_name,
-            doc_type=doc.file_ext,
-            page_count=doc.page_count or 1,
-            priority=100,
-            included=True,
-        )
-        db.add(existing)
-        await db.flush()
-        await db.refresh(existing)
-
-    cc = await db.scalar(
-        select(func.count(DocumentChunk.id)).where(DocumentChunk.document_id == document_id)
-    )
-    return _meeting_doc_item(existing, doc, cc or 0)
+    md = await attach_document(db, meeting, doc, user.id)
+    return await meeting_document_item(db, meeting, md, doc)
 
 
 @router.patch("/{meeting_id}/documents/{document_id}", response_model=MeetingDocumentItem)
@@ -537,26 +477,16 @@ async def patch_meeting_document(
 ):
     if not await user_can_access_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Нет доступа к встрече")
-    md = (
-        await db.execute(
-            select(MeetingDocumentRecord).where(
-                MeetingDocumentRecord.session_id == meeting_id,
-                MeetingDocumentRecord.document_id == document_id,
-            )
+    meeting = await db.get(MeetingSession, meeting_id)
+    found = None
+    if meeting is not None:
+        found = await set_document_inclusion(
+            db, meeting, document_id, included=data.included, priority=data.priority,
         )
-    ).scalar_one_or_none()
-    if not md:
+    if found is None:
         raise HTTPException(404, "Документ не прикреплён к встрече")
-    if data.included is not None:
-        md.included = data.included
-    if data.priority is not None:
-        md.priority = data.priority
-    await db.flush()
-    doc = await db.get(DocumentRecord, document_id)
-    cc = await db.scalar(
-        select(func.count(DocumentChunk.id)).where(DocumentChunk.document_id == document_id)
-    )
-    return _meeting_doc_item(md, doc, cc or 0)
+    md, doc = found
+    return await meeting_document_item(db, meeting, md, doc)
 
 
 @router.delete("/{meeting_id}/documents/{document_id}")
@@ -568,18 +498,9 @@ async def detach_meeting_document(
 ):
     if not await user_can_access_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Нет доступа к встрече")
-    md = (
-        await db.execute(
-            select(MeetingDocumentRecord).where(
-                MeetingDocumentRecord.session_id == meeting_id,
-                MeetingDocumentRecord.document_id == document_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if not md:
+    meeting = await db.get(MeetingSession, meeting_id)
+    if meeting is None or not await detach_document(db, meeting, document_id):
         raise HTTPException(404, "Документ не прикреплён к встрече")
-    await db.delete(md)
-    await db.flush()
     return {"ok": True}
 
 

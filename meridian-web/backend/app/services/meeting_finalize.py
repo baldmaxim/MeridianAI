@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..database import async_session
-from ..models.meeting import MeetingSession, TranscriptSegmentRecord, MeetingDocumentRecord
+from ..models.meeting import MeetingSession, TranscriptSegmentRecord
 from ..models.directory import Customer, ProjectObject, MeetingParticipant
 from ..models.document import DocumentRecord
 from ..models.user import User
@@ -20,7 +20,11 @@ from ..models.protocol import MeetingDecision, MeetingActionItem, MeetingRisk, M
 from ..schemas.finalization import MeetingFinalizationResult
 from ..services.jobs import enqueue
 from ..services.api_keys import load_api_keys
-from ..services.document_context import get_relevant_chunks_for_meeting, format_chunks_block
+from ..services.document_context import (
+    effective_meeting_document_ids,
+    format_chunks_block,
+    get_relevant_chunks_for_meeting,
+)
 from ..core.llm.client import LLMClient
 from ..core.llm.finalization_prompt import SYSTEM_PROMPT, build_user_prompt, build_repair_prompt
 from datetime import datetime
@@ -167,16 +171,15 @@ async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str
         transcript_text = _truncate(transcript_text, settings.meeting_finalization_max_transcript_chars)
 
     # documents (имена + релевантные чанки, ограничено)
+    # прикреплённые + унаследованные от заказчика/объекта встречи
+    doc_ids = await effective_meeting_document_ids(db, meeting)
     doc_names = (
-        await db.execute(
-            select(DocumentRecord.original_name)
-            .join(MeetingDocumentRecord, MeetingDocumentRecord.document_id == DocumentRecord.id)
-            .where(
-                MeetingDocumentRecord.session_id == meeting.id,
-                MeetingDocumentRecord.included == True,  # noqa: E712
-            )
-        )
-    ).scalars().all()
+        (await db.execute(
+            select(DocumentRecord.original_name).where(DocumentRecord.id.in_(doc_ids))
+            .order_by(DocumentRecord.id)
+        )).scalars().all()
+        if doc_ids else []
+    )
     chunks = await get_relevant_chunks_for_meeting(db, meeting.id, meeting.meeting_topic or "", limit=6)
     documents_block = ""
     if doc_names:

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class DocumentUploadSessionRequest(BaseModel):
@@ -32,6 +32,16 @@ class DocumentConfirmResponse(BaseModel):
     status: str
 
 
+class DocClassifierItem(BaseModel):
+    key: str
+    label: str
+
+
+class DocClassificationVocab(BaseModel):
+    doc_types: list[DocClassifierItem]
+    doc_tags: list[DocClassifierItem]
+
+
 class DocumentResponse(BaseModel):
     id: int
     owner_user_id: int
@@ -50,12 +60,36 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     chunks_count: int = 0
+    # Автоклассификация (None у документов, обработанных до её появления)
+    doc_type: str | None = None
+    doc_type_label: str | None = None
+    doc_tags: list[DocClassifierItem] = []
+    doc_meta: dict | None = None
 
     model_config = {"from_attributes": True}
 
+    @field_validator("doc_tags", mode="before")
+    @classmethod
+    def _tags_to_items(cls, value):
+        # в БД теги лежат списком ключей, наружу — с подписями
+        from ..services.document_classify import tag_items
+        if value is None:
+            return []
+        if value and isinstance(value[0], str):
+            return tag_items(value)
+        return value
+
+    @model_validator(mode="after")
+    def _fill_type_label(self):
+        from ..services.document_classify import type_label
+        if self.doc_type and not self.doc_type_label:
+            self.doc_type_label = type_label(self.doc_type)
+        return self
+
 
 class MeetingDocumentItem(BaseModel):
-    id: int  # id строки meeting_documents
+    # id строки meeting_documents; у унаследованного документа без строки — отрицательный (-document_id)
+    id: int
     document_id: int
     original_name: str
     file_ext: str | None
@@ -71,6 +105,12 @@ class MeetingDocumentItem(BaseModel):
     # Готовый скан: какие страницы сверить (распознавание могло потерять текст).
     quality_note: str | None = None
     ocr_missing_pages: list[int] = []
+    # Откуда документ в контексте встречи: прикреплён к ней / унаследован от заказчика / от объекта
+    source: str = "meeting"
+    doc_type: str | None = None
+    doc_type_label: str | None = None
+    doc_tags: list[DocClassifierItem] = []
+    doc_meta: dict | None = None
 
 
 class MeetingDocumentPatch(BaseModel):

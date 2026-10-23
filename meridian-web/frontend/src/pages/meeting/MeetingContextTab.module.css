@@ -6,6 +6,17 @@
   gap: 20px;
 }
 
+.sourcesCol {
+  min-width: 0;
+}
+
+.mainCol {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
 .briefGrid {
   display: grid;
   grid-template-columns: 1fr;
@@ -179,7 +190,17 @@
   }
 }
 
-@media (min-width: 1025px) {
+/* Десктоп: слева панель «Источники» (свой скролл), справа форма встречи */
+@media (min-width: 1024px) {
+  .contextPanel {
+    display: grid;
+    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* Две карточки брифинга рядом — только когда правой колонки хватает на обе */
+@media (min-width: 1440px) {
   .briefGrid {
     grid-template-columns: 1fr 1fr;
   }

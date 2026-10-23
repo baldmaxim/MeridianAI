@@ -8,6 +8,7 @@ Scope — owner_user_id (seam под будущий organization_id; см. CLAUD
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     String,
     Text,
     DateTime,
@@ -51,6 +52,12 @@ class DocumentRecord(Base):
     sheet_count: Mapped[int | None] = mapped_column(Integer)
     extracted_text_s3_key: Mapped[str | None] = mapped_column(String(500))
     summary_json: Mapped[str | None] = mapped_column(Text)
+    # Автоклассификация (document_classify): тип и теги из закрытых списков, реквизиты без полного текста.
+    doc_type: Mapped[str | None] = mapped_column(String(30))
+    doc_tags: Mapped[list[str] | None] = mapped_column(JSON)
+    doc_meta: Mapped[dict | None] = mapped_column(JSON)
+    classify_source: Mapped[str | None] = mapped_column(String(10))  # rules | llm
+    classified_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -64,6 +71,7 @@ class DocumentRecord(Base):
         Index("ix_documents_customer", "customer_id"),
         Index("ix_documents_object", "object_id"),
         Index("ix_documents_status", "status"),
+        Index("ix_documents_doc_type", "doc_type"),
     )
 
 

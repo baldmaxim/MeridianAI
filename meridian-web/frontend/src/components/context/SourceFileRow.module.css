@@ -1,0 +1,190 @@
+.row {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 10px 4px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  min-width: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.rowOff {
+  opacity: 0.7;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.name {
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.typeBadge,
+.typeBadgeEmpty {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.typeBadge {
+  background: var(--accent-amber-glow);
+  border: 1px solid var(--border-amber);
+  color: var(--accent-amber);
+}
+
+.typeBadgeEmpty {
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.statusProcessing { color: var(--accent-blue); }
+.statusAwaiting { color: var(--accent-amber); }
+.statusError { color: var(--accent-red); }
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.noteError {
+  color: var(--accent-red);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.includeLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-right: auto;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent-amber);
+  cursor: pointer;
+}
+
+.textBtn {
+  min-height: 44px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  color: var(--accent-amber);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.removeBtn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.removeBtn:hover {
+  color: var(--accent-red);
+  background: var(--accent-red-dim);
+}
+
+.checkbox:focus-visible,
+.textBtn:focus-visible,
+.removeBtn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .removeBtn {
+    transition: none;
+  }
+}

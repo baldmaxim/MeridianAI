@@ -14,6 +14,7 @@ asyncpg-драйверу; для нелокального хоста включ�
 
 import os
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -62,3 +63,15 @@ async def db() -> AsyncSession:
             await trans.rollback()
         await connection.close()
         await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _no_llm_keys_for_classify(monkeypatch):
+    """Классификатор документов не ходит в боевую БД за ключом OpenRouter (и не зовёт LLM).
+
+    Тесты, которым нужна LLM, подменяют load_api_keys сами.
+    """
+    async def _no_keys() -> dict:
+        return {}
+
+    monkeypatch.setattr("app.services.document_classify.load_api_keys", _no_keys)

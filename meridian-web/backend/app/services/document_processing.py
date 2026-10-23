@@ -7,6 +7,7 @@
 import json
 import logging
 import re
+from datetime import datetime
 
 from sqlalchemy import delete
 
@@ -18,6 +19,12 @@ from . import document_storage
 
 from .document_text_quality import assess_extracted_text
 from .clause_chunker import chunk_by_clauses
+from .document_classify import (
+    TAGS_HEAD_CHARS,
+    ClassifyResult,
+    classify_document,
+    match_customer_by_inn,
+)
 from .ocr_quality import ocr_page_warnings
 
 logger = logging.getLogger("meridian.documents")
@@ -230,6 +237,25 @@ async def _queue_for_ocr(document_id: int, page_count: int | None, problem: str)
         await db.commit()
 
 
+async def _classify_safely(
+    document_id: int, original: str, segments: list[dict],
+) -> tuple[ClassifyResult, int | None] | None:
+    """Тип/теги/реквизиты документа + заказчик по ИНН. Сбой не должен ронять обработку."""
+    try:
+        head = "\n\n".join(s["text"] for s in segments)[:TAGS_HEAD_CHARS]
+        sheets = [s["sheet_name"] for s in segments if s.get("sheet_name")]
+        result = await classify_document(head, original or "", sheets)
+        async with async_session() as db:
+            customer_id = await match_customer_by_inn(db, result.meta.get("inn") or [])
+        logger.info("document %s: тип=%s теги=%d источник=%s",
+                    document_id, result.doc_type, len(result.tags), result.source)
+        return result, customer_id
+    except Exception as e:
+        # текст документа в лог не пишем — только класс ошибки
+        logger.warning("document %s: классификация не удалась (%s)", document_id, type(e).__name__)
+        return None
+
+
 # --- job handler ---
 
 async def handle_document_process(payload: dict) -> None:
@@ -271,6 +297,8 @@ async def handle_document_process(payload: dict) -> None:
         if problem:
             raise ValueError(problem)
 
+        classification = await _classify_safely(document_id, original, segments)
+
         chunk_rows = _build_chunk_rows(document_id, segments, settings)
 
         if not chunk_rows:
@@ -302,6 +330,15 @@ async def handle_document_process(payload: dict) -> None:
                     token_count=r["tokens"],
                     metadata_json=r.get("metadata"),
                 ))
+            if classification is not None:
+                result, customer_id = classification
+                doc.doc_type = result.doc_type
+                doc.doc_tags = result.tags
+                doc.doc_meta = result.meta
+                doc.classify_source = result.source
+                doc.classified_at = datetime.utcnow()
+                if doc.customer_id is None and customer_id is not None:
+                    doc.customer_id = customer_id
             doc.status = "ready"
             doc.page_count = page_count
             doc.sheet_count = sheet_count
