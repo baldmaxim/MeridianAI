@@ -10,6 +10,7 @@ from .meeting import (
 )
 from .role import NegotiationRole
 from .batch_job import BatchJob
+from .asr_term import AsrTerm
 from .job import Job
 from .file import FileRecord
 from .audit import AuditLog
@@ -51,6 +52,7 @@ __all__ = [
     "SavedTranscription",
     "NegotiationRole",
     "BatchJob",
+    "AsrTerm",
     "Job",
     "FileRecord",
     "AuditLog",

@@ -1,0 +1,11 @@
+.fixed {
+  border-bottom: 1px dotted var(--accent-amber);
+}
+
+.mark {
+  display: inline-block;
+  margin-left: 3px;
+  font-size: 9px;
+  color: var(--accent-amber);
+  vertical-align: middle;
+}

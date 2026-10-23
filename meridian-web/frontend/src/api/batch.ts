@@ -37,6 +37,12 @@ export async function batchToMeeting(
   return data;
 }
 
+/** Правка словаря терминов в реплике: распознано → стало (без хвостовой пунктуации). */
+export interface BatchCorrection {
+  from: string;
+  to: string;
+}
+
 export interface BatchSegment {
   speaker: string;
   start: number;
@@ -44,6 +50,8 @@ export interface BatchSegment {
   text: string;
   /** Русский перевод, если реплика прозвучала на другом языке. Оригинал остаётся в text. */
   text_ru?: string | null;
+  /** Исправления по словарю терминов; text уже исправленный. Нет/пусто — правок нет. */
+  corrections?: BatchCorrection[];
 }
 
 export interface BatchJobDetail extends BatchJob {

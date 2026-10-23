@@ -5,6 +5,7 @@ import type { BatchSegment } from '../../api/batch';
 import { errorTextFromBlob } from '../../api/download';
 import { TextInput } from '../common';
 import { HighlightText } from './HighlightText';
+import { CorrectedText } from './CorrectedText';
 import { fmtTime } from './batchDetailUtils';
 import styles from './BatchTranscript.module.css';
 import { cx } from '../../utils/cx';
@@ -34,10 +35,15 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
   const [clipStart, setClipStart] = useState<number | null>(null);
   const [clipEnd, setClipEnd] = useState<number | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const q = query.trim().toLowerCase();
+  const correctionsCount = useMemo(
+    () => segments.reduce((n, s) => n + (s.corrections?.length ?? 0), 0),
+    [segments]
+  );
   const filtered = useMemo(
     () => (q ? segments.filter((s) => s.text.toLowerCase().includes(q)) : segments),
     [segments, q]
@@ -104,7 +110,9 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
               <span className={styles.time}>{fmtTime(seg.start)}</span>
             </div>
             <div className={styles.segBody}>
-              <div className={styles.segText}><HighlightText text={seg.text} query={q} /></div>
+              <div className={styles.segText}>
+                <CorrectedText text={seg.text} corrections={seg.corrections} showOriginal={showOriginal} query={q} />
+              </div>
               {seg.text_ru && (
                 <div className={styles.segTextRu}>
                   <span className={styles.ruTag}>RU</span>
@@ -115,7 +123,7 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
           </div>
         );
       }),
-    [segments, q, activeIdx, audioUrl, seekTo]
+    [segments, q, activeIdx, audioUrl, seekTo, showOriginal]
   );
 
   return (
@@ -149,6 +157,19 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
           {(clipStart != null || clipEnd != null) && (
             <button onClick={() => { setClipStart(null); setClipEnd(null); }} className={styles.trimReset}>{'✕'}</button>
           )}
+        </div>
+      )}
+      {correctionsCount > 0 && (
+        <div className={styles.fixRow}>
+          <span className={styles.fixInfo}>{'✎'} Исправлено по словарю: {correctionsCount}</span>
+          <button
+            type="button"
+            onClick={() => setShowOriginal((v) => !v)}
+            aria-pressed={showOriginal}
+            className={styles.fixToggle}
+          >
+            {showOriginal ? 'Показать исправленный' : 'Показать исходный'}
+          </button>
         </div>
       )}
       <div className={styles.searchRow}>

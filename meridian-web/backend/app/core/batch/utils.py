@@ -3,8 +3,10 @@
 import re
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
+
+from .term_matcher import split_tail_punct
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,8 @@ class TranscriptionSegment:
     start: float
     end: float
     text: str
+    # Правки словаря в реплике: [{"from": распознано, "to": стало}] — без хвостовой пунктуации
+    corrections: List[Dict[str, str]] = field(default_factory=list)
 
 
 def format_timestamp(seconds: float, include_hours: bool = True) -> str:
@@ -36,6 +40,7 @@ def group_words_by_speaker(words: List[Dict[str, Any]]) -> List[TranscriptionSeg
     current_start: float = 0.0
     current_end: float = 0.0
     current_texts: List[str] = []
+    current_fixes: List[Dict[str, str]] = []
 
     for word in words:
         speaker = word.get("speaker_id", word.get("speaker", "Speaker_1"))
@@ -50,13 +55,19 @@ def group_words_by_speaker(words: List[Dict[str, Any]]) -> List[TranscriptionSeg
                     start=current_start,
                     end=current_end,
                     text=" ".join(current_texts),
+                    corrections=current_fixes,
                 ))
             current_speaker = speaker
             current_start = start
             current_texts = []
+            current_fixes = []
 
         if text:
             current_texts.append(text)
+            orig = word.get("orig")
+            if isinstance(orig, str) and orig.strip():
+                current_fixes.append({"from": split_tail_punct(orig.strip())[0],
+                                      "to": split_tail_punct(text)[0]})
         current_end = end
 
     if current_texts and current_speaker:
@@ -65,6 +76,7 @@ def group_words_by_speaker(words: List[Dict[str, Any]]) -> List[TranscriptionSeg
             start=current_start,
             end=current_end,
             text=" ".join(current_texts),
+            corrections=current_fixes,
         ))
 
     return segments

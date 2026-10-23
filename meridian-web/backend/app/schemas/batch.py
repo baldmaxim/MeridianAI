@@ -1,7 +1,7 @@
 """Pydantic schemas for batch transcription jobs."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Dict, Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -14,6 +14,8 @@ class BatchSegment(BaseModel):
     # Русский перевод, если реплика прозвучала на другом языке. None — реплика русская
     # либо перевод не выполнялся. Оригинал в text остаётся всегда.
     text_ru: str | None = None
+    # Правки словаря терминов в реплике: [{"from": распознано, "to": стало}]. Пусто — правок нет.
+    corrections: List[Dict[str, str]] = []
 
 
 class BatchJobResponse(BaseModel):

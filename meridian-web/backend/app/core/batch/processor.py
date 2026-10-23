@@ -24,6 +24,7 @@ from ...models.file import FileRecord
 from ...models.meeting import MeetingSession
 from ...services.batch_to_meeting import merge_transcription_into_meeting, transcription_segments
 from ...services.api_keys import load_api_keys
+from ...services.asr_lexicon import load_job_lexicon
 from ...services import s3
 from ...services.meeting_setup import load_user_settings
 from .audio_compressor import AudioCompressor
@@ -32,6 +33,7 @@ from .deepgram_transcription_service import DeepgramBatchTranscriptionService
 from .gigaam_transcription_service import GigaAMBatchTranscriptionService
 from .protocol_generator import ProtocolGenerator
 from .segment_translator import SegmentTranslator, needs_translation
+from .term_corrector import TermCorrector, apply_corrections
 from .utils import build_translation_json, parse_translation_map
 from .utils import split_protocol_output
 
@@ -80,6 +82,36 @@ async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None
         first_segment_prefix="[восстановлено после обрыва связи] ",
         translations=translations,
     )
+
+
+async def _correct_terms(db: AsyncSession, job: BatchJob, transcription: dict,
+                         openrouter_key: str | None) -> dict:
+    """Исправить термины по словарю; вернуть распознавание с правками (или как было).
+
+    Правки лежат отдельно (transcription_corrections_json), исходник не меняется.
+    Чекпоинт — сама колонка: NULL — пробуем, иначе только применяем сохранённое.
+    Сбой шага не роняет задачу: LLM не ответила — колонка не трогается, повтор при
+    следующем запуске. Статус задачи не меняется.
+    """
+    try:
+        if job.transcription_corrections_json is None:
+            if not (openrouter_key and get_settings().batch_term_correction):
+                return transcription
+            lexicon = await load_job_lexicon(db, job.user_id)
+            result = await TermCorrector(openrouter_key).correct(transcription, lexicon)
+            if result is None:
+                logger.warning("job %s: правка терминов не получена (см. логи)", job.id)
+                return transcription
+            job.transcription_corrections_json = json.dumps(result, ensure_ascii=False)
+            await db.commit()
+        items = (json.loads(job.transcription_corrections_json) or {}).get("items") or []
+        if not items:
+            return transcription
+        logger.info("job %s: исправлено терминов: %s", job.id, len(items))
+        return apply_corrections(transcription, items)
+    except Exception:
+        logger.exception("job %s: правка терминов не удалась, идём без неё", job.id)
+        return transcription
 
 
 async def _translate_segments(db: AsyncSession, job: BatchJob, transcription: dict,
@@ -228,6 +260,10 @@ async def handle_batch_transcribe(payload: dict) -> None:
                 await db.commit()
             else:
                 transcription = json.loads(job.transcription_json)
+
+            # Правка терминов по словарю (отдельный чекпоинт — колонка с правками);
+            # перевод, дозапись и протокол идут по исправленному тексту.
+            transcription = await _correct_terms(db, job, transcription, api_keys.get("openrouter"))
 
             # Перевод иноязычных реплик на русский. Отдельный чекпоинт:
             # NULL — не пробовали, {"items": []} — переводить было нечего.

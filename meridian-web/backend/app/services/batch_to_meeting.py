@@ -13,13 +13,13 @@
 знаний отбрасываются.
 """
 
-import json
 import logging
 import uuid
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.batch.term_corrector import effective_transcription
 from ..core.batch.utils import (
     TranscriptionSegment, group_words_by_speaker, parse_translation_map,
 )
@@ -86,7 +86,7 @@ async def merge_transcription_into_meeting(
 def _load_transcription(job: BatchJob) -> dict:
     if job.transcription_json:
         try:
-            data = json.loads(job.transcription_json)
+            data = effective_transcription(job)
             if isinstance(data, dict):
                 return data
         except (ValueError, TypeError):

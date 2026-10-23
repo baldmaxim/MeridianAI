@@ -1,7 +1,6 @@
 """Batch audio transcription and protocol generation API."""
 
 import asyncio
-import json
 import logging
 import os
 import shutil
@@ -42,6 +41,7 @@ from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..core.batch.utils import (
     format_transcription_txt, group_words_by_speaker, parse_translation_map,
 )
+from ..core.batch.term_corrector import effective_transcription
 from ..core.http_files import content_disposition, safe_download_name
 from ..config import get_settings
 
@@ -272,11 +272,11 @@ async def get_batch_job(
     # Диаризация: реплики (спикер + таймкоды) из word-level transcription_json
     if job.transcription_json:
         try:
-            words = (json.loads(job.transcription_json) or {}).get("words") or []
+            words = (effective_transcription(job) or {}).get("words") or []
             translations = parse_translation_map(job.transcription_translation_json)
             resp.segments = [
                 BatchSegment(speaker=_norm_speaker(s.speaker), start=s.start, end=s.end,
-                             text=s.text, text_ru=translations.get(i))
+                             text=s.text, text_ru=translations.get(i), corrections=s.corrections)
                 for i, s in enumerate(group_words_by_speaker(words))
             ]
         except Exception:
@@ -321,8 +321,7 @@ async def batch_to_meeting(
         raise HTTPException(400, str(e))
 
     added = len(transcription_segments(
-        json.loads(job.transcription_json) if job.transcription_json
-        else {"text": job.transcription_text or ""}))
+        effective_transcription(job) or {"text": job.transcription_text or ""}))
     queued = await request_finalization(db, meeting.id)
     await db.commit()
     return BatchToMeetingResponse(
@@ -463,7 +462,7 @@ async def download_batch_result(
     if download_type == "transcript_txt":
         if not job.transcription_json:
             raise HTTPException(400, "Транскрипция недоступна")
-        data = json.loads(job.transcription_json)
+        data = effective_transcription(job)
         content = format_transcription_txt(data)
         return Response(
             content=content.encode("utf-8"),

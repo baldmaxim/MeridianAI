@@ -338,6 +338,8 @@ class Settings(BaseSettings):
     # dynaudnorm на стенде неоднозначен (+/− по клипам) — выключен.
     batch_stt_bitrate: str = Field(default="48k", alias="BATCH_STT_BITRATE")
     batch_stt_normalize: bool = Field(default=False, alias="BATCH_STT_NORMALIZE")
+    # Правка распознанного текста по словарю терминов (LLM подтверждает кандидатов).
+    batch_term_correction: bool = Field(default=True, alias="BATCH_TERM_CORRECTION")
 
     # Realtime multi-channel live STT shadow (Этап 9.6): выбранные primary/secondary каналы
     # mux-ятся в один realtime PCM16-multichannel stream и шлются в ОТДЕЛЬНОЕ realtime STT
