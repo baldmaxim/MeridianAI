@@ -310,3 +310,42 @@ async def test_job_empty_transcript_partial(sqlite_sm, monkeypatch):
         assert m.finalization_status == "partial"
         assert m.finalization_error and "ранскрипт" in m.finalization_error
         assert m.is_finalized is True
+
+
+# ---------- тема встречи: автогенерация не затирает ручную ----------
+
+async def test_job_keeps_manual_topic(sqlite_sm, monkeypatch):
+    _patch_llm(monkeypatch)
+    sm = sqlite_sm
+    async with sm() as db:
+        owner = await _mk_user(db, "topic1@test.local")
+        meeting = await _mk_meeting(db, owner)
+        meeting.meeting_topic = "Моя тема встречи"
+        await _add_segment(db, meeting, "Здравствуйте, обсудим цену.", 0)
+        await db.commit()
+        mid = meeting.id
+
+    await mf.handle_meeting_finalize({"meeting_id": mid})
+
+    async with sm() as db:
+        m = await db.get(MeetingSession, mid)
+        assert m.finalization_status == "completed"
+        assert m.meeting_topic == "Моя тема встречи"
+        assert m.protocol_markdown  # остальной результат записан
+
+
+async def test_job_fills_empty_topic(sqlite_sm, monkeypatch):
+    _patch_llm(monkeypatch)
+    sm = sqlite_sm
+    async with sm() as db:
+        owner = await _mk_user(db, "topic2@test.local")
+        meeting = await _mk_meeting(db, owner)
+        await _add_segment(db, meeting, "Здравствуйте, обсудим цену.", 0)
+        await db.commit()
+        mid = meeting.id
+
+    await mf.handle_meeting_finalize({"meeting_id": mid})
+
+    async with sm() as db:
+        m = await db.get(MeetingSession, mid)
+        assert m.meeting_topic == FAKE_RESULT["title"]

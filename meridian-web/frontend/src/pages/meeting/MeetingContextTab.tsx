@@ -12,6 +12,7 @@ import styles from './MeetingContextTab.module.css';
 interface IMeetingContextTabProps {
   pushContext: () => void;
   onMeetingNameChange: (name: string) => void;
+  onMeetingTopicChange: (topic: string) => void;
   onWeaknessesChange: (value: string) => void;
   onRoleSelect: (roleId: number) => void;
   onSaveMeeting: () => void;
@@ -23,7 +24,7 @@ interface IMeetingContextTabProps {
 
 /** Вкладка «Контекст встречи»: брифинг, источники контекста, расширенные настройки. */
 export const MeetingContextTab: FC<IMeetingContextTabProps> = ({
-  pushContext, onMeetingNameChange, onWeaknessesChange, onRoleSelect,
+  pushContext, onMeetingNameChange, onMeetingTopicChange, onWeaknessesChange, onRoleSelect,
   onSaveMeeting, savingMeeting, onFinalized, startSession,
 }) => {
   const currentMeetingId = useMeetingStore((s) => s.currentMeetingId);
@@ -55,11 +56,11 @@ export const MeetingContextTab: FC<IMeetingContextTabProps> = ({
         />
         <TextInput
           type="text"
-          readOnly
           aria-label="Тема / цель встречи"
-          placeholder="Тема / цель встречи — сформируется после завершения"
+          placeholder="Тема / цель встречи"
           value={meetingTopic}
-          title="Краткое наименование формируется ИИ после распознавания всех переговоров"
+          onChange={(e) => onMeetingTopicChange(e.target.value)}
+          onClear={() => onMeetingTopicChange('')}
           clearLabel="тему встречи"
           inputClassName={styles.topicInput}
         />

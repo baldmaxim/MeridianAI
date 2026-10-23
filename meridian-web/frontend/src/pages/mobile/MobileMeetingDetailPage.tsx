@@ -5,6 +5,7 @@ import { finalizeMeeting } from '../../api/finalization';
 import { navigate } from '../../lib/navigation';
 import { apiErrorMessage } from '../../lib/apiError';
 import type { MobileMeetingDetail, LiveState } from '../../types';
+import { MobileDocumentsCard } from './MobileDocumentsCard';
 import styles from './MobileMeetingDetailPage.module.css';
 import { cx } from '../../utils/cx';
 
@@ -158,19 +159,13 @@ export function MobileMeetingDetailPage({ meetingId }: Props) {
         </div>
       )}
 
-      {/* Документы (read-only) */}
+      {/* Документы: прикреплённые + унаследованные, включение в контекст */}
       {m.documents.length > 0 && (
-        <div className={styles.card}>
-          <div className={styles.cardLabel}>ДОКУМЕНТЫ</div>
-          {m.documents.map((d) => (
-            <div key={d.id} className={styles.partRow}>
-              <span className={styles.ellipsis}>{d.original_name}</span>
-              <span className={styles.partRole}>
-                {d.status}{d.status === 'ready' ? ` · ${d.chunks_count} фр.` : ''}
-              </span>
-            </div>
-          ))}
-        </div>
+        <MobileDocumentsCard
+          meetingId={meetingId}
+          documents={m.documents}
+          onChange={(update) => setM((prev) => (prev ? { ...prev, documents: update(prev.documents) } : prev))}
+        />
       )}
 
       {/* Этап 9: AI-настройки (read-only) */}

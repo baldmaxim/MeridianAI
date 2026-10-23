@@ -13,9 +13,8 @@ from ..database import get_db
 from ..models.user import User
 import json as _json
 
-from ..models.meeting import MeetingSession, TranscriptSegmentRecord, MeetingDocumentRecord
+from ..models.meeting import MeetingSession, TranscriptSegmentRecord
 from ..models.directory import Customer, ProjectObject, MeetingParticipant
-from ..models.document import DocumentRecord, DocumentChunk
 from ..models.protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from ..schemas.mobile import (
     MobileMeetingListItem,
@@ -23,13 +22,13 @@ from ..schemas.mobile import (
     MobileParticipant,
     MobileTranscriptLine,
 )
-from ..schemas.document import MeetingDocumentItem
 from ..services.access import (
     accessible_meeting_filter,
     user_can_access_meeting,
     can_record_meeting,
     current_user_meeting_role,
 )
+from ..services.meeting_documents import list_meeting_document_items
 from ..services.meeting_room import room_registry, compute_live_state
 
 router = APIRouter()
@@ -156,32 +155,8 @@ async def mobile_meeting_detail(
 
     live = await compute_live_state(db, meeting, user.id)
 
-    # документы встречи (read-only для мобильного)
-    chunks_subq = (
-        select(func.count(DocumentChunk.id))
-        .where(DocumentChunk.document_id == DocumentRecord.id)
-        .correlate(DocumentRecord)
-        .scalar_subquery()
-    )
-    doc_rows = (
-        await db.execute(
-            select(MeetingDocumentRecord, DocumentRecord, chunks_subq.label("cc"))
-            .join(DocumentRecord, DocumentRecord.id == MeetingDocumentRecord.document_id)
-            .where(
-                MeetingDocumentRecord.session_id == meeting_id,
-                MeetingDocumentRecord.document_id.isnot(None),
-            )
-            .order_by(MeetingDocumentRecord.priority.desc(), MeetingDocumentRecord.id)
-        )
-    ).all()
-    documents = [
-        MeetingDocumentItem(
-            id=md.id, document_id=doc.id, original_name=doc.original_name, file_ext=doc.file_ext,
-            status=doc.status, included=md.included, priority=md.priority, chunks_count=cc or 0,
-            page_count=doc.page_count, sheet_count=doc.sheet_count, processing_error=doc.processing_error,
-        )
-        for md, doc, cc in doc_rows
-    ]
+    # документы встречи: прикреплённые + унаследованные от заказчика/объекта (общая логика с сайтом)
+    documents = await list_meeting_document_items(db, meeting)
 
     # Этап 5: протокол (если сформирован)
     decisions = (await db.execute(select(MeetingDecision).where(MeetingDecision.meeting_id == meeting_id).order_by(MeetingDecision.id))).scalars().all()

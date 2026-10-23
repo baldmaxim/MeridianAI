@@ -54,6 +54,11 @@ export const useMeetingContextSync = (
     }, CONTEXT_SEND_DELAY_MS);
   }, [sendJSON]);
 
+  const handleMeetingTopicChange = useCallback((topic: string) => {
+    useMeetingStore.getState().setMeetingTopic(topic);
+    pushContext();
+  }, [pushContext]);
+
   // Дефолт названия встречи «Заказчик_Объект_Дата» — только когда поле пустое и
   // известен заказчик/объект. Не затирает то, что пользователь уже ввёл/подтянуто из БД.
   useEffect(() => {
@@ -62,7 +67,7 @@ export const useMeetingContextSync = (
     useMeetingStore.getState().setMeetingName(buildDefaultMeetingName(customerName, objectName));
   }, [meetingName, customerName, objectName]);
 
-  // После финализации подтянуть сгенерированную тему/название из БД (read-only поле).
+  // После финализации подтянуть тему/название из БД (тему ИИ ставит, только если она была пуста).
   const refreshMeetingMeta = useCallback(() => {
     const id = useMeetingStore.getState().currentMeetingId;
     if (id == null) return;
@@ -74,5 +79,5 @@ export const useMeetingContextSync = (
     }).catch(() => {});
   }, []);
 
-  return { pushContext, handleWeaknessesChange, handleMeetingNameChange, refreshMeetingMeta };
+  return { pushContext, handleWeaknessesChange, handleMeetingNameChange, handleMeetingTopicChange, refreshMeetingMeta };
 };

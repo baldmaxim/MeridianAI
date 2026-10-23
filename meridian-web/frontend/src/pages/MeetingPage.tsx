@@ -111,7 +111,9 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
   });
   const { handleStartListening, handleStopListening } = audio;
   const speakers = useMeetingSpeakers(store.currentMeetingId, sendJSON);
-  const { pushContext, handleWeaknessesChange, handleMeetingNameChange, refreshMeetingMeta } = useMeetingContextSync(
+  const {
+    pushContext, handleWeaknessesChange, handleMeetingNameChange, handleMeetingTopicChange, refreshMeetingMeta,
+  } = useMeetingContextSync(
     sendJSON, store.meetingName, store.selectedCustomerName, store.selectedObjectName,
   );
 
@@ -132,7 +134,7 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
         s2.setSelectedCustomerName(d.customer_name);
         s2.setSelectedObjectName(d.object_name);
         s2.setMeetingStartedAt(d.started_at ?? null);
-        // Тема/цель — read-only, генерируется LLM; название — пользовательское.
+        // Тема/цель — вводится вручную (или ставится ИИ после финализации, если пуста).
         s2.setMeetingTopic(d.meeting_topic ?? '');
         if (d.title) s2.setMeetingName(d.title);
       }).catch(() => {});
@@ -322,6 +324,7 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
           <MeetingContextTab
             pushContext={pushContext}
             onMeetingNameChange={handleMeetingNameChange}
+            onMeetingTopicChange={handleMeetingTopicChange}
             onWeaknessesChange={handleWeaknessesChange}
             onRoleSelect={handleRoleSelect}
             onSaveMeeting={handleSaveMeeting}

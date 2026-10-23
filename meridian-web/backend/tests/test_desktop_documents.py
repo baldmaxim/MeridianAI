@@ -157,3 +157,26 @@ async def test_classification_vocab_route(sm, client):
     body = r.json()
     assert {"key": "contract", "label": "Договор"} in body["doc_types"]
     assert {"key": "penalty", "label": "Неустойка / штрафы"} in body["doc_tags"]
+
+
+async def test_mobile_detail_lists_inherited_with_classification(sm, client):
+    cust_id, _ = await _customer_and_object(sm)
+    user = await _user(sm)
+    mid = (await _meeting(client, await _device(sm, user), customer_id=cust_id))["meeting_id"]
+    async with sm() as db:
+        db.add(DocumentRecord(
+            owner_user_id=user.id, created_by_user_id=user.id, original_name="c.pdf", file_ext=".pdf",
+            status="ready", s3_key="k/c.pdf", doc_type="contract", doc_tags=["price"],
+            doc_meta={"number": "5"}, customer_id=cust_id,
+        ))
+        await db.commit()
+
+    r = await client.get(f"/api/mobile/meetings/{mid}", headers=_jwt(user))
+    assert r.status_code == 200, r.text
+    docs = r.json()["documents"]
+    assert len(docs) == 1
+    doc = docs[0]
+    assert doc["source"] == "customer" and doc["included"] is True and doc["id"] < 0
+    assert doc["doc_type"] == "contract" and doc["doc_type_label"] == "Договор"
+    assert doc["doc_tags"] == [{"key": "price", "label": "Цена"}]
+    assert doc["doc_meta"] == {"number": "5"}

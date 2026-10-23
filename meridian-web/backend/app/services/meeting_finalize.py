@@ -213,8 +213,10 @@ def _evidence_json(ev_list) -> str:
 
 async def _save_result(db: AsyncSession, meeting: MeetingSession, result: MeetingFinalizationResult,
                        status: str) -> None:
-    # Тема/цель — краткое имя от LLM (read-only в UI, формируется после распознавания).
-    meeting.meeting_topic = result.title or meeting.meeting_topic
+    # Тема/цель — краткое имя от LLM. Заполняем только пустую тему: введённую вручную
+    # (или сгенерированную ранее и затем правленую) автогенерация не затирает.
+    if not (meeting.meeting_topic or "").strip():
+        meeting.meeting_topic = result.title or None
     # Название встречи — пользовательское/дефолтное (Заказчик_Объект_Дата), не затираем именем LLM.
     if not meeting.title:
         meeting.title = (meeting.meeting_topic or "")[:90] or \

@@ -23,6 +23,7 @@ from sqlalchemy import select, update
 
 from ..config import get_settings
 from ..database import async_session
+from ..schemas.meeting import normalize_meeting_topic
 from .observer_diarization import ObserverDiarization
 from .online_capture_sides import (
     HINT_SOURCE as ONLINE_CAPTURE_HINT_SOURCE,
@@ -1467,13 +1468,13 @@ class MeetingRoom:
 
     async def _update_context(self, message: dict) -> None:
         title = message.get("title")
-        topic = message.get("topic", "")
+        topic = normalize_meeting_topic(message.get("topic"))
         notes = message.get("notes", "")
         negotiation_type = message.get("negotiation_type", "sale")
         meeting_role = message.get("meeting_role", "")
         opponent_weaknesses = message.get("opponent_weaknesses", "")
         self._apply_context(
-            topic=topic, notes=notes, negotiation_type=negotiation_type,
+            topic=topic or "", notes=notes, negotiation_type=negotiation_type,
             meeting_role=meeting_role, opponent_weaknesses=opponent_weaknesses, title=title,
         )
         # persist by meeting_id

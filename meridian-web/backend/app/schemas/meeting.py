@@ -2,7 +2,17 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+MAX_MEETING_TOPIC_LENGTH = 500
+
+
+def normalize_meeting_topic(value: object) -> str | None:
+    """Тема встречи: обрезать пробелы и длину, пустая строка → None."""
+    if value is None:
+        return None
+    text = str(value).strip()[:MAX_MEETING_TOPIC_LENGTH].strip()
+    return text or None
 
 
 class MeetingContextUpdate(BaseModel):
@@ -145,6 +155,11 @@ class MeetingCreate(BaseModel):
     meeting_role: str | None = None
     opponent_weaknesses: str | None = None
 
+    @field_validator("meeting_topic", mode="before")
+    @classmethod
+    def _topic(cls, v):
+        return normalize_meeting_topic(v)
+
 
 class MeetingUpdate(BaseModel):
     title: str | None = None
@@ -157,6 +172,11 @@ class MeetingUpdate(BaseModel):
     negotiation_type: str | None = None
     meeting_role: str | None = None
     opponent_weaknesses: str | None = None
+
+    @field_validator("meeting_topic", mode="before")
+    @classmethod
+    def _topic(cls, v):
+        return normalize_meeting_topic(v)
 
 
 class MeetingCreateResponse(BaseModel):
