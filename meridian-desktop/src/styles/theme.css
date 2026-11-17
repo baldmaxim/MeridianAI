@@ -29,9 +29,7 @@
   --dark-color-logo-primary: var(--brand-dark-accent);
   --dark-color-logo-stroke: #e5e7eb;
 
-  /* Semantic status colors. First used by SecureInputWarning; intended to
-     replace the ad-hoc yellow-500/red-500 usages (e.g. ui/Alert.tsx) over
-     time so status styling is themeable from one place. */
+  /* Semantic status colors, so status styling is themeable from one place. */
   --light-color-warning: var(--brand-light-warning);
   --light-color-error: var(--brand-light-danger);
   --dark-color-warning: var(--brand-dark-warning);

@@ -1,6 +1,11 @@
 use anyhow::Result;
+use tauri::Manager;
 
 use crate::audio_toolkit::constants;
+use crate::settings::VadBackend;
+
+const SILERO_VAD_THRESHOLD: f32 = 0.3;
+const EARSHOT_VAD_THRESHOLD: f32 = 0.5;
 
 pub const VAD_PREFILL_MS: u64 = 450;
 pub const VAD_OFFLINE_HANGOVER_MS: u64 = 450;
@@ -97,6 +102,33 @@ mod smoothed;
 pub use earshot::EarshotVad;
 pub use silero::SileroVad;
 pub use smoothed::SmoothedVad;
+
+/// A fresh speech scorer for `backend`: what meeting segmentation and
+/// long-form chunking cut audio with, so every path uses the selected backend.
+pub fn create_detector(
+    backend: VadBackend,
+    app_handle: &tauri::AppHandle,
+) -> Result<Box<dyn SpeechScorer>> {
+    Ok(match backend {
+        VadBackend::Silero => {
+            let vad_path = app_handle
+                .path()
+                .resolve(
+                    "resources/models/silero-vad-v6.2-F32.gguf",
+                    tauri::path::BaseDirectory::Resource,
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {e}"))?;
+            Box::new(
+                SileroVad::new(vad_path, SILERO_VAD_THRESHOLD)
+                    .map_err(|e| anyhow::anyhow!("Failed to create SileroVad: {e}"))?,
+            )
+        }
+        VadBackend::Earshot => Box::new(
+            EarshotVad::new(EARSHOT_VAD_THRESHOLD)
+                .map_err(|e| anyhow::anyhow!("Failed to create EarshotVad: {e}"))?,
+        ),
+    })
+}
 
 #[cfg(test)]
 mod tests {

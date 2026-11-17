@@ -830,7 +830,7 @@ fn extract_punctuation(word: &str) -> (&str, &str) {
 
 /// Evidence for the language of the text being cleaned.
 ///
-/// This intentionally describes the transcription output, not Handy's UI
+/// This intentionally describes the transcription output, not the UI
 /// language. Unknown output languages fail closed: built-in filler removal is
 /// skipped rather than applying a language profile speculatively.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -843,7 +843,6 @@ pub enum OutputLanguageEvidence {
     /// Detected from the transcribed text with high confidence, constrained to
     /// the model's supported languages. Weakest accepted evidence.
     TextDetected(String),
-    TranslatedToEnglish,
     Unknown,
 }
 
@@ -854,7 +853,6 @@ impl OutputLanguageEvidence {
             | Self::ModelConstrained(language)
             | Self::ModelDetected(language)
             | Self::TextDetected(language) => Some(language),
-            Self::TranslatedToEnglish => Some("en"),
             Self::Unknown => None,
         }
     }

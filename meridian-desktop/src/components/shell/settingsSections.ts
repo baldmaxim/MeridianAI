@@ -6,7 +6,6 @@ import {
   AccountSettings,
   DebugSettings,
   AboutSettings,
-  PostProcessingSettings,
   ModelsSettings,
 } from "../settings";
 
@@ -37,11 +36,6 @@ export const SECTIONS_CONFIG = {
     labelKey: "shell.tabs.advanced",
     component: AdvancedSettings,
     enabled: () => true,
-  },
-  postprocessing: {
-    labelKey: "shell.tabs.postProcessing",
-    component: PostProcessingSettings,
-    enabled: (settings) => settings?.post_process_enabled ?? false,
   },
   debug: {
     labelKey: "shell.tabs.debug",

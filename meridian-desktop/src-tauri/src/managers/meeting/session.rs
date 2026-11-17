@@ -18,7 +18,7 @@ use super::{
     MeetingInfo, MeetingLevels, MeetingManager, MeetingStateKind, MeetingStatus,
     StartMeetingRequest, CHANNEL_MIC, CHANNEL_MIXED, CHANNEL_SYSTEM, DRAIN_TIMEOUT,
 };
-use crate::managers::audio::create_detector;
+use crate::audio_toolkit::vad::create_detector;
 use crate::managers::model::ModelManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::get_settings;

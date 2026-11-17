@@ -29,14 +29,6 @@ async changeStartHiddenSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: e  as any };
 }
 },
-async changeTranslateToEnglishSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_translate_to_english_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async changeSelectedLanguageSetting(language: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_selected_language_setting", { language }) };
@@ -61,22 +53,6 @@ async changeWordCorrectionThresholdSetting(threshold: number) : Promise<Result<n
     else return { status: "error", error: e  as any };
 }
 },
-async changeExtraRecordingBufferSetting(ms: number) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_extra_recording_buffer_setting", { ms }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changePostProcessEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_post_process_enabled_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async changeExperimentalEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_experimental_enabled_setting", { enabled }) };
@@ -85,113 +61,9 @@ async changeExperimentalEnabledSetting(enabled: boolean) : Promise<Result<null, 
     else return { status: "error", error: e  as any };
 }
 },
-async changePostProcessBaseUrlSetting(providerId: string, baseUrl: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_post_process_base_url_setting", { providerId, baseUrl }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changePostProcessApiFormatSetting(providerId: string, apiFormat: PostProcessApiFormat) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_post_process_api_format_setting", { providerId, apiFormat }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changePostProcessApiKeySetting(providerId: string, apiKey: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_post_process_api_key_setting", { providerId, apiKey }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changePostProcessModelSetting(providerId: string, model: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_post_process_model_setting", { providerId, model }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async setPostProcessProvider(providerId: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("set_post_process_provider", { providerId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async fetchPostProcessModels(providerId: string) : Promise<Result<string[], string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("fetch_post_process_models", { providerId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async addPostProcessPrompt(name: string, prompt: string) : Promise<Result<LLMPrompt, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("add_post_process_prompt", { name, prompt }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async updatePostProcessPrompt(id: string, name: string, prompt: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("update_post_process_prompt", { id, name, prompt }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deletePostProcessPrompt(id: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_post_process_prompt", { id }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async setPostProcessSelectedPrompt(id: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("set_post_process_selected_prompt", { id }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async updateCustomWords(words: string[]) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_custom_words", { words }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changeMuteWhileRecordingSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_mute_while_recording_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changeLazyStreamCloseSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_lazy_stream_close_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changeVadEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_vad_enabled_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -224,14 +96,6 @@ async changeVadBackendSetting(backend: VadBackend) : Promise<Result<null, string
 async changeFillerWordRemovalEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_filler_word_removal_enabled_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changeVoiceCommandsEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_voice_commands_enabled_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -311,12 +175,6 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
 async setUpdateAvailable(version: string | null) : Promise<void> {
     await TAURI_INVOKE("set_update_available", { version });
 },
-async cancelOperation() : Promise<void> {
-    await TAURI_INVOKE("cancel_operation");
-},
-async isPortable() : Promise<boolean> {
-    return await TAURI_INVOKE("is_portable");
-},
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_app_dir_path") };
@@ -357,14 +215,6 @@ async setLogLevel(level: LogLevel) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async openRecordingsFolder() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("open_recordings_folder") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async openLogDir() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_log_dir") };
@@ -376,28 +226,6 @@ async openLogDir() : Promise<Result<null, string>> {
 async openAppDataDir() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_app_data_dir") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Start recording from the microphone.
- */
-async startRecording() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("start_recording") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Stop the active recording and return the recognized text.
- */
-async stopRecording() : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("stop_recording") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -822,22 +650,6 @@ async rescanLocalModels() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async updateMicrophoneMode(alwaysOn: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("update_microphone_mode", { alwaysOn }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getMicrophoneMode() : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_microphone_mode") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async getWindowsMicrophonePermissionStatus() : Promise<WindowsMicrophonePermissionStatus> {
     return await TAURI_INVOKE("get_windows_microphone_permission_status");
 },
@@ -873,25 +685,6 @@ async getSelectedMicrophone() : Promise<Result<string, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async setClamshellMicrophone(deviceName: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("set_clamshell_microphone", { deviceName }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getClamshellMicrophone() : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_clamshell_microphone") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async isRecording() : Promise<boolean> {
-    return await TAURI_INVOKE("is_recording");
-},
 async getMicrophoneChannels(deviceName: string) : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_microphone_channels", { deviceName }) };
@@ -926,74 +719,6 @@ async unloadModelManually() : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
-},
-async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<Result<PaginatedHistory, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_history_entries", { cursor, limit }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("toggle_history_entry_saved", { id }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getAudioFilePath(fileName: string) : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_audio_file_path", { fileName }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deleteHistoryEntry(id: number) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_history_entry", { id }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async retryHistoryEntryTranscription(id: number) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("retry_history_entry_transcription", { id }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async updateHistoryLimit(limit: number) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("update_history_limit", { limit }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("update_recording_retention_period", { period }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Stub implementation for non-macOS platforms
- * Always returns false since laptop detection is macOS-specific
- */
-async isLaptop() : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("is_laptop") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
 }
 }
 
@@ -1002,28 +727,22 @@ async isLaptop() : Promise<Result<boolean, string>> {
 
 export const events = __makeEvents__<{
 accountChanged: AccountChanged,
-historyUpdatePayload: HistoryUpdatePayload,
 meetingLevels: MeetingLevels,
 meetingSegment: MeetingSegment,
 meetingSegmentRemoved: MeetingSegmentRemoved,
 meetingState: MeetingState,
 meetingSystemSilent: MeetingSystemSilent,
 meetingVoices: MeetingVoices,
-streamPhaseEvent: StreamPhaseEvent,
-streamTextEvent: StreamTextEvent,
 syncState: SyncState,
 transcriptionsChanged: TranscriptionsChanged
 }>({
 accountChanged: "account-changed",
-historyUpdatePayload: "history-update-payload",
 meetingLevels: "meeting-levels",
 meetingSegment: "meeting-segment",
 meetingSegmentRemoved: "meeting-segment-removed",
 meetingState: "meeting-state",
 meetingSystemSilent: "meeting-system-silent",
 meetingVoices: "meeting-voices",
-streamPhaseEvent: "stream-phase-event",
-streamTextEvent: "stream-text-event",
 syncState: "sync-state",
 transcriptionsChanged: "transcriptions-changed"
 })
@@ -1059,7 +778,7 @@ export type AppSettings = {
  * start at the current version; existing stores missing this key are
  * treated as version 0 and migrated forward.
  */
-settings_schema_version?: number; start_hidden?: boolean; selected_model?: string; onboarding_completed?: boolean; always_on_microphone?: boolean; selected_microphone?: string | null; 
+settings_schema_version?: number; start_hidden?: boolean; selected_model?: string; onboarding_completed?: boolean; selected_microphone?: string | null; 
 /**
  * The device whose sound an online meeting records (the other side's
  * voice). `None`: the default playback device / first monitor.
@@ -1069,12 +788,12 @@ meeting_system_device?: string | null;
  * Which input channel to use on the selected microphone device.
  * None means "average all channels" (original behavior).
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; translate_to_english?: boolean; selected_language?: string; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; app_language?: string; theme?: Theme; 
+selected_channel?: number | null; selected_language?: string; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; app_language?: string; theme?: Theme; 
 /**
  * Accent color preset id (see `ACCENT_COLORS`); the frontend maps it to a
  * palette via `data-accent`.
  */
-accent_color?: string; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; voice_commands_enabled?: boolean; number_normalization_enabled?: boolean; 
+accent_color?: string; experimental_enabled?: boolean; show_tray_icon?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; number_normalization_enabled?: boolean; 
 /**
  * Fresh installs default from the OS locale; existing stores are migrated
  * in `apply_settings_migrations`.
@@ -1085,15 +804,14 @@ chinese_script?: ChineseScript; transcribe_accelerator?: TranscribeAcceleratorSe
  * `device_id` when available (or its name for backends such as Metal),
  * never from the process-local device registry index.
  */
-transcribe_gpu_device?: string | null; extra_recording_buffer_ms?: number; vad_enabled?: boolean; 
+transcribe_gpu_device?: string | null; 
 /**
  * Experimental detector implementation. Silero remains the stable default.
  */
 vad_backend?: VadBackend; 
 /**
  * Decode long audio in chunks cut at pauses, for models whose accuracy
- * degrades on long audio. Independent of `vad_enabled`, which only
- * decides whether silence is dropped from recordings.
+ * degrades on long audio.
  */
 long_form_chunking?: boolean; 
 /**
@@ -1139,9 +857,6 @@ export type ChineseScript =
 export type DocumentMeta = { number?: string | null; date?: string | null; counterparty_name?: string | null }
 export type DocumentTag = { key: string; label: string }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
-export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
-export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
-export type LLMPrompt = { id: string; name: string; prompt: string }
 /**
  * A meeting of the signed-in user, from the site (including the ones recorded here).
  */
@@ -1327,22 +1042,7 @@ export type NoteInput = {
  * Set to edit an existing note.
  */
 id: string | null; meeting_id: string; at_seconds: number; text: string }
-export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PermissionAccess = "allowed" | "denied" | "unknown"
-/**
- * Request format a post-processing endpoint speaks. Built-in providers have a
- * fixed format; only the custom provider lets the user change it.
- */
-export type PostProcessApiFormat = 
-/**
- * OpenAI-compatible Chat Completions (`/chat/completions`)
- */
-"openai" | 
-/**
- * Anthropic Messages (`/messages`)
- */
-"anthropic"
-export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean; api_format?: PostProcessApiFormat }
 /**
  * A customer with its objects (the site's reference book).
  */
@@ -1356,7 +1056,6 @@ export type QueuedDocument = { id: number; original_name: string; size: number;
  * `pending`, `uploading` or `error`.
  */
 state: string; error: string | null }
-export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 /**
  * Why a dropped file was not taken.
  */
@@ -1384,7 +1083,6 @@ id: string; title: string;
  */
 snippet: string; started_at: string | null }
 export type SearchKind = "local" | "server"
-export type SecretMap = Partial<{ [key in string]: string }>
 export type Segment = { id: string; meeting_id: string; 
 /**
  * `mic`, `system`, or `mixed` for an in-person meeting.
@@ -1426,38 +1124,6 @@ negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses
  * How many people speak (2..10); `None`: not known.
  */
 max_speakers?: number | null }
-/**
- * Phase of the streaming overlay card, emitted to drive its UI state.
- */
-export type StreamPhase = 
-/**
- * Receiving audio / live text (or waiting for the stream to begin). Rust
- * does not emit this today; the frontend starts in this phase and Rust only
- * emits transitions away from it.
- */
-"listening" | 
-/**
- * Finalizing or post-processing — show a spinner.
- */
-"working"
-/**
- * Emitted to switch the streaming overlay to a working spinner.
- */
-export type StreamPhaseEvent = { phase: StreamPhase; 
-/**
- * Present only when `phase` is `Working`.
- */
-kind?: StreamWorkKind | null }
-/**
- * Live transcription snapshot emitted to the overlay during a streaming run.
- * `committed` is the append-only, flicker-free prefix; `tentative` is the
- * volatile suffix the model may still rewrite.
- */
-export type StreamTextEvent = { committed: string; tentative: string }
-/**
- * Semantic kind of "working" phase, used to localize the spinner label.
- */
-export type StreamWorkKind = "transcribing" | "polishing"
 /**
  * A meeting's sync state or the status changed (`meeting_id` says which
  * meeting, when it is one; reload it with `get_meeting`/`list_meetings`).

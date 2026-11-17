@@ -51,27 +51,25 @@ For detailed platform-specific build setup, see [BUILD.md](BUILD.md).
 
 ## Architecture Overview
 
-Meridian Desktop is a cross-platform desktop application for recording and offline recognition of meetings, built with Tauri 2.x (Rust backend + React/TypeScript frontend). It is a fork of Handy/HandyRU (MIT) with the dictation features (global shortcuts, pasting into other apps, overlay, autostart, updater) removed. Recording is started and stopped from the UI.
+Meridian Desktop is a cross-platform desktop application for recording and offline recognition of meetings, built with Tauri 2.x (Rust backend + React/TypeScript frontend). It is a fork of Handy/HandyRU (MIT) with the dictation features (global shortcuts, pasting into other apps, overlay, autostart, history of dictations, LLM post-processing) removed. Meetings are recorded and stopped from the UI; the audio sources of a meeting are in `managers/meeting/capture.rs`.
 
 ### Backend Structure (src-tauri/src/)
 
 - `lib.rs` - Main entry point, Tauri setup, manager initialization
 - `managers/` - Core business logic:
-  - `audio.rs` - Audio recording and device management
+  - `meeting/` - Meeting recording: capture, segmentation, recognition, voices, local database
+  - `library/`, `sync/` - Library of meetings and sync with the Meridian server
   - `model.rs` - Model downloading and management
   - `transcription.rs` - Speech-to-text processing pipeline
-  - `history.rs` - Transcription history storage
 - `audio_toolkit/` - Low-level audio processing:
-  - `audio/` - Recording sink (VAD, levels, live streaming feed), output devices, WAV I/O
-  - `vad/` - Voice Activity Detection (Silero VAD)
+  - `audio/` - Capture sink, output devices, WAV I/O
+  - `vad/` - Voice Activity Detection (Silero VAD, `create_detector`)
 - `commands/` - Tauri command handlers for frontend communication
-- `commands/recording.rs` - `start_recording` / `stop_recording` commands (stop returns the recognized text)
-- `recording.rs` - Recording session state and the record → recognize → history pipeline
 - `commands/settings.rs` - Commands that change individual settings
 - `cli.rs` - CLI argument definitions (clap derive)
 - `settings.rs` - Application settings management
 - `tray.rs` - System tray icon and menu
-- `utils.rs` - Cancellation, mic-level events, small helpers
+- `utils.rs` - Small helpers
 
 ### Frontend Structure (src/)
 
@@ -88,11 +86,11 @@ Meridian Desktop is a cross-platform desktop application for recording and offli
 
 ### Key Architecture Patterns
 
-**Manager Pattern:** Core functionality organized into managers (Audio, Model, Transcription) initialized at startup and managed via Tauri state.
+**Manager Pattern:** Core functionality organized into managers (Meeting, Model, Transcription, Sync) initialized at startup and managed via Tauri state.
 
 **Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
 
-**Pipeline Processing:** Audio → VAD → GigaAM (transcribe.cpp) → Text (returned by `stop_recording`, saved to history)
+**Pipeline Processing:** Audio → VAD segmentation → GigaAM (transcribe.cpp) → transcript saved to the meeting database
 
 **State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
 
@@ -109,9 +107,9 @@ Meridian Desktop is a cross-platform desktop application for recording and offli
 
 1. **Initialization:** App loads settings, initializes managers, shows the main window (tray icon available)
 2. **Model Setup:** First run offers the GigaAM v3 E2E models (CTC is the default)
-3. **Recording:** UI calls `start_recording`; audio is captured with VAD filtering
-4. **Processing:** UI calls `stop_recording`; audio is recognized by the model
-5. **Output:** The text is returned to the UI and saved to history
+3. **Recording:** UI calls `start_meeting`; microphone and computer sound are captured and cut into phrases by VAD
+4. **Processing:** phrases are recognized by the model while the meeting runs
+5. **Output:** The transcript is saved to the meeting database and synced to the server
 
 ### Settings System
 
@@ -119,7 +117,7 @@ Settings are stored using Tauri's store plugin with reactive updates:
 
 - Audio devices (microphone selection)
 - Model preferences (GigaAM v3 E2E CTC / RNN-T)
-- Post-processing (LLM) and translation options
+- Text clean-up options (filler words, number normalization, custom words)
 
 ### Single Instance Architecture
 
@@ -185,10 +183,6 @@ Access debug features: `Cmd+Shift+D` (macOS) or `Ctrl+Shift+D` (Windows/Linux)
 - **macOS**: Metal acceleration, microphone permission required
 - **Windows**: Vulkan acceleration, code signing. Implicit Vulkan layers (overlays, capture hooks) are disabled for the Meridian process via `VK_LOADER_LAYERS_DISABLE=~implicit~` set in `main.rs`; opt out with `HANDY_KEEP_VULKAN_IMPLICIT_LAYERS=1` or by setting `VK_LOADER_LAYERS_DISABLE` yourself
 - **Linux**: OpenBLAS + Vulkan
-
-## Troubleshooting
-
-See `docs/troubleshooting/`.
 
 ## Commits
 

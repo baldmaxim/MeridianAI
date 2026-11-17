@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { commands } from "@/bindings";
 import { getTranslatedModelName } from "../../lib/utils/modelTranslation";
+import { useMeetingStore } from "../../stores/meetingStore";
 import { useModelStore } from "../../stores/modelStore";
 import ModelStatusButton from "./ModelStatusButton";
 import ModelDropdown from "./ModelDropdown";
@@ -102,15 +103,14 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
         const modelId = event.payload;
         setTimeout(async () => {
           try {
-            const isRecording = await commands.isRecording();
-            if (!isRecording) {
-              setPendingModelId(modelId);
-              setModelError(null);
-              setShowModelDropdown(false);
-              const success = await selectModel(modelId);
-              if (!success) {
-                setPendingModelId(null);
-              }
+            // Do not switch models under a meeting being recorded.
+            if (useMeetingStore.getState().active !== null) return;
+            setPendingModelId(modelId);
+            setModelError(null);
+            setShowModelDropdown(false);
+            const success = await selectModel(modelId);
+            if (!success) {
+              setPendingModelId(null);
             }
           } catch {
             // Ignore errors in auto-select

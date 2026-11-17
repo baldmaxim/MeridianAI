@@ -6,12 +6,9 @@ pub mod cli;
 mod bindings_tests;
 mod commands;
 pub mod engine_supervisor;
-mod helpers;
-mod llm_client;
 mod managers;
 mod memory;
 pub mod portable;
-mod recording;
 pub mod secrets;
 mod settings;
 mod tray;
@@ -25,8 +22,6 @@ use tauri_specta::{collect_commands, collect_events, Builder};
 pub use utils::env_flag_enabled;
 
 use env_filter::Builder as EnvFilterBuilder;
-use managers::audio::AudioRecordingManager;
-use managers::history::HistoryManager;
 use managers::meeting::MeetingManager;
 use managers::model::ModelManager;
 use managers::sync::{AccountStore, SyncManager};
@@ -180,21 +175,12 @@ fn should_force_show_permissions_window(app: &AppHandle) -> bool {
 }
 
 fn initialize_core_logic(app_handle: &AppHandle) {
-    // Initialize the managers. The audio recorder receives the streaming router
-    // explicitly, so always-on microphone startup can wire live-preview frames
-    // even before Tauri state is populated.
     let model_manager =
         Arc::new(ModelManager::new(app_handle).expect("Failed to initialize model manager"));
     let transcription_manager = Arc::new(
         TranscriptionManager::new(app_handle, model_manager.clone())
             .expect("Failed to initialize transcription manager"),
     );
-    let recording_manager = Arc::new(
-        AudioRecordingManager::new(app_handle, transcription_manager.stream_router())
-            .expect("Failed to initialize recording manager"),
-    );
-    let history_manager =
-        Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
     let meeting_manager =
         Arc::new(MeetingManager::new(app_handle).expect("Failed to initialize meeting manager"));
 
@@ -211,14 +197,11 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     ));
 
     // Add managers to Tauri's managed state
-    app_handle.manage(recording_manager.clone());
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
-    app_handle.manage(history_manager.clone());
     app_handle.manage(meeting_manager);
     app_handle.manage(sync_manager);
     app_handle.manage(tray::TrayState::new());
-    app_handle.manage(recording::RecordingSession::new());
 
     // The macOS activation policy for a start-hidden launch is applied before
     // the event loop runs (see `apply_startup_activation_policy`), not here:
@@ -229,7 +212,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     let initial_theme = tray::get_current_theme(app_handle);
 
     // Choose the appropriate initial icon based on theme
-    let initial_icon_path = tray::get_icon_path(initial_theme, tray::TrayIconState::Idle);
+    let initial_icon_path = tray::get_icon_path(initial_theme);
 
     let mut tray_builder = TrayIconBuilder::new()
         .icon(
@@ -292,12 +275,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 }
                 transcription_manager.request_unload();
                 log::info!("Model unloaded via tray.");
-            }
-            "cancel" => {
-                use crate::utils::cancel_current_operation;
-
-                // Use centralized cancellation that handles all operations
-                cancel_current_operation(app);
             }
             "quit" => {
                 app.exit(0);
@@ -594,32 +571,15 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::change_theme_setting,
             commands::settings::change_accent_color_setting,
             commands::settings::change_start_hidden_setting,
-            commands::settings::change_translate_to_english_setting,
             commands::settings::change_selected_language_setting,
             commands::settings::change_debug_mode_setting,
             commands::settings::change_word_correction_threshold_setting,
-            commands::settings::change_extra_recording_buffer_setting,
-            commands::settings::change_post_process_enabled_setting,
             commands::settings::change_experimental_enabled_setting,
-            commands::settings::change_post_process_base_url_setting,
-            commands::settings::change_post_process_api_format_setting,
-            commands::settings::change_post_process_api_key_setting,
-            commands::settings::change_post_process_model_setting,
-            commands::settings::set_post_process_provider,
-            commands::settings::fetch_post_process_models,
-            commands::settings::add_post_process_prompt,
-            commands::settings::update_post_process_prompt,
-            commands::settings::delete_post_process_prompt,
-            commands::settings::set_post_process_selected_prompt,
             commands::settings::update_custom_words,
-            commands::settings::change_mute_while_recording_setting,
-            commands::settings::change_lazy_stream_close_setting,
-            commands::settings::change_vad_enabled_setting,
             commands::settings::change_long_form_chunking_setting,
             commands::settings::change_upload_audio_setting,
             commands::settings::change_vad_backend_setting,
             commands::settings::change_filler_word_removal_enabled_setting,
-            commands::settings::change_voice_commands_enabled_setting,
             commands::settings::change_number_normalization_enabled_setting,
             commands::settings::change_chinese_script_setting,
             commands::settings::change_app_language_setting,
@@ -629,18 +589,13 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::get_available_accelerators,
             show_main_window_command,
             commands::set_update_available,
-            commands::cancel_operation,
-            commands::is_portable,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,
             commands::get_log_dir_path,
             commands::set_log_level,
-            commands::open_recordings_folder,
             commands::open_log_dir,
             commands::open_app_data_dir,
-            commands::recording::start_recording,
-            commands::recording::stop_recording,
             commands::meetings::list_capture_devices,
             commands::meetings::start_meeting,
             commands::meetings::stop_meeting,
@@ -688,34 +643,18 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::models::get_transcription_model_status,
             commands::models::is_model_loading,
             commands::models::rescan_local_models,
-            commands::audio::update_microphone_mode,
-            commands::audio::get_microphone_mode,
             commands::audio::get_windows_microphone_permission_status,
             commands::audio::open_microphone_privacy_settings,
             commands::audio::get_available_microphones,
             commands::audio::set_selected_microphone,
             commands::audio::get_selected_microphone,
-            commands::audio::set_clamshell_microphone,
-            commands::audio::get_clamshell_microphone,
-            commands::audio::is_recording,
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::set_model_unload_timeout,
             commands::transcription::get_model_load_status,
             commands::transcription::unload_model_manually,
-            commands::history::get_history_entries,
-            commands::history::toggle_history_entry_saved,
-            commands::history::get_audio_file_path,
-            commands::history::delete_history_entry,
-            commands::history::retry_history_entry_transcription,
-            commands::history::update_history_limit,
-            commands::history::update_recording_retention_period,
-            helpers::clamshell::is_laptop,
         ])
         .events(collect_events![
-            managers::history::HistoryUpdatePayload,
-            managers::transcription::StreamTextEvent,
-            managers::transcription::StreamPhaseEvent,
             managers::meeting::MeetingSegment,
             managers::meeting::MeetingSegmentRemoved,
             managers::meeting::MeetingVoices,
@@ -744,7 +683,7 @@ pub fn run(cli_args: CliArgs) {
     }
 
     // Pin glibc's dynamic mmap threshold before the first large allocation,
-    // so per-dictation transient buffers are returned to the OS on free
+    // so per-transcription transient buffers are returned to the OS on free
     // instead of accumulating in malloc arenas (#1792). No-op off Linux/glibc.
     memory::init_allocator();
 
@@ -869,9 +808,9 @@ pub fn run(cli_args: CliArgs) {
             // `--list-models`): initialize only what transcription needs — the
             // store/paths plugins, the model + transcription managers, and the
             // transcribe-cpp backend + accelerator settings — then run on a worker
-            // thread and exit. Deliberately skips the window, tray and audio
-            // recorder (so it never opens the mic, even with always_on_microphone)
-            // that initialize_core_logic sets up.
+            // thread and exit. Deliberately skips the window, tray and meeting
+            // manager (so it never opens the mic) that initialize_core_logic
+            // sets up.
             if headless_mode {
                 let app_handle = app.handle().clone();
                 let model_manager = Arc::new(

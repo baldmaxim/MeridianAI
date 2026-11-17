@@ -1,26 +1,17 @@
 pub mod account;
 pub mod audio;
 pub mod documents;
-pub mod history;
 pub mod library;
 pub mod meetings;
 pub mod models;
-pub mod recording;
 pub mod settings;
 pub mod sync;
 pub mod transcription;
 pub mod transcriptions;
 
 use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
-use crate::utils::cancel_current_operation;
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
-
-#[tauri::command]
-#[specta::specta]
-pub fn cancel_operation(app: AppHandle) {
-    cancel_current_operation(&app);
-}
 
 /// The frontend reports a found update (`Some(version)`) or its absence, so the
 /// tray menu can offer "Install update X".
@@ -28,12 +19,6 @@ pub fn cancel_operation(app: AppHandle) {
 #[specta::specta]
 pub fn set_update_available(app: AppHandle, version: Option<String>) {
     crate::tray::set_update_available(&app, version);
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn is_portable() -> bool {
-    crate::portable::is_portable()
 }
 
 #[tauri::command]
@@ -80,22 +65,6 @@ pub fn set_log_level(app: AppHandle, level: LogLevel) -> Result<(), String> {
     let mut settings = get_settings(&app);
     settings.log_level = level;
     write_settings(&app, settings);
-
-    Ok(())
-}
-
-#[specta::specta]
-#[tauri::command]
-pub fn open_recordings_folder(app: AppHandle) -> Result<(), String> {
-    let app_data_dir = crate::portable::app_data_dir(&app)
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-
-    let recordings_dir = app_data_dir.join("recordings");
-
-    let path = recordings_dir.to_string_lossy().as_ref().to_string();
-    app.opener()
-        .open_path(path, None::<String>)
-        .map_err(|e| format!("Failed to open recordings folder: {}", e))?;
 
     Ok(())
 }

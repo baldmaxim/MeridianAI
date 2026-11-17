@@ -3,10 +3,7 @@ import { useTranslation } from "react-i18next";
 import { WordCorrectionThreshold } from "./WordCorrectionThreshold";
 import { LogLevelSelector } from "./LogLevelSelector";
 import { LiveLogViewer } from "./LiveLogViewer";
-import { RecordingBuffer } from "./RecordingBuffer";
 import { SettingsGroup } from "../../ui/SettingsGroup";
-import { AlwaysOnMicrophone } from "../AlwaysOnMicrophone";
-import { ClamshellMicrophoneSelector } from "../ClamshellMicrophoneSelector";
 import {
   OnboardingPreview,
   type OnboardingPreviewStep,
@@ -33,9 +30,6 @@ export const DebugSettings: React.FC<DebugSettingsProps> = ({
           />
         )}
         <WordCorrectionThreshold descriptionMode="tooltip" grouped={true} />
-        <RecordingBuffer descriptionMode="tooltip" grouped={true} />
-        <AlwaysOnMicrophone descriptionMode="tooltip" grouped={true} />
-        <ClamshellMicrophoneSelector descriptionMode="tooltip" grouped={true} />
         <LiveLogViewer descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
     </div>

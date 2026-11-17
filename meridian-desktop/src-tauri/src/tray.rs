@@ -1,7 +1,7 @@
 //! System tray icon and menu.
 //!
 //! The tray is driven by a single *desired state* snapshot ([`TrayDesired`])
-//! that callers update through [`set_tray_state`], [`refresh_tray_icon`] and
+//! that callers update through [`refresh_tray_icon`] and
 //! [`update_tray_menu`]. Every such call just records intent and schedules a
 //! single applier on the main thread, which diffs the desired snapshot against
 //! what is currently displayed and touches the native tray only for the parts
@@ -10,7 +10,7 @@
 //!
 //! Why: native tray updates are the lever we control for the macOS tray
 //! disappearance bug (tauri-apps/tauri#12060). Before this, every
-//! recording cycle rebuilt the full menu 3-6 times from several threads, and
+//! state change rebuilt the full menu several times from several threads, and
 //! concurrent rebuilds could interleave and leave a stale menu behind.
 //!
 //! Exception: [`set_tray_visibility`] and [`recreate_tray_icon`] call the tray
@@ -34,26 +34,10 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIcon;
 use tauri::{AppHandle, Manager, Theme};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TrayIconState {
-    Idle,
-    Recording,
-    Transcribing,
-}
-
-impl TrayIconState {
-    /// Recording and Transcribing share the same menu ("Cancel" instead of the
-    /// model submenu), so only the idle/busy distinction matters for the menu.
-    fn is_busy(self) -> bool {
-        self != TrayIconState::Idle
-    }
-}
-
 /// Everything the tray *menu* (and tooltip) depends on. When two snapshots
 /// compare equal the menu is not rebuilt.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MenuInputs {
-    busy: bool,
     model_loaded: bool,
     selected_model: String,
     /// `(id, name)` of downloaded models, sorted by name.
@@ -71,8 +55,6 @@ struct TrayDesired {
 }
 
 struct TrayInner {
-    /// Intent set by [`set_tray_state`].
-    icon_state: TrayIconState,
     /// Latest computed snapshot, waiting to be (or just) applied.
     desired: Option<TrayDesired>,
     /// Icon the native tray currently shows. Only updated when `set_icon`
@@ -101,7 +83,6 @@ pub struct TrayState(Mutex<TrayInner>);
 impl TrayState {
     pub fn new() -> Self {
         Self(Mutex::new(TrayInner {
-            icon_state: TrayIconState::Idle,
             desired: None,
             applied_icon: None,
             applied_menu: None,
@@ -184,32 +165,19 @@ fn windows_taskbar_theme() -> Option<AppTheme> {
     })
 }
 
-/// Gets the appropriate icon path for the given theme and state.
-///
-pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
-    match (theme, state) {
+/// Gets the icon path for the given theme.
+pub fn get_icon_path(theme: AppTheme) -> &'static str {
+    match theme {
         // Dark theme uses light icons
-        (AppTheme::Dark, TrayIconState::Idle) => "resources/tray_idle.png",
-        (AppTheme::Dark, TrayIconState::Recording) => "resources/tray_recording.png",
-        (AppTheme::Dark, TrayIconState::Transcribing) => "resources/tray_transcribing.png",
+        AppTheme::Dark => "resources/tray_idle.png",
         // Light theme uses dark icons
-        (AppTheme::Light, TrayIconState::Idle) => "resources/tray_idle_dark.png",
-        (AppTheme::Light, TrayIconState::Recording) => "resources/tray_recording_dark.png",
-        (AppTheme::Light, TrayIconState::Transcribing) => "resources/tray_transcribing_dark.png",
-        // Colored theme uses pink icons (for Linux)
-        (AppTheme::Colored, TrayIconState::Idle) => "resources/meridian.png",
-        (AppTheme::Colored, TrayIconState::Recording) => "resources/recording.png",
-        (AppTheme::Colored, TrayIconState::Transcribing) => "resources/transcribing.png",
+        AppTheme::Light => "resources/tray_idle_dark.png",
+        // Colored theme uses the brand icon (for Linux)
+        AppTheme::Colored => "resources/meridian.png",
     }
 }
 
-/// Sets the recording state shown by the tray (icon + Cancel/model menu).
-pub fn set_tray_state(app: &AppHandle, state: TrayIconState) {
-    sync_tray_with(app, |inner| inner.icon_state = state);
-}
-
-/// Re-syncs the tray after something other than the recording state changed
-/// (theme). The recording state itself is preserved.
+/// Re-syncs the tray after the theme changed.
 pub fn refresh_tray_icon(app: &AppHandle) {
     sync_tray(app);
 }
@@ -244,15 +212,11 @@ fn sync_tray_with(app: &AppHandle, update: impl FnOnce(&mut TrayInner)) {
 
     // Record intent and claim a sequence number in one critical section, so
     // sequence order == the order in which state changes were requested.
-    let (seq, icon_state, update_version) = {
+    let (seq, update_version) = {
         let mut inner = state.lock();
         update(&mut inner);
         inner.next_seq += 1;
-        (
-            inner.next_seq,
-            inner.icon_state,
-            inner.update_version.clone(),
-        )
+        (inner.next_seq, inner.update_version.clone())
     };
 
     // Tray not built yet. The intent is kept and picked up by the first sync
@@ -261,7 +225,7 @@ fn sync_tray_with(app: &AppHandle, update: impl FnOnce(&mut TrayInner)) {
         return;
     }
 
-    let desired = compute_desired(app, icon_state, update_version);
+    let desired = compute_desired(app, update_version);
 
     // Decode the icon off the main thread, once per path, outside the lock.
     let needs_icon = !state.lock().icons.contains_key(desired.icon_path);
@@ -308,11 +272,7 @@ fn sync_tray_with(app: &AppHandle, update: impl FnOnce(&mut TrayInner)) {
     }
 }
 
-fn compute_desired(
-    app: &AppHandle,
-    icon_state: TrayIconState,
-    update_version: Option<String>,
-) -> TrayDesired {
+fn compute_desired(app: &AppHandle, update_version: Option<String>) -> TrayDesired {
     let settings = settings::get_settings(app);
     let theme = get_current_theme(app);
     let model_loaded = app.state::<Arc<TranscriptionManager>>().is_model_loaded();
@@ -327,9 +287,8 @@ fn compute_desired(
     downloaded_models.sort_by(|a, b| a.1.cmp(&b.1));
 
     TrayDesired {
-        icon_path: get_icon_path(theme, icon_state),
+        icon_path: get_icon_path(theme),
         menu: MenuInputs {
-            busy: icon_state.is_busy(),
             model_loaded,
             selected_model: settings.selected_model,
             downloaded_models,
@@ -423,14 +382,13 @@ fn apply_on_main(app: &AppHandle) {
     }
 
     debug!(
-        "tray apply: icon={} menu={} busy={} took={:?}",
+        "tray apply: icon={} menu={} took={:?}",
         if icon_changed {
             desired.icon_path
         } else {
             "unchanged"
         },
         if menu_changed { "rebuilt" } else { "unchanged" },
-        desired.menu.busy,
         started.elapsed()
     );
 }
@@ -476,59 +434,43 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
     let quit_i = MenuItem::with_id(app, "quit", &strings.quit, true, quit_accelerator)?;
     let separator = || PredefinedMenuItem::separator(app);
 
-    let menu = if inputs.busy {
-        let cancel_i = MenuItem::with_id(app, "cancel", &strings.cancel, true, None::<&str>)?;
-        Menu::with_items(
-            app,
-            &[
-                &version_i,
-                &separator()?,
-                &cancel_i,
-                &separator()?,
-                &settings_i,
-                &separator()?,
-                &quit_i,
-            ],
-        )?
-    } else {
-        // Build model submenu — label is the active model name
-        let submenu_label = inputs
-            .downloaded_models
-            .iter()
-            .find(|(id, _)| *id == inputs.selected_model)
-            .map(|(_, name)| name.clone())
-            .unwrap_or_else(|| strings.model.clone());
+    // Build model submenu — label is the active model name
+    let submenu_label = inputs
+        .downloaded_models
+        .iter()
+        .find(|(id, _)| *id == inputs.selected_model)
+        .map(|(_, name)| name.clone())
+        .unwrap_or_else(|| strings.model.clone());
 
-        let model_submenu = Submenu::with_id(app, "model_submenu", &submenu_label, true)?;
-        for (id, name) in &inputs.downloaded_models {
-            let is_active = *id == inputs.selected_model;
-            let item_id = format!("model_select:{}", id);
-            let item = CheckMenuItem::with_id(app, &item_id, name, true, is_active, None::<&str>)?;
-            model_submenu.append(&item)?;
-        }
+    let model_submenu = Submenu::with_id(app, "model_submenu", &submenu_label, true)?;
+    for (id, name) in &inputs.downloaded_models {
+        let is_active = *id == inputs.selected_model;
+        let item_id = format!("model_select:{}", id);
+        let item = CheckMenuItem::with_id(app, &item_id, name, true, is_active, None::<&str>)?;
+        model_submenu.append(&item)?;
+    }
 
-        let unload_model_i = MenuItem::with_id(
-            app,
-            "unload_model",
-            &strings.unload_model,
-            inputs.model_loaded,
-            None::<&str>,
-        )?;
+    let unload_model_i = MenuItem::with_id(
+        app,
+        "unload_model",
+        &strings.unload_model,
+        inputs.model_loaded,
+        None::<&str>,
+    )?;
 
-        Menu::with_items(
-            app,
-            &[
-                &version_i,
-                &separator()?,
-                &model_submenu,
-                &unload_model_i,
-                &separator()?,
-                &settings_i,
-                &separator()?,
-                &quit_i,
-            ],
-        )?
-    };
+    let menu = Menu::with_items(
+        app,
+        &[
+            &version_i,
+            &separator()?,
+            &model_submenu,
+            &unload_model_i,
+            &separator()?,
+            &settings_i,
+            &separator()?,
+            &quit_i,
+        ],
+    )?;
 
     if let Some(version) = &inputs.update_version {
         let label = strings.install_update.replace("{version}", version);
@@ -576,11 +518,10 @@ pub fn recreate_tray_icon(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{load_tray_icon, MenuInputs, TrayDesired, TrayIconState};
+    use super::{load_tray_icon, MenuInputs};
 
-    fn inputs(busy: bool) -> MenuInputs {
+    fn inputs() -> MenuInputs {
         MenuInputs {
-            busy,
             model_loaded: true,
             selected_model: "small".to_string(),
             downloaded_models: vec![("small".to_string(), "Small".to_string())],
@@ -602,30 +543,9 @@ mod tests {
     }
 
     #[test]
-    fn recording_and_transcribing_share_a_menu() {
-        // The icon differs but the menu inputs are identical, so a
-        // Recording -> Transcribing transition must not rebuild the menu.
-        let recording = TrayDesired {
-            icon_path: "resources/tray_recording.png",
-            menu: inputs(TrayIconState::Recording.is_busy()),
-        };
-        let transcribing = TrayDesired {
-            icon_path: "resources/tray_transcribing.png",
-            menu: inputs(TrayIconState::Transcribing.is_busy()),
-        };
-        assert_ne!(recording.icon_path, transcribing.icon_path);
-        assert_eq!(recording.menu, transcribing.menu);
-    }
-
-    #[test]
     fn update_version_changes_menu_inputs() {
-        let mut with_update = inputs(false);
+        let mut with_update = inputs();
         with_update.update_version = Some("0.4.0".to_string());
-        assert_ne!(inputs(false), with_update);
-    }
-
-    #[test]
-    fn idle_and_busy_menus_differ() {
-        assert_ne!(inputs(false), inputs(true));
+        assert_ne!(inputs(), with_update);
     }
 }

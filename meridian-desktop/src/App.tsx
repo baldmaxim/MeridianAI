@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { platform } from "@tauri-apps/plugin-os";
 import { checkMicrophonePermission } from "tauri-plugin-macos-permissions-api";
-import { ModelStateEvent, RecordingErrorEvent } from "./lib/types/events";
+import { ModelStateEvent } from "./lib/types/events";
 import "./App.css";
 import Onboarding, {
   PermissionsOnboarding,
@@ -112,46 +112,6 @@ function App() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [settings?.debug_mode, updateSetting]);
-
-  // Listen for recording errors from the backend and show a toast
-  useEffect(() => {
-    const unlisten = listen<RecordingErrorEvent>("recording-error", (event) => {
-      const { error_type, detail } = event.payload;
-
-      if (error_type === "microphone_permission_denied") {
-        const currentPlatform = platform();
-        const platformKey = `errors.micPermissionDenied.${currentPlatform}`;
-        const description = t(platformKey, {
-          defaultValue: t("errors.micPermissionDenied.generic"),
-        });
-        toast.error(t("errors.micPermissionDeniedTitle"), { description });
-      } else if (error_type === "no_input_device") {
-        toast.error(t("errors.noInputDeviceTitle"), {
-          description: t("errors.noInputDevice"),
-        });
-      } else {
-        toast.error(
-          t("errors.recordingFailed", { error: detail ?? "Unknown error" }),
-        );
-      }
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [t]);
-
-  // Listen for transcription failures and show a toast.
-  // The payload is the backend error message (also logged to the log file).
-  useEffect(() => {
-    const unlisten = listen<string>("transcription-error", (event) => {
-      toast.error(t("errors.transcriptionFailedTitle"), {
-        description: event.payload,
-      });
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [t]);
 
   // Listen for model loading failures and show a toast
   useEffect(() => {

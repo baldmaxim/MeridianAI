@@ -1,31 +1,3 @@
-use crate::managers::audio::AudioRecordingManager;
-use crate::managers::transcription::TranscriptionManager;
-use crate::recording::RecordingSession;
-use crate::tray::{set_tray_state, TrayIconState};
-use log::info;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager};
-
-/// Minimum gap between two `mic-level` events (~30 FPS). The raw audio
-/// callback fires far faster than a UI needs.
-const LEVELS_EMIT_THROTTLE_MS: u64 = 33;
-static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
-
-/// Forward spectrum levels of the active recording to the main window.
-pub fn emit_levels(app_handle: &AppHandle, levels: &[f32]) {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now.saturating_sub(LAST_MIC_LEVEL_EMIT.load(Ordering::Relaxed)) < LEVELS_EMIT_THROTTLE_MS {
-        return;
-    }
-    LAST_MIC_LEVEL_EMIT.store(now, Ordering::Relaxed);
-    let _ = app_handle.emit_to("main", "mic-level", levels);
-}
-
 /// Preserve diagnostic text in development builds, but redact it in releases.
 /// Do not use for secrets such as API keys, which must always be redacted.
 pub fn redact_text(text: &str) -> &str {
@@ -93,37 +65,6 @@ fn native_windows_machine() -> Option<u16> {
         .as_bool()
         .then_some(native_machine)
     }
-}
-
-/// Centralized cancellation function that can be called from anywhere in the app.
-/// Handles cancelling both recording and transcription operations and updates UI state.
-pub fn cancel_current_operation(app: &AppHandle) {
-    info!("Initiating operation cancellation...");
-
-    // Cancel any ongoing recording
-    let audio_manager = app.state::<Arc<AudioRecordingManager>>();
-    audio_manager.cancel_recording();
-
-    // Abandon any live streaming transcription, and stop a transcription
-    // already in progress
-    let tm = app.state::<Arc<TranscriptionManager>>();
-    tm.cancel_stream();
-    tm.cancel_transcription();
-
-    // Update tray icon
-    set_tray_state(app, TrayIconState::Idle);
-
-    // Unload model if immediate unload is enabled. Done before the session is notified,
-    // so a recording started next always loads afresh; it
-    // doesn't wait for the cancelled work, so it never blocks this thread.
-    tm.maybe_unload_immediately("cancellation");
-
-    // Keep the session state coherent: a cancelled recording is idle again.
-    if let Some(session) = app.try_state::<RecordingSession>() {
-        session.notify_cancel();
-    }
-
-    info!("Operation cancellation completed - returned to idle state");
 }
 
 /// Returns true when the environment variable is set to a truthy value

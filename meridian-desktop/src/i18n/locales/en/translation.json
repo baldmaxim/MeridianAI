@@ -4,7 +4,6 @@
     "unloadModel": "Unload Model",
     "model": "Model",
     "quit": "Quit",
-    "cancel": "Cancel",
     "installUpdate": "Install update {version}"
   },
   "shell": {
@@ -30,7 +29,6 @@
       "general": "General",
       "models": "Models",
       "advanced": "Advanced",
-      "postProcessing": "Post Process",
       "debug": "Debug",
       "about": "About"
     },
@@ -203,16 +201,11 @@
       "groups": {
         "app": "App",
         "transcription": "Transcription",
-        "history": "History",
         "experimental": "Experimental"
       },
       "experimentalToggle": {
         "label": "Experimental Features",
         "description": "Enable experimental features that are still in development."
-      },
-      "lazyStreamClose": {
-        "label": "Keep Mic Open Between Transcriptions",
-        "description": "Keeps the microphone stream open for 30 seconds after recording stops, reducing latency for back-to-back transcriptions. May degrade Bluetooth audio quality while active."
       },
       "acceleration": {
         "transcribe": {
@@ -243,10 +236,6 @@
           "graphite": "Graphite",
           "pink": "Pink"
         }
-      },
-      "translateToEnglish": {
-        "label": "Translate to English",
-        "description": "Automatically translate speech from other languages to English during transcription."
       },
       "modelUnload": {
         "title": "Unload Model",
@@ -279,10 +268,6 @@
         "exported": "Dictionary saved",
         "writeError": "Could not save the file"
       },
-      "voiceActivityDetection": {
-        "title": "Voice Activity Detection",
-        "description": "Filter silence from recordings. Streaming-capable models use a longer VAD tail; disabling VAD records raw audio."
-      },
       "longFormChunking": {
         "title": "Long Audio Chunking",
         "description": "Splits long recordings at pauses before transcribing, which typically improves transcription performance."
@@ -299,10 +284,6 @@
         "title": "Remove Filler Words",
         "description": "Removes common hesitation words from transcriptions. Turn off to keep them."
       },
-      "voiceCommands": {
-        "title": "Voice Commands",
-        "description": "Spoken Russian commands such as \"новая строка\" (new line), \"абзац\" (paragraph), \"точка\" (period), \"запятая\" (comma), \"удали последнее слово\" (delete last word)."
-      },
       "numberNormalization": {
         "title": "Numbers as Digits",
         "description": "Writes spoken Russian numbers as digits: \"двенадцать миллиметров\" → \"12 мм\", \"двадцать пять процентов\" → \"25 %\"."
@@ -316,79 +297,6 @@
           "traditional": "Traditional"
         }
       }
-    },
-    "postProcessing": {
-      "api": {
-        "title": "API",
-        "provider": {
-          "title": "Provider",
-          "description": "Select an OpenAI-compatible or Anthropic-compatible provider."
-        },
-        "apiFormat": {
-          "title": "API Format",
-          "description": "Request format expected by your custom endpoint.",
-          "options": {
-            "openai": "OpenAI Compatible (Chat Completions)",
-            "anthropic": "Anthropic Messages"
-          }
-        },
-        "baseUrl": {
-          "title": "Base URL",
-          "description": "API base URL for the selected provider. Only the custom provider can be edited.",
-          "placeholder": "https://api.openai.com/v1",
-          "placeholderAnthropic": "https://api.anthropic.com/v1"
-        },
-        "apiKey": {
-          "title": "API Key",
-          "description": "API key for the selected provider.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Model",
-          "descriptionCustom": "Provide the model identifier expected by your custom endpoint.",
-          "descriptionDefault": "Choose a model exposed by the selected provider.",
-          "placeholderWithOptions": "Search or select a model",
-          "placeholderNoOptions": "Type a model name",
-          "refreshModels": "Refresh models"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Selected Prompt",
-          "description": "Select a template for refining transcriptions or create a new one. Use ${output} inside the prompt text to reference the captured transcript."
-        },
-        "noPrompts": "No prompts available",
-        "selectPrompt": "Select a prompt",
-        "createNew": "Create New Prompt",
-        "promptLabel": "Prompt Label",
-        "promptLabelPlaceholder": "Enter prompt name",
-        "promptInstructions": "Prompt Instructions",
-        "promptInstructionsPlaceholder": "Write the instructions to run after transcription. Example: Improve grammar and clarity for the following text: ${output}",
-        "promptTip": "Tip: Use <code>${output}</code> to insert the transcribed text in your prompt.",
-        "updatePrompt": "Update Prompt",
-        "deletePrompt": "Delete Prompt",
-        "createPrompt": "Create Prompt",
-        "cancel": "Cancel",
-        "selectToEdit": "Select a prompt above to view and edit its details.",
-        "createFirst": "Click 'Create New Prompt' above to create your first post-processing prompt."
-      }
-    },
-    "history": {
-      "title": "History",
-      "openFolder": "Open Recordings Folder",
-      "loading": "Loading history...",
-      "empty": "No transcriptions yet. Start recording to build your history!",
-      "copyToClipboard": "Copy transcription to clipboard",
-      "copyError": "Failed to copy transcription to clipboard.",
-      "save": "Save transcription",
-      "unsave": "Remove from saved",
-      "delete": "Delete entry",
-      "deleteError": "Failed to delete entry. Please try again.",
-      "retranscribe": "Re-transcribe",
-      "retranscribeError": "Failed to re-transcribe. Please try again.",
-      "transcribing": "Transcribing...",
-      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon."
     },
     "debug": {
       "title": "Debug",
@@ -421,46 +329,6 @@
       "wordCorrectionThreshold": {
         "title": "Word Correction Threshold",
         "description": "Sensitivity for custom word corrections"
-      },
-      "historyLimit": {
-        "title": "History Limit",
-        "description": "Maximum number of history entries to keep",
-        "entries": "entries"
-      },
-      "recordingRetention": {
-        "title": "Auto-Delete Recordings",
-        "description": "Automatically delete old recordings to save space",
-        "never": "Never",
-        "preserveLimit": "Keep latest {{count}}",
-        "days3": "After 3 days",
-        "weeks2": "After 2 weeks",
-        "months3": "After 3 months",
-        "placeholder": "Select retention period..."
-      },
-      "alwaysOnMicrophone": {
-        "label": "Always-On Microphone",
-        "description": "Keep microphone active for faster response"
-      },
-      "clamshellMicrophone": {
-        "title": "Clamshell Microphone",
-        "description": "Microphone to use when laptop lid is closed"
-      },
-      "postProcessingToggle": {
-        "label": "Post Processing",
-        "description": "Enable AI-powered text refinement after transcription"
-      },
-      "muteWhileRecording": {
-        "label": "Mute While Recording",
-        "description": "Mute system audio during recording"
-      },
-      "paths": {
-        "appData": "App Data:",
-        "models": "Models:",
-        "settings": "Settings:"
-      },
-      "recordingBuffer": {
-        "title": "Extra Recording Buffer",
-        "description": "Extra time (in milliseconds) to keep recording after you release the key, to capture trailing audio. 0 = no extra buffer."
       }
     },
     "about": {
@@ -498,19 +366,8 @@
   },
   "errors": {
     "loadDirectory": "Error loading directory: {{error}}",
-    "micPermissionDeniedTitle": "Microphone Access Denied",
-    "micPermissionDenied": {
-      "generic": "Microphone access was denied by the operating system. Please grant microphone permission in your system settings.",
-      "windows": "Enable microphone access in Settings → Privacy & security → Microphone (including desktop app access).",
-      "macos": "Grant microphone access in System Settings → Privacy & Security → Microphone.",
-      "linux": "Grant microphone access in your system's sound or privacy settings."
-    },
-    "noInputDeviceTitle": "No Microphone Found",
-    "noInputDevice": "No audio input device was detected. Please connect a microphone or headset and try again.",
-    "recordingFailed": "Failed to start recording: {{error}}",
     "modelLoadFailed": "Failed to load model: {{model}}",
-    "modelLoadFailedUnknown": "unknown model",
-    "transcriptionFailedTitle": "Transcription Failed"
+    "modelLoadFailedUnknown": "unknown model"
   },
   "appLanguage": {
     "title": "Application Language",

@@ -50,7 +50,6 @@ const installTauriMock = async (page: Page) => {
       theme: "dark",
       accent_color: "amber",
       debug_mode: false,
-      post_process_enabled: false,
     };
     const details = {
       meeting: meetings[0],

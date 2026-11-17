@@ -1,5 +1,5 @@
-//! Long-form chunked decoding, shared by a live recording and a batch clip:
-//! both cut the same audio at the same pauses and decode it the same way.
+//! Long-form chunked decoding of a batch clip: the audio is cut at pauses and
+//! each chunk decoded in turn.
 
 use std::time::Instant;
 
@@ -8,12 +8,12 @@ use transcribe_cpp::{RunOptions, Transcript};
 
 use super::TranscriptionManager;
 use crate::audio_toolkit::chunking::Chunker;
+use crate::audio_toolkit::vad::create_detector;
 use crate::engine_supervisor::{CancelMark, EngineError};
-use crate::managers::audio::create_detector;
 use crate::settings::VadBackend;
 
 /// Cuts audio at pauses as it arrives and decodes each chunk once its cut is
-/// certain, so a recording has only its last chunk left when it stops.
+/// certain, so only the last chunk is left when the audio ends.
 pub(super) struct ChunkedDecode<'a> {
     tm: &'a TranscriptionManager,
     /// Every chunk's run stops with one cancel.
@@ -65,17 +65,6 @@ impl<'a> ChunkedDecode<'a> {
     /// Samples pushed so far.
     pub(super) fn samples(&self) -> usize {
         self.chunker.samples()
-    }
-
-    /// Chunks decoded so far.
-    pub(super) fn decoded(&self) -> usize {
-        self.transcripts.len()
-    }
-
-    /// Whether a failure already ended the decode; [`finish`](Self::finish)
-    /// reports it.
-    pub(super) fn failed(&self) -> bool {
-        self.failure.is_some()
     }
 
     /// Adds audio, decoding each chunk it makes certain.

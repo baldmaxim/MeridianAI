@@ -283,7 +283,6 @@ const installTauriMock = async (page: Page, options: MockOptions) => {
         theme: "dark",
         accent_color: "amber",
         debug_mode: false,
-        post_process_enabled: false,
         server_url: "https://meridianai.ru",
         upload_audio: true,
       };
@@ -639,7 +638,7 @@ test.describe("Library (mocked Tauri)", () => {
     await expect(page.getByRole("heading", { level: 3 })).toHaveCount(6);
   });
 
-  test("site meeting: protocol, transcript, documents, read-only", async ({
+  test("site meeting: protocol, transcript, context, read-only", async ({
     page,
   }) => {
     await open(page);
@@ -652,20 +651,21 @@ test.describe("Library (mocked Tauri)", () => {
     await expect(page.getByLabel("Название встречи")).toHaveCount(0);
     await shot(page, "9-server-meeting.jpg");
 
-    await page.getByRole("tab", { name: "Документы" }).click();
-    await expect(page.getByText("Договор подряда.pdf")).toBeVisible();
-    await expect(page.getByText("Стр.: 12")).toBeVisible();
+    // The side panel's «Контекст» tab: read-only context fields of a site meeting.
+    await page.getByRole("tab", { name: "Контекст" }).click();
+    await expect(page.getByText("Тип переговоров")).toBeVisible();
+    await expect(page.getByText("не задано")).toHaveCount(3);
 
     // The panel collapses and the choice is remembered.
     await page.getByRole("button", { name: "Свернуть панель" }).click();
-    await expect(page.getByRole("tab", { name: "Документы" })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Контекст" })).toHaveCount(0);
     expect(
       await page.evaluate(() =>
         window.localStorage.getItem("meridian.meetingSidePanelCollapsed"),
       ),
     ).toBe("1");
     await page.getByRole("button", { name: "Развернуть панель" }).click();
-    await expect(page.getByRole("tab", { name: "Документы" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Контекст" })).toBeVisible();
   });
 
   test("site meeting from the cache shows the badge", async ({ page }) => {

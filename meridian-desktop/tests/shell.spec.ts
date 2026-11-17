@@ -44,7 +44,6 @@ const installTauriMock = async (page: Page, options: MockOptions) => {
         theme: "dark",
         accent_color: "amber",
         debug_mode: false,
-        post_process_enabled: false,
         server_url: "https://meridianai.ru",
         upload_audio: true,
       };
