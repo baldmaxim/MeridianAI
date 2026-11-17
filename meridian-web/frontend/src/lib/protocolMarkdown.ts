@@ -2,29 +2,98 @@
 
 export type MdInline =
   | { type: 'text'; text: string }
-  | { type: 'strong'; text: string }
-  | { type: 'code'; text: string };
+  /** children — только при highlight и если внутри жирного есть mark/timecode. */
+  | { type: 'strong'; text: string; children?: MdInline[] }
+  | { type: 'code'; text: string }
+  /** Ключевое число/срок/дата (только при highlight). */
+  | { type: 'mark'; text: string }
+  /** Таймкод «(03:19–04:34)» целиком, со скобками (только при highlight). */
+  | { type: 'timecode'; text: string };
 
+/** summary: true — блок внутри раздела «Краткое резюме». */
 export type MdBlock =
   | { type: 'heading'; level: number; text: string }
-  | { type: 'ul'; items: string[] }
-  | { type: 'ol'; start: number; items: string[] }
+  | { type: 'ul'; items: string[]; summary?: boolean }
+  | { type: 'ol'; start: number; items: string[]; summary?: boolean }
   | { type: 'table'; header: string[]; rows: string[][] }
-  | { type: 'p'; text: string };
+  | { type: 'p'; text: string; summary?: boolean };
 
-/** Инлайн-разметка: **жирный** и `код`. */
-export function parseInline(text: string): MdInline[] {
+// ── Выделение главного в «Кратком резюме» ──
+const TC = '\\d{1,2}:[0-5]\\d(?::[0-5]\\d)?';
+/** «(03:19–04:34)», «(03:19, 05:10)» или голый «03:19–04:34». */
+const TIMECODE_RE = new RegExp(
+  `\\(\\s*${TC}(?:\\s*[–—,;-]\\s*${TC})*\\s*\\)|(?<![\\d:])${TC}(?:\\s*[–—-]\\s*${TC})?(?![\\d:])`,
+  'g'
+);
+
+const MONTH =
+  '(?:январ[ьяюе]|феврал[ьяюе]|март[аеу]?|апрел[ьяюе]|ма[йяею]|июн[ьяюе]|июл[ьяюе]|август[аеу]?|сентябр[ьяюе]|октябр[ьяюе]|ноябр[ьяюе]|декабр[ьяюе])';
+const NUM = '(?:\\d{1,3}(?:[ \\u00a0]\\d{3})+|\\d+)(?:[.,]\\d+)?';
+const RANGE = `${NUM}(?:\\s*[–—-]\\s*${NUM})?`;
+const CUR_WORD = '(?:руб(?:лей|ля|\\.)?|тенге|тг\\.?|долл(?:аров|ара|\\.)?|USD|EUR|евро)';
+const MULT = '(?:тысяч|тыс|миллиардов|миллиарда|миллиард|миллионов|миллиона|миллион|млрд|млн|трлн)\\.?';
+const MONEY = `(?:${MULT}(?:\\s*(?:${CUR_WORD}|[₸$€]))?|${CUR_WORD}|[₸$€])(?:\\s*/\\s*м[²23]?)?`;
+const TIME_UNIT =
+  '(?:месяц(?:а|ев)?|мес\\.?|дн(?:я|ей|ь|и)|недел(?:ь|и|ю|я)|лет|год(?:а|у)?|квартал(?:а|ов)?|час(?:а|ов)?)';
+
+/** Дата, число с единицей (%, деньги, сроки), число ≥ 2 цифр / с разделителями тысяч, месяц. */
+const MARK_RE = new RegExp(
+  '(?<![\\p{L}\\d_])(?<!(?:Спикер|Speaker)[ _])(?:' +
+    `\\d{1,2}\\s+${MONTH}(?:\\s+\\d{4}(?:\\s*г(?:ода|\\.)?)?)?` +
+    `|${RANGE}\\s*(?:%|${MONEY}|${TIME_UNIT})` +
+    `|(?:\\d{1,3}(?:[ \\u00a0]\\d{3})+|\\d{2,})(?:[.,]\\d+)?(?:\\s*[–—-]\\s*${NUM})?` +
+    `|\\d(?:[.,]\\d+)?\\s*[–—-]\\s*${NUM}` +
+    `|${MONTH}(?:\\s*[–—-]\\s*${MONTH})?` +
+    ')(?![\\p{L}\\d_])',
+  'giu'
+);
+
+function pushMarks(out: MdInline[], text: string): void {
+  let last = 0;
+  for (const m of text.matchAll(MARK_RE)) {
+    if (m.index > last) out.push({ type: 'text', text: text.slice(last, m.index) });
+    out.push({ type: 'mark', text: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ type: 'text', text: text.slice(last) });
+}
+
+/** Текст → text/mark/timecode. Таймкоды вырезаются первыми, чтобы их цифры не стали mark. */
+function highlightText(text: string): MdInline[] {
+  const out: MdInline[] = [];
+  let last = 0;
+  for (const m of text.matchAll(TIMECODE_RE)) {
+    pushMarks(out, text.slice(last, m.index));
+    out.push({ type: 'timecode', text: m[0] });
+    last = m.index + m[0].length;
+  }
+  pushMarks(out, text.slice(last));
+  return out;
+}
+
+/**
+ * Инлайн-разметка: **жирный** и `код`.
+ * highlight (раздел «Краткое резюме») — дополнительно узлы mark и timecode.
+ */
+export function parseInline(text: string, opts: { highlight?: boolean } = {}): MdInline[] {
+  const { highlight = false } = opts;
   const nodes: MdInline[] = [];
+  const pushText = (t: string) => {
+    if (highlight) nodes.push(...highlightText(t));
+    else nodes.push({ type: 'text', text: t });
+  };
   const re = /\*\*(.+?)\*\*|`([^`]+?)`/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    if (m.index > last) nodes.push({ type: 'text', text: text.slice(last, m.index) });
-    if (m[1] != null) nodes.push({ type: 'strong', text: m[1] });
-    else nodes.push({ type: 'code', text: m[2] });
+    if (m.index > last) pushText(text.slice(last, m.index));
+    if (m[1] != null) {
+      const children = highlight ? highlightText(m[1]) : [];
+      nodes.push(children.some((c) => c.type !== 'text') ? { type: 'strong', text: m[1], children } : { type: 'strong', text: m[1] });
+    } else nodes.push({ type: 'code', text: m[2] });
     last = re.lastIndex;
   }
-  if (last < text.length) nodes.push({ type: 'text', text: text.slice(last) });
+  if (last < text.length) pushText(text.slice(last));
   return nodes;
 }
 
@@ -50,6 +119,9 @@ export function parseMarkdown(md: string): MdBlock[] {
   const lines = md.replace(/\r\n/g, '\n').split('\n').flatMap(splitInlineNumbered);
   const blocks: MdBlock[] = [];
   let i = 0;
+  // «Краткое резюме»: действует до следующего заголовка
+  let inSummary = false;
+  const sum = (): { summary?: true } => (inSummary ? { summary: true } : {});
 
   while (i < lines.length) {
     const line = lines[i];
@@ -71,6 +143,7 @@ export function parseMarkdown(md: string): MdBlock[] {
     const h = line.match(/^(#{1,4})\s+(.*)$/);
     if (h) {
       blocks.push({ type: 'heading', level: h[1].length, text: h[2] });
+      inSummary = /краткое резюме/i.test(h[2]);
       i++;
       continue;
     }
@@ -82,7 +155,7 @@ export function parseMarkdown(md: string): MdBlock[] {
         items.push(lines[i].replace(/^\s*[-*]\s+/, ''));
         i++;
       }
-      blocks.push({ type: 'ul', items });
+      blocks.push({ type: 'ul', items, ...sum() });
       continue;
     }
 
@@ -94,7 +167,7 @@ export function parseMarkdown(md: string): MdBlock[] {
         items.push(lines[i].replace(NUM_ITEM, ''));
         i++;
       }
-      blocks.push({ type: 'ol', start, items });
+      blocks.push({ type: 'ol', start, items, ...sum() });
       continue;
     }
 
@@ -110,7 +183,7 @@ export function parseMarkdown(md: string): MdBlock[] {
       para.push(lines[i]);
       i++;
     }
-    blocks.push({ type: 'p', text: para.join(' ') });
+    blocks.push({ type: 'p', text: para.join(' '), ...sum() });
   }
 
   return blocks;

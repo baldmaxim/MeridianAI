@@ -1,14 +1,24 @@
 import styles from './MarkdownView.module.css';
 import { cx } from '../../utils/cx';
 import { parseInline, parseMarkdown } from '../../lib/protocolMarkdown';
+import type { MdInline } from '../../lib/protocolMarkdown';
 
-/** Инлайн-разметка: **жирный** и `код`. */
-function inline(text: string): React.ReactNode {
-  return parseInline(text).map((n, k) => {
-    if (n.type === 'strong') return <strong key={k} className={styles.strong}>{n.text}</strong>;
+/** Узлы инлайн-разметки → React (strong может содержать mark/timecode). */
+function renderNodes(nodes: MdInline[]): React.ReactNode {
+  return nodes.map((n, k) => {
+    if (n.type === 'strong') {
+      return <strong key={k} className={styles.strong}>{n.children ? renderNodes(n.children) : n.text}</strong>;
+    }
     if (n.type === 'code') return <code key={k} className={styles.code}>{n.text}</code>;
+    if (n.type === 'mark') return <mark key={k} className={styles.mark}>{n.text}</mark>;
+    if (n.type === 'timecode') return <span key={k} className={styles.timecode}>{n.text}</span>;
     return n.text;
   });
+}
+
+/** Инлайн-разметка: **жирный** и `код`; в «Кратком резюме» (summary) — ещё маркер чисел и чип таймкода. */
+function inline(text: string, summary = false): React.ReactNode {
+  return renderNodes(parseInline(text, { highlight: summary }));
 }
 
 /** Лёгкий рендер Markdown протокола: заголовки, списки, таблицы, жирный, абзацы. */
@@ -35,17 +45,17 @@ export function MarkdownView({ md }: { md: string }) {
       case 'ul':
         return (
           <ul key={key} className={styles.ul}>
-            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it)}</li>)}
+            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it, b.summary)}</li>)}
           </ul>
         );
       case 'ol':
         return (
           <ol key={key} start={b.start} className={styles.ul}>
-            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it)}</li>)}
+            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it, b.summary)}</li>)}
           </ol>
         );
       case 'p':
-        return <p key={key} className={styles.p}>{inline(b.text)}</p>;
+        return <p key={key} className={styles.p}>{inline(b.text, b.summary)}</p>;
     }
   });
 

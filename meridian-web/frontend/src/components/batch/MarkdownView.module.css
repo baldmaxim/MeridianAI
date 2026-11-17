@@ -87,3 +87,26 @@
   color: var(--text);
   font-weight: 700;
 }
+
+/* «Краткое резюме»: ключевые числа/сроки/даты — маркером, таймкод — приглушённым чипом */
+.mark {
+  background: color-mix(in srgb, var(--accent-amber) 22%, transparent);
+  color: var(--text);
+  font-weight: inherit;
+  padding: 0 3px;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.timecode {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 0 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
