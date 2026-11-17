@@ -73,8 +73,62 @@ const CHANNEL_SYSTEM: &str = "system";
 const CHANNEL_MIXED: &str = "mixed";
 const AUDIO_CHANNELS: [&str; 2] = [CHANNEL_MIC, CHANNEL_SYSTEM];
 
-/// Whether this OS can capture what the computer plays.
-const SYSTEM_AUDIO_SUPPORTED: bool = !cfg!(target_os = "macos");
+/// Oldest macOS where `handy-cpal` records system sound (Core Audio tap + aggregate device).
+#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
+const MACOS_SYSTEM_AUDIO_MIN: (u32, u32) = (14, 6);
+
+/// Whether this OS can capture what the computer plays: Windows and Linux always,
+/// macOS from 14.6 (checked at run time: the app itself starts on macOS 10.15).
+pub(crate) fn system_audio_supported() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        static SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *SUPPORTED.get_or_init(|| {
+            macos_product_version()
+                .and_then(|v| parse_os_version(&v))
+                .is_some_and(|v| v >= MACOS_SYSTEM_AUDIO_MIN)
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// `kern.osproductversion`, e.g. "14.6.1".
+#[cfg(target_os = "macos")]
+fn macos_product_version() -> Option<String> {
+    let name = c"kern.osproductversion";
+    let mut buf = [0u8; 32];
+    let mut len = buf.len();
+    // SAFETY: `name` is NUL-terminated; `buf`/`len` describe a writable buffer.
+    let status = unsafe {
+        libc::sysctlbyname(
+            name.as_ptr(),
+            buf.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if status != 0 {
+        return None;
+    }
+    let text = std::str::from_utf8(&buf[..len.min(buf.len())]).ok()?;
+    Some(text.trim_end_matches('\0').trim().to_string())
+}
+
+/// "14.6.1" -> (14, 6); "15" -> (15, 0).
+#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
+fn parse_os_version(text: &str) -> Option<(u32, u32)> {
+    let mut parts = text.trim().split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = match parts.next() {
+        Some(p) => p.parse().ok()?,
+        None => 0,
+    };
+    Some((major, minor))
+}
 
 /* ------------------------------ helpers ------------------------------ */
 

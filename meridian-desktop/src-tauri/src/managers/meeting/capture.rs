@@ -3,9 +3,10 @@
 //!
 //! - microphone, and system sound on Linux (a PulseAudio "Monitor of ...")
 //!   come from `handy-recorder`;
-//! - system sound on Windows is a WASAPI loopback: `handy-cpal` turns an input
-//!   stream built on a playback (render) device into a loopback capture, which
-//!   `handy-recorder` can't open because it lists capture devices only.
+//! - system sound on Windows (WASAPI) and macOS 14.6+ (Core Audio tap) is a
+//!   loopback: `handy-cpal` turns an input stream built on a playback (render)
+//!   device into a loopback capture, which `handy-recorder` can't open because
+//!   it lists capture devices only.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -293,7 +294,7 @@ pub fn list_monitor_sources() -> Vec<CaptureDevice> {
     }
 }
 
-/* ---------------- handy-cpal: WASAPI loopback of a render device ---------------- */
+/* ---------------- handy-cpal: WASAPI / Core Audio loopback of a render device ---------------- */
 
 struct LoopbackState {
     pipe: ChannelPipe,
@@ -368,7 +369,7 @@ fn data_to_mono(data: &cpal::Data, channels: usize, out: &mut Vec<f32>) -> bool 
     .is_some()
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub struct LoopbackCapture {
     stop_tx: Sender<()>,
     join: Option<JoinHandle<()>>,
@@ -389,8 +390,8 @@ fn find_render_device(id: Option<&str>) -> Result<cpal::Device, String> {
     }
 }
 
-/// Playback devices, the sources of system sound on Windows.
-#[cfg_attr(not(windows), allow(dead_code))]
+/// Playback devices, the sources of system sound on Windows and macOS.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub fn list_render_devices() -> Vec<CaptureDevice> {
     let host = cpal::default_host();
     let default_id = host.default_output_device().and_then(|d| d.id().ok());
@@ -413,7 +414,7 @@ pub fn list_render_devices() -> Vec<CaptureDevice> {
         .collect()
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 impl LoopbackCapture {
     /// Opens the stream on its own thread (some hosts' streams are not
     /// `Send`) and waits until it plays or fails. On failure the pipe is gone.

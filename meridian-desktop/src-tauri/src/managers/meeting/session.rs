@@ -14,9 +14,9 @@ use super::recognizer::PhraseQueue;
 use super::storage::{self, PCM_PIECE_SECONDS, SAMPLE_RATE};
 use super::workers::cut_phrases;
 use super::{
-    io_err, meeting_duration, now_iso, CaptureDevices, CaptureMode, MeetingInfo, MeetingLevels,
-    MeetingManager, MeetingStateKind, MeetingStatus, StartMeetingRequest, CHANNEL_MIC,
-    CHANNEL_MIXED, CHANNEL_SYSTEM, DRAIN_TIMEOUT, SYSTEM_AUDIO_SUPPORTED,
+    io_err, meeting_duration, now_iso, system_audio_supported, CaptureDevices, CaptureMode,
+    MeetingInfo, MeetingLevels, MeetingManager, MeetingStateKind, MeetingStatus,
+    StartMeetingRequest, CHANNEL_MIC, CHANNEL_MIXED, CHANNEL_SYSTEM, DRAIN_TIMEOUT,
 };
 use crate::managers::audio::create_detector;
 use crate::managers::model::ModelManager;
@@ -26,7 +26,7 @@ use tauri::Manager;
 
 /* ------------------------------ session ------------------------------ */
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(super) enum CaptureHandle {
     Recorder(Box<RecorderCapture>),
     Loopback(LoopbackCapture),
@@ -102,16 +102,18 @@ impl MeetingManager {
 
     pub fn list_capture_devices(&self) -> CaptureDevices {
         let inputs = capture::list_microphones();
-        #[cfg(windows)]
-        let system_sources = capture::list_render_devices();
-        #[cfg(target_os = "macos")]
-        let system_sources = Vec::new();
+        #[cfg(any(windows, target_os = "macos"))]
+        let system_sources = if system_audio_supported() {
+            capture::list_render_devices()
+        } else {
+            Vec::new()
+        };
         #[cfg(not(any(windows, target_os = "macos")))]
         let system_sources = capture::list_monitor_sources();
         CaptureDevices {
             inputs,
             system_sources,
-            system_supported: SYSTEM_AUDIO_SUPPORTED,
+            system_supported: system_audio_supported(),
         }
     }
 
@@ -189,11 +191,13 @@ impl MeetingManager {
         devices: &Devices,
     ) -> Result<Session, String> {
         let wants_system = meeting.capture_mode == CaptureMode::Online;
-        if wants_system && !SYSTEM_AUDIO_SUPPORTED {
-            return Err(
+        if wants_system && !system_audio_supported() {
+            return Err(if cfg!(target_os = "macos") {
+                "Звук компьютера на Mac работает с macOS 14.6: обновите систему или выберите режим «очная встреча»"
+            } else {
                 "Звук системы на этой ОС не поддерживается: выберите режим «очная встреча»"
-                    .to_string(),
-            );
+            }
+            .to_string());
         }
         let audio_dir = storage::audio_dir(&self.root, &meeting.id);
         let started = Instant::now();
@@ -307,34 +311,26 @@ impl MeetingManager {
         }
     }
 
-    #[cfg(windows)]
+    /// Windows (WASAPI) and macOS (Core Audio tap): an input stream on a playback device.
+    #[cfg(any(windows, target_os = "macos"))]
     fn open_system(devices: &Devices, pipe: ChannelPipe) -> Result<CaptureHandle, String> {
         LoopbackCapture::start(devices.system.clone(), pipe).map(CaptureHandle::Loopback)
     }
 
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     fn open_system(devices: &Devices, pipe: ChannelPipe) -> Result<CaptureHandle, String> {
-        #[cfg(not(target_os = "macos"))]
-        {
-            let source = match devices.system.clone() {
-                Some(id) => id,
-                None => capture::list_monitor_sources()
-                    .into_iter()
-                    .next()
-                    .map(|d| d.id)
-                    .ok_or_else(|| {
-                        "не найден источник звука системы (Monitor of ...)".to_string()
-                    })?,
-            };
-            RecorderCapture::start(Some(source), None, pipe)
-                .map(|c| CaptureHandle::Recorder(Box::new(c)))
-        }
-        #[cfg(target_os = "macos")]
-        {
-            let _ = (devices, pipe);
-            Err("не поддерживается".to_string())
-        }
+        let source = match devices.system.clone() {
+            Some(id) => id,
+            None => capture::list_monitor_sources()
+                .into_iter()
+                .next()
+                .map(|d| d.id)
+                .ok_or_else(|| "не найден источник звука системы (Monitor of ...)".to_string())?,
+        };
+        RecorderCapture::start(Some(source), None, pipe)
+            .map(|c| CaptureHandle::Recorder(Box::new(c)))
     }
+
     pub(super) fn finish_session(&self, session: Session) -> Result<MeetingInfo, String> {
         let id = session.meeting_id.clone();
         self.emit_state(

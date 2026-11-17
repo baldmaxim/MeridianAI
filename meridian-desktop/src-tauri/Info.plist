@@ -4,5 +4,7 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Request microphone access to transcribe audio locally</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Meridian записывает звук компьютера — голос собеседников в Zoom, Teams и других программах — чтобы расшифровать встречу.</string>
 </dict>
 </plist>

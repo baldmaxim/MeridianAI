@@ -123,3 +123,15 @@ fn cutter_turns_channel_messages_into_queued_phrases() {
     );
     assert_eq!(seen.len(), 1);
 }
+
+#[test]
+fn os_version_is_parsed_and_compared_with_macos_minimum() {
+    use super::{parse_os_version, MACOS_SYSTEM_AUDIO_MIN};
+    assert_eq!(parse_os_version("14.6.1"), Some((14, 6)));
+    assert_eq!(parse_os_version("15"), Some((15, 0)));
+    assert_eq!(parse_os_version("garbage"), None);
+    assert!(parse_os_version("14.6").unwrap() >= MACOS_SYSTEM_AUDIO_MIN);
+    assert!(parse_os_version("15.0").unwrap() >= MACOS_SYSTEM_AUDIO_MIN);
+    assert!(parse_os_version("14.5.2").unwrap() < MACOS_SYSTEM_AUDIO_MIN);
+    assert!(parse_os_version("13.7").unwrap() < MACOS_SYSTEM_AUDIO_MIN);
+}
