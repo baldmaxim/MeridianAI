@@ -12,6 +12,7 @@ import { HeaderNav } from './HeaderNav';
 import { HeaderMobileMenu } from './HeaderMobileMenu';
 import { UserMenu } from './UserMenu';
 import { CreditsRing } from './CreditsRing';
+import { OpenRouterRing } from './OpenRouterRing';
 import type { IHeaderNavModel } from './headerNav';
 import styles from './Header.module.css';
 
@@ -134,6 +135,8 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
             </span>
           )}
           {userName && <CreditsRing />}
+          {/* canSwitchRole = реальная роль admin (App.tsx:273); баланс OpenRouter — только админам */}
+          {canSwitchRole && <OpenRouterRing />}
           <ThemeToggle />
           {settingsAction && (
             <button

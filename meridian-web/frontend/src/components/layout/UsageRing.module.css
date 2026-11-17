@@ -1,4 +1,4 @@
-/* Кольцо расхода кредитов ElevenLabs: 26px на мобильном, 28px от 768px */
+/* Кольцо расхода (кредиты ElevenLabs, баланс OpenRouter): 26px на мобильном, 28px от 768px */
 .wrap {
   position: relative;
   display: flex;
