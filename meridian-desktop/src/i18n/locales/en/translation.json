@@ -15,6 +15,7 @@
     "nav": {
       "label": "Main navigation",
       "meetings": "Meetings",
+      "transcriptions": "Transcription",
       "settings": "Settings",
       "account": "Account",
       "accountOf": "Account: {{email}}"
@@ -774,6 +775,38 @@
         "empty": "{{name}}: the file is empty",
         "unreadable": "{{name}}: could not read the file"
       }
+    }
+  },
+  "transcriptions": {
+    "title": "Transcription",
+    "pick": "Choose files",
+    "dialogFilter": "Audio",
+    "dropZone": "Drop audio files here or press “Choose files”",
+    "hint": "The file goes to the Meridian server and is recognized by ElevenLabs. Offline, it waits in the queue.",
+    "dropHint": "Release the files to queue them for transcription",
+    "empty": "No files yet",
+    "speaker": "Speaker",
+    "remove": "Remove file {{name}} from the list",
+    "removeTitle": "Remove from the list",
+    "addFailed": "Could not add the files",
+    "removeFailed": "Could not remove the file",
+    "back": "Back",
+    "copy": "Copy text",
+    "copied": "Text copied",
+    "copyFailed": "Could not copy the text",
+    "emptyTranscript": "No speech found in the recording",
+    "status": {
+      "queued": "Queued",
+      "uploading": "Uploading",
+      "processing": "Recognizing",
+      "done": "Done",
+      "error": "Error"
+    },
+    "units": {
+      "b": "B",
+      "kb": "KB",
+      "mb": "MB",
+      "gb": "GB"
     }
   },
   "account": {

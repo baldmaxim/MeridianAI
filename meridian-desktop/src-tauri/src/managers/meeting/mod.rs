@@ -17,6 +17,7 @@ mod db;
 mod db_context;
 mod db_documents;
 mod db_sync;
+mod db_transcriptions;
 mod db_voices;
 mod documents;
 mod echo;
@@ -29,6 +30,7 @@ mod sink;
 mod storage;
 #[cfg(test)]
 mod tests;
+mod transcriptions;
 pub mod voice;
 mod voices;
 mod workers;
@@ -51,10 +53,15 @@ pub use api::{
 pub use capture::CaptureDevice;
 pub use db::{CaptureMode, MeetingDb, MeetingInfo, MeetingStatus, Note, Segment};
 pub use db_documents::{DocumentRow, QueuedDocument, DOC_ERROR, DOC_PENDING};
+pub use db_transcriptions::{
+    StoredTranscript, TranscriptSegment, TranscriptionDetail, TranscriptionItem, TranscriptionRow,
+    TR_ERROR, TR_QUEUED,
+};
 pub use db_voices::MeetingVoice;
 pub use documents::AddDocumentsResult;
 use session::{Session, Slot};
 pub use storage::export_channel_wav;
+pub use transcriptions::{audio_mime, delete_local_copy, TranscriptionsChanged};
 
 /// How long `stop` waits for the queue to drain before giving up on the rest.
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(60);

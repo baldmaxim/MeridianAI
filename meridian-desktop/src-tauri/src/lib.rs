@@ -672,6 +672,10 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::documents::meeting_documents_list,
             commands::documents::meeting_document_set_included,
             commands::documents::meeting_document_remove_queued,
+            commands::transcriptions::transcriptions_add,
+            commands::transcriptions::transcriptions_list,
+            commands::transcriptions::transcription_get,
+            commands::transcriptions::transcriptions_remove,
             commands::models::get_available_models,
             commands::models::get_model_info,
             commands::models::download_model,
@@ -720,6 +724,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             managers::meeting::MeetingState,
             managers::sync::SyncState,
             managers::sync::AccountChanged,
+            managers::meeting::TranscriptionsChanged,
         ])
 }
 

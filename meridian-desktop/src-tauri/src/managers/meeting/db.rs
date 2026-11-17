@@ -132,6 +132,29 @@ pub(super) static MIGRATIONS: &[M] = &[
     CREATE INDEX idx_document_queue_meeting ON document_queue(meeting_id);
     CREATE INDEX idx_document_queue_server ON document_queue(server_meeting_id);",
     ),
+    // «Расшифровка файлов»: audio files that go to the server for ElevenLabs
+    // and come back as a transcript (see `db_transcriptions.rs`). Statuses:
+    // queued, uploading, processing, done, error. `uploaded` = the bytes are in
+    // the storage (resume with the confirm).
+    M::up(
+        "CREATE TABLE transcription_queue (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        local_path TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        uploaded INTEGER NOT NULL DEFAULT 0,
+        server_file_id INTEGER,
+        server_job_id INTEGER,
+        server_status TEXT,
+        error TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        transcript_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_transcription_queue_status ON transcription_queue(status);",
+    ),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one

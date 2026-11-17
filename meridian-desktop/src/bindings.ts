@@ -683,6 +683,50 @@ async meetingDocumentRemoveQueued(queueId: number) : Promise<Result<null, string
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Copies the files into the app's data folder and queues them; the upload
+ * starts at once when there is a connection. A refused file comes back as an
+ * item in `error` and does not stop the others.
+ */
+async transcriptionsAdd(paths: string[]) : Promise<Result<TranscriptionItem[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("transcriptions_add", { paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Newest first, without the transcripts.
+ */
+async transcriptionsList() : Promise<Result<TranscriptionItem[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("transcriptions_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async transcriptionGet(id: string) : Promise<Result<TranscriptionDetail, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("transcription_get", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Takes the file out of the list and deletes its local copy (the server keeps
+ * its own). Allowed in any state.
+ */
+async transcriptionsRemove(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("transcriptions_remove", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getAvailableModels() : Promise<Result<ModelInfo[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_available_models") };
@@ -967,7 +1011,8 @@ meetingSystemSilent: MeetingSystemSilent,
 meetingVoices: MeetingVoices,
 streamPhaseEvent: StreamPhaseEvent,
 streamTextEvent: StreamTextEvent,
-syncState: SyncState
+syncState: SyncState,
+transcriptionsChanged: TranscriptionsChanged
 }>({
 accountChanged: "account-changed",
 historyUpdatePayload: "history-update-payload",
@@ -979,7 +1024,8 @@ meetingSystemSilent: "meeting-system-silent",
 meetingVoices: "meeting-voices",
 streamPhaseEvent: "stream-phase-event",
 streamTextEvent: "stream-text-event",
-syncState: "sync-state"
+syncState: "sync-state",
+transcriptionsChanged: "transcriptions-changed"
 })
 
 /** user-defined constants **/
@@ -1424,6 +1470,32 @@ syncing_meeting_id: string | null }
  */
 export type Theme = "system" | "light" | "dark"
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
+/**
+ * One phrase of the transcript.
+ */
+export type TranscriptSegment = { speaker: string; start: number; end: number; text: string }
+export type TranscriptionDetail = { item: TranscriptionItem; text: string; segments: TranscriptSegment[] }
+/**
+ * A file of the list, without the (big) transcript.
+ */
+export type TranscriptionItem = { id: string; filename: string; size: number; 
+/**
+ * `queued`, `uploading`, `processing`, `done` or `error`.
+ */
+status: string; 
+/**
+ * The server's own status while it is working on the file.
+ */
+server_status: string | null; 
+/**
+ * A refusal (status `error`) or the reason the last attempt failed
+ * (status `queued`).
+ */
+error: string | null; created_at: string; updated_at: string }
+/**
+ * A row of the list changed (`id` says which, when it is one): reload the list.
+ */
+export type TranscriptionsChanged = { id: string | null }
 export type VadBackend = "silero" | "earshot"
 export type ViewDocument = { filename: string | null; doc_type: string | null; doc_type_label: string | null; page_count: number | null }
 export type ViewSegment = { text: string; speaker_label: string | null; start_time: number | null; end_time: number | null; wall_clock: string | null }

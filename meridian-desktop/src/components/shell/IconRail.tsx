@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Settings, User, Users } from "lucide-react";
+import { AudioLines, Settings, User, Users } from "lucide-react";
 import type { AccountInfo } from "@/bindings";
 import { useSyncStore } from "@/stores/syncStore";
 import { useUpdateStore } from "@/stores/updateStore";
@@ -50,6 +50,7 @@ interface IconRailProps {
   section: AppSection;
   settingsTab: SettingsSection;
   onOpenMeetings: () => void;
+  onOpenTranscriptions: () => void;
   onOpenSettings: () => void;
   onOpenAccount: () => void;
 }
@@ -59,6 +60,7 @@ export const IconRail: React.FC<IconRailProps> = ({
   section,
   settingsTab,
   onOpenMeetings,
+  onOpenTranscriptions,
   onOpenSettings,
   onOpenAccount,
 }) => {
@@ -76,13 +78,22 @@ export const IconRail: React.FC<IconRailProps> = ({
       aria-label={t("shell.nav.label")}
       className="flex w-16 shrink-0 flex-col items-center justify-between border-e border-border bg-deep py-3"
     >
-      <RailItem
-        active={section === "meetings"}
-        label={t("shell.nav.meetings")}
-        onClick={onOpenMeetings}
-      >
-        <Users className="h-[22px] w-[22px]" strokeWidth={1.8} />
-      </RailItem>
+      <div className="flex flex-col items-center gap-2">
+        <RailItem
+          active={section === "meetings"}
+          label={t("shell.nav.meetings")}
+          onClick={onOpenMeetings}
+        >
+          <Users className="h-[22px] w-[22px]" strokeWidth={1.8} />
+        </RailItem>
+        <RailItem
+          active={section === "transcriptions"}
+          label={t("shell.nav.transcriptions")}
+          onClick={onOpenTranscriptions}
+        >
+          <AudioLines className="h-[22px] w-[22px]" strokeWidth={1.8} />
+        </RailItem>
+      </div>
       <div className="flex flex-col items-center gap-2">
         <RailItem
           active={inSettings && !accountActive}

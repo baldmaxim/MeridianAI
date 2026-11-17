@@ -15,6 +15,9 @@ mod engine;
 mod project_tests;
 #[cfg(test)]
 pub(crate) mod tests;
+mod transcriptions;
+#[cfg(test)]
+mod transcriptions_tests;
 #[cfg(test)]
 mod voices_tests;
 
@@ -34,7 +37,7 @@ pub use account::{AccountInfo, AccountStore};
 pub use client::{ApiClient, ApiError, LoginBody, ServerDocument};
 use engine::{Engine, Outcome};
 
-use crate::managers::meeting::{MeetingDb, MeetingManager};
+use crate::managers::meeting::{MeetingDb, MeetingManager, TranscriptionsChanged};
 use crate::settings::get_settings;
 
 /// Between two looks at the queue.
@@ -77,6 +80,7 @@ pub struct AccountChanged {
 pub enum Notice {
     State(SyncState),
     Account(AccountChanged),
+    Transcriptions(TranscriptionsChanged),
 }
 
 #[derive(Default)]
@@ -112,6 +116,9 @@ pub fn retry_delay(attempts: u32) -> Duration {
 fn context_key(id: &str) -> String {
     format!("context:{id}")
 }
+
+/// The waiting time of the «Расшифровка файлов» queue.
+const TRANSCRIPTIONS_KEY: &str = "transcriptions";
 
 impl SyncCore {
     pub fn new(
@@ -225,9 +232,18 @@ impl SyncCore {
                 warn!("Cannot read the queue of sources: {e:#}");
                 false
             });
+        if let Err(e) = self.db.reset_uploading_transcriptions() {
+            warn!("Cannot reset the interrupted uploads of transcriptions: {e:#}");
+        }
+        let transcriptions_waiting = self.due(TRANSCRIPTIONS_KEY)
+            && self.db.has_active_transcriptions().unwrap_or_else(|e| {
+                warn!("Cannot read the queue of transcriptions: {e:#}");
+                false
+            });
         let queue_due = meetings.iter().any(|m| self.due(&m.id));
         if !queue_due
             && !documents_waiting
+            && !transcriptions_waiting
             && !context_pending
                 .iter()
                 .any(|m| self.due(&context_key(&m.id)))
@@ -299,7 +315,36 @@ impl SyncCore {
             }
             Err(_) => self.sign_out(),
         }
+        if transcriptions_waiting {
+            self.run_transcriptions(&engine).await;
+        }
         self.finish_pass();
+    }
+
+    /// The «Расшифровка файлов» step of a pass.
+    async fn run_transcriptions(&self, engine: &Engine<'_>) {
+        let announce = || (self.notify)(Notice::Transcriptions(TranscriptionsChanged { id: None }));
+        match engine.send_transcriptions(&announce).await {
+            Ok(report) => match report.stopped_by {
+                Some(ApiError::Retry { status, .. }) => {
+                    self.inner().online = status.is_some();
+                    let mut inner = self.inner();
+                    let attempts = inner.backoff.get(TRANSCRIPTIONS_KEY).map_or(0, |(n, _)| *n) + 1;
+                    inner.backoff.insert(
+                        TRANSCRIPTIONS_KEY.to_string(),
+                        (attempts, Instant::now() + retry_delay(attempts)),
+                    );
+                }
+                _ => {
+                    self.inner().backoff.remove(TRANSCRIPTIONS_KEY);
+                    if report.reached {
+                        self.inner().online = true;
+                    }
+                }
+            },
+            Err(_) => self.sign_out(),
+        }
+        announce();
     }
 
     fn finish_pass(&self) {
@@ -400,6 +445,7 @@ impl SyncManager {
                 let _ = match notice {
                     Notice::State(state) => state.emit(&emitter),
                     Notice::Account(changed) => changed.emit(&emitter),
+                    Notice::Transcriptions(changed) => changed.emit(&emitter),
                 };
             }),
         ));

@@ -56,4 +56,4 @@ export const SECTIONS_CONFIG = {
 } as const satisfies Record<string, SectionConfig>;
 
 export type SettingsSection = keyof typeof SECTIONS_CONFIG;
-export type AppSection = "meetings" | "settings";
+export type AppSection = "meetings" | "transcriptions" | "settings";

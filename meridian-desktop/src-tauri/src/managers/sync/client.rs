@@ -3,8 +3,10 @@
 
 mod documents;
 mod library;
+mod transcriptions;
 
 pub use documents::{DocumentUploadBody, ServerDocument};
+pub use transcriptions::{ServerTranscription, TranscriptionUploadBody};
 
 use std::fmt;
 use std::io::Read;

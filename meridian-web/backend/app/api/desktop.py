@@ -460,3 +460,9 @@ async def meetings_document_patch(
     item = await meeting_document_item(db, meeting, md, doc)
     await db.commit()
     return item
+
+
+# Распознавание файлов на сервере — отдельный модуль; импорт в конце: ему нужен `Device` отсюда.
+from .desktop_transcriptions import router as _transcriptions_router  # noqa: E402
+
+router.include_router(_transcriptions_router)

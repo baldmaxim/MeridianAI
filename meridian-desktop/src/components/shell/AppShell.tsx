@@ -1,6 +1,7 @@
 import React from "react";
 import type { OnboardingPreviewStep } from "../settings";
 import { MeetingsScreen } from "../meetings/MeetingsScreen";
+import { TranscriptionsScreen } from "../transcriptions/TranscriptionsScreen";
 import { AppHeader } from "./AppHeader";
 import { IconRail } from "./IconRail";
 import { SettingsScreen } from "./SettingsScreen";
@@ -33,6 +34,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       section={section}
       settingsTab={settingsTab}
       onOpenMeetings={() => onSectionChange("meetings")}
+      onOpenTranscriptions={() => onSectionChange("transcriptions")}
       onOpenSettings={() =>
         onOpenSettingsTab(settingsTab === "account" ? "general" : settingsTab)
       }
@@ -49,6 +51,8 @@ export const AppShell: React.FC<AppShellProps> = ({
             onOpenModelSettings={() => onOpenSettingsTab("models")}
             onOpenAccount={() => onOpenSettingsTab("account")}
           />
+        ) : section === "transcriptions" ? (
+          <TranscriptionsScreen />
         ) : (
           <SettingsScreen
             tab={settingsTab}

@@ -9,6 +9,7 @@ pub mod recording;
 pub mod settings;
 pub mod sync;
 pub mod transcription;
+pub mod transcriptions;
 
 use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
 use crate::utils::cancel_current_operation;
