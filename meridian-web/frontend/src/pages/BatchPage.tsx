@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { BatchScope } from '../api/batch';
+import { useMe } from '../hooks/queries/auth';
 import { BatchUpload } from '../components/batch/BatchUpload';
 import { BatchJobList } from '../components/batch/BatchJobList';
 import { BatchJobDetail } from '../components/batch/BatchJobDetail';
@@ -18,6 +20,16 @@ const SPEAKER_OPTIONS = [
   ...[2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) })),
 ];
 
+const SCOPE_KEY = 'meridian-batch-scope';
+
+const readScope = (): BatchScope => {
+  try {
+    return localStorage.getItem(SCOPE_KEY) === 'all' ? 'all' : 'mine';
+  } catch {
+    return 'mine';
+  }
+};
+
 interface Props {
   onBack: () => void;
 }
@@ -25,7 +37,11 @@ interface Props {
 export function BatchPage({ onBack }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const { data: jobs = [] } = useBatchJobs(); // polling 5с внутри хука
+  const { data: me } = useMe();
+  const isAdmin = me?.role === 'admin';
+  const [scopeChoice, setScopeChoice] = useState<BatchScope>(readScope);
+  const scope: BatchScope = isAdmin ? scopeChoice : 'mine';
+  const { data: jobs = [] } = useBatchJobs(scope); // polling 5с внутри хука
   const uploadMut = useUploadBatch();
   const deleteMut = useDeleteBatchJob();
   const fromStashMut = useCreateBatchFromStash();
@@ -53,6 +69,13 @@ export function BatchPage({ onBack }: Props) {
     } catch (e) {
       alert(errorDetail(e) || 'Ошибка');
     }
+  };
+
+  const handleScope = (next: BatchScope) => {
+    setScopeChoice(next);
+    try {
+      localStorage.setItem(SCOPE_KEY, next);
+    } catch { /* ignore */ }
   };
 
   const handleDelete = async (id: number) => {
@@ -94,12 +117,28 @@ export function BatchPage({ onBack }: Props) {
         >
           {'📁'} Выбрать из «Файлов»
         </button>
+        {isAdmin && (
+          <div className={styles.scope} role="group" aria-label="Чьи записи показывать">
+            {([['mine', 'Мои'], ['all', 'Все']] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleScope(value)}
+                aria-pressed={scope === value}
+                className={cx(styles.scopeBtn, scope === value && styles.scopeBtnActive)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={styles.jobs}>
           <BatchJobList
             jobs={jobs}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onDelete={handleDelete}
+            currentUserId={me?.id ?? null}
           />
         </div>
       </div>

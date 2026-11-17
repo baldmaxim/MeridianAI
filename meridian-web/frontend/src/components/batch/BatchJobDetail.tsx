@@ -6,6 +6,7 @@ import { createZip } from '../../lib/zip';
 import { buildProtocolHtml } from '../../lib/protocolHtml';
 import { formatMoscowDateTime } from '../../lib/datetime';
 import { useBatchJob } from '../../hooks/queries/batch';
+import { useMe } from '../../hooks/queries/auth';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from './MarkdownView';
 import { BatchToMeetingModal } from './BatchToMeetingModal';
@@ -24,6 +25,7 @@ type Tab = 'transcript' | 'protocol';
 
 export function BatchJobDetail({ jobId }: Props) {
   const { data: job } = useBatchJob(jobId);
+  const { data: me } = useMe();
   const [tab, setTab] = useState<Tab | null>(null);
   const [toMeetingOpen, setToMeetingOpen] = useState(false);
   const [createdMeetingId, setCreatedMeetingId] = useState<number | null>(null);
@@ -158,6 +160,8 @@ export function BatchJobDetail({ jobId }: Props) {
   // решения/поручения/риски и кандидаты в базу знаний даёт только финализация встречи.
   const meetingId = job.meeting_id ?? createdMeetingId;
   const isProcessing = !['done', 'error'].includes(job.status);
+  // Чужая запись (админ в режиме «Все»): только просмотр, без «Сделать встречу».
+  const isForeign = job.owner_id != null && job.owner_id !== me?.id;
 
   return (
     <div className={styles.root}>
@@ -171,7 +175,7 @@ export function BatchJobDetail({ jobId }: Props) {
             {bundleBusy ? `Скачивание ${bundleStep ?? ''}…` : '⬇ Скачать всё'}
           </button>
         )}
-        {hasTranscript && meetingId == null && (
+        {hasTranscript && meetingId == null && !isForeign && (
           <button onClick={() => setToMeetingOpen(true)} className={styles.toMeetingBtn}>
             → Сделать встречу
           </button>

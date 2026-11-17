@@ -31,6 +31,9 @@ class BatchJobResponse(BaseModel):
     meeting_id: Optional[int] = None
     # Число говорящих, заданное при загрузке; None — авто.
     max_speakers: Optional[int] = None
+    # Владелец записи (для режима «Все» у администратора).
+    owner_id: Optional[int] = None
+    owner_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

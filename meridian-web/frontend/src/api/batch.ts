@@ -15,7 +15,12 @@ export interface BatchJob {
   meeting_id: number | null;
   /** Число говорящих, заданное при загрузке; null — авто. */
   max_speakers: number | null;
+  /** Владелец записи (нужен администратору в режиме «Все»). */
+  owner_id?: number | null;
+  owner_name?: string | null;
 }
+
+export type BatchScope = 'mine' | 'all';
 
 export interface BatchToMeetingResult {
   meeting_id: number;
@@ -141,8 +146,8 @@ export async function createBatchFromStash(
   return data;
 }
 
-export async function getBatchJobs(): Promise<BatchJob[]> {
-  const { data } = await api.get('/batch/jobs');
+export async function getBatchJobs(scope: BatchScope = 'mine'): Promise<BatchJob[]> {
+  const { data } = await api.get('/batch/jobs', { params: { scope } });
   return data;
 }
 

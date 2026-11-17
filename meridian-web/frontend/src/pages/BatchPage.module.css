@@ -194,3 +194,31 @@
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
+
+.scope {
+  display: flex;
+  gap: 6px;
+}
+
+.scopeBtn {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.scopeBtnActive {
+  background: var(--bg-elevated);
+  border-color: var(--border-amber);
+  color: var(--accent-amber);
+}

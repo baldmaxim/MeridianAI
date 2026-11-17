@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { BatchScope } from '../../api/batch';
 import { getBatchJobs, getBatchJob, uploadBatchAudio, deleteBatchJob, createBatchFromStash } from '../../api/batch';
 
 export const batchKeys = {
@@ -7,8 +8,12 @@ export const batchKeys = {
 };
 
 // polling каждые 5с — статусы задач меняются по мере обработки
-export function useBatchJobs() {
-  return useQuery({ queryKey: batchKeys.jobs, queryFn: getBatchJobs, refetchInterval: 5000 });
+export function useBatchJobs(scope: BatchScope = 'mine') {
+  return useQuery({
+    queryKey: [...batchKeys.jobs, scope] as const,
+    queryFn: () => getBatchJobs(scope),
+    refetchInterval: 5000,
+  });
 }
 
 export function useBatchJob(id: number | null) {

@@ -8,6 +8,8 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
+  /** Текущий пользователь: чужие записи (режим «Все» у админа) без удаления и с подписью владельца. */
+  currentUserId?: number | null;
 }
 
 function formatSize(bytes: number): string {
@@ -26,7 +28,7 @@ function formatDate(iso: string): string {
   });
 }
 
-export function BatchJobList({ jobs, selectedId, onSelect, onDelete }: Props) {
+export function BatchJobList({ jobs, selectedId, onSelect, onDelete, currentUserId = null }: Props) {
   if (jobs.length === 0) {
     return (
       <div className={styles.empty}>
@@ -37,7 +39,9 @@ export function BatchJobList({ jobs, selectedId, onSelect, onDelete }: Props) {
 
   return (
     <div className={styles.list}>
-      {jobs.map((job) => (
+      {jobs.map((job) => {
+        const foreign = job.owner_id != null && job.owner_id !== currentUserId;
+        return (
         <div
           key={job.id}
           onClick={() => onSelect(job.id)}
@@ -56,20 +60,26 @@ export function BatchJobList({ jobs, selectedId, onSelect, onDelete }: Props) {
               )}
               <span className={styles.date}>{formatDate(job.created_at)}</span>
             </div>
+            {foreign && job.owner_name && (
+              <div className={styles.owner}>{job.owner_name}</div>
+            )}
           </div>
           <BatchStatusBadge status={job.status} />
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(job.id);
-            }}
-            className={styles.deleteBtn}
-            title="Удалить"
-          >
-            {'\u2715'}
-          </button>
+          {!foreign && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(job.id);
+              }}
+              className={styles.deleteBtn}
+              title="Удалить"
+            >
+              {'\u2715'}
+            </button>
+          )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

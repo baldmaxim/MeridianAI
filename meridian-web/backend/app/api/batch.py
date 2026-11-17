@@ -15,7 +15,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, FileResponse
 from starlette.background import BackgroundTask
-from sqlalchemy import select
+from sqlalchemy import select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.dependencies import get_current_user
@@ -56,6 +56,24 @@ def _norm_speaker(raw: str) -> str:
 logger = logging.getLogger("meridian.batch")
 
 router = APIRouter()
+
+
+def _job_access(user: User):
+    """Условие доступа к записи на ЧТЕНИЕ: admin видит все, остальные — только свои."""
+    return true() if user.role == "admin" else BatchJob.user_id == user.id
+
+
+def _owner_name(u: User) -> str:
+    return u.display_name or u.email
+
+
+async def _owner_names(db: AsyncSession, user_ids: set[int]) -> dict[int, str]:
+    """Имена владельцев одной выборкой (без N+1)."""
+    if not user_ids:
+        return {}
+    rows = (await db.execute(select(User).where(User.id.in_(user_ids)))).scalars().all()
+    return {u.id: _owner_name(u) for u in rows}
+
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".opus", ".webm"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
@@ -244,15 +262,26 @@ async def create_from_stash(
 
 @router.get("/jobs", response_model=List[BatchJobResponse])
 async def list_batch_jobs(
+    scope: str = "mine",
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """scope=all у admin — записи всех пользователей; у остальных игнорируется (только свои)."""
+    show_all = scope == "all" and user.role == "admin"
     result = await db.execute(
         select(BatchJob)
-        .where(BatchJob.user_id == user.id)
+        .where(_job_access(user) if show_all else BatchJob.user_id == user.id)
         .order_by(BatchJob.created_at.desc())
     )
-    return result.scalars().all()
+    jobs = result.scalars().all()
+    names = await _owner_names(db, {j.user_id for j in jobs})
+    out: list[BatchJobResponse] = []
+    for j in jobs:
+        item = BatchJobResponse.model_validate(j)
+        item.owner_id = j.user_id
+        item.owner_name = names.get(j.user_id)
+        out.append(item)
+    return out
 
 
 @router.get("/jobs/{job_id}", response_model=BatchJobDetailResponse)
@@ -262,13 +291,15 @@ async def get_batch_job(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+        select(BatchJob).where(BatchJob.id == job_id, _job_access(user))
     )
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Задача не найдена")
 
     resp = BatchJobDetailResponse.model_validate(job)
+    resp.owner_id = job.user_id
+    resp.owner_name = (await _owner_names(db, {job.user_id})).get(job.user_id)
     # Диаризация: реплики (спикер + таймкоды) из word-level transcription_json
     if job.transcription_json:
         try:
@@ -371,7 +402,7 @@ async def get_job_audio_url(
     if not settings.s3_enabled:
         raise HTTPException(503, "S3-хранилище не настроено")
     result = await db.execute(
-        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+        select(BatchJob).where(BatchJob.id == job_id, _job_access(user))
     )
     job = result.scalar_one_or_none()
     if not job or not job.file_path:
@@ -397,7 +428,7 @@ async def clip_audio(
     if not settings.s3_enabled:
         raise HTTPException(503, "S3-хранилище не настроено")
     result = await db.execute(
-        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+        select(BatchJob).where(BatchJob.id == job_id, _job_access(user))
     )
     job = result.scalar_one_or_none()
     if not job or not job.file_path:
@@ -451,7 +482,7 @@ async def download_batch_result(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(BatchJob).where(BatchJob.id == job_id, BatchJob.user_id == user.id)
+        select(BatchJob).where(BatchJob.id == job_id, _job_access(user))
     )
     job = result.scalar_one_or_none()
     if not job:

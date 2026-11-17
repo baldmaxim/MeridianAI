@@ -69,3 +69,13 @@
   border-radius: 4px;
   line-height: 1;
 }
+
+.owner {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
