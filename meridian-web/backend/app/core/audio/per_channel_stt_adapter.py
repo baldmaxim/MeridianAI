@@ -219,7 +219,9 @@ class ElevenLabsBatchPerChannelSttAdapter:
         if len(wav) > config.max_wav_bytes:
             return PerChannelSttAdapterResult(provider=self.provider, error_kind="audio_too_large")
 
-        model_id = config.model_id or "scribe_v2"
+        model_id = config.model_id or "scribe_v3"
+        if model_id == "scribe_v1":  # scribe_v1 устарел — в сохранённых настройках заменяем на v3
+            model_id = "scribe_v3"
         language_code = config.language_code or "ru"
         keyterms = self._keyterms
         api_key = self._api_key

@@ -34,7 +34,7 @@ class BatchTranscriptionService:
 
             headers = {"xi-api-key": self.api_key}
             data = {
-                "model_id": "scribe_v2",
+                "model_id": "scribe_v3",
                 "diarize": "true",
                 "timestamps_granularity": "word",
             }

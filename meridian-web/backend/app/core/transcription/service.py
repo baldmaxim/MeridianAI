@@ -1,11 +1,14 @@
 """ElevenLabs batch transcription service."""
 
 import io
+import logging
 import wave
 import requests
 from typing import List
 from datetime import datetime
 from .models import TranscriptSegment
+
+logger = logging.getLogger(__name__)
 
 
 # Boosted keywords for construction domain
@@ -26,7 +29,7 @@ BOOSTED_KEYWORDS = [
 class TranscriptionService:
     """ElevenLabs API transcription client (batch mode)."""
 
-    def __init__(self, api_key: str, model_id: str = "scribe_v1",
+    def __init__(self, api_key: str, model_id: str = "scribe_v3",
                  language_code: str = "ru"):
         self.api_key = api_key
         self.model_id = model_id
@@ -62,10 +65,10 @@ class TranscriptionService:
             if response.status_code == 200:
                 return self._parse_response(response.json())
             else:
-                print(f"Transcription error: {response.status_code}")
+                logger.error("Transcription error: %s", response.status_code)
                 return []
         except Exception as e:
-            print(f"Transcription failed: {e}")
+            logger.error("Transcription failed: %s", e)
             return []
 
     def _parse_response(self, data: dict) -> List[TranscriptSegment]:

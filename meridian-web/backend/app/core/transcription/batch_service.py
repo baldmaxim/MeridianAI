@@ -1,4 +1,4 @@
-"""ElevenLabs Scribe v2 batch transcription service.
+"""ElevenLabs Scribe v3 batch transcription service.
 
 Post-meeting finalization with:
 - Real speaker diarization (unavailable in realtime)
@@ -22,13 +22,13 @@ logger = logging.getLogger("meridian.batch")
 
 
 class BatchTranscriptionService:
-    """Post-meeting batch transcription via ElevenLabs Scribe v2 REST API."""
+    """Post-meeting batch transcription via ElevenLabs Scribe v3 REST API."""
 
     def __init__(
         self,
         api_key: str,
         language_code: str = "ru",
-        model_id: str = "scribe_v2",
+        model_id: str = "scribe_v3",
     ):
         self.api_key = api_key
         self.language_code = language_code

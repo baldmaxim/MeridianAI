@@ -41,7 +41,8 @@ $DC run --rm migrate
 echo "== up app-сервисов (пересоздаются при смене образа/конфига) =="
 SERVICES="api worker frontend"
 # туннель к ASR (GigaAM) — только когда секреты разложены (secrets/asr, вне git)
-[ -f secrets/asr/ssh_config ] && SERVICES="$SERVICES asr-tunnel"
+# GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
+# [ -f secrets/asr/ssh_config ] && SERVICES="$SERVICES asr-tunnel"
 $DC up -d $SERVICES
 
 echo "== health-gate: ждём ready (внутренняя проверка, до 90с) =="

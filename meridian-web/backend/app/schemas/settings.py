@@ -22,6 +22,8 @@ class TriggerKeywordConfig(BaseModel):
     enabled: bool = True
 
 
+# "gigaam" принимаем только для уже сохранённых значений (иначе 422); сервис отключён
+# 17.11.2026, при выборе "gigaam" распознавание идёт через ElevenLabs → Deepgram.
 BATCH_STT_PROVIDERS = ("", "deepgram", "elevenlabs", "gigaam")
 
 

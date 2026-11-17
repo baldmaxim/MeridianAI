@@ -30,7 +30,8 @@ from ...services.meeting_setup import load_user_settings
 from .audio_compressor import AudioCompressor
 from .transcription_service import BatchTranscriptionService
 from .deepgram_transcription_service import DeepgramBatchTranscriptionService
-from .gigaam_transcription_service import GigaAMBatchTranscriptionService
+# GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
+# from .gigaam_transcription_service import GigaAMBatchTranscriptionService
 from .protocol_generator import ProtocolGenerator
 from .segment_translator import SegmentTranslator, needs_translation
 from .term_corrector import TermCorrector, apply_corrections
@@ -40,13 +41,14 @@ from .utils import split_protocol_output
 logger = logging.getLogger("meridian.batch")
 
 # Порядок = порядок автоматического fallback: ElevenLabs (на реальной 2-часовой записи распознал
-# в 2,3 раза больше слов, чем Deepgram), затем Deepgram, GigaAM — последним.
-# credential: API-ключ (Deepgram/ElevenLabs) или URL сервиса (GigaAM).
+# в 2,3 раза больше слов, чем Deepgram), затем Deepgram. GigaAM отключён (см. ниже).
+# credential: API-ключ (Deepgram/ElevenLabs).
 # Все сервисы принимают (credential, max_speakers=...).
 BATCH_STT = {
     "elevenlabs": ("ElevenLabs", BatchTranscriptionService),
     "deepgram": ("Deepgram", DeepgramBatchTranscriptionService),
-    "gigaam": ("GigaAM", GigaAMBatchTranscriptionService),
+    # GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
+    # "gigaam": ("GigaAM", GigaAMBatchTranscriptionService),
 }
 
 
@@ -229,12 +231,13 @@ async def handle_batch_transcribe(payload: dict) -> None:
                 user_settings = await load_user_settings(job.user_id)
                 chosen = user_settings.get("batch_stt_provider") or user_settings.get("stt_provider")
                 credentials = dict(api_keys)
-                if settings.gigaam_url:
-                    credentials["gigaam"] = settings.gigaam_url
+                # GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
+                # if settings.gigaam_url:
+                #     credentials["gigaam"] = settings.gigaam_url
                 candidates = ordered_batch_stt(chosen, credentials)
                 if not candidates:
                     job.status = "error"
-                    job.error_message = "Нет доступного распознавания: нужен ключ Deepgram/ElevenLabs или GigaAM"
+                    job.error_message = "Нет доступного распознавания: нужен ключ Deepgram или ElevenLabs"
                     await db.commit()
                     return
                 job.status = "transcribing"

@@ -1,4 +1,4 @@
-"""ElevenLabs Scribe v2 Realtime streaming transcription service.
+"""ElevenLabs Scribe v3 Live (realtime) streaming transcription service.
 
 Production-grade implementation:
 - VAD commit strategy with tuned parameters
@@ -31,7 +31,7 @@ FATAL_ERRORS = {"auth_error", "invalid_api_key"}
 
 
 class StreamingTranscriptionService:
-    """Streaming transcription using ElevenLabs Scribe v2 Realtime.
+    """Streaming transcription using ElevenLabs Scribe v3 Live (realtime).
 
     Key design decisions:
     - partial_transcript → PartialTranscript (UI preview only)
@@ -47,7 +47,7 @@ class StreamingTranscriptionService:
         on_partial: Callable[[PartialTranscript], None],
         on_committed: Callable[[CommittedSegment], None],
         on_error: Optional[Callable[[str, str], None]] = None,
-        model: str = "scribe_v2_realtime",
+        model: str = "scribe_v3_live",
         language_code: Optional[str] = "ru",
         sample_rate: int = 16000,
         audio_recorder: Optional["AudioRecorder"] = None,
@@ -93,7 +93,7 @@ class StreamingTranscriptionService:
 
             options = RealtimeAudioOptions(**options_kwargs)
             self.connection = await self.client.speech_to_text.realtime.connect(options)
-            logger.info("[ElevenLabs] Connected to Scribe v2 Realtime")
+            logger.info("[ElevenLabs] Connected to Scribe v3 Live")
             return True
         except Exception as e:
             logger.error(f"[ElevenLabs] Connection error: {e}")

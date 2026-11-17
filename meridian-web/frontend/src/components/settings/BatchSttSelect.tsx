@@ -2,9 +2,10 @@ import { Select } from '../common';
 import styles from './BatchSttSelect.module.css';
 
 const BATCH_PROVIDERS = [
-  { value: 'gigaam', label: 'GigaAM (сервер компании, говорящие + таймкоды)' },
+  // GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
+  // { value: 'gigaam', label: 'GigaAM (сервер компании, говорящие + таймкоды)' },
   { value: 'deepgram', label: 'Deepgram' },
-  { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'elevenlabs', label: 'ElevenLabs (Scribe v3)' },
 ];
 
 interface Props {
@@ -14,7 +15,8 @@ interface Props {
 }
 
 export const BatchSttSelect = ({ value, onChange, activeServices }: Props) => {
-  const current = value ?? '';
+  // сохранённый «gigaam» при распознавании уходит в ElevenLabs — так и показываем
+  const current = value === 'gigaam' ? 'elevenlabs' : (value ?? '');
   const services = activeServices ?? [];
   const options = [
     { value: '', label: 'Как в живой встрече' },

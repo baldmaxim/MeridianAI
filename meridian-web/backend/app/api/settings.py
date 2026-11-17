@@ -47,9 +47,10 @@ async def get_active_providers(
             select(ApiKey.service).where(ApiKey.is_active == True).distinct()
         )
     services = [row[0] for row in result.all()]
+    # GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
     # GigaAM — сервис по URL из конфигурации, ключа в api_keys у него нет
-    if _get_settings().gigaam_url and "gigaam" not in services:
-        services.append("gigaam")
+    # if _get_settings().gigaam_url and "gigaam" not in services:
+    #     services.append("gigaam")
     return {"active_services": services}
 
 

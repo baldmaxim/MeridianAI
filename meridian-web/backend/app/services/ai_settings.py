@@ -430,7 +430,7 @@ def options_payload() -> dict:
         "available_stt_providers": list(STT_PROVIDERS),
         "available_stt_models": {
             "deepgram": ["nova-2", "nova-3"],
-            "elevenlabs": ["scribe_v1"],
+            "elevenlabs": ["scribe_v3", "scribe_v3_live", "scribe_v2", "scribe_v2_realtime"],
         },
         "available_llm_providers": list(LLM_PROVIDERS),
         "available_llm_models": [

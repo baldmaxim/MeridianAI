@@ -15,7 +15,6 @@ from app.auth.service import hash_password
 from app.core.batch import processor as proc
 from app.core.batch.audio_compressor import AudioCompressor, build_stt_ffmpeg_args
 from app.core.batch.deepgram_transcription_service import DeepgramBatchTranscriptionService
-from app.core.batch.gigaam_transcription_service import GigaAMBatchTranscriptionService
 from app.core.batch.transcription_service import BatchTranscriptionService
 from app.database import Base, get_db
 from app.models.batch_job import BatchJob
@@ -68,8 +67,7 @@ def test_all_batch_services_accept_max_speakers():
         assert cls("cred", max_speakers=4).max_speakers == 4
         assert cls("cred").max_speakers is None
     assert DeepgramBatchTranscriptionService("k", max_speakers=2).max_speakers == 2
-    assert GigaAMBatchTranscriptionService("http://x", max_speakers=2).max_speakers == 2
-    assert list(proc.BATCH_STT) == ["elevenlabs", "deepgram", "gigaam"]
+    assert list(proc.BATCH_STT) == ["elevenlabs", "deepgram"]  # GigaAM отключён 17.11.2026
 
 
 # ---------- ffmpeg-аргументы копии для распознавания ----------
