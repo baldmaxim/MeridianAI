@@ -1,0 +1,107 @@
+/* Кольцо расхода кредитов ElevenLabs: 26px на мобильном, 28px от 768px */
+.wrap {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.ring {
+  --ring-size: 26px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Тап-цель ≥44px при визуальном размере 26–28px */
+.ring::before {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.track,
+.arc {
+  fill: none;
+  stroke-width: 3;
+}
+
+.track {
+  stroke: var(--border-strong);
+}
+
+.arc {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dasharray 200ms ease-out, stroke 200ms ease-out;
+}
+
+.warn .arc {
+  stroke: var(--danger);
+}
+
+.warn {
+  color: var(--danger);
+}
+
+.pct {
+  position: relative;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.tip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 20px));
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .ring {
+    --ring-size: 28px;
+  }
+
+  .pct {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arc {
+    transition: none;
+  }
+}

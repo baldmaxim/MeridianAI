@@ -51,6 +51,7 @@ from .api.multi_channel_batch_stt import router as multi_channel_batch_stt_route
 from .api.transcription_authority import router as transcription_authority_router
 from .api.privacy import router as privacy_router
 from .api.health import router as health_api_router
+from .api.usage import router as usage_router
 from .api.ocr_agent import agent_router as ocr_agent_router, admin_router as ocr_agent_admin_router
 from .api.desktop import router as desktop_router
 from .api.desktop_library import router as desktop_library_router
@@ -314,6 +315,7 @@ app.include_router(multi_channel_batch_stt_router, prefix="/api/meetings", tags=
 app.include_router(transcription_authority_router, prefix="/api/meetings", tags=["transcription-authority"])
 app.include_router(privacy_router, prefix="/api/meetings", tags=["privacy"])
 app.include_router(health_api_router, prefix="/api/health", tags=["health"])
+app.include_router(usage_router, prefix="/api/usage", tags=["usage"])
 # Агент распознавания сканов на компьютере пользователя: ходит сюда сам по токену (NAT).
 app.include_router(ocr_agent_router, prefix="/api/ocr-agent", tags=["ocr-agent"])
 app.include_router(ocr_agent_admin_router, prefix="/api/admin/ocr-agents", tags=["ocr-agent"])

@@ -10,6 +10,7 @@ import { Icon } from '../common/Icon';
 import { HeaderNav } from './HeaderNav';
 import { HeaderMobileMenu } from './HeaderMobileMenu';
 import { UserMenu } from './UserMenu';
+import { CreditsRing } from './CreditsRing';
 import type { IHeaderNavModel } from './headerNav';
 import styles from './Header.module.css';
 
@@ -131,6 +132,7 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
               {activeRoleName}
             </span>
           )}
+          {userName && <CreditsRing />}
           {settingsAction && (
             <button
               type="button"
