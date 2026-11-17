@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { LearningCandidates } from '../components/learning/LearningCandidates';
 import { KnowledgeList } from '../components/learning/KnowledgeList';
+import { AsrTermsList } from '../components/learning/AsrTermsList';
 import type { KnowledgeKind } from '../types';
 import styles from './KnowledgePage.module.css';
 import { cx } from '../utils/cx';
 
 interface Props { onBack: () => void; }
 
-type Tab = 'candidates' | KnowledgeKind;
+type Tab = 'candidates' | KnowledgeKind | 'asr';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'candidates', label: 'Кандидаты' },
@@ -16,6 +17,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'playbooks', label: 'Playbooks' },
   { key: 'traits', label: 'Особенности' },
   { key: 'forbidden', label: 'Стоп-фразы' },
+  { key: 'asr', label: 'Названия для распознавания' },
 ];
 
 export function KnowledgePage({ onBack }: Props) {
@@ -45,6 +47,8 @@ export function KnowledgePage({ onBack }: Props) {
             </p>
             <LearningCandidates />
           </>
+        ) : tab === 'asr' ? (
+          <AsrTermsList />
         ) : (
           <KnowledgeList kind={tab} />
         )}

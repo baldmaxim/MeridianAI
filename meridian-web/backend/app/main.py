@@ -38,6 +38,7 @@ from .api.meeting_letters import router as meeting_letters_router
 from .api.mobile import router as mobile_router
 from .api.learning import router as learning_router
 from .api.knowledge import router as knowledge_router
+from .api.asr_terms import router as asr_terms_router
 from .api.context_sources import router as context_sources_router
 from .api.conversation_tree import router as conversation_tree_router
 from .api.speaker_roles import router as speaker_roles_router
@@ -302,6 +303,7 @@ app.include_router(meeting_letters_router, prefix="/api/meetings", tags=["meetin
 app.include_router(mobile_router, prefix="/api/mobile", tags=["mobile"])
 app.include_router(learning_router, prefix="/api", tags=["learning"])
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])
+app.include_router(asr_terms_router, prefix="/api/asr-terms", tags=["asr-terms"])
 app.include_router(context_sources_router, prefix="/api/meetings", tags=["context-sources"])
 app.include_router(rag_router, prefix="/api", tags=["rag"])
 app.include_router(context_preview_router, prefix="/api", tags=["context-preview"])

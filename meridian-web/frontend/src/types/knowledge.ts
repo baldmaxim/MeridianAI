@@ -97,6 +97,22 @@ export interface ForbiddenPhrase {
 
 export type KnowledgeKind = 'terms' | 'triggers' | 'playbooks' | 'traits' | 'forbidden';
 
+/** Название для распознавания речи (словарь asr_terms). */
+export interface AsrTerm {
+  id: number;
+  term: string;
+  aliases: string[];
+  is_common: boolean;
+  can_delete: boolean;
+  created_at: string;
+}
+
+export interface AsrTermInput {
+  term: string;
+  aliases: string[];
+  common: boolean;
+}
+
 // --- Этап 8: предыдущие встречи как контекст ---
 
 export interface PreviousMeetingSummaryCard {
