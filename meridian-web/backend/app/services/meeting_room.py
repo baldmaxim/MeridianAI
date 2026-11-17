@@ -305,12 +305,12 @@ class MeetingRoom:
         if not room.settings.get("stt_provider") and ai_resolved.get("stt_provider"):
             room.settings["stt_provider"] = ai_resolved["stt_provider"]
         # Робастность: ранее сохранённый/неизвестный STT-провайдер (напр. удалённый
-        # «gemini») → deepgram, иначе фабрика вернёт None и realtime не стартует.
+        # «gemini») → elevenlabs, иначе фабрика вернёт None и realtime не стартует.
         _supported_stt = {"deepgram", "elevenlabs", "speechmatics"}
         _stt = room.settings.get("stt_provider")
         if _stt and _stt not in _supported_stt:
-            logger.info(f"[room {meeting_id}] STT-провайдер '{_stt}' не поддерживается → deepgram")
-            room.settings["stt_provider"] = "deepgram"
+            logger.info(f"[room {meeting_id}] STT-провайдер '{_stt}' не поддерживается → elevenlabs")
+            room.settings["stt_provider"] = "elevenlabs"
 
         openrouter_key = room.api_keys.get("openrouter", "")
         if openrouter_key:
@@ -1145,7 +1145,7 @@ class MeetingRoom:
         if not self.session.is_listening:
             self.recording_started_at_ms = int(time.time() * 1000)
             await self.session.start_listening(
-                stt_provider=self.settings.get("stt_provider", "deepgram"),
+                stt_provider=self.settings.get("stt_provider", "elevenlabs"),
                 api_keys=self.api_keys,
                 diarization=self.settings.get("diarization", True),
                 max_speakers=self.settings.get("diarization_max_speakers", 3),

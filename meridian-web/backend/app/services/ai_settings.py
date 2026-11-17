@@ -57,7 +57,7 @@ def valid_model_string(v: str | None) -> bool:
 def config_baseline() -> dict:
     s = get_settings()
     return {
-        "stt_provider": "deepgram",
+        "stt_provider": "elevenlabs",
         "stt_model": None,
         "llm_provider": "openrouter",
         "live_suggestion_model": DEFAULT_LIVE_MODEL,

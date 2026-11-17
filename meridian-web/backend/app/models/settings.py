@@ -15,7 +15,7 @@ class UserSettings(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True
     )
-    stt_provider: Mapped[str] = mapped_column(String(20), default="deepgram")
+    stt_provider: Mapped[str] = mapped_column(String(20), default="elevenlabs")
     # Провайдер офлайн-распознавания (батч). NULL = как в живой встрече (stt_provider)
     batch_stt_provider: Mapped[str | None] = mapped_column(
         String(20), nullable=True, default=None
