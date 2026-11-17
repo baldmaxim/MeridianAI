@@ -24,11 +24,14 @@ from ...models.file import FileRecord
 from ...models.meeting import MeetingSession
 from ...services.batch_to_meeting import merge_transcription_into_meeting, transcription_segments
 from ...services.api_keys import load_api_keys
-from ...services.asr_lexicon import load_job_lexicon
+from ...services.asr_lexicon import build_keyterms, load_job_lexicon_entries
 from ...services import s3
 from ...services.meeting_setup import load_user_settings
 from .audio_compressor import AudioCompressor
-from .transcription_service import BatchTranscriptionService
+from .term_lexicon import Lexicon
+from .transcription_service import (
+    KEYTERMS_LIMIT, KEYTERMS_MAX_CHARS, KEYTERMS_MAX_WORDS, BatchTranscriptionService,
+)
 from .deepgram_transcription_service import DeepgramBatchTranscriptionService
 # GigaAM отключён 17.11.2026: сервер переустановлен, туннель не работает; распознавание — ElevenLabs Scribe v3
 # from .gigaam_transcription_service import GigaAMBatchTranscriptionService
@@ -87,19 +90,22 @@ async def _merge_gap_fill(db: AsyncSession, meeting_id: int, user_id: int | None
 
 
 async def _correct_terms(db: AsyncSession, job: BatchJob, transcription: dict,
-                         openrouter_key: str | None) -> dict:
+                         openrouter_key: str | None, lexicon_entries: list | None = None) -> dict:
     """Исправить термины по словарю; вернуть распознавание с правками (или как было).
 
     Правки лежат отдельно (transcription_corrections_json), исходник не меняется.
     Чекпоинт — сама колонка: NULL — пробуем, иначе только применяем сохранённое.
     Сбой шага не роняет задачу: LLM не ответила — колонка не трогается, повтор при
     следующем запуске. Статус задачи не меняется.
+    lexicon_entries — записи словаря, уже загруженные для распознавания (чтобы не грузить дважды).
     """
     try:
         if job.transcription_corrections_json is None:
             if not (openrouter_key and get_settings().batch_term_correction):
                 return transcription
-            lexicon = await load_job_lexicon(db, job.user_id)
+            if lexicon_entries is None:
+                lexicon_entries = await load_job_lexicon_entries(db, job.user_id)
+            lexicon = Lexicon.from_entries(lexicon_entries)
             result = await TermCorrector(openrouter_key).correct(transcription, lexicon)
             if result is None:
                 logger.warning("job %s: правка терминов не получена (см. логи)", job.id)
@@ -149,6 +155,7 @@ async def handle_batch_transcribe(payload: dict) -> None:
     job_id = payload["batch_job_id"]
     api_keys = await load_api_keys()
     tmpdir: str | None = None
+    lexicon_entries: list | None = None  # словарь грузится раз: для keyterms и для правки терминов
 
     try:
         async with async_session() as db:
@@ -242,13 +249,28 @@ async def handle_batch_transcribe(payload: dict) -> None:
                     return
                 job.status = "transcribing"
                 await db.commit()
+                # Словарь терминов → keyterms для ElevenLabs. Сбой не роняет задачу: идём без подсказок.
+                keyterms: list[str] = []
+                if any(p == "elevenlabs" for p, _ in candidates):
+                    try:
+                        lexicon_entries = await load_job_lexicon_entries(db, job.user_id)
+                        keyterms = build_keyterms(
+                            lexicon_entries, limit=KEYTERMS_LIMIT,
+                            max_chars=KEYTERMS_MAX_CHARS, max_words=KEYTERMS_MAX_WORDS,
+                        )
+                    except Exception as e:
+                        logger.warning("job %s: словарь для keyterms не загружен (%s), "
+                                       "распознаём без подсказок", job_id, e)
+                        lexicon_entries = None
+                        await db.rollback()  # сбой SQL не должен оставить сессию в «упавшей» транзакции
                 transcription = None
                 label = ""
                 for provider, credential in candidates:
                     label, service_cls = BATCH_STT[provider]
                     logger.info("job %s: распознавание через %s (в настройках: %s)",
                                 job_id, provider, chosen)
-                    service = service_cls(credential, max_speakers=job.max_speakers)
+                    extra = {"keyterms": keyterms} if provider == "elevenlabs" else {}
+                    service = service_cls(credential, max_speakers=job.max_speakers, **extra)
                     transcription = await service.transcribe(file_to_transcribe)
                     if transcription:
                         break
@@ -266,7 +288,8 @@ async def handle_batch_transcribe(payload: dict) -> None:
 
             # Правка терминов по словарю (отдельный чекпоинт — колонка с правками);
             # перевод, дозапись и протокол идут по исправленному тексту.
-            transcription = await _correct_terms(db, job, transcription, api_keys.get("openrouter"))
+            transcription = await _correct_terms(
+                db, job, transcription, api_keys.get("openrouter"), lexicon_entries)
 
             # Перевод иноязычных реплик на русский. Отдельный чекпоинт:
             # NULL — не пробовали, {"items": []} — переводить было нечего.

@@ -5,7 +5,7 @@ import time
 import logging
 import requests
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +13,20 @@ MAX_RETRIES = 3
 RETRY_BACKOFF = [2, 4, 8]
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
+# Ограничения ElevenLabs на keyterms (scribe_v3): до 1000 штук, короче 50 символов, до 5 слов.
+KEYTERMS_LIMIT = 1000
+KEYTERMS_MAX_CHARS = 49
+KEYTERMS_MAX_WORDS = 5
+
 
 class BatchTranscriptionService:
     API_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
-    def __init__(self, api_key: str, max_speakers: Optional[int] = None):
+    def __init__(self, api_key: str, max_speakers: Optional[int] = None,
+                 keyterms: Optional[List[str]] = None):
         self.api_key = api_key
+        # Термины предметной области: подсказка модели (смещение к нужному написанию)
+        self.keyterms = keyterms or []
         # Число говорящих, если пользователь его знает (num_speakers); None — авто
         self.max_speakers = max_speakers
 
@@ -37,12 +45,19 @@ class BatchTranscriptionService:
                 "model_id": "scribe_v3",
                 "diarize": "true",
                 "timestamps_granularity": "word",
+                # Числа цифрами («15 метров», а не «пятнадцать метров»)
+                "numbers_format": "digits",
             }
             if self.max_speakers:
                 data["num_speakers"] = str(self.max_speakers)
+            if self.keyterms:
+                # requests кладёт список в multipart повторяющимися полями keyterms
+                data["keyterms"] = list(self.keyterms)
 
             response = None
-            for attempt in range(MAX_RETRIES):
+            attempt = -1
+            while attempt < MAX_RETRIES - 1:
+                attempt += 1
                 try:
                     with open(file_path, "rb") as audio_file:
                         files = {"file": (Path(file_path).name, audio_file)}
@@ -54,6 +69,13 @@ class BatchTranscriptionService:
                             timeout=timeout,
                             proxies=proxies,
                         )
+                    if "keyterms" in data and self._is_keyterms_rejection(response):
+                        # Подсказки не принялись — один раз пробуем без них, а не роняем распознавание
+                        logger.warning(f"ElevenLabs отклонил keyterms ({response.status_code}): "
+                                       f"{response.text[:300]}; повтор без них")
+                        del data["keyterms"]
+                        attempt -= 1  # повтор без keyterms не тратит попытку
+                        continue
                     if response.status_code not in RETRYABLE_STATUSES:
                         break
                     logger.warning(f"Retry {attempt + 1}/{MAX_RETRIES}: status {response.status_code}")
@@ -76,6 +98,14 @@ class BatchTranscriptionService:
         except Exception as e:
             logger.error(f"Transcription error: {e}")
             return None
+
+    @staticmethod
+    def _is_keyterms_rejection(response) -> bool:
+        """4xx (кроме 429), в тексте ошибки упомянуты keyterms."""
+        status = response.status_code
+        if not (400 <= status < 500) or status == 429:
+            return False
+        return "keyterm" in (response.text or "").lower()
 
     def _parse_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
         transcription = {"text": result.get("text", ""), "words": []}

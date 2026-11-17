@@ -636,7 +636,8 @@ class SessionManager:
 
         # Create transcription service based on provider
         service = self._build_transcription_service(
-            stt_provider, api_keys, diarization, max_speakers
+            stt_provider, api_keys, diarization, max_speakers,
+            keyterms=await self._load_keyterms() if stt_provider == "elevenlabs" else None,
         )
         if service is None:
             await self._send_error(f"Unknown STT provider: {stt_provider}")
@@ -650,8 +651,34 @@ class SessionManager:
         )
         await self._send_status("Прослушивание активно...")
 
+    async def _load_keyterms(self) -> list[str]:
+        """Подсказки ElevenLabs Scribe v3 Live: заказчик/объект/участники встречи, затем словарь.
+
+        Лимит live — 50 терминов по ≤20 символов. Любой сбой → [] (подключаемся без подсказок).
+        """
+        try:
+            from ..database import async_session
+            from ..models.directory import Customer, ProjectObject
+            from ..models.meeting import MeetingSession
+            from .asr_lexicon import build_keyterms, load_job_lexicon_entries
+
+            priority: list[str] = list(self.speaker_names.values())
+            async with async_session() as db:
+                if self.db_session_id:
+                    meeting = await db.get(MeetingSession, self.db_session_id)
+                    customer = await db.get(Customer, meeting.customer_id) if meeting and meeting.customer_id else None
+                    obj = await db.get(ProjectObject, meeting.object_id) if meeting and meeting.object_id else None
+                    # заказчик и объект важнее имён участников
+                    priority = [x.name for x in (customer, obj) if x] + priority
+                entries = await load_job_lexicon_entries(db, self.user_id)
+            return build_keyterms(entries, limit=50, max_chars=20, priority_terms=priority)
+        except Exception as e:
+            logger.warning("keyterms для live-распознавания не загружены: %s", e)
+            return []
+
     def _build_transcription_service(self, stt_provider: str, api_keys: dict,
-                                     diarization: bool, max_speakers: int):
+                                     diarization: bool, max_speakers: int,
+                                     keyterms: Optional[list[str]] = None):
         """Собрать STT-сервис по провайдеру (использует текущий self.audio_queue).
 
         Общий код для start_listening и restart_transcription. Возвращает None для
@@ -678,6 +705,7 @@ class SessionManager:
                 on_committed=self._on_committed,
                 on_error=self._on_stt_error,
                 audio_recorder=self.audio_recorder,
+                keyterms=keyterms,
             )
         if stt_provider == "speechmatics":
             from ..core.transcription.speechmatics_streaming_service import (
@@ -713,7 +741,8 @@ class SessionManager:
         # свежая очередь + новый сервис (is_listening остаётся True)
         self.audio_queue = asyncio.Queue()
         service = self._build_transcription_service(
-            stt_provider, api_keys, diarization, max_speakers
+            stt_provider, api_keys, diarization, max_speakers,
+            keyterms=await self._load_keyterms() if stt_provider == "elevenlabs" else None,
         )
         if service is None:
             return False

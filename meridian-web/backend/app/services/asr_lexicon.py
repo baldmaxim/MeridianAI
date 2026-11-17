@@ -34,8 +34,10 @@ def _names(rows: Iterable[str | None], source: str) -> List[Entry]:
     return [(n.strip(), [], source) for n in rows if n and n.strip()]
 
 
-async def load_job_lexicon(db: AsyncSession, user_id: int) -> Lexicon:
-    """Базовый словарь + термины пользователя и общие + глоссарий + справочник заказчиков и объектов."""
+async def load_job_lexicon_entries(db: AsyncSession, user_id: int) -> List[Entry]:
+    """Записи (термин, варианты, источник): базовый словарь + термины пользователя и общие
+    + глоссарий + справочник заказчиков и объектов. Источник сохраняется — по нему
+    build_keyterms задаёт приоритет."""
     entries: List[Entry] = list(load_base_lexicon_entries())
 
     asr_rows = (await db.execute(
@@ -60,6 +62,59 @@ async def load_job_lexicon(db: AsyncSession, user_id: int) -> Lexicon:
     entries += _names((await db.execute(select(Customer.name).order_by(Customer.id))).scalars(), "directory")
     entries += _names((await db.execute(select(ProjectObject.name).order_by(ProjectObject.id))).scalars(), "directory")
 
+    return entries
+
+
+async def load_job_lexicon(db: AsyncSession, user_id: int) -> Lexicon:
+    """Словарь пользователя для правки терминов (см. load_job_lexicon_entries)."""
+    entries = await load_job_lexicon_entries(db, user_id)
     lexicon = Lexicon.from_entries(entries)
     logger.info("lexicon user %s: записей %d, форм %d", user_id, len(entries), len(lexicon.forms))
     return lexicon
+
+
+# Порядок источников для подсказок распознаванию: что точно звучит на этой встрече — первым.
+_KEYTERM_SOURCE_ORDER = ("directory", "asr_terms", "glossary", "base")
+# ElevenLabs не принимает эти символы в keyterms.
+_KEYTERM_FORBIDDEN = frozenset("<>{}[]\\")
+_KEYTERM_MIN_CHARS = 3
+
+
+def build_keyterms(
+    entries: Iterable[Entry],
+    *,
+    limit: int,
+    max_chars: int,
+    max_words: int = 5,
+    priority_terms: Iterable[str] = (),
+) -> List[str]:
+    """Термины словаря → список keyterms для ElevenLabs (смещение модели к нужным словам).
+
+    Порядок: priority_terms, затем источники directory → asr_terms → glossary → base.
+    Берутся только канонические термины (без вариантов написания). Отсев: короче 3 или
+    длиннее max_chars символов, больше max_words слов, запрещённые символы; дубли — без учёта регистра.
+    """
+    ordered: List[str] = list(priority_terms)
+    by_source: dict[str, List[str]] = {}
+    for term, _aliases, source in entries:
+        by_source.setdefault(source, []).append(term)
+    extra = [s for s in by_source if s not in _KEYTERM_SOURCE_ORDER]
+    for source in (*_KEYTERM_SOURCE_ORDER, *extra):
+        ordered += by_source.get(source, [])
+
+    result: List[str] = []
+    seen: set[str] = set()
+    for raw in ordered:
+        if len(result) >= limit:
+            break
+        term = " ".join((raw or "").split())  # крайние пробелы и двойные пробелы внутри
+        if not (_KEYTERM_MIN_CHARS <= len(term) <= max_chars):
+            continue
+        if len(term.split()) > max_words or any(ch in _KEYTERM_FORBIDDEN for ch in term):
+            continue
+        key = term.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(term)
+    return result

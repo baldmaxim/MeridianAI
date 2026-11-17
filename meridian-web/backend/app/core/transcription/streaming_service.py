@@ -51,6 +51,7 @@ class StreamingTranscriptionService:
         language_code: Optional[str] = "ru",
         sample_rate: int = 16000,
         audio_recorder: Optional["AudioRecorder"] = None,
+        keyterms: Optional[list[str]] = None,
     ):
         self.api_key = api_key
         self.audio_queue = audio_queue
@@ -61,6 +62,8 @@ class StreamingTranscriptionService:
         self.language_code = language_code
         self.sample_rate = sample_rate
         self.audio_recorder = audio_recorder
+        # Подсказки модели (до 50 штук по ≤20 символов — лимит Scribe v3 Live)
+        self.keyterms = keyterms or []
 
         self.client = AsyncElevenLabs(api_key=api_key)
         self.connection = None
@@ -90,9 +93,23 @@ class StreamingTranscriptionService:
             )
             if self.language_code:
                 options_kwargs["language_code"] = self.language_code
+            if self.keyterms:
+                options_kwargs["keyterms"] = list(self.keyterms)
 
-            options = RealtimeAudioOptions(**options_kwargs)
-            self.connection = await self.client.speech_to_text.realtime.connect(options)
+            try:
+                self.connection = await self.client.speech_to_text.realtime.connect(
+                    RealtimeAudioOptions(**options_kwargs)
+                )
+            except Exception as e:
+                if "keyterms" not in options_kwargs:
+                    raise
+                # Подсказки не должны ронять встречу: пробуем без них
+                logger.warning(f"[ElevenLabs] Connect with keyterms failed ({e}); retry without")
+                del options_kwargs["keyterms"]
+                self.connection = await self.client.speech_to_text.realtime.connect(
+                    RealtimeAudioOptions(**options_kwargs)
+                )
+                self.keyterms = []  # без них подключились — не возвращаемся к ним при реконнекте
             logger.info("[ElevenLabs] Connected to Scribe v3 Live")
             return True
         except Exception as e:
