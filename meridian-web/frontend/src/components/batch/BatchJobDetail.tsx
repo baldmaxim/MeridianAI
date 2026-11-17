@@ -3,6 +3,8 @@ import { downloadBatchResult, getBatchAudioUrl, getBatchResultBlob } from '../..
 import type { BatchSegment } from '../../api/batch';
 import { errorTextFromBlob, fetchBlob, saveBlob } from '../../api/download';
 import { createZip } from '../../lib/zip';
+import { buildProtocolHtml } from '../../lib/protocolHtml';
+import { formatMoscowDateTime } from '../../lib/datetime';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from './MarkdownView';
@@ -56,6 +58,18 @@ export function BatchJobDetail({ jobId }: Props) {
     }
   };
 
+  /** HTML-протокол с просмотрщиком; audioFileName — файл записи рядом (null — без плеера). */
+  const makeProtocolHtmlBlob = (audioFileName: string | null): Blob => {
+    const html = buildProtocolHtml({
+      title: job?.original_filename || 'Запись',
+      createdAt: job?.created_at ? formatMoscowDateTime(job.created_at) : undefined,
+      protocolMarkdown: job?.protocol_markdown ?? null,
+      segments,
+      audioFileName,
+    });
+    return new Blob([html], { type: 'text/html;charset=utf-8' });
+  };
+
   /** Все материалы задачи — одним ZIP: пачку отдельных загрузок браузер блокирует. */
   const downloadAllBundle = async () => {
     if (!job) return;
@@ -67,7 +81,25 @@ export function BatchJobDetail({ jobId }: Props) {
     }
     if (job.protocol_markdown) parts.push({ name: `${stem}_протокол.txt`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_txt')).blob });
     if (job.protocol_json) parts.push({ name: `${stem}_протокол.json`, getBlob: async () => (await getBatchResultBlob(jobId, 'protocol_json')).blob });
-    if (audioUrl) parts.push({ name: `${stem}_аудио${mimeExt(audioMime)}`, getBlob: () => fetchBlob(audioUrl) });
+    const audioName = safeFileName(`${stem}_аудио${mimeExt(audioMime)}`);
+    let audioIncluded = false;
+    if (audioUrl) {
+      parts.push({
+        name: audioName,
+        getBlob: async () => {
+          const blob = await fetchBlob(audioUrl);
+          audioIncluded = true;
+          return blob;
+        },
+      });
+    }
+    // после аудио: ссылку на запись ставим, только если она реально попала в архив
+    if (job.protocol_markdown || segments.length) {
+      parts.push({
+        name: `${stem}_протокол.html`,
+        getBlob: async () => makeProtocolHtmlBlob(audioIncluded ? audioName : null),
+      });
+    }
     if (!parts.length) return;
 
     setBundleBusy(true);
@@ -107,6 +139,7 @@ export function BatchJobDetail({ jobId }: Props) {
     );
   }
 
+  const fileStem = (job.original_filename || 'запись').replace(/\.[^.]+$/, '');
   const hasTranscript = !!(job.transcription_text || segments.length);
   const activeTab: Tab = tab ?? (job.protocol_markdown && !hasTranscript ? 'protocol' : 'transcript');
   // Встреча из записи: пока запись «батч», у неё есть только markdown-протокол —
@@ -195,6 +228,12 @@ export function BatchJobDetail({ jobId }: Props) {
               </>
             )}
             {job.protocol_markdown && <BatchDownloadButton onClick={() => runDownload(() => downloadBatchResult(job.id, 'protocol_txt'), 'Не удалось скачать файл')} label="Протокол TXT" />}
+            {job.protocol_markdown && (
+              <BatchDownloadButton
+                onClick={() => runDownload(async () => saveBlob(makeProtocolHtmlBlob(null), safeFileName(`${fileStem}_протокол.html`)), 'Не удалось собрать HTML')}
+                label="Протокол HTML"
+              />
+            )}
             {job.protocol_json && <BatchDownloadButton onClick={() => runDownload(() => downloadBatchResult(job.id, 'protocol_json'), 'Не удалось скачать файл')} label="Протокол JSON" />}
             {audioUrl && <a href={audioUrl} className={styles.dlAudio}>{'⬇'} Аудио</a>}
           </div>
