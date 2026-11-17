@@ -45,8 +45,8 @@ class BatchTranscriptionService:
                 "model_id": "scribe_v3",
                 "diarize": "true",
                 "timestamps_granularity": "word",
-                # Числа цифрами («15 метров», а не «пятнадцать метров»)
-                "numbers_format": "digits",
+                # numbers_format=digits не ставим: стенд 17.11.2026 (5 записей) — с ним чисел цифрами
+                # стало вдвое меньше («сто девяносто восемь» вместо 198), по умолчанию v3 пишет цифры
             }
             if self.max_speakers:
                 data["num_speakers"] = str(self.max_speakers)

@@ -99,7 +99,7 @@ async def test_batch_sends_keyterms_and_digits(monkeypatch, audio):
     await BatchTranscriptionService("k", max_speakers=2, keyterms=["бетон", "КС-2"]).transcribe(audio)
     data = calls[0]["data"]
     assert data["keyterms"] == ["бетон", "КС-2"]
-    assert data["numbers_format"] == "digits"
+    assert "numbers_format" not in data
     assert data["diarize"] == "true" and data["timestamps_granularity"] == "word"
     assert data["num_speakers"] == "2" and data["model_id"] == "scribe_v3"
 
@@ -119,7 +119,7 @@ async def test_batch_without_keyterms_omits_field_but_keeps_digits(monkeypatch, 
     calls = _patch_post(monkeypatch, [_Resp()])
     await BatchTranscriptionService("k").transcribe(audio)
     assert "keyterms" not in calls[0]["data"]
-    assert calls[0]["data"]["numbers_format"] == "digits"
+    assert "numbers_format" not in calls[0]["data"]
 
 
 @pytest.mark.asyncio
