@@ -76,13 +76,6 @@ dmypy.json
 
 keys.env
 
-# Операционные runbook'и и personal-infra скрипты (local-only, не для публичного git)
-/deploy.md
-/server-add-ssl.sh
-/server-diagnose.sh
-/server-fix.sh
-/server-setup-guide.md
-
 # Локальные значения деплоя (owner/domain/ssh/paths) — реальные значения не коммитим
 meridian-web/deploy/.deploy.env
 
@@ -90,21 +83,14 @@ meridian-web/deploy/.deploy.env
 meridian-web/backend/uploads/*
 !meridian-web/backend/uploads/.gitkeep
 
-# Личные/черновые файлы в корне — не для публичного репо (остаются локально)
-/memory.md
-/profile.txt
-/lmstudio_three_models_skill.md
-/subpage-*.json
-
-# Внутренний корпоративный стандарт — не для публичного репо (остаётся локально)
+# Локальные файлы в корне — не для публичного репо (остаются локально)
 /corp_standard_full_single_vps.md
-
-# Личные VPN/infra скрипты и заметки в docs/ — не для публичного репо
-/docs/agg-xray-log.awk
-/docs/vpn-usage-2026-07.md
-/docs/xray-peruser-outbounds.py
-/docs/xray-testleg.sh
+/ML-SSH-access.zip
+/all-audio-small/
+/gigaam-server-backup/
 /docs/deploy-*-meridianai.md
+/docs/lmstudio-three-models.md
+/*amnezia*.conf
 
 # Рабочие планировочные файлы агента (корп. стандарт)
 /.ai/
@@ -112,11 +98,4 @@ meridian-web/backend/uploads/*
 # Разовые артефакты проверок
 meridian-web/staging_evidence/
 
-# VPN-конфиги с ключами — никогда не коммитить
-/amnezia_*.conf
-/*amnezia*.conf
-
-# Мини-проект «Генератор подписи СУ-10» (su10info.meridianai.ru) — ведётся локально, не для публичного репо
-/010 SignatureGenerator/
-# Модель голоса десктопа (качается scripts/fetch-voice-model.mjs)
 meridian-desktop/src-tauri/resources/models/campplus-sv-zh-en-16k.onnx

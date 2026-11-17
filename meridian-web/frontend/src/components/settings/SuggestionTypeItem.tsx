@@ -77,7 +77,7 @@ export const SuggestionTypeItem: FC<ISuggestionTypeItemProps> = ({
                   clearLabel="цвет"
                   className={styles.colorField}
                   inputClassName={styles.input}
-                  placeholder="#FF4B6E"
+                  placeholder="#RRGGBB"
                 />
               </div>
             </div>

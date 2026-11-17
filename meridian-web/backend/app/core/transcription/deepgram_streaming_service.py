@@ -5,6 +5,7 @@ Adapted for web: uses asyncio.Queue instead of threading queue.
 
 import asyncio
 import json
+import logging
 import time
 import urllib.parse
 from datetime import datetime
@@ -13,6 +14,8 @@ from typing import Callable, List, Optional
 import websockets
 
 from .models import TranscriptSegment
+
+logger = logging.getLogger(__name__)
 
 # Domain-specific keyterms for Nova-3
 IMPORTANT_KEYTERMS = [
@@ -70,10 +73,10 @@ class DeepgramStreamingTranscriptionService:
         try:
             headers = [("Authorization", f"Token {self.api_key}")]
             self.ws = await websockets.connect(url, additional_headers=headers)
-            print("[Deepgram] Connected")
+            logger.info("[Deepgram] Connected")
             return True
         except Exception as e:
-            print(f"[Deepgram] Connection error: {e}")
+            logger.error("[Deepgram] Connection error: %s", e)
             # Fallback: minimal params
             if "400" in str(e):
                 try:
@@ -85,10 +88,10 @@ class DeepgramStreamingTranscriptionService:
                     self.ws = await websockets.connect(
                         minimal_url, additional_headers=headers
                     )
-                    print("[Deepgram] Connected (minimal params)")
+                    logger.info("[Deepgram] Connected (minimal params)")
                     return True
                 except Exception as e2:
-                    print(f"[Deepgram] Minimal also failed: {e2}")
+                    logger.error("[Deepgram] Minimal also failed: %s", e2)
             return False
 
     async def disconnect(self):
@@ -123,7 +126,7 @@ class DeepgramStreamingTranscriptionService:
                     await asyncio.sleep(reconnect_delay)
                     reconnect_delay = min(reconnect_delay * 2, 30)
             except Exception as e:
-                print(f"[Deepgram] Run error: {e}")
+                logger.error("[Deepgram] Run error: %s", e)
                 if self.is_running:
                     await asyncio.sleep(reconnect_delay)
                     reconnect_delay = min(reconnect_delay * 2, 30)
@@ -139,7 +142,7 @@ class DeepgramStreamingTranscriptionService:
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
-                print(f"[Deepgram] Send error: {e}")
+                logger.error("[Deepgram] Send error: %s", e)
                 break
 
     async def _receive_loop(self):
@@ -154,7 +157,7 @@ class DeepgramStreamingTranscriptionService:
                 elif msg_type == "UtteranceEnd":
                     self._handle_utterance_end()
             except Exception as e:
-                print(f"[Deepgram] Receive error: {e}")
+                logger.error("[Deepgram] Receive error: %s", e)
 
     async def _keepalive_loop(self):
         while self.is_running and self.ws:
@@ -190,7 +193,7 @@ class DeepgramStreamingTranscriptionService:
             if speech_final:
                 self._emit_buffered_segments()
         except Exception as e:
-            print(f"[Deepgram] Handle results error: {e}")
+            logger.error("[Deepgram] Handle results error: %s", e)
 
     def _handle_utterance_end(self):
         if self._word_buffer:
