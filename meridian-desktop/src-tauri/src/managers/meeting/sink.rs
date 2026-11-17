@@ -45,7 +45,7 @@ pub(super) struct SegmentSink {
 /// The side a new voice gets by the channel it was first heard in: the
 /// system sound is the opponent, the microphone of an online meeting is us,
 /// a room microphone (`mixed`) says nothing.
-fn default_side(channel: &str) -> Option<&'static str> {
+pub(super) fn default_side(channel: &str) -> Option<&'static str> {
     match channel {
         CHANNEL_SYSTEM => Some(SIDE_OPPONENT),
         CHANNEL_MIC => Some(SIDE_SELF),
@@ -95,14 +95,17 @@ impl SegmentSink {
             }
         }
 
+        let embedding = self.embed.as_ref().and_then(|embed| embed(samples));
         let mut new_voices = None;
-        if let Some((label, is_new)) = self.identify(&segment, samples) {
+        if let Some((label, is_new)) = self.identify(&segment, embedding.as_deref()) {
             segment.voice = Some(label);
             if is_new {
                 new_voices = self.db.list_voices(&self.meeting_id).ok();
             }
         }
-        self.db.insert_segment(&segment)?;
+        // The embedding stays for the re-clustering at the stop.
+        self.db
+            .insert_segment_embedded(&segment, embedding.as_deref())?;
 
         let mut removed = Vec::new();
         for echo in echoes {
@@ -119,12 +122,12 @@ impl SegmentSink {
     }
 
     /// The phrase's voice and whether it is a new one.
-    fn identify(&self, segment: &Segment, samples: &[f32]) -> Option<(String, bool)> {
-        let embedding = (self.embed.as_ref()?)(samples)?;
+    fn identify(&self, segment: &Segment, embedding: Option<&[f32]>) -> Option<(String, bool)> {
+        let embedding = embedding?;
         let duration = (segment.end_time - segment.start_time) as f32;
         let mut clusterer = self.clusterer.lock().unwrap_or_else(|e| e.into_inner());
         let total_before: u32 = clusterer.voices.iter().map(|v| v.count).sum();
-        let found = clusterer.assign(&embedding, duration)?;
+        let found = clusterer.assign(embedding, duration)?;
         let (label, is_new) = match &found {
             VoiceMatch::New(label) => (label.clone(), true),
             VoiceMatch::Existing(label) => (label.clone(), false),

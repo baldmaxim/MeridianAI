@@ -275,6 +275,15 @@ impl Engine<'_> {
                 .mark_voice_synced_if(meeting_id, &label, side.as_deref())
                 .map_err(db_error)?;
         }
+        // Labels the re-clustering dropped: the server's roles for them go.
+        for label in self.db.stale_voice_roles(meeting_id).map_err(db_error)? {
+            self.client
+                .put_speaker_role(server_id, &label, None)
+                .await?;
+            self.db
+                .delete_stale_voice_role(meeting_id, &label)
+                .map_err(db_error)?;
+        }
         Ok(())
     }
 

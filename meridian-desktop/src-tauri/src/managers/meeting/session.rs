@@ -350,6 +350,10 @@ impl MeetingManager {
         let _ = session.ticker_stop.send(());
         let _ = session.ticker.join();
 
+        // The queue is drained: every phrase is in the database. The voices are
+        // settled before the meeting counts as stopped and goes to the server.
+        self.recluster_voices(&id);
+
         let duration = meeting_duration(&self.root, &id).max(0.0);
         self.db
             .finish_meeting(&id, MeetingStatus::Stopped, &now_iso(), duration)

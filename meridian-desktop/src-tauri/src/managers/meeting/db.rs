@@ -157,6 +157,20 @@ pub(super) static MIGRATIONS: &[M] = &[
     ),
     // The number of participants chosen at the start (2..10, `NULL`: not known).
     M::up("ALTER TABLE meetings ADD COLUMN max_speakers INTEGER;"),
+    // Re-clustering of voices at the stop (see `db_recluster.rs`): the phrase's
+    // speaker embedding (192 f32, little-endian; `NULL`: none, e.g. an old
+    // meeting), whether the user chose the voice's side (it is inherited by the
+    // new voices), and the labels that vanished and whose side the server still
+    // has to be told to clear.
+    M::up(
+        "ALTER TABLE segments ADD COLUMN embedding BLOB;
+    ALTER TABLE meeting_voices ADD COLUMN side_user INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE stale_voice_roles (
+        meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        PRIMARY KEY (meeting_id, label)
+    );",
+    ),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one
@@ -476,11 +490,23 @@ impl MeetingDb {
             > 0)
     }
 
+    #[cfg(test)]
     pub fn insert_segment(&self, segment: &Segment) -> Result<()> {
+        self.insert_segment_embedded(segment, None)
+    }
+
+    /// The segment with its speaker embedding (kept for the re-clustering at the stop).
+    pub fn insert_segment_embedded(
+        &self,
+        segment: &Segment,
+        embedding: Option<&[f32]>,
+    ) -> Result<()> {
+        let blob: Option<Vec<u8>> =
+            embedding.map(|e| e.iter().flat_map(|x| x.to_le_bytes()).collect());
         self.conn().execute(
             "INSERT INTO segments (id, meeting_id, channel, start_time, end_time, text,
-                created_at, synced, voice)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                created_at, synced, voice, embedding)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 segment.id,
                 segment.meeting_id,
@@ -491,6 +517,7 @@ impl MeetingDb {
                 segment.created_at,
                 i64::from(segment.synced),
                 segment.voice,
+                blob,
             ],
         )?;
         Ok(())

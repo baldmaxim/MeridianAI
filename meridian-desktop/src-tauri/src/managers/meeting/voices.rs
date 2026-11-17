@@ -2,11 +2,13 @@
 //! side of reading and changing voices.
 
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 use log::{info, warn};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use super::db_recluster::recluster_meeting;
 use super::db_voices::MeetingVoice;
 use super::sink::{EmbedFn, SIDE_OPPONENT, SIDE_SELF};
 use super::voice::{VoiceEmbedder, VOICE_MODEL_FILE};
@@ -54,6 +56,33 @@ pub(super) fn embed_fn(app: &AppHandle, cell: &EmbedderCell) -> Option<EmbedFn> 
 }
 
 impl MeetingManager {
+    /// At the stop: sorts all phrases of the meeting into voices anew (the
+    /// online clusterer splits one speaker into several). A failure or too few
+    /// phrases leave the online voices as they are. Logs counts only.
+    pub(super) fn recluster_voices(&self, meeting_id: &str) {
+        let started = Instant::now();
+        match recluster_meeting(&self.db, meeting_id) {
+            Ok(Some(report)) => {
+                info!(
+                    "Voices re-clustered: {} phrases, {} -> {} voices, {} ms",
+                    report.phrases,
+                    report.voices_before,
+                    report.voices_after,
+                    started.elapsed().as_millis()
+                );
+                if let Ok(voices) = self.list_voices(meeting_id) {
+                    let _ = MeetingVoices {
+                        meeting_id: meeting_id.to_string(),
+                        voices,
+                    }
+                    .emit(&self.app);
+                }
+            }
+            Ok(None) => {}
+            Err(e) => warn!("Cannot re-cluster the voices: {e:#}"),
+        }
+    }
+
     pub fn list_voices(&self, meeting_id: &str) -> Result<Vec<MeetingVoice>, String> {
         self.db.list_voices(meeting_id).map_err(io_err)
     }

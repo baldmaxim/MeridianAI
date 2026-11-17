@@ -6,10 +6,17 @@
 mod cluster;
 mod embed;
 mod fbank;
+mod kmeans;
+mod recluster;
+mod spectral;
 
 pub use cluster::{VoiceCentroid, VoiceClusterer, VoiceMatch};
 pub use embed::VoiceEmbedder;
+pub use recluster::{recluster, ReclusterInput};
 
 /// File name of the speaker model inside `resources/models` (fetched by
 /// `scripts/fetch-voice-model.mjs`).
 pub const VOICE_MODEL_FILE: &str = "campplus-sv-zh-en-16k.onnx";
+
+#[cfg(test)]
+mod eval_tests;

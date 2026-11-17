@@ -90,7 +90,14 @@ impl MeetingDb {
         first_channel: &str,
         created_at: i64,
     ) -> Result<()> {
-        self.conn().execute(
+        let conn = self.conn();
+        // The label lived before the re-clustering: the server may still have a
+        // side for it, so even "no side" has to be sent (as a clearing).
+        let was_stale = conn.execute(
+            "DELETE FROM stale_voice_roles WHERE meeting_id = ?1 AND label = ?2",
+            params![meeting_id, voice.label],
+        )? > 0;
+        conn.execute(
             "INSERT INTO meeting_voices (meeting_id, label, side, centroid, count,
                 first_channel, side_synced, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -101,7 +108,7 @@ impl MeetingDb {
                 serde_json::to_string(&voice.vector)?,
                 voice.count,
                 first_channel,
-                i64::from(side.is_none()),
+                i64::from(side.is_none() && !was_stale),
                 created_at,
             ],
         )?;
@@ -122,8 +129,8 @@ impl MeetingDb {
         Ok(())
     }
 
-    /// Sets the side (`self`, `opponent`, `None`) and marks it as not yet on
-    /// the server. `false`: no such voice.
+    /// Sets the side (`self`, `opponent`, `None`) as the user's choice and marks
+    /// it as not yet on the server. `false`: no such voice.
     pub fn set_voice_side(
         &self,
         meeting_id: &str,
@@ -131,7 +138,7 @@ impl MeetingDb {
         side: Option<&str>,
     ) -> Result<bool> {
         Ok(self.conn().execute(
-            "UPDATE meeting_voices SET side = ?3, side_synced = 0
+            "UPDATE meeting_voices SET side = ?3, side_synced = 0, side_user = 1
              WHERE meeting_id = ?1 AND label = ?2",
             params![meeting_id, label, side],
         )? > 0)
@@ -163,16 +170,38 @@ impl MeetingDb {
         )? > 0)
     }
 
-    /// Meetings that are on the server, wait with a changed voice side and are
-    /// not in the main sync queue (that one sends the sides itself).
+    /// Labels that no longer exist (after the re-clustering) but whose side the
+    /// server may still have: it is told to clear them.
+    pub fn stale_voice_roles(&self, meeting_id: &str) -> Result<Vec<String>> {
+        let conn = self.conn();
+        let mut stmt = conn
+            .prepare("SELECT label FROM stale_voice_roles WHERE meeting_id = ?1 ORDER BY label")?;
+        let rows = stmt.query_map([meeting_id], |row| row.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The server has cleared the label's side.
+    pub fn delete_stale_voice_role(&self, meeting_id: &str, label: &str) -> Result<()> {
+        self.conn().execute(
+            "DELETE FROM stale_voice_roles WHERE meeting_id = ?1 AND label = ?2",
+            params![meeting_id, label],
+        )?;
+        Ok(())
+    }
+
+    /// Meetings that are on the server, wait with a changed voice side (or a
+    /// side to clear) and are not in the main sync queue (that one sends the
+    /// sides itself).
     pub fn meetings_with_pending_voices(&self) -> Result<Vec<MeetingInfo>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(&format!(
             "SELECT * FROM meetings
              WHERE server_meeting_id IS NOT NULL AND status != 'recording'
                AND NOT ({READY_FOR_SYNC})
-               AND EXISTS (SELECT 1 FROM meeting_voices v
-                           WHERE v.meeting_id = meetings.id AND v.side_synced = 0)
+               AND (EXISTS (SELECT 1 FROM meeting_voices v
+                            WHERE v.meeting_id = meetings.id AND v.side_synced = 0)
+                    OR EXISTS (SELECT 1 FROM stale_voice_roles s
+                               WHERE s.meeting_id = meetings.id))
              ORDER BY started_at, id"
         ))?;
         let rows = stmt.query_map([], map_meeting)?;

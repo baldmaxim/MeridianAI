@@ -16,6 +16,7 @@ mod capture;
 mod db;
 mod db_context;
 mod db_documents;
+mod db_recluster;
 mod db_sync;
 mod db_transcriptions;
 mod db_voices;

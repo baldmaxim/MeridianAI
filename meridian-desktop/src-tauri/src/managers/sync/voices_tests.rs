@@ -159,3 +159,30 @@ async fn a_changed_side_of_a_synced_meeting_is_put_alone_and_retried_on_failure(
     let last = roles(&server.all()).pop().unwrap();
     assert!(last.json()["side"].is_null());
 }
+
+#[tokio::test]
+async fn labels_dropped_by_the_reclustering_are_cleared_on_the_server() {
+    let server = start_mock(with_roles).await;
+    let fx = fixture(&server.url);
+    fx.add_meeting("m1", MeetingStatus::Stopped, 1);
+    fx.core.run_pass(false).await;
+    assert_eq!(fx.meeting("m1").sync_state, "synced");
+    let before = server.count();
+
+    // "Голос 1" is gone after the re-clustering: nothing in `meeting_voices`.
+    fx.db
+        .conn()
+        .execute(
+            "INSERT INTO stale_voice_roles (meeting_id, label) VALUES ('m1', 'Голос 1')",
+            [],
+        )
+        .unwrap();
+    fx.core.run_pass(false).await;
+
+    let requests = server.all();
+    let sent = roles(&requests[before..]);
+    assert_eq!(sent.len(), 1, "{:?}", server.lines());
+    assert!(sent[0].json()["side"].is_null());
+    assert!(sent[0].path.ends_with("%D0%93%D0%BE%D0%BB%D0%BE%D1%81%201"));
+    assert!(fx.db.stale_voice_roles("m1").unwrap().is_empty());
+}
