@@ -51,6 +51,16 @@ export const DEFAULT_TYPE_STYLES: Record<string, ISuggestionTypeStyle> = {
   },
 };
 
+/** Старые настройки хранят стандартные цвета типов как hex (тёмная палитра): в светлой теме они бледные — берём токены темы. */
+const LEGACY_TYPE_COLORS: Record<string, string> = {
+  '#f5a623': 'var(--accent-amber)',
+  '#5b9cf6': 'var(--accent-blue)',
+  '#2ee59d': 'var(--accent-green)',
+  '#ff4b6e': 'var(--accent-red)',
+};
+
+export const resolveTypeColor = (color: string): string => LEGACY_TYPE_COLORS[color.trim().toLowerCase()] ?? color;
+
 export const buildTypeStyles = (customTypes: SuggestionTypeConfig[] | null): Record<string, ISuggestionTypeStyle> => {
   if (!customTypes) return DEFAULT_TYPE_STYLES;
   const result: Record<string, ISuggestionTypeStyle> = {};
@@ -58,7 +68,7 @@ export const buildTypeStyles = (customTypes: SuggestionTypeConfig[] | null): Rec
     if (!t.enabled) continue;
     result[t.key] = {
       badge: t.badge,
-      color: t.color, // цвет из пользовательского конфига типов (данные)
+      color: resolveTypeColor(t.color), // цвет из пользовательского конфига типов (данные)
       metaLabel: t.metaLabel,
       actionLabel: t.actionLabel,
       secondaryAction: t.secondaryAction,

@@ -541,10 +541,10 @@
   --btn-lift: -1px;
   --btn-press-scale: 0.97;
   --btn-brightness: 1.08;
-  --btn-glow-amber:   0 4px 16px rgba(245,166,35,0.30);
-  --btn-glow-red:     0 4px 16px rgba(255,75,110,0.30);
-  --btn-glow-green:   0 4px 16px rgba(46,229,157,0.22);
-  --btn-glow-neutral: 0 4px 14px rgba(0,0,0,0.35);
+  --btn-glow-amber:   0 4px 16px color-mix(in srgb, var(--accent-amber) 30%, transparent);
+  --btn-glow-red:     0 4px 16px color-mix(in srgb, var(--accent-red) 30%, transparent);
+  --btn-glow-green:   0 4px 16px color-mix(in srgb, var(--accent-green) 22%, transparent);
+  --btn-glow-neutral: 0 4px 14px color-mix(in srgb, var(--shadow-color) 70%, transparent);
 }
 
 .t-btn {

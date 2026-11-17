@@ -5,6 +5,7 @@ import { STTSettings } from '../components/settings/STTSettings';
 import { LLMSettings } from '../components/settings/LLMSettings';
 import { HintsSettings } from '../components/settings/HintsSettings';
 import { StorageSettings } from '../components/settings/StorageSettings';
+import { AppearanceSettings } from '../components/settings/AppearanceSettings';
 import { RoleSettings } from '../components/settings/RoleSettings';
 import { SettingsPlaceholderSection } from '../components/settings/SettingsPlaceholderSection';
 import type { UserSettings, SuggestionTypeConfig, TriggerKeywordConfig } from '../types';
@@ -39,6 +40,7 @@ const SETTINGS_SECTIONS = [
   { id: 'roles', icon: '\u{1F3AD}', label: 'Роли переговоров' },
   { id: 'hints', icon: '⚡', label: 'Подсказки' },
   { id: 'storage', icon: '\u{1F4C1}', label: 'Хранилище' },
+  { id: 'appearance', icon: '\u{1F313}', label: 'Оформление' },
   { id: 'notifications', icon: '\u{1F514}', label: 'Уведомления' },
   { id: 'locale', icon: '\u{1F310}', label: 'Язык и регион' },
 ] as const;
@@ -145,13 +147,14 @@ export function SettingsPage({ onBack, embedded }: Props) {
                 onChange={(path) => setSettings({ ...settings, local_storage_path: path })}
               />
             )}
+            {section === 'appearance' && <AppearanceSettings />}
             {section === 'notifications' && (
               <SettingsPlaceholderSection title="Уведомления" text="Звуковые уведомления, push-нотификации, уровни важности. Раздел в разработке." />
             )}
             {section === 'locale' && (
               <SettingsPlaceholderSection title="Язык и регион" text="Язык интерфейса, формат даты и валюты. Раздел в разработке." />
             )}
-            {section !== 'roles' && (
+            {section !== 'roles' && section !== 'appearance' && (
               <button
                 onClick={handleApply}
                 disabled={applying}

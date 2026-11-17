@@ -6,6 +6,7 @@ import { logoutAll } from '../../api/auth';
 import { LogoMark } from './LogoMark';
 import { SessionTimer } from './SessionTimer';
 import { IconSwap } from '../common/IconSwap';
+import { ThemeToggle } from '../common/ThemeToggle';
 import { Icon } from '../common/Icon';
 import { HeaderNav } from './HeaderNav';
 import { HeaderMobileMenu } from './HeaderMobileMenu';
@@ -133,6 +134,7 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
             </span>
           )}
           {userName && <CreditsRing />}
+          <ThemeToggle />
           {settingsAction && (
             <button
               type="button"

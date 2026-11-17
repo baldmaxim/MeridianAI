@@ -9,7 +9,7 @@
   --bg: #080A0F;
   --surface: #111520;
   --text: #EDF2FF;
-  --muted: #7A859E; /* бренд #4A5568 давал 2.6:1 — поднят до 5.3:1 (правило ≥4.5) */
+  --muted: #7E8AA3; /* бренд #4A5568 давал 2.6:1 — поднят: ≥4.6:1 на любой поверхности (правило ≥4.5) */
   --border: rgba(255, 255, 255, 0.06);
   --accent: #F5A623;
   --danger: #FF4B6E;
@@ -90,7 +90,7 @@
   --text-secondary: #4A5670;
   --text-suggestion: #935B00;
 
-  --accent-amber-dim: #B8741A;
+  --accent-amber-dim: #8F5800; /* используется как цвет текста: ≥5:1 */
   --accent-amber-glow: rgba(147, 91, 0, 0.1);
   --accent-blue: #1D5CC0;
   --accent-red-dim: rgba(196, 30, 63, 0.1);

@@ -1,50 +1,37 @@
-/* Mobile-first: иконка в рамке, тап-цель 44×44. С 1440px — рамка-пилюля с подписью темы,
-   как соседние кнопки шапки (одна иконка без рамки была незаметна). */
+/* Иконка-кнопка темы: тап-цель 44×44; на десктопе с мышью визуально 36×36, как соседняя шестерёнка шапки. */
 .btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   width: 44px;
   height: 44px;
-  min-width: 44px;
-  padding: 0;
   flex-shrink: 0;
+  padding: 0;
   background: transparent;
-  border: 1px solid var(--border-amber);
+  border: 0;
   border-radius: 8px;
-  color: var(--accent-amber);
+  color: var(--text-secondary);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.label {
-  display: none;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
+.btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
-@media (min-width: 768px) {
+/* На десктопе с мышью — визуально 36×36 (как шестерёнка), тап-зона остаётся 44×44 */
+@media (min-width: 1024px) and (pointer: fine) {
   .btn {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    border-radius: 4px;
+    position: relative;
+    width: 36px;
+    height: 36px;
   }
-  .btn svg {
-    width: 16px;
-    height: 16px;
-  }
-}
 
-@media (min-width: 1440px) {
-  .btn {
-    width: auto;
-    height: auto;
-    padding: 4px 10px;
-  }
-  .label {
-    display: inline;
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
   }
 }
