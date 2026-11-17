@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseInline, parseMarkdown } from './protocolMarkdown';
+import { parseInline, parseMarkdown, splitTimecodes, timecodeToSeconds } from './protocolMarkdown';
 
 describe('parseMarkdown', () => {
   it('заголовок, список, таблица, абзац', () => {
@@ -63,5 +63,37 @@ describe('«Краткое резюме»', () => {
       children: [{ type: 'text', text: 'цена ' }, { type: 'mark', text: '30%' }],
     });
     expect(parseInline('**суть**', { highlight: true })).toEqual([{ type: 'strong', text: 'суть' }]);
+  });
+});
+
+describe('таймкоды вне резюме (timecodes)', () => {
+  const tcs = (t: string) => parseInline(t, { timecodes: true }).filter((n) => n.type === 'timecode');
+
+  it('timecode с секундами, без mark', () => {
+    const nodes = parseInline('Цена 150 000 руб. на 30% (03:19) и 1:02:03', { timecodes: true });
+    expect(nodes.some((n) => n.type === 'mark')).toBe(false);
+    const tc = nodes.filter((n) => n.type === 'timecode').map((n) => n.text);
+    expect(tc).toEqual(['03:19', '1:02:03']);
+    expect(tc.map(timecodeToSeconds)).toEqual([199, 3723]);
+  });
+
+  it('диапазон «03:19–04:34» — два узла', () => {
+    expect(tcs('см. 03:19–04:34').map((n) => n.text)).toEqual(['03:19', '04:34']);
+    expect(tcs('(03:19, 05:10)').map((n) => n.text)).toEqual(['03:19', '05:10']);
+  });
+
+  it('«12:75» — не таймкод', () => {
+    expect(tcs('в 12:75 ничего')).toEqual([]);
+    expect(splitTimecodes('12:75')).toEqual([{ text: '12:75', seconds: null }]);
+  });
+
+  it('внутри жирного — strong с вложенным timecode', () => {
+    const [n] = parseInline('**итог 03:19**', { timecodes: true });
+    expect(n.type).toBe('strong');
+    expect(n.type === 'strong' && n.children?.filter((c) => c.type === 'timecode').map((c) => c.text)).toEqual(['03:19']);
+  });
+
+  it('без timecodes и highlight — прежнее поведение', () => {
+    expect(parseInline('(03:19)')).toEqual([{ type: 'text', text: '(03:19)' }]);
   });
 });

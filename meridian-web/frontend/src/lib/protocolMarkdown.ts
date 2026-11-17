@@ -2,12 +2,15 @@
 
 export type MdInline =
   | { type: 'text'; text: string }
-  /** children — только при highlight и если внутри жирного есть mark/timecode. */
+  /** children — только при highlight/timecodes и если внутри жирного есть mark/timecode. */
   | { type: 'strong'; text: string; children?: MdInline[] }
   | { type: 'code'; text: string }
   /** Ключевое число/срок/дата (только при highlight). */
   | { type: 'mark'; text: string }
-  /** Таймкод «(03:19–04:34)» целиком, со скобками (только при highlight). */
+  /**
+   * В «Кратком резюме» (highlight) — «(03:19–04:34)» целиком, со скобками;
+   * при timecodes вне резюме — одно время «03:19» (диапазон = два узла).
+   */
   | { type: 'timecode'; text: string };
 
 /** summary: true — блок внутри раздела «Краткое резюме». */
@@ -25,6 +28,32 @@ const TIMECODE_RE = new RegExp(
   `\\(\\s*${TC}(?:\\s*[–—,;-]\\s*${TC})*\\s*\\)|(?<![\\d:])${TC}(?:\\s*[–—-]\\s*${TC})?(?![\\d:])`,
   'g'
 );
+
+/** Одно время «03:19» / «1:02:03» (отдельно, без захвата скобок и диапазонов). */
+const SINGLE_TC_RE = new RegExp(`(?<![\\d:])${TC}(?![\\d:])`, 'g');
+
+/** «03:19» → 199, «1:02:03» → 3723; null, если это не время (секунды ≥ 60). */
+export function timecodeToSeconds(tc: string): number | null {
+  const parts = tc.split(':').map(Number);
+  if (parts.some((n) => Number.isNaN(n)) || parts[parts.length - 1] >= 60) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return parts[0] * 60 + parts[1];
+}
+
+/** Текст → части: время (seconds) и обычный текст между ними (seconds = null). */
+export function splitTimecodes(text: string): Array<{ text: string; seconds: number | null }> {
+  const out: Array<{ text: string; seconds: number | null }> = [];
+  let last = 0;
+  for (const m of text.matchAll(SINGLE_TC_RE)) {
+    const sec = timecodeToSeconds(m[0]);
+    if (sec == null) continue;
+    if (m.index > last) out.push({ text: text.slice(last, m.index), seconds: null });
+    out.push({ text: m[0], seconds: sec });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last), seconds: null });
+  return out;
+}
 
 const MONTH =
   '(?:январ[ьяюе]|феврал[ьяюе]|март[аеу]?|апрел[ьяюе]|ма[йяею]|июн[ьяюе]|июл[ьяюе]|август[аеу]?|сентябр[ьяюе]|октябр[ьяюе]|ноябр[ьяюе]|декабр[ьяюе])';
@@ -71,15 +100,26 @@ function highlightText(text: string): MdInline[] {
   return out;
 }
 
+/** Текст → text/timecode (по одному узлу на каждое время), без mark. */
+function timecodeText(text: string): MdInline[] {
+  return splitTimecodes(text).map((p) =>
+    p.seconds == null ? { type: 'text', text: p.text } : { type: 'timecode', text: p.text }
+  );
+}
+
 /**
  * Инлайн-разметка: **жирный** и `код`.
- * highlight (раздел «Краткое резюме») — дополнительно узлы mark и timecode.
+ * highlight (раздел «Краткое резюме») — дополнительно узлы mark и timecode (чип со скобками).
+ * timecodes (вне резюме) — только узлы timecode, по одному на каждое время; mark нет.
+ * При обоих флагах действует highlight.
  */
-export function parseInline(text: string, opts: { highlight?: boolean } = {}): MdInline[] {
-  const { highlight = false } = opts;
+export function parseInline(text: string, opts: { highlight?: boolean; timecodes?: boolean } = {}): MdInline[] {
+  const { highlight = false, timecodes = false } = opts;
   const nodes: MdInline[] = [];
+  const split = (t: string): MdInline[] | null => (highlight ? highlightText(t) : timecodes ? timecodeText(t) : null);
   const pushText = (t: string) => {
-    if (highlight) nodes.push(...highlightText(t));
+    const parts = split(t);
+    if (parts) nodes.push(...parts);
     else nodes.push({ type: 'text', text: t });
   };
   const re = /\*\*(.+?)\*\*|`([^`]+?)`/g;
@@ -88,7 +128,7 @@ export function parseInline(text: string, opts: { highlight?: boolean } = {}): M
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) pushText(text.slice(last, m.index));
     if (m[1] != null) {
-      const children = highlight ? highlightText(m[1]) : [];
+      const children = split(m[1]) ?? [];
       nodes.push(children.some((c) => c.type !== 'text') ? { type: 'strong', text: m[1], children } : { type: 'strong', text: m[1] });
     } else nodes.push({ type: 'code', text: m[2] });
     last = re.lastIndex;

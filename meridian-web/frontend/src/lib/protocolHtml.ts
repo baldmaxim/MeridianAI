@@ -1,6 +1,6 @@
 import type { BatchSegment } from '../api/batch';
 import { fmtTime } from '../components/batch/batchDetailUtils';
-import { parseInline, parseMarkdown } from './protocolMarkdown';
+import { parseInline, parseMarkdown, timecodeToSeconds } from './protocolMarkdown';
 import type { MdInline } from './protocolMarkdown';
 import { PROTOCOL_HTML_CSS } from './protocolHtmlCss';
 import { PROTOCOL_HTML_SCRIPT, PROTOCOL_HTML_THEME_INIT } from './protocolHtmlScript';
@@ -19,14 +19,6 @@ const TIMECODE_RE = /\b\d{1,2}:\d{2}(?::\d{2})?\b/g;
 
 export const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-/** «03:19» → 199, «1:02:03» → 3723; null, если это не время (секунды ≥ 60). */
-const timecodeToSeconds = (tc: string): number | null => {
-  const parts = tc.split(':').map(Number);
-  if (parts.some((n) => Number.isNaN(n)) || parts[parts.length - 1] >= 60) return null;
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  return parts[0] * 60 + parts[1];
-};
 
 /** Экранированный текст; таймкоды — ссылки, если есть аудио. */
 const textHtml = (text: string, linkTimecodes: boolean): string => {

@@ -110,3 +110,48 @@
   border-radius: 4px;
   white-space: nowrap;
 }
+
+/* Кликабельные таймкоды (перемотка плеера): ссылка-чип с пунктирным подчёркиванием */
+.tcBtn {
+  display: inline;
+  padding: 3px 1px;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dotted currentColor;
+  border-radius: 0;
+  color: var(--accent-amber);
+  font: inherit;
+  line-height: 1.55;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.tcBtn:hover {
+  color: var(--text);
+  background: var(--accent-amber-glow);
+}
+
+.tcBtn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 1px;
+}
+
+/* в резюме чип остаётся приглушённым, но подсвечивается при наведении */
+.timecodeActive .tcBtn {
+  color: var(--text-muted);
+  padding: 3px 0;
+}
+
+.timecodeActive .tcBtn:hover {
+  color: var(--accent-amber);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tcBtn {
+    transition: none;
+  }
+}

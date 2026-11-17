@@ -1,28 +1,62 @@
 import styles from './MarkdownView.module.css';
 import { cx } from '../../utils/cx';
-import { parseInline, parseMarkdown } from '../../lib/protocolMarkdown';
+import { parseInline, parseMarkdown, splitTimecodes } from '../../lib/protocolMarkdown';
 import type { MdInline } from '../../lib/protocolMarkdown';
 
+interface IRenderCtx {
+  onTimecode?: (seconds: number) => void;
+  /** Раздел «Краткое резюме»: таймкод — приглушённый чип. */
+  summary: boolean;
+}
+
+/** Таймкод → кликабельные кнопки (диапазон — каждое время отдельно); текст между ними остаётся. */
+function timecodeButtons(text: string, onTimecode: (seconds: number) => void): React.ReactNode {
+  return splitTimecodes(text).map((p, k) =>
+    p.seconds == null ? (
+      p.text
+    ) : (
+      <button
+        key={k}
+        type="button"
+        className={styles.tcBtn}
+        aria-label={`Перейти к ${p.text}`}
+        onClick={() => onTimecode(p.seconds as number)}
+      >
+        {p.text}
+      </button>
+    )
+  );
+}
+
 /** Узлы инлайн-разметки → React (strong может содержать mark/timecode). */
-function renderNodes(nodes: MdInline[]): React.ReactNode {
+function renderNodes(nodes: MdInline[], ctx: IRenderCtx): React.ReactNode {
   return nodes.map((n, k) => {
     if (n.type === 'strong') {
-      return <strong key={k} className={styles.strong}>{n.children ? renderNodes(n.children) : n.text}</strong>;
+      return <strong key={k} className={styles.strong}>{n.children ? renderNodes(n.children, ctx) : n.text}</strong>;
     }
     if (n.type === 'code') return <code key={k} className={styles.code}>{n.text}</code>;
     if (n.type === 'mark') return <mark key={k} className={styles.mark}>{n.text}</mark>;
-    if (n.type === 'timecode') return <span key={k} className={styles.timecode}>{n.text}</span>;
+    if (n.type === 'timecode') {
+      const { onTimecode, summary } = ctx;
+      if (!onTimecode) return <span key={k} className={styles.timecode}>{n.text}</span>;
+      // в резюме — чип (внутри кнопки), вне резюме — просто кнопка-ссылка
+      return summary
+        ? <span key={k} className={cx(styles.timecode, styles.timecodeActive)}>{timecodeButtons(n.text, onTimecode)}</span>
+        : <span key={k}>{timecodeButtons(n.text, onTimecode)}</span>;
+    }
     return n.text;
   });
 }
 
-/** Инлайн-разметка: **жирный** и `код`; в «Кратком резюме» (summary) — ещё маркер чисел и чип таймкода. */
-function inline(text: string, summary = false): React.ReactNode {
-  return renderNodes(parseInline(text, { highlight: summary }));
-}
+/**
+ * Лёгкий рендер Markdown протокола: заголовки, списки, таблицы, жирный, абзацы.
+ * onTimecode — если задан, таймкоды во всём протоколе кликабельны (перемотка плеера).
+ */
+export function MarkdownView({ md, onTimecode }: { md: string; onTimecode?: (seconds: number) => void }) {
+  /** Инлайн-разметка: **жирный** и `код`; в «Кратком резюме» (summary) — ещё маркер чисел и чип таймкода. */
+  const inline = (text: string, summary = false): React.ReactNode =>
+    renderNodes(parseInline(text, { highlight: summary, timecodes: !!onTimecode }), { onTimecode, summary });
 
-/** Лёгкий рендер Markdown протокола: заголовки, списки, таблицы, жирный, абзацы. */
-export function MarkdownView({ md }: { md: string }) {
   const blocks = parseMarkdown(md).map((b, key) => {
     switch (b.type) {
       case 'table':

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import type { FC } from 'react';
+import type { FC, RefObject } from 'react';
 import { downloadBatchClip } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
 import { errorTextFromBlob } from '../../api/download';
@@ -14,6 +14,8 @@ interface IBatchTranscriptProps {
   jobId: number;
   segments: BatchSegment[];
   audioUrl: string | null;
+  /** Плеер живёт в BatchJobDetail (над вкладками); здесь — только подписка и перемотка. */
+  audioRef: RefObject<HTMLAudioElement | null>;
 }
 
 /** Цвета спикеров — токены темы (классы speakerTone0..7 в BatchTranscript.module.css). */
@@ -28,15 +30,14 @@ function speakerTone(speaker: string): string {
   return SPEAKER_TONES[i % SPEAKER_TONES.length];
 }
 
-/** Реплики с поиском, плеером и нарезкой фрагмента. */
-export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, audioUrl }) => {
+/** Реплики с поиском, подсветкой по плееру и нарезкой фрагмента. */
+export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, audioUrl, audioRef }) => {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(-1);
   const [clipStart, setClipStart] = useState<number | null>(null);
   const [clipEnd, setClipEnd] = useState<number | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const q = query.trim().toLowerCase();
@@ -51,15 +52,28 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
 
   // Активную реплику обновляем ТОЛЬКО при её смене (не на каждый timeupdate ~4×/сек) —
   // иначе список из сотен реплик перерисовывается постоянно и залипают пауза/пуск.
-  const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
-    const t = e.currentTarget.currentTime;
-    let idx = -1;
-    for (let i = 0; i < segments.length; i++) {
-      if (segments[i].start <= t + 0.15) idx = i;
-      else break;
-    }
-    setActiveIdx((prev) => (prev === idx ? prev : idx));
-  }, [segments]);
+  // Плеер внешний и появляется позже (audioUrl грузится асинхронно) — подписываемся по audioUrl;
+  // сразу после подписки считаем активную реплику по текущему времени (возврат на вкладку).
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const update = () => {
+      const t = a.currentTime;
+      let idx = -1;
+      for (let i = 0; i < segments.length; i++) {
+        if (segments[i].start <= t + 0.15) idx = i;
+        else break;
+      }
+      setActiveIdx((prev) => (prev === idx ? prev : idx));
+    };
+    update();
+    a.addEventListener('timeupdate', update);
+    a.addEventListener('seeked', update);
+    return () => {
+      a.removeEventListener('timeupdate', update);
+      a.removeEventListener('seeked', update);
+    };
+  }, [audioRef, audioUrl, segments]);
 
   // Автопрокрутка активной реплики (только когда не идёт поиск)
   useEffect(() => {
@@ -75,7 +89,7 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
     a.play().catch(() => {
       // автовоспроизведение может быть заблокировано браузером — перемотка уже выполнена
     });
-  }, []);
+  }, [audioRef]);
 
   const downloadFragment = async () => {
     if (clipStart == null || clipEnd == null || clipEnd <= clipStart) return;
@@ -128,16 +142,6 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
 
   return (
     <>
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          controls
-          preload="none"
-          onTimeUpdate={handleTimeUpdate}
-          className={styles.audio}
-        />
-      )}
       {audioUrl && (
         <div className={styles.trimRow}>
           <span className={styles.trimLabel}>Фрагмент:</span>

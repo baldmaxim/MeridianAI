@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { downloadBatchResult, getBatchAudioUrl, getBatchResultBlob } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
 import { errorTextFromBlob, fetchBlob, saveBlob } from '../../api/download';
@@ -31,6 +31,8 @@ export function BatchJobDetail({ jobId }: Props) {
   const [audioMime, setAudioMime] = useState<string | null>(null);
   const [bundleBusy, setBundleBusy] = useState(false);
   const [bundleStep, setBundleStep] = useState<string | null>(null);
+  // плеер один на обе вкладки: не пересоздаётся при переключении и не теряет позицию
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const segments: BatchSegment[] = useMemo(() => job?.segments ?? [], [job?.segments]);
 
@@ -48,6 +50,16 @@ export function BatchJobDetail({ jobId }: Props) {
     }
     return () => { cancelled = true; };
   }, [jobId, jobStatus, segmentsCount, hasText]);
+
+  /** Клик по таймкоду протокола: перемотка и пуск, вкладку не переключаем (плеер виден сверху). */
+  const seekAudio = useCallback((seconds: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    a.currentTime = seconds;
+    a.play().catch(() => {
+      // автовоспроизведение может быть заблокировано браузером — перемотка уже выполнена
+    });
+  }, []);
 
   /** Любое скачивание: ошибки показываем, иначе кнопка молча «не работает». */
   const runDownload = async (fn: () => Promise<void>, fallback: string) => {
@@ -197,17 +209,23 @@ export function BatchJobDetail({ jobId }: Props) {
 
       {(hasTranscript || job.protocol_markdown) && (
         <>
-          <div className={styles.tabs}>
-            <BatchTabButton active={activeTab === 'transcript'} onClick={() => setTab('transcript')} disabled={!hasTranscript}>
-              Транскрипция
-            </BatchTabButton>
-            <BatchTabButton active={activeTab === 'protocol'} onClick={() => setTab('protocol')} disabled={!job.protocol_markdown}>
-              Протокол
-            </BatchTabButton>
+          {/* Плеер + вкладки: вне прокручиваемых областей (скроллятся реплики/протокол), поэтому всегда на виду */}
+          <div className={styles.stickyBar}>
+            {audioUrl && (
+              <audio ref={audioRef} src={audioUrl} controls preload="none" className={styles.audio} />
+            )}
+            <div className={styles.tabs}>
+              <BatchTabButton active={activeTab === 'transcript'} onClick={() => setTab('transcript')} disabled={!hasTranscript}>
+                Транскрипция
+              </BatchTabButton>
+              <BatchTabButton active={activeTab === 'protocol'} onClick={() => setTab('protocol')} disabled={!job.protocol_markdown}>
+                Протокол
+              </BatchTabButton>
+            </div>
           </div>
 
           {activeTab === 'transcript' && segments.length > 0 && (
-            <BatchTranscript jobId={jobId} segments={segments} audioUrl={audioUrl} />
+            <BatchTranscript jobId={jobId} segments={segments} audioUrl={audioUrl} audioRef={audioRef} />
           )}
 
           {activeTab === 'transcript' && segments.length === 0 && job.transcription_text && (
@@ -216,7 +234,7 @@ export function BatchJobDetail({ jobId }: Props) {
 
           {activeTab === 'protocol' && job.protocol_markdown && (
             <div className={styles.protocol}>
-              <MarkdownView md={job.protocol_markdown} />
+              <MarkdownView md={job.protocol_markdown} onTimecode={audioUrl ? seekAudio : undefined} />
             </div>
           )}
 
