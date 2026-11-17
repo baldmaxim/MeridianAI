@@ -6,7 +6,7 @@ use std::sync::Arc;
 use super::test_support::{item, local_meeting, STARTED};
 use super::{library_get, meeting_ask, meeting_view_get};
 use crate::managers::meeting::MeetingDb;
-use crate::managers::sync::tests::{err, ok, start_mock, Mock, Req, Reply};
+use crate::managers::sync::tests::{err, ok, start_mock, Mock, Reply, Req};
 use crate::managers::sync::{ApiClient, ApiError};
 
 const TOKEN: &str = "tok-library-1";
@@ -21,7 +21,8 @@ const LIBRARY_JSON: &str = r#"[
    "client_uuid":"uuid-8","source":"desktop"}
 ]"#;
 
-const PROJECTS_JSON: &str = r#"[{"id":3,"name":"СтройИнвест","objects":[{"id":5,"name":"Корпус 1","address":null}]}]"#;
+const PROJECTS_JSON: &str =
+    r#"[{"id":3,"name":"СтройИнвест","objects":[{"id":5,"name":"Корпус 1","address":null}]}]"#;
 
 const VIEW_JSON: &str = r###"{"meeting_id":7,"title":"Встреча по кровле","meeting_topic":"Кровля",
   "started_at":"2026-03-02T09:00:00","ended_at":null,"customer_id":3,"customer_name":"СтройИнвест",
@@ -71,7 +72,10 @@ async fn refresh_fills_the_cache_and_the_index() {
     // Newest first.
     let ids: Vec<i64> = snapshot.items.iter().map(|i| i.meeting_id).collect();
     assert_eq!(ids, [8, 7]);
-    assert_eq!(snapshot.items[1].customer_name.as_deref(), Some("СтройИнвест"));
+    assert_eq!(
+        snapshot.items[1].customer_name.as_deref(),
+        Some("СтройИнвест")
+    );
     assert_eq!(snapshot.items[0].title, None);
     assert_eq!(snapshot.projects[0].objects[0].name, "Корпус 1");
     assert!(snapshot.fetched_at.is_some());
@@ -157,12 +161,20 @@ async fn view_is_cached_and_served_offline() {
     let mock = start_mock(server).await;
     let db = memory_db();
 
-    let fresh = meeting_view_get(&db, Some(&client(&mock)), 7).await.unwrap();
+    let fresh = meeting_view_get(&db, Some(&client(&mock)), 7)
+        .await
+        .unwrap();
     assert!(!fresh.from_cache);
     assert_eq!(fresh.view.segments.len(), 2);
     assert_eq!(fresh.view.segments[1].start_time, None);
-    assert_eq!(fresh.view.documents[0].doc_type_label.as_deref(), Some("Договор"));
-    assert_eq!(fresh.view.item.customer_name.as_deref(), Some("СтройИнвест"));
+    assert_eq!(
+        fresh.view.documents[0].doc_type_label.as_deref(),
+        Some("Договор")
+    );
+    assert_eq!(
+        fresh.view.item.customer_name.as_deref(),
+        Some("СтройИнвест")
+    );
 
     let cached = meeting_view_get(&db, Some(&dead_client().await), 7)
         .await
@@ -188,11 +200,16 @@ async fn view_errors_are_explained() {
     );
 
     // The server answered "no": that is not a reason to show an old copy.
-    meeting_view_get(&db, Some(&client(&mock)), 7).await.unwrap();
+    meeting_view_get(&db, Some(&client(&mock)), 7)
+        .await
+        .unwrap();
     let missing = meeting_view_get(&db, Some(&client(&mock)), 99)
         .await
         .unwrap_err();
-    assert!(matches!(missing, ApiError::Rejected { status: 404, .. }), "{missing:?}");
+    assert!(
+        matches!(missing, ApiError::Rejected { status: 404, .. }),
+        "{missing:?}"
+    );
 
     assert!(meeting_view_get(&db, None, 7).await.is_err());
 }
@@ -226,7 +243,9 @@ async fn ask_needs_a_connection() {
 
     let refused = start_mock(|_| err(401, "x")).await;
     assert_eq!(
-        meeting_ask(Some(&client(&refused)), 7, "Вопрос").await.unwrap_err(),
+        meeting_ask(Some(&client(&refused)), 7, "Вопрос")
+            .await
+            .unwrap_err(),
         ApiError::Unauthorized
     );
 }
@@ -294,7 +313,7 @@ fn old_database_is_upgraded_in_place() {
         .conn()
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 8);
 
     // The old meeting enters the index once.
     assert!(db.search_meetings("фундамент", None).unwrap().is_empty());
@@ -336,4 +355,29 @@ fn view_cached_by_an_older_version_reads_without_the_context() {
     assert_eq!(view.key_terms.as_deref(), Some("срок"));
     assert!(view.opponent_weaknesses.is_none());
     assert_eq!(view.app_notes.as_deref(), Some("заметка"));
+}
+
+#[test]
+fn view_reads_the_refine_fields_with_and_without_them() {
+    // An old server or cache: no fields, no status.
+    let view: super::types::MeetingView = serde_json::from_str(VIEW_JSON).unwrap();
+    assert!(view.item.refine_status.is_none());
+    assert!(view.item.refine_error.is_none());
+
+    let mut json: serde_json::Value = serde_json::from_str(VIEW_JSON).unwrap();
+    json["refine_status"] = "failed".into();
+    json["refine_error"] = "ElevenLabs недоступен".into();
+    let view: super::types::MeetingView = serde_json::from_value(json).unwrap();
+    assert_eq!(view.item.refine_status.as_deref(), Some("failed"));
+    assert_eq!(
+        view.item.refine_error.as_deref(),
+        Some("ElevenLabs недоступен")
+    );
+
+    let mut json: serde_json::Value = serde_json::from_str(VIEW_JSON).unwrap();
+    json["refine_status"] = "done".into();
+    json["refine_error"] = serde_json::Value::Null;
+    let view: super::types::MeetingView = serde_json::from_value(json).unwrap();
+    assert_eq!(view.item.refine_status.as_deref(), Some("done"));
+    assert!(view.item.refine_error.is_none());
 }

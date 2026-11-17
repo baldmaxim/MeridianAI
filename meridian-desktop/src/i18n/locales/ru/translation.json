@@ -576,7 +576,10 @@
       "start": "Начать запись",
       "starting": "Запускаю…",
       "openModelSettings": "Открыть настройки модели",
-      "defaultTitle": "Встреча {{date}}"
+      "defaultTitle": "Встреча {{date}}",
+      "participants": "Участников",
+      "participantsUnknown": "Не знаю",
+      "participantsHint": "Если знаете, сколько человек говорит, голоса разделятся точнее."
     },
     "view": {
       "renameHint": "Нажмите, чтобы переименовать",
@@ -781,6 +784,17 @@
         "too_large": "{{name}}: файл больше 50 МБ",
         "empty": "{{name}}: файл пустой",
         "unreadable": "{{name}}: не удалось прочитать файл"
+      }
+    },
+    "refine": {
+      "draft": "Черновик ПК",
+      "running": "Уточняется на сервере…",
+      "done": "Уточнено · ElevenLabs",
+      "failed": "Не удалось уточнить",
+      "modeLabel": "Вид транскрипта",
+      "mode": {
+        "refined": "Уточнённый",
+        "draft": "Черновик ПК"
       }
     }
   },

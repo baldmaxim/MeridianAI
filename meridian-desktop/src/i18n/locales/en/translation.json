@@ -576,7 +576,10 @@
       "start": "Start recording",
       "starting": "Starting…",
       "openModelSettings": "Open model settings",
-      "defaultTitle": "Meeting {{date}}"
+      "defaultTitle": "Meeting {{date}}",
+      "participants": "Participants",
+      "participantsUnknown": "Not sure",
+      "participantsHint": "If you know how many people speak, voices are separated more accurately."
     },
     "view": {
       "renameHint": "Click to rename",
@@ -781,6 +784,17 @@
         "too_large": "{{name}}: the file is larger than 50 MB",
         "empty": "{{name}}: the file is empty",
         "unreadable": "{{name}}: could not read the file"
+      }
+    },
+    "refine": {
+      "draft": "PC draft",
+      "running": "Refining on the server…",
+      "done": "Refined · ElevenLabs",
+      "failed": "Refinement failed",
+      "modeLabel": "Transcript view",
+      "mode": {
+        "refined": "Refined",
+        "draft": "PC draft"
       }
     }
   },

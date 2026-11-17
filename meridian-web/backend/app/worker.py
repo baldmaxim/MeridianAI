@@ -22,6 +22,7 @@ from .services.files import handle_file_physical_delete
 from .services.document_processing import handle_document_process
 from .services.meeting_finalize import handle_meeting_finalize
 from .services.learning_extract import handle_learning_extract
+from .core.meeting_refine.handler import handle_meeting_refine
 
 settings = get_settings()
 setup_logging(dev_mode=settings.dev_mode)
@@ -34,6 +35,7 @@ HANDLERS = {
     "document_process": handle_document_process,
     "meeting_finalize": handle_meeting_finalize,
     "learning_extract": handle_learning_extract,
+    "meeting_refine": handle_meeting_refine,
 }
 
 IDLE_SLEEP = settings.worker_poll_interval_seconds

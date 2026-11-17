@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, Database } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAskChat } from "@/hooks/useAskChat";
-import { useMeetingView } from "@/hooks/useMeetingView";
+import { useRefineView } from "@/hooks/useRefineView";
 import { useLibraryStore } from "@/stores/libraryStore";
 import { formatDateChip, formatTimeRange } from "@/lib/utils/meetingFormat";
 import { AskPane } from "./AskPane";
@@ -11,6 +11,7 @@ import { DateTimeChips } from "./DateTimeChips";
 import { ServerContextTab } from "./ServerContextTab";
 import { ProjectChip } from "./ProjectChip";
 import { ProtocolPane } from "./ProtocolPane";
+import { RefineStatusChip } from "./RefineStatusChip";
 import { ServerTranscriptPane } from "./ServerTranscriptPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
 import { SourcesPanel } from "./SourcesPanel";
@@ -26,8 +27,10 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
   serverMeetingId,
 }) => {
   const { t, i18n } = useTranslation();
-  const { view, fromCache, loading, error, reload } =
-    useMeetingView(serverMeetingId);
+  const { view, fromCache, loading, error, reload } = useRefineView(
+    serverMeetingId,
+    "",
+  );
   const chat = useAskChat(serverMeetingId);
   const [tab, setTab] = useState<PanelTab>("transcript");
   const closeServer = useLibraryStore((s) => s.closeServer);
@@ -99,6 +102,12 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
             customerName={view.customer_name}
             objectName={view.object_name}
           />
+          {view.source === "desktop" && (
+            <RefineStatusChip
+              status={view.refine_status}
+              error={view.refine_error}
+            />
+          )}
           {fromCache && (
             <span
               title={t("meetings.server.fromCacheHint")}

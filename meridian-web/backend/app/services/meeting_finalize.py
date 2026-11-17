@@ -108,6 +108,20 @@ def _truncate(text: str, max_chars: int) -> str:
     return text[:half] + "\n\n[… середина транскрипта опущена для объёма …]\n\n" + text[-half:]
 
 
+_SIDE_TITLES = {"self": "мы", "opponent": "оппонент"}
+
+
+def _speaker_title(label: str, roles: dict[str, str], names: dict[str, str]) -> str:
+    """Подпись спикера в протоколе: имя из ролей; иначе метка со стороной («Голос 2 (оппонент)»)."""
+    name = (names.get(label) or "").strip()
+    if name:
+        return name
+    side_title = _SIDE_TITLES.get(roles.get(label, ""))
+    if not side_title or label.strip().casefold() == side_title:
+        return label  # стороны нет либо метка и есть сторона («Мы», «Оппонент»)
+    return f"{label} ({side_title})"
+
+
 async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str, str, str, list[str]]:
     settings = get_settings()
 
@@ -165,8 +179,13 @@ async def _gather_inputs(db: AsyncSession, meeting: MeetingSession) -> tuple[str
                 .order_by(TranscriptSegmentRecord.wall_clock.asc())
             )
         ).scalars().all()
+        # Роли встречи (сторона/имя голоса) попадают в подписи реплик: протокол различает «нас» и оппонента
+        from .speaker_roles import get_names_map, get_roles_map
+        roles = await get_roles_map(db, meeting.id)
+        names = await get_names_map(db, meeting.id)
         transcript_text = "\n".join(
-            f"[{_fmt_tc(s.start_time)}] {s.speaker_label or s.speaker_id}: {s.text}" for s in segs
+            f"[{_fmt_tc(s.start_time)}] {_speaker_title(s.speaker_label or s.speaker_id, roles, names)}: {s.text}"
+            for s in segs
         )
         transcript_text = _truncate(transcript_text, settings.meeting_finalization_max_transcript_chars)
 

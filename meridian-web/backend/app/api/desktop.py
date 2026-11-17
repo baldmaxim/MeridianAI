@@ -215,7 +215,7 @@ async def meetings_upsert(data: MeetingUpsertRequest, auth: Device, db: AsyncSes
         title=data.title, started_at=data.started_at, ended_at=data.ended_at,
         capture_mode=data.capture_mode, customer_id=customer_id, object_id=object_id,
         negotiation_type=data.negotiation_type, key_terms=data.key_terms,
-        opponent_weaknesses=data.opponent_weaknesses,
+        opponent_weaknesses=data.opponent_weaknesses, max_speakers=data.max_speakers,
     )
     await db.commit()
     context_given = any(

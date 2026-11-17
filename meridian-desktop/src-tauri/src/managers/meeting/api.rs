@@ -39,6 +39,10 @@ pub struct StartMeetingRequest {
     #[serde(default)]
     #[specta(optional)]
     pub opponent_weaknesses: Option<String>,
+    /// How many people speak (2..10); `None`: not known.
+    #[serde(default)]
+    #[specta(optional)]
+    pub max_speakers: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Type)]

@@ -298,6 +298,7 @@ impl MeetingManager {
                 request.opponent_weaknesses.as_deref(),
                 MAX_CONTEXT_TEXT_CHARS,
             ),
+            max_speakers: request.max_speakers.filter(|n| (2..=10).contains(n)),
             web_url: None,
         };
         let devices = self.devices_for(Some(request));

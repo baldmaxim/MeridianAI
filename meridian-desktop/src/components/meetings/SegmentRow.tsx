@@ -11,20 +11,20 @@ interface SegmentRowProps {
   animate: boolean;
 }
 
-interface SideStyle {
+export interface SideStyle {
   label: string;
   text: string;
   bar: string;
 }
 
-const SIDE_CLASSES: Record<string, SideStyle> = {
+export const SIDE_CLASSES: Record<string, SideStyle> = {
   mic: { label: "mic", text: "text-amber", bar: "bg-amber" },
   system: { label: "system", text: "text-info", bar: "bg-info" },
   mixed: { label: "mixed", text: "text-muted", bar: "bg-subtle" },
 };
 
 /** Style of a phrase whose side comes from its voice; `null` is neutral. */
-const VOICE_SIDE_CLASSES: Record<"self" | "opponent", SideStyle> = {
+export const VOICE_SIDE_CLASSES: Record<"self" | "opponent", SideStyle> = {
   self: SIDE_CLASSES.mic,
   opponent: SIDE_CLASSES.system,
 };

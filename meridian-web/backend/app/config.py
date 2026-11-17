@@ -134,6 +134,12 @@ class Settings(BaseSettings):
     # тот же NL-прокси для генерации протокола (батч). Пусто → прямой вызов.
     openrouter_proxy_url: str = Field(default="", alias="OPENROUTER_PROXY_URL")
 
+    # Десктоп-встречи: после «Стоп» аудио перераспознаётся ElevenLabs Scribe v3 (текст + диаризация),
+    # уточнённый транскрипт заменяет черновой с ПК, затем строится протокол. Выкл. → протокол по черновику.
+    desktop_refine_enabled: bool = Field(default=True, alias="DESKTOP_REFINE_ENABLED")
+    # Потолок длительности записи для уточнения (часы): дольше — уточнение пропускается, протокол по черновику.
+    desktop_refine_max_hours: float = Field(default=4.0, alias="DESKTOP_REFINE_MAX_HOURS")
+
     # Батч-аудио: presigned TTL для проигрывания (длинная сессия → перемотка не должна отваливаться),
     # и лимиты серверной нарезки фрагмента через ffmpeg.
     batch_audio_presign_ttl: int = Field(default=21600, alias="BATCH_AUDIO_PRESIGN_TTL")  # 6ч

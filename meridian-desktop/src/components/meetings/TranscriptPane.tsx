@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Note, Segment } from "@/bindings";
+import type { Note, Segment, ViewSegment } from "@/bindings";
+import { RefinedSegmentRow } from "./RefinedSegmentRow";
 import { SegmentRow } from "./SegmentRow";
 import { TranscriptNoteRow } from "./TranscriptNoteRow";
 
 interface TranscriptPaneProps {
   segments: Segment[];
+  /** The server's refined phrases; when set they replace the local `segments`. */
+  refined?: ViewSegment[];
   notes: Note[];
   /** Meeting is recording: stick to the bottom and animate new phrases. */
   live: boolean;
@@ -16,12 +19,14 @@ interface TranscriptPaneProps {
 
 type TimelineItem =
   | { kind: "segment"; time: number; segment: Segment }
+  | { kind: "refined"; time: number; segment: ViewSegment; index: number }
   | { kind: "note"; time: number; note: Note };
 
 const BOTTOM_THRESHOLD_PX = 48;
 
 export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
   segments,
+  refined,
   notes,
   live,
   visible,
@@ -33,12 +38,20 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
   const [atBottom, setAtBottom] = useState(true);
 
   const items = useMemo<TimelineItem[]>(() => {
+    const phrases: TimelineItem[] = refined
+      ? refined.map((segment, index) => ({
+          kind: "refined" as const,
+          time: segment.start_time ?? 0,
+          segment,
+          index,
+        }))
+      : segments.map((segment) => ({
+          kind: "segment" as const,
+          time: segment.start_time,
+          segment,
+        }));
     const merged: TimelineItem[] = [
-      ...segments.map((segment) => ({
-        kind: "segment" as const,
-        time: segment.start_time,
-        segment,
-      })),
+      ...phrases,
       ...notes.map((note) => ({
         kind: "note" as const,
         time: note.at_seconds,
@@ -47,7 +60,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
     ];
     // Array.sort is stable: on a tie, phrases stay before notes.
     return merged.sort((a, b) => a.time - b.time);
-  }, [segments, notes]);
+  }, [segments, refined, notes]);
 
   const scrollToBottom = () => {
     const el = scrollRef.current;
@@ -88,17 +101,29 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map((item) =>
-              item.kind === "segment" ? (
-                <SegmentRow
-                  key={item.segment.id}
-                  segment={item.segment}
-                  animate={live}
-                />
-              ) : (
-                <TranscriptNoteRow key={item.note.id} note={item.note} />
-              ),
-            )}
+            {items.map((item) => {
+              switch (item.kind) {
+                case "segment":
+                  return (
+                    <SegmentRow
+                      key={item.segment.id}
+                      segment={item.segment}
+                      animate={live}
+                    />
+                  );
+                case "refined":
+                  return (
+                    <RefinedSegmentRow
+                      key={`refined-${item.index}`}
+                      segment={item.segment}
+                    />
+                  );
+                case "note":
+                  return (
+                    <TranscriptNoteRow key={item.note.id} note={item.note} />
+                  );
+              }
+            })}
           </div>
         )}
       </div>

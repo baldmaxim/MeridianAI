@@ -13,13 +13,16 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import get_settings
 from ..models.desktop import DesktopMeetingLink
 from ..models.directory import MeetingParticipant
+from ..models.file import FileRecord
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord
+from .jobs import enqueue
 from .meeting_finalize import close_and_request_finalization
 from .speaker_roles import upsert_role
 
@@ -122,7 +125,7 @@ async def upsert_meeting(
     started_at: datetime, ended_at: datetime | None, capture_mode: str,
     customer_id: int | None, object_id: int | None,
     negotiation_type: str | None = None, key_terms: str | None = None,
-    opponent_weaknesses: str | None = None,
+    opponent_weaknesses: str | None = None, max_speakers: int | None = None,
 ) -> tuple[MeetingSession, bool]:
     """(встреча, created). Повтор с тем же client_uuid обновляет название, конец встречи и переданный контекст."""
     clean_title = ((title or "").strip() or DEFAULT_TITLE)[:255]
@@ -153,6 +156,8 @@ async def upsert_meeting(
             meeting.ended_at = ended
     apply_context(meeting, negotiation_type=negotiation_type, key_terms=key_terms,
                   opponent_weaknesses=opponent_weaknesses)
+    if max_speakers is not None:
+        meeting.diarization_max_speakers = max_speakers
     return meeting, created
 
 
@@ -288,8 +293,22 @@ def format_notes(notes: list[tuple[float, str]]) -> str | None:
 # ── финализация ───────────────────────────────────────────────────────────
 
 
+async def _has_meeting_audio(db: AsyncSession, meeting_id: int) -> bool:
+    count = (await db.execute(
+        select(func.count()).select_from(FileRecord).where(
+            FileRecord.meeting_id == meeting_id, FileRecord.purpose == "meeting_audio",
+            FileRecord.status == "active",
+        )
+    )).scalar_one()
+    return count > 0
+
+
 async def finalize(db: AsyncSession, meeting: MeetingSession) -> None:
-    """Завершить встречу и поставить протокол в очередь. Повтор на финализированной ничего не меняет."""
+    """Завершить встречу и поставить протокол в очередь. Повтор на финализированной ничего не меняет.
+
+    Есть аудио и уточнение включено — вместо протокола ставим job meeting_refine: он перераспознаёт
+    запись ElevenLabs, заменяет черновик с ПК и сам запросит протокол (при сбое — по черновику).
+    """
     if is_finalized(meeting):
         return
     if not meeting.ended_at:
@@ -297,6 +316,16 @@ async def finalize(db: AsyncSession, meeting: MeetingSession) -> None:
     # Встреча от приложения создаётся неактивной, поэтому статус закрываем здесь:
     # общий сервис закрывает только live-встречи.
     meeting.status = "finalized"
+    if meeting.refine_status in ("pending", "running"):
+        return  # уточнение уже в очереди и само запросит протокол
+    if meeting.refine_status is None:
+        if get_settings().desktop_refine_enabled and await _has_meeting_audio(db, meeting.id):
+            meeting.is_active = False
+            meeting.refine_status = "pending"
+            await enqueue(db, "meeting_refine", {"meeting_id": meeting.id})
+            await db.flush()
+            return
+        meeting.refine_status = "skipped"
     await close_and_request_finalization(db, meeting)
     await db.flush()
 

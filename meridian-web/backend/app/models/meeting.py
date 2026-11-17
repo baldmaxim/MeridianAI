@@ -58,6 +58,13 @@ class MeetingSession(Base):
     live_segment_count: Mapped[int | None] = mapped_column(Integer)
     final_segment_count: Mapped[int | None] = mapped_column(Integer)
 
+    # Уточнение десктоп-встречи через ElevenLabs: pending | running | done | failed | skipped (NULL — не применялось).
+    refine_status: Mapped[str | None] = mapped_column(String(20))
+    refine_error: Mapped[str | None] = mapped_column(Text)
+    # Черновой транскрипт с ПК до замены уточнённым (JSON) — для отката.
+    transcript_draft_json: Mapped[str | None] = mapped_column(Text)
+    refined_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # Этап 5: финализация встречи (LLM-протокол)
     # not_started | queued | running | completed | partial | error
     finalization_status: Mapped[str] = mapped_column(String(20), default="not_started")

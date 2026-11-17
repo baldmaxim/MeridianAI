@@ -235,6 +235,7 @@ fn meeting(id: &str, status: MeetingStatus) -> MeetingInfo {
         negotiation_type: None,
         key_terms: None,
         opponent_weaknesses: None,
+        max_speakers: None,
         web_url: None,
     }
 }

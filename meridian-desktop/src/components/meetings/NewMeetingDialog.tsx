@@ -16,6 +16,7 @@ import {
   toNullable,
   type MeetingContextValue,
 } from "./MeetingContextForm";
+import { ParticipantsSelect } from "./ParticipantsSelect";
 import { ProjectPicker } from "./ProjectPicker";
 
 interface NewMeetingDialogProps {
@@ -41,6 +42,7 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
     EMPTY_MEETING_CONTEXT,
   );
   const [contextOpen, setContextOpen] = useState(false);
+  const [maxSpeakers, setMaxSpeakers] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customers = useLibraryStore((s) => s.snapshot?.projects);
@@ -63,6 +65,7 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
     setObjectId(filter.kind === "object" ? filter.objectId : null);
     setContext(EMPTY_MEETING_CONTEXT);
     setContextOpen(false);
+    setMaxSpeakers(null);
     setMicId("");
     setSystemId("");
     setError(null);
@@ -118,6 +121,7 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
       negotiation_type: toNullable(context.negotiationType),
       key_terms: toNullable(context.keyTerms),
       opponent_weaknesses: toNullable(context.opponentWeaknesses),
+      max_speakers: maxSpeakers,
     });
     setStarting(false);
     if (failure) {
@@ -207,6 +211,12 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
             }}
           />
         )}
+
+        <ParticipantsSelect
+          value={maxSpeakers}
+          disabled={starting}
+          onChange={setMaxSpeakers}
+        />
 
         <div className="flex flex-col gap-2">
           <button

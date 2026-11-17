@@ -28,6 +28,7 @@ fn meeting(customer: Option<i64>, object: Option<i64>) -> MeetingInfo {
         negotiation_type: None,
         key_terms: None,
         opponent_weaknesses: None,
+        max_speakers: None,
         web_url: None,
     }
 }

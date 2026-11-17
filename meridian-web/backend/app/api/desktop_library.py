@@ -66,6 +66,7 @@ def _item_fields(row) -> dict:
         finalization_status=m.finalization_status or "not_started",
         protocol_ready=bool(m.protocol_markdown), micro_summary=m.micro_summary,
         client_uuid=row.client_uuid, source="desktop" if row.has_link else "web",
+        refine_status=m.refine_status, refine_error=m.refine_error,
     )
 
 

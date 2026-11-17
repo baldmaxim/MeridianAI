@@ -31,6 +31,12 @@ pub struct LibraryItem {
     /// The local meeting's id when it was recorded in this app (by this user).
     pub client_uuid: Option<String>,
     pub source: LibrarySource,
+    /// Re-transcription on the server: `pending`, `running`, `done`, `failed`,
+    /// `skipped`; `None`: no such step (the web, an old server or cache).
+    #[serde(default)]
+    pub refine_status: Option<String>,
+    #[serde(default)]
+    pub refine_error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]

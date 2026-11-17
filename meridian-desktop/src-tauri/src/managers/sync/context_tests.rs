@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::tests::{err, fixture, happy, ok, start_mock, Req, Reply};
+use super::tests::{err, fixture, happy, ok, start_mock, Reply, Req};
 use crate::managers::meeting::MeetingStatus;
 
 const PATCH_42: &str = "PATCH /api/desktop/meetings/42";
@@ -150,4 +150,29 @@ async fn refused_context_patch_does_not_spoil_the_meeting() {
     let meeting = fx.meeting("m1");
     assert_eq!(meeting.sync_state, "synced");
     assert!(meeting.sync_error.is_none());
+}
+
+#[tokio::test]
+async fn upsert_carries_max_speakers() {
+    let server = start_mock(happy).await;
+    let fx = fixture(&server.url);
+    fx.add_meeting("m1", MeetingStatus::Stopped, 1);
+    fx.add_meeting("m2", MeetingStatus::Stopped, 1);
+    fx.db
+        .conn()
+        .execute("UPDATE meetings SET max_speakers = 3 WHERE id = 'm1'", [])
+        .unwrap();
+
+    fx.core.run_pass(false).await;
+
+    let upserts: Vec<_> = server
+        .all()
+        .into_iter()
+        .filter(|r| r.path == "/api/desktop/meetings")
+        .map(|r| r.json())
+        .collect();
+    assert_eq!(upserts.len(), 2);
+    let by_uuid = |uuid: &str| upserts.iter().find(|b| b["client_uuid"] == uuid).unwrap();
+    assert_eq!(by_uuid("m1")["max_speakers"], 3);
+    assert!(by_uuid("m2")["max_speakers"].is_null());
 }

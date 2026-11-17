@@ -107,6 +107,8 @@ pub struct MeetingBody<'a> {
     pub negotiation_type: Option<&'a str>,
     pub key_terms: Option<&'a str>,
     pub opponent_weaknesses: Option<&'a str>,
+    /// How many people speak (2..10); `None`: not known.
+    pub max_speakers: Option<i64>,
 }
 
 #[derive(Deserialize)]

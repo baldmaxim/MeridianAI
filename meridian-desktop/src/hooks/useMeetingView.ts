@@ -14,6 +14,8 @@ export interface MeetingViewState {
 export const useMeetingView = (
   serverMeetingId: number | null,
   enabled = true,
+  /** A change of it reloads the view (e.g. the sync state of the meeting). */
+  refreshKey = "",
 ): MeetingViewState => {
   const [view, setView] = useState<MeetingView | null>(null);
   const [fromCache, setFromCache] = useState(false);
@@ -39,7 +41,7 @@ export const useMeetingView = (
     return () => {
       cancelled = true;
     };
-  }, [serverMeetingId, enabled, nonce]);
+  }, [serverMeetingId, enabled, nonce, refreshKey]);
 
   // Another meeting: drop the previous one at once.
   useEffect(() => {

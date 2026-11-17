@@ -155,6 +155,8 @@ pub(super) static MIGRATIONS: &[M] = &[
     );
     CREATE INDEX idx_transcription_queue_status ON transcription_queue(status);",
     ),
+    // The number of participants chosen at the start (2..10, `NULL`: not known).
+    M::up("ALTER TABLE meetings ADD COLUMN max_speakers INTEGER;"),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one
@@ -238,6 +240,9 @@ pub struct MeetingInfo {
     pub negotiation_type: Option<String>,
     pub key_terms: Option<String>,
     pub opponent_weaknesses: Option<String>,
+    /// How many people speak (2..10); `None`: not known. Sent to the server for
+    /// its diarization; the local one will use it later.
+    pub max_speakers: Option<i64>,
     /// Link to the meeting on the site; filled in for synced meetings when
     /// an account is signed in. Not stored.
     pub web_url: Option<String>,
@@ -299,6 +304,7 @@ pub(super) fn map_meeting(row: &Row<'_>) -> rusqlite::Result<MeetingInfo> {
         negotiation_type: row.get("negotiation_type")?,
         key_terms: row.get("key_terms")?,
         opponent_weaknesses: row.get("opponent_weaknesses")?,
+        max_speakers: row.get("max_speakers")?,
         web_url: None,
     })
 }
@@ -364,9 +370,9 @@ impl MeetingDb {
             "INSERT INTO meetings (id, title, capture_mode, started_at, ended_at, status,
                 duration_seconds, server_meeting_id, sync_state, sync_error, synced_at,
                 customer_id, object_id, customer_name, object_name,
-                negotiation_type, key_terms, opponent_weaknesses)
+                negotiation_type, key_terms, opponent_weaknesses, max_speakers)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                ?16, ?17, ?18)",
+                ?16, ?17, ?18, ?19)",
             params![
                 meeting.id,
                 meeting.title,
@@ -386,6 +392,7 @@ impl MeetingDb {
                 meeting.negotiation_type,
                 meeting.key_terms,
                 meeting.opponent_weaknesses,
+                meeting.max_speakers,
             ],
         )?;
         Ok(())
@@ -555,6 +562,7 @@ pub(super) fn sample_meeting(id: &str, started_at: &str) -> MeetingInfo {
         negotiation_type: None,
         key_terms: None,
         opponent_weaknesses: None,
+        max_speakers: None,
         web_url: None,
     }
 }
@@ -593,6 +601,35 @@ mod tests {
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
         assert_eq!(version, MIGRATIONS.len() as i32);
+    }
+
+    #[test]
+    fn migration_adds_max_speakers_and_old_meetings_have_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("meetings.db");
+        {
+            let mut conn = Connection::open(&path).unwrap();
+            // The schema before the column (the last migration left out).
+            Migrations::new(MIGRATIONS[..MIGRATIONS.len() - 1].to_vec())
+                .to_latest(&mut conn)
+                .unwrap();
+            conn.execute(
+                "INSERT INTO meetings (id, title, capture_mode, started_at, status)
+                 VALUES ('old', 'Старая', 'online', '2026-01-01T10:00:00.000Z', 'stopped')",
+                [],
+            )
+            .unwrap();
+        }
+        let db = MeetingDb::open(&path).unwrap();
+        assert_eq!(db.get_meeting("old").unwrap().unwrap().max_speakers, None);
+
+        let mut meeting = sample_meeting("new", "2026-02-01T10:00:00.000Z");
+        meeting.max_speakers = Some(4);
+        db.insert_meeting(&meeting).unwrap();
+        assert_eq!(
+            db.get_meeting("new").unwrap().unwrap().max_speakers,
+            Some(4)
+        );
     }
 
     #[test]

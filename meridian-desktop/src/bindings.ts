@@ -1149,7 +1149,12 @@ export type LibraryItem = { meeting_id: number; title: string | null; meeting_to
 /**
  * The local meeting's id when it was recorded in this app (by this user).
  */
-client_uuid: string | null; source: LibrarySource }
+client_uuid: string | null; source: LibrarySource; 
+/**
+ * Re-transcription on the server: `pending`, `running`, `done`, `failed`,
+ * `skipped`; `None`: no such step (the web, an old server or cache).
+ */
+refine_status?: string | null; refine_error?: string | null }
 /**
  * What the library screen shows: the cache, refreshed from the server when asked.
  */
@@ -1196,6 +1201,11 @@ audio_state: string;
  * goals, the opponent's weak points. `None`: not set.
  */
 negotiation_type: string | null; key_terms: string | null; opponent_weaknesses: string | null; 
+/**
+ * How many people speak (2..10); `None`: not known. Sent to the server for
+ * its diarization; the local one will use it later.
+ */
+max_speakers: number | null; 
 /**
  * Link to the meeting on the site; filled in for synced meetings when
  * an account is signed in. Not stored.
@@ -1249,7 +1259,12 @@ export type MeetingView = ({ meeting_id: number; title: string | null; meeting_t
 /**
  * The local meeting's id when it was recorded in this app (by this user).
  */
-client_uuid: string | null; source: LibrarySource }) & { protocol_markdown: string | null; 
+client_uuid: string | null; source: LibrarySource; 
+/**
+ * Re-transcription on the server: `pending`, `running`, `done`, `failed`,
+ * `skipped`; `None`: no such step (the web, an old server or cache).
+ */
+refine_status?: string | null; refine_error?: string | null }) & { protocol_markdown: string | null; 
 /**
  * The meeting context and the notes from the app. Absent in views cached
  * by older versions.
@@ -1406,7 +1421,11 @@ customer_id?: number | null; object_id?: number | null; customer_name?: string |
 /**
  * The meeting context, as on the site. All optional.
  */
-negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses?: string | null }
+negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses?: string | null; 
+/**
+ * How many people speak (2..10); `None`: not known.
+ */
+max_speakers?: number | null }
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.
  */

@@ -200,6 +200,7 @@ impl Engine<'_> {
                 negotiation_type: meeting.negotiation_type.as_deref(),
                 key_terms: meeting.key_terms.as_deref(),
                 opponent_weaknesses: meeting.opponent_weaknesses.as_deref(),
+                max_speakers: meeting.max_speakers,
             })
             .await?;
         self.db

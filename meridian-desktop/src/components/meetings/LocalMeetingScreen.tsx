@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAskChat } from "@/hooks/useAskChat";
+import { useRefineView } from "@/hooks/useRefineView";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { AskPane } from "./AskPane";
 import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
@@ -12,6 +13,10 @@ import { NotesPane } from "./NotesPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
 import { SourcesPanel } from "./SourcesPanel";
 import { SystemSilentBanner } from "./SystemSilentBanner";
+import {
+  TranscriptModeToggle,
+  type TranscriptMode,
+} from "./TranscriptModeToggle";
 import { TranscriptPane } from "./TranscriptPane";
 
 type PanelTab = "transcript" | "context" | "protocol" | "ask";
@@ -35,8 +40,19 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
   );
   const [tab, setTab] = useState<PanelTab>("transcript");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [mode, setMode] = useState<TranscriptMode>("refined");
   const serverMeetingId = details?.meeting.server_meeting_id ?? null;
+  const meetingId = details?.meeting.id ?? null;
+  const { view } = useRefineView(
+    serverMeetingId,
+    details?.meeting.sync_state ?? "",
+  );
   const chat = useAskChat(serverMeetingId);
+
+  // Another meeting: back to the refined transcript.
+  useEffect(() => {
+    setMode("refined");
+  }, [meetingId]);
 
   if (!details) {
     return (
@@ -51,6 +67,17 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
   }
 
   const { meeting, segments, notes } = details;
+  const refine =
+    view && serverMeetingId !== null
+      ? { status: view.refine_status ?? null, error: view.refine_error ?? null }
+      : null;
+  const refinedSegments =
+    !isActive &&
+    meeting.status === "stopped" &&
+    view?.refine_status === "done" &&
+    view.segments.length > 0
+      ? view.segments
+      : null;
   const tabs: SidePanelTab<PanelTab>[] = [
     { id: "transcript", label: t("meetings.view.tabTranscript") },
     { id: "context", label: t("meetings.view.tabContext") },
@@ -65,6 +92,7 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
         resuming={resuming}
         onResume={onResume}
         onDelete={() => setConfirmDelete(true)}
+        refine={refine}
       />
       <DeviceErrorBanner meetingId={meeting.id} />
       <SystemSilentBanner meetingId={meeting.id} />
@@ -84,12 +112,22 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
         </div>
         <SidePanel tabs={tabs} active={tab} onChange={setTab}>
           {tab === "transcript" && (
-            <TranscriptPane
-              segments={segments}
-              notes={notes}
-              live={isActive}
-              visible
-            />
+            <>
+              {refinedSegments && (
+                <TranscriptModeToggle value={mode} onChange={setMode} />
+              )}
+              <TranscriptPane
+                segments={segments}
+                refined={
+                  mode === "refined"
+                    ? (refinedSegments ?? undefined)
+                    : undefined
+                }
+                notes={notes}
+                live={isActive}
+                visible
+              />
+            </>
           )}
           {tab === "context" && (
             <LocalContextTab key={meeting.id} meeting={meeting} />

@@ -28,6 +28,7 @@ pub fn local_meeting(db: &MeetingDb, id: &str, title: &str, texts: &[&str], note
         negotiation_type: None,
         key_terms: None,
         opponent_weaknesses: None,
+        max_speakers: None,
         web_url: None,
     })
     .unwrap();
@@ -77,6 +78,8 @@ pub fn item(meeting_id: i64, title: &str, client_uuid: Option<&str>) -> LibraryI
         } else {
             LibrarySource::Web
         },
+        refine_status: None,
+        refine_error: None,
     }
 }
 

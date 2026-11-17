@@ -18,6 +18,7 @@ import { MeetingDuration } from "./MeetingDuration";
 import { MeetingStatusBadge } from "./MeetingStatusBadge";
 import { MeetingSyncActions } from "./MeetingSyncActions";
 import { ProjectChip } from "./ProjectChip";
+import { RefineStatusChip } from "./RefineStatusChip";
 import { SyncBadge } from "./SyncBadge";
 import { TitleEditor } from "./TitleEditor";
 
@@ -26,6 +27,8 @@ interface LocalMeetingHeaderProps {
   resuming: boolean;
   onResume: (id: string) => void;
   onDelete: () => void;
+  /** Server re-transcription state; `null`: not known (not synced, view not loaded). */
+  refine: { status: string | null; error: string | null } | null;
 }
 
 /** Header of a local meeting: title, chips, status, record/sync actions. */
@@ -34,6 +37,7 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
   resuming,
   onResume,
   onDelete,
+  refine,
 }) => {
   const { t, i18n } = useTranslation();
   const isActive = useMeetingStore((s) => s.active?.id === meeting.id);
@@ -95,6 +99,9 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
             syncState={meeting.sync_state}
             syncError={meeting.sync_error}
           />
+          {refine && meeting.status === "stopped" && (
+            <RefineStatusChip status={refine.status} error={refine.error} />
+          )}
           <AudioStateNote audioState={meeting.audio_state} />
           {isActive && <LevelMeters captureMode={meeting.capture_mode} />}
           {isActive && queueLen > 0 && (

@@ -60,6 +60,8 @@ class MeetingUpsertRequest(BaseModel):
     negotiation_type: str | None = Field(default=None, max_length=50)
     key_terms: str | None = Field(default=None, max_length=4000)  # «Ключевые условия / цели» (meeting_notes)
     opponent_weaknesses: str | None = Field(default=None, max_length=4000)
+    # Число участников (голосов) для диаризации ElevenLabs при уточнении. None — не менять.
+    max_speakers: int | None = Field(default=None, ge=2, le=10)
 
 
 class MeetingUpsertResponse(BaseModel):
@@ -171,6 +173,9 @@ class DesktopLibraryItem(BaseModel):
     client_uuid: str | None
     # desktop — у встречи есть любая связь с приложением, web — создана на сайте.
     source: Literal["desktop", "web"]
+    # Уточнение транскрипта: null | pending | running | done | failed | skipped.
+    refine_status: str | None = None
+    refine_error: str | None = None
 
 
 class DesktopSegmentOut(BaseModel):
