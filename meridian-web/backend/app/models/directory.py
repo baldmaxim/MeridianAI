@@ -17,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     Index,
+    JSON,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -75,6 +76,16 @@ class ProjectObject(Base):
     __table_args__ = (
         Index("ix_project_objects_customer", "customer_id"),
     )
+
+
+class TenderHubRegistryLink(Base):
+    __tablename__ = "tenderhub_registry_links"
+
+    registry_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    object_id: Mapped[int] = mapped_column(
+        ForeignKey("project_objects.id", ondelete="CASCADE"), index=True
+    )
+    registry_data: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
 class MeetingParticipant(Base):

@@ -19,6 +19,7 @@ from .directory import (
     Customer,
     ProjectObject,
     MeetingParticipant,
+    TenderHubRegistryLink,
 )
 from .document import DocumentRecord, DocumentChunk
 from .ocr import OcrAgent, DocumentOcrTask, DocumentOcrPage
@@ -60,6 +61,7 @@ __all__ = [
     "Customer",
     "ProjectObject",
     "MeetingParticipant",
+    "TenderHubRegistryLink",
     "DocumentRecord",
     "DocumentChunk",
     "MeetingDecision",
