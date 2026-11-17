@@ -90,7 +90,7 @@ export const MigrationRow: React.FC<IMigrationRowProps> = ({
         <span
           role="img"
           aria-label={t("modelSelector.modelReady")}
-          className="grid place-items-center w-[22px] h-[22px] rounded-full bg-emerald-500/20 text-emerald-500"
+          className="grid place-items-center w-[22px] h-[22px] rounded-full bg-success/20 text-success"
         >
           <Check className="w-3 h-3" strokeWidth={3} />
         </span>
@@ -99,7 +99,7 @@ export const MigrationRow: React.FC<IMigrationRowProps> = ({
     if (typeof state === "number") {
       return (
         <>
-          <span className="tabular-nums text-text/50">
+          <span className="tabular-nums text-muted">
             {Math.round(state)}%
           </span>
           <ProgressRing progress={state} />
@@ -107,7 +107,7 @@ export const MigrationRow: React.FC<IMigrationRowProps> = ({
       );
     }
     return (
-      <span className="text-text/50">
+      <span className="text-muted">
         {formatModelSize(Number(replacement.size_mb))}
       </span>
     );
@@ -148,11 +148,11 @@ export const MigrationRow: React.FC<IMigrationRowProps> = ({
         <p className="text-sm font-semibold text-text truncate">
           {replacement.name}
         </p>
-        <div className="flex items-center gap-2 text-xs text-text/40">
+        <div className="flex items-center gap-2 text-xs text-muted">
           <span className="truncate">
             {t("onboarding.migration.replaces", { name: oldName })}
           </span>
-          <span className="shrink-0 rounded border border-mid-gray/35 px-1.5 text-[11px] font-medium text-text/55">
+          <span className="shrink-0 rounded border border-mid-gray/35 px-1.5 text-[11px] font-medium text-muted">
             {t("onboarding.migration.oldFormat")}
           </span>
         </div>

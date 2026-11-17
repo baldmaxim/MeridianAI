@@ -4,6 +4,7 @@ import { MicrophoneSelector } from "../MicrophoneSelector";
 import { ChannelSelector } from "../ChannelSelector";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { MuteWhileRecording } from "../MuteWhileRecording";
+import { ThemeSelector } from "../ThemeSelector";
 import { ModelSettingsCard } from "./ModelSettingsCard";
 
 export const GeneralSettings: React.FC = () => {
@@ -11,6 +12,9 @@ export const GeneralSettings: React.FC = () => {
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
       <ModelSettingsCard />
+      <SettingsGroup title={t("settings.appearance.title")}>
+        <ThemeSelector descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
       <SettingsGroup title={t("settings.sound.title")}>
         <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
         <ChannelSelector descriptionMode="tooltip" grouped={true} />

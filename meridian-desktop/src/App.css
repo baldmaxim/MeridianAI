@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "./styles/theme.css";
 
+/* Tailwind v4 `dark:` follows data-theme, not prefers-color-scheme. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 /* Register the shared color tokens (src/styles/theme.css) as Tailwind
    utilities */
 @theme inline {
@@ -23,6 +26,7 @@
   --color-info: var(--color-info);
   --color-success: var(--color-success);
   --color-on-accent: var(--color-on-accent);
+  --color-on-error: var(--color-on-error);
   --color-border: var(--color-border);
   --font-display: var(--font-display);
   --font-sans: var(--font-ui);
@@ -72,11 +76,10 @@
   text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Just a bit darker than the (already dark) background, keeping its warm tint */
-    --color-log-surface: color-mix(in srgb, var(--color-background), black 15%);
-  }
+/* Follows data-theme (set by applyTheme), not the OS media query. */
+:root[data-theme="dark"] {
+  /* Just a bit darker than the (already dark) background, keeping its warm tint */
+  --color-log-surface: color-mix(in srgb, var(--color-background), black 15%);
 }
 
 /* macOS - tint native overlay scrollbar thumb */

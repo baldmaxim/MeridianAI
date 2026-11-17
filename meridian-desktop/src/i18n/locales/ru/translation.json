@@ -8,6 +8,10 @@
     "installUpdate": "Установить обновление {version}"
   },
   "shell": {
+    "theme": {
+      "toLight": "Светлая тема",
+      "toDark": "Тёмная тема"
+    },
     "update": {
       "pill": "Обновление {{version}}",
       "dot": "Доступно обновление"
@@ -167,6 +171,9 @@
         "label": "Пересканировать",
         "tooltip": "Пересканировать модели, добавленные в папку моделей или кэш Hugging Face вне Meridian"
       }
+    },
+    "appearance": {
+      "title": "Внешний вид"
     },
     "general": {
       "language": {

@@ -25,8 +25,8 @@ interface LogLine {
   message: string;
 }
 
-// Level accents carry a light-theme color plus a brighter `dark:` variant, so
-// they read on both the light code-block surface and the dark console surface.
+// Level accents use the semantic status tokens, which switch with the theme
+// and read on both the light code-block surface and the dark console surface.
 const LEVEL_META: Record<
   number,
   { tag: string; tagClass: string; msgClass: string }
@@ -38,23 +38,23 @@ const LEVEL_META: Record<
   },
   2: {
     tag: "DEBUG",
-    tagClass: "text-sky-600 dark:text-sky-400",
+    tagClass: "text-info",
     msgClass: "text-text/80",
   },
   3: {
     tag: "INFO",
-    tagClass: "text-emerald-600 dark:text-emerald-400",
+    tagClass: "text-success",
     msgClass: "text-text",
   },
   4: {
     tag: "WARN",
-    tagClass: "text-amber-600 dark:text-amber-400",
-    msgClass: "text-amber-700 dark:text-amber-300",
+    tagClass: "text-warning",
+    msgClass: "text-warning",
   },
   5: {
     tag: "ERROR",
-    tagClass: "text-red-600 dark:text-red-400",
-    msgClass: "text-red-700 dark:text-red-300",
+    tagClass: "text-error",
+    msgClass: "text-error",
   },
 };
 
@@ -181,7 +181,7 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
         <div className="flex items-center gap-2 text-xs text-mid-gray min-w-0">
           <span
             className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-              paused ? "bg-mid-gray" : "bg-emerald-500 animate-pulse"
+              paused ? "bg-mid-gray" : "bg-success animate-pulse"
             }`}
           />
           <span className="shrink-0">

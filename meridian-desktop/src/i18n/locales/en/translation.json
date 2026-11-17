@@ -8,6 +8,10 @@
     "installUpdate": "Install update {version}"
   },
   "shell": {
+    "theme": {
+      "toLight": "Light theme",
+      "toDark": "Dark theme"
+    },
     "update": {
       "pill": "Update {{version}}",
       "dot": "Update available"
@@ -140,6 +144,9 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}} Settings"
+    },
+    "appearance": {
+      "title": "Appearance"
     },
     "general": {
       "language": {

@@ -231,7 +231,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
       <div className="flex items-center gap-3 w-full -mb-0.5 mt-0.5 h-5">
         {capabilityLanguages.length > 0 && (
           <div
-            className="flex items-center gap-1 text-xs text-text/50"
+            className="flex items-center gap-1 text-xs text-muted"
             title={
               capabilityLanguages.length === 1
                 ? t("modelSelector.capabilities.singleLanguage")
@@ -244,7 +244,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
         )}
         {model.supports_translation && (
           <div
-            className="flex items-center gap-1 text-xs text-text/50"
+            className="flex items-center gap-1 text-xs text-muted"
             title={t("modelSelector.capabilities.translation")}
           >
             <Languages className="w-3.5 h-3.5" />
@@ -253,7 +253,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
         )}
         {model.supports_streaming && (
           <div
-            className="flex items-center gap-1 text-xs text-text/50"
+            className="flex items-center gap-1 text-xs text-muted"
             title={t("modelSelector.capabilities.streaming")}
           >
             <AudioLines className="w-3.5 h-3.5" />
@@ -261,7 +261,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
           </div>
         )}
         {showModelSize && (
-          <span className="flex items-center gap-1.5 ms-auto text-xs text-text/50">
+          <span className="flex items-center gap-1.5 ms-auto text-xs text-muted">
             {status === "downloadable" ? (
               <Download className="w-3.5 h-3.5" />
             ) : (
@@ -269,7 +269,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
             )}
             <span>{formattedModelSize}</span>
             {debugMode && quantLabel && (
-              <span className="text-text/40">{quantLabel}</span>
+              <span className="text-muted">{quantLabel}</span>
             )}
           </span>
         )}
@@ -297,14 +297,14 @@ const ModelCard: React.FC<ModelCardProps> = ({
             />
           </div>
           <div className="flex items-center justify-between text-xs mt-1">
-            <span className="text-text/50">
+            <span className="text-muted">
               {t("modelSelector.downloading", {
                 percentage: Math.round(downloadProgress),
               })}
             </span>
             <div className="flex items-center gap-2">
               {downloadSpeed !== undefined && downloadSpeed > 0 && (
-                <span className="tabular-nums text-text/50">
+                <span className="tabular-nums text-muted">
                   {t("modelSelector.downloadSpeed", {
                     speed: downloadSpeed.toFixed(1),
                   })}
@@ -333,7 +333,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
           <div className="w-full h-1.5 bg-mid-gray/20 rounded-full overflow-hidden">
             <div className="h-full bg-logo-primary rounded-full animate-pulse w-full" />
           </div>
-          <p className="text-xs text-text/50 mt-1">
+          <p className="text-xs text-muted mt-1">
             {t("modelSelector.verifyingGeneric")}
           </p>
         </div>

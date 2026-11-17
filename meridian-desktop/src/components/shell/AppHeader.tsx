@@ -2,6 +2,7 @@ import React from "react";
 import ModelSelector from "../model-selector";
 import { BrandWordmark } from "./BrandMark";
 import { RecordPill } from "./RecordPill";
+import { ThemeToggle } from "./ThemeToggle";
 import { SyncIndicator } from "./SyncIndicator";
 import { UpdatePill } from "./UpdatePill";
 
@@ -22,6 +23,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <UpdatePill />
       <SyncIndicator onOpenAccount={onOpenAccount} />
       <ModelSelector />
+      <ThemeToggle />
     </div>
   </header>
 );

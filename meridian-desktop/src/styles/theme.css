@@ -27,8 +27,8 @@
   /* Semantic status colors. First used by SecureInputWarning; intended to
      replace the ad-hoc yellow-500/red-500 usages (e.g. ui/Alert.tsx) over
      time so status styling is themeable from one place. */
-  --light-color-warning: #d97706;
-  --light-color-error: #dc2626;
+  --light-color-warning: #b45309;
+  --light-color-error: #c81e1e;
   --dark-color-warning: #fbbf24;
   --dark-color-error: #ff4b6e;
 
@@ -39,30 +39,38 @@
   --light-color-elevated: #e6e9ef;
   --light-color-card: #ffffff;
   --light-color-muted: #5b6475;
-  --light-color-subtle: #8b93a3;
+  --light-color-subtle: #666e7e;
   --dark-color-deep: #0d1018;
   --dark-color-surface: #111520;
   --dark-color-elevated: #161c2c;
   --dark-color-card: #1a2135;
   --dark-color-muted: #8896b3;
-  --dark-color-subtle: #4a5568;
+  --dark-color-subtle: #808ca4;
 
   /* Brand status colors: amber (our side), blue (opponent), green (success). */
-  --light-color-amber: #c4851a;
-  --light-color-info: #2563eb;
-  --light-color-success: #059669;
+  --light-color-amber: #8a5a0a;
+  --light-color-info: #1d4ed8;
+  --light-color-success: #047857;
   --dark-color-amber: #f5a623;
   --dark-color-info: #5b9cf6;
   --dark-color-success: #2ee59d;
+
+  /* Neutral gray for tertiary text and tinted fills (mid-gray/20). Both values
+     keep >= 4.5:1 on the background and card surfaces. */
+  --light-color-mid-gray: #626a78;
+  --dark-color-mid-gray: #8a8a8a;
 
   /* Text on top of a solid accent fill (primary buttons, active pills). */
   --light-color-on-accent: #0f0f0f;
   --dark-color-on-accent: #080a0f;
 
+  /* Text on top of a solid error fill (danger buttons). */
+  --light-color-on-error: #ffffff;
+  --dark-color-on-error: #080a0f;
+
   /* Tokens that do not change between light and dark */
   --color-background-ui: #b87414;
   --color-text-stroke: #f6f6f6;
-  --color-mid-gray: #808080;
 
   /* Active palette — defaults to light, follows the OS via the media query
      below, or is forced by `data-theme` (see the overrides below). */
@@ -82,6 +90,8 @@
   --color-info: var(--light-color-info);
   --color-success: var(--light-color-success);
   --color-on-accent: var(--light-color-on-accent);
+  --color-on-error: var(--light-color-on-error);
+  --color-mid-gray: var(--light-color-mid-gray);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -102,6 +112,8 @@
     --color-info: var(--dark-color-info);
     --color-success: var(--dark-color-success);
     --color-on-accent: var(--dark-color-on-accent);
+    --color-on-error: var(--dark-color-on-error);
+    --color-mid-gray: var(--dark-color-mid-gray);
   }
 }
 
@@ -132,6 +144,8 @@
   --color-info: var(--light-color-info);
   --color-success: var(--light-color-success);
   --color-on-accent: var(--light-color-on-accent);
+  --color-on-error: var(--light-color-on-error);
+  --color-mid-gray: var(--light-color-mid-gray);
 }
 
 :root[data-theme="dark"] {
@@ -151,6 +165,8 @@
   --color-info: var(--dark-color-info);
   --color-success: var(--dark-color-success);
   --color-on-accent: var(--dark-color-on-accent);
+  --color-on-error: var(--dark-color-on-error);
+  --color-mid-gray: var(--dark-color-mid-gray);
 }
 
 /*

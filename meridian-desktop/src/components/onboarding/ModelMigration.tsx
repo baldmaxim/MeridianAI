@@ -259,7 +259,7 @@ const ModelMigration: React.FC<ModelMigrationProps> = ({
   if (!snapshot) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-text/50" />
+        <Loader2 className="w-8 h-8 animate-spin text-muted" />
       </div>
     );
   }
@@ -334,7 +334,7 @@ const ModelMigration: React.FC<ModelMigrationProps> = ({
                 </span>
               )}
               {timeLeft && (
-                <span className="tabular-nums text-text/50">
+                <span className="tabular-nums text-muted">
                   {t("onboarding.migration.timeRemaining", { time: timeLeft })}
                 </span>
               )}
@@ -344,7 +344,7 @@ const ModelMigration: React.FC<ModelMigrationProps> = ({
                 </span>
               )}
               {speed > 0 && (
-                <span className="tabular-nums text-text/50">
+                <span className="tabular-nums text-muted">
                   {t("modelSelector.downloadSpeed", {
                     speed: speed.toFixed(1),
                   })}
