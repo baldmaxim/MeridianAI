@@ -38,7 +38,7 @@ AI-ассистент для помощи в переговорах в стро�
 - **Зависимости**: перед добавлением/обновлением — freshness-check (`corp-freshness-check`): официальные доки, changelog, advisories, совместимость.
 - **Многошаговые задачи**: вести `.ai/task_plan.md`, `.ai/findings.md`, `.ai/progress.md`, если пользователь не попросил иначе.
 
-### Keycloak (SSO)
+### Keycloak (SSO) — фаза 6 вычеркнута 17.09.2026, не внедрять без решения пользователя
 
 - Корпоративный Keycloak: `auth.example.com`, realm `your-realm`. Meridian — OIDC confidential client.
 - **Не отключать local auth** во время миграции на Keycloak без feature flag (`AUTH_MODE=local|keycloak|both`) и плана отката.
@@ -50,7 +50,7 @@ AI-ассистент для помощи в переговорах в стро�
 
 ## Стек
 
-- **Backend:** FastAPI + SQLAlchemy async + PostgreSQL (SQLite dev — выпиливается в фазе 1)
+- **Backend:** FastAPI + SQLAlchemy async + PostgreSQL
 - **Frontend:** React 19 + TypeScript + Vite + Zustand v5
 - **Auth:** email + пароль, JWT (python-jose, HS256), bcrypt; целевой путь — Keycloak OIDC
 - **Realtime:** WebSocket для аудио/транскрипции/подсказок
@@ -88,29 +88,27 @@ meridian-web/
 │   │   └── styles/theme.ts      # Dark theme (MERIDIAN)
 │   └── package.json
 ├── deploy/                      # (фаза 3) portal compose, infra-nginx, deploy.sh, runbook
-└── start_dev.bat                # Запуск backend + frontend одной командой
+└── start_dev.bat                # Запуск dev на Windows (на Linux — вручную, см. ниже)
 ```
 
 ## Запуск (dev)
 
 ```bash
-# Вариант 1: через bat файл (поднимает инфру → миграции → backend+frontend)
-meridian-web\start_dev.bat
-
-# Вариант 2: вручную
+# Windows: meridian-web\start_dev.bat (инфра → миграции → backend+frontend)
+# Linux (dev-машина) — вручную, venv общий: .venv/ в корне репо
 # 0. Dev-инфраструктура (PostgreSQL + MinIO):
 cd meridian-web
 docker compose -f docker-compose.dev.yml up -d --wait
 
 # 1. Миграции БД (§8 — отдельный шаг, НЕ из приложения):
 cd backend
-..\.venv\Scripts\python.exe -m alembic upgrade head
+../../.venv/bin/python -m alembic upgrade head
 
 # 2. Terminal A — Backend:
-..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+../../.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 # 3. Terminal B — Frontend:
-cd ..\frontend
+cd ../frontend
 npm run dev
 ```
 
@@ -125,17 +123,18 @@ npm run dev        # vite dev server
 npm run build      # tsc -b && vite build (типчек + прод-сборка)
 npm run lint       # eslint . (ESLint 9 flat config)
 npm run preview    # предпросмотр прод-сборки
+npm test           # vitest run
 ```
-> Vitest/Jest и Prettier НЕ настроены. Отдельной typecheck-команды нет — проверка типов внутри `build`. Vite proxy на backend НЕ настроен.
+> Prettier НЕ настроен. Отдельной typecheck-команды нет — проверка типов внутри `build`. Vite proxy на backend НЕ настроен.
 
 ### Backend (meridian-web/backend)
 ```bash
-..\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8001 --reload   # запуск
-..\.venv\Scripts\python.exe -m alembic upgrade head                        # применить миграции
-..\.venv\Scripts\python.exe -m alembic revision --autogenerate -m "..."    # новая миграция
+../../.venv/bin/python -m uvicorn app.main:app --port 8001 --reload   # запуск
+../../.venv/bin/python -m alembic upgrade head                        # применить миграции
+../../.venv/bin/python -m alembic revision --autogenerate -m "..."    # новая миграция
 ```
-> Тесты: `TEST_DATABASE_URL="sqlite+aiosqlite:///:memory:" ..\.venv\Scripts\python.exe -m pytest -q`
-> (без переменной идёт в Postgres из `DATABASE_URL`). Линтера (ruff/black/mypy) нет.
+> Тесты: `TEST_DATABASE_URL="sqlite+aiosqlite:///:memory:" ../../.venv/bin/python -m pytest -q`
+> (без переменной идёт в Postgres из `DATABASE_URL` — это ПРОД). Линтер — ruff (в CI `ruff==0.17.1`: `uvx ruff@0.17.1 check app`), mypy нет.
 > Alembic — async engine; `migration_database_url` = юзер `meridian_migration` (DDL), runtime = `meridian_runtime` (DML). Роли создаёт `backend/db/init/01-users.sql`.
 
 ### Deploy (meridian-web/deploy)
@@ -276,9 +275,9 @@ Breakpoints:
 - ✅ **3-PROD** — Боевой передеплой на прод-сервер (2026-06-11): `/opt/portals/app`, build-на-сервере, edge на 127.0.0.1:8080, свежая БД + бэкап старой, §7 роли. Соседние сервисы не тронуты. Live: app.example.com health 200/200, auth/rate-limit/headers ✓
 - ✅ **4** — Jobs: PG-таблица jobs (§16), worker-процесс, batch через outbox · на проде (worker claim/dispatch/complete проверены live; edge-resolver устойчив к рестартам api)
 - ✅ **5** — Файлы: presigned S3 для batch-аудио (§15, upload-session/confirm, soft-delete, физ. удаление через job) · **вживую на проде** (S3-совместимое хранилище, tenant-проект; server round-trip + браузерный CORS-preflight проверены). Graceful fallback на multipart без S3. Документы — пока multipart (под-шаг позже)
-- ☐ **6** — Keycloak OIDC + identity linking + AUTH_MODE (session bridging)
+- ✗ **6** — вычеркнуто 17.09.2026 · Keycloak OIDC + identity linking + AUTH_MODE (session bridging)
 - ✅ **7** — Audit log (§22): login/role/api-key/dead-job, email как HMAC, своя транзакция · на проде (login_failed → audit-запись с HMAC проверено live)
-- ☐ **8** — Observability: Sentry frontend, uptime, алерты
+- ✗ **8** — вычеркнуто 17.09.2026 · Observability: Sentry frontend, uptime, алерты
 - ✅ **CI/GHCR** — GitHub Actions собирает образы → GHCR (public) → прод-сервер `docker pull` (deploy-ghcr.sh). Локальный Docker сломан (cred-helper), сборка-на-сервере = OOM. Это рабочий путь деплоя
 
 ## Known Issues
@@ -292,3 +291,33 @@ Breakpoints:
 - ✅ Тесты фронта (vitest) и ruff на бэкенде; CI гоняет pytest/ruff/lint/build/test до сборки образов (2026-10-21). mypy — нет
 - ☐ Захват звука встречи умеют только Chrome/Edge; в Firefox/Safari остаётся микрофон.
   Через колонки (без наушников) голос оппонента попадает и в микрофон — сторона определяется хуже
+
+## Коммит, пуш, выкатка при параллельных сессиях
+
+Рабочее дерево проекта общее: в `git status` бывают чужие правки. Своё сессия коммитит и пушит сама, не
+дожидаясь других; опрос — только когда операция задевает чужую работу.
+
+**Без опроса — коммит и пуш своего:**
+
+- В индекс — только свои файлы поимённо: `git add <пути>`. `git add -A`, `git add .`, `git commit -a` — запрещены.
+- Свои — файлы, которые сессия сама создала или правила. Чужие и непонятные не трогать и не откатывать.
+- Перед коммитом `git diff --cached --stat`: в индексе только своё.
+- Пуш — если `git log origin/<ветка>..HEAD` показывает только свои коммиты.
+- Новая миграция: номер не занят миграцией параллельной сессии.
+
+**С опросом:**
+
+- выкатка на сервер — уходит всё, что в ветке, в том числе чужое;
+- коммит или пуш чужого: в своём файле есть чужие правки, в `origin/<ветка>..HEAD` есть чужие коммиты;
+- команды, меняющие общее дерево: `pull`, `rebase`, `merge`, `stash`, `checkout`/`switch`, `reset`,
+  `restore`, `clean`. Пуш отклонён, ветка ушла вперёд — тоже опрос, а не `pull` самому.
+
+Порядок опроса: сессии — только из вывода `~/.claude/bin/project-peers` (запуск из папки проекта; пусто —
+опрос не нужен), каждой `SendMessage`: операция, ветка, состав. Операция — когда согласились все; отказ или
+молчание — сообщить пользователю, обойти — только по его прямому слову. Согласие — на названную операцию.
+
+Получив запрос — ответить сразу: «да» или «нет: причина» (операция заденет твою незавершённую работу; идёт
+миграция или выкатка). Своя незакоммиченная работа, которую операция не трогает, — не повод для «нет».
+Проект не твой — «да, не мой проект».
+
+Опрос ведёт главная сессия; субагент коммитит только файлы, перечисленные в ТЗ.
