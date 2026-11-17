@@ -27,7 +27,7 @@ export const DEFAULT_ACCENT: Accent = "amber";
 
 /** Swatch colors for the picker; mirror the light-theme presets in theme.css. */
 export const ACCENT_SWATCHES: Record<Accent, string> = {
-  amber: "#c4851a",
+  amber: "#935b00",
   blue: "#3b82f6",
   green: "#16a34a",
   violet: "#8b5cf6",

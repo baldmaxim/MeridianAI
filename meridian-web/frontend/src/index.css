@@ -1,4 +1,5 @@
 /* ── Дизайн-токены: тёмная (по умолчанию) и светлая темы ──
+   Цвета бренда — из styles/brand-tokens.css (генерируется из branding/tokens.json).
    Тема ставится через data-theme на <html> (public/theme-init.js, hooks/useTheme.ts).
    Цвета в компонентах — только через эти переменные (styles/theme.ts). */
 :root,
@@ -6,50 +7,50 @@
   color-scheme: dark;
 
   /* базовые */
-  --bg: #080A0F;
-  --surface: #111520;
-  --text: #EDF2FF;
-  --muted: #7E8AA3; /* бренд #4A5568 давал 2.6:1 — поднят: ≥4.6:1 на любой поверхности (правило ≥4.5) */
-  --border: rgba(255, 255, 255, 0.06);
-  --accent: #F5A623;
-  --danger: #FF4B6E;
-  --on-accent: #080A0F;
-  --on-danger: #FFFFFF;
+  --bg: var(--brand-dark-bg);
+  --surface: var(--brand-dark-surface);
+  --text: var(--brand-dark-text);
+  --muted: var(--brand-dark-text-muted); /* значения — branding/tokens.json (контраст ≥4.5 проверяет генератор) */
+  --border: var(--brand-dark-border);
+  --accent: var(--brand-dark-accent);
+  --danger: var(--brand-dark-danger);
+  --on-accent: var(--brand-dark-on-accent);
+  --on-danger: var(--brand-dark-on-danger);
 
   /* фоны (theme.bg) */
-  --bg-secondary: #0D1018;
-  --bg-tertiary: #111520;
-  --bg-elevated: #161C2C;
-  --bg-card: #1A2135;
-  --bg-chat: #0D1018;
-  --bg-suggestion: #0D1018;
-  --bg-input: #111520;
-  --bg-hover: #161C2C;
+  --bg-secondary: var(--brand-dark-bg-deep);
+  --bg-tertiary: var(--brand-dark-surface);
+  --bg-elevated: var(--brand-dark-elevated);
+  --bg-card: var(--brand-dark-card);
+  --bg-chat: var(--brand-dark-bg-deep);
+  --bg-suggestion: var(--brand-dark-bg-deep);
+  --bg-input: var(--brand-dark-surface);
+  --bg-hover: var(--brand-dark-elevated);
 
   /* текст (theme.text) */
-  --text-secondary: #8896B3;
-  --text-suggestion: #F5A623;
+  --text-secondary: var(--brand-dark-text-secondary);
+  --text-suggestion: var(--brand-dark-accent);
   --text-muted: var(--muted);
 
   /* акценты (theme.accent) */
   --accent-amber: var(--accent);
-  --accent-amber-dim: #C4851A;
+  --accent-amber-dim: var(--brand-dark-accent-dim);
   --accent-amber-glow: rgba(245, 166, 35, 0.12);
-  --accent-blue: #5B9CF6;
+  --accent-blue: var(--brand-dark-info);
   --accent-red: var(--danger);
   --accent-red-dim: rgba(255, 75, 110, 0.15);
-  --accent-green: #2EE59D;
+  --accent-green: var(--brand-dark-success);
   --accent-green-dim: rgba(46, 229, 157, 0.15);
   --accent-blue-hover: #4A8BE5;
   --accent-green-hover: #26CC8A;
-  --accent-yellow: #F5A623;
+  --accent-yellow: var(--brand-dark-accent);
 
   /* реплики по спикерам (theme.speaker) */
   --speaker-customer: rgba(91, 156, 246, 0.08);
   --speaker-subcontractor: rgba(46, 229, 157, 0.08);
   --speaker-you: rgba(245, 166, 35, 0.08);
-  --speaker-system: #111520;
-  --speaker-unknown: #0D1018;
+  --speaker-system: var(--brand-dark-surface);
+  --speaker-unknown: var(--brand-dark-bg-deep);
   --speaker-red: rgba(255, 75, 110, 0.08);
 
   /* границы (theme.border) */
@@ -58,62 +59,62 @@
   --border-amber: rgba(245, 166, 35, 0.25);
   --border-strong: rgba(255, 255, 255, 0.12);
 
-  --disabled: #2A3040;
+  --disabled: var(--brand-dark-disabled);
 
   /* служебные */
-  --overlay: rgba(0, 0, 0, 0.5);
-  --shadow-color: rgba(0, 0, 0, 0.5);
+  --overlay: var(--brand-dark-overlay);
+  --shadow-color: var(--brand-dark-shadow);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #F3F5F9;
-  --surface: #FFFFFF;
-  --text: #141A29;
-  --muted: #5B677E;
-  --border: rgba(20, 26, 41, 0.12);
-  --accent: #935B00;
-  --danger: #C41E3F;
-  --on-accent: #FFFFFF;
-  --on-danger: #FFFFFF;
+  --bg: var(--brand-light-bg);
+  --surface: var(--brand-light-surface);
+  --text: var(--brand-light-text);
+  --muted: var(--brand-light-text-muted);
+  --border: var(--brand-light-border);
+  --accent: var(--brand-light-accent);
+  --danger: var(--brand-light-danger);
+  --on-accent: var(--brand-light-on-accent);
+  --on-danger: var(--brand-light-on-danger);
 
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #FFFFFF;
-  --bg-elevated: #E9EDF4;
-  --bg-card: #FFFFFF;
-  --bg-chat: #FFFFFF;
-  --bg-suggestion: #FFFFFF;
-  --bg-input: #FFFFFF;
-  --bg-hover: #E9EDF4;
+  --bg-secondary: var(--brand-light-bg-deep);
+  --bg-tertiary: var(--brand-light-surface);
+  --bg-elevated: var(--brand-light-elevated);
+  --bg-card: var(--brand-light-card);
+  --bg-chat: var(--brand-light-bg-deep);
+  --bg-suggestion: var(--brand-light-bg-deep);
+  --bg-input: var(--brand-light-surface);
+  --bg-hover: var(--brand-light-elevated);
 
-  --text-secondary: #4A5670;
-  --text-suggestion: #935B00;
+  --text-secondary: var(--brand-light-text-secondary);
+  --text-suggestion: var(--brand-light-accent);
 
-  --accent-amber-dim: #8F5800; /* используется как цвет текста: ≥5:1 */
+  --accent-amber-dim: var(--brand-light-accent-dim); /* используется как цвет текста: ≥5:1 */
   --accent-amber-glow: rgba(147, 91, 0, 0.1);
-  --accent-blue: #1D5CC0;
+  --accent-blue: var(--brand-light-info);
   --accent-red-dim: rgba(196, 30, 63, 0.1);
-  --accent-green: #0A7348;
+  --accent-green: var(--brand-light-success);
   --accent-green-dim: rgba(10, 115, 72, 0.1);
   --accent-blue-hover: #174A9C;
   --accent-green-hover: #085C3A;
-  --accent-yellow: #935B00;
+  --accent-yellow: var(--brand-light-accent);
 
   --speaker-customer: rgba(29, 92, 192, 0.07);
   --speaker-subcontractor: rgba(10, 115, 72, 0.07);
   --speaker-you: rgba(147, 91, 0, 0.07);
-  --speaker-system: #F3F5F9;
-  --speaker-unknown: #FFFFFF;
+  --speaker-system: var(--brand-light-bg);
+  --speaker-unknown: var(--brand-light-bg-deep);
   --speaker-red: rgba(196, 30, 63, 0.07);
 
   --border-amber: rgba(147, 91, 0, 0.35);
   --border-strong: rgba(20, 26, 41, 0.2);
 
-  --disabled: #C5CCD9;
+  --disabled: var(--brand-light-disabled);
 
-  --overlay: rgba(20, 26, 41, 0.4);
-  --shadow-color: rgba(20, 26, 41, 0.18);
+  --overlay: var(--brand-light-overlay);
+  --shadow-color: var(--brand-light-shadow);
 }
 
 /* Цвета сторон в транскрипте (theme.speakerTextColors) — алиасы на акценты темы */

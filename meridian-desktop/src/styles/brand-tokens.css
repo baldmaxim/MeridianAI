@@ -1,0 +1,45 @@
+/* Сгенерировано branding/generate-tokens.mjs из branding/tokens.json — не править руками. */
+
+:root {
+  --brand-dark-bg: #080A0F;
+  --brand-dark-bg-deep: #0D1018;
+  --brand-dark-surface: #111520;
+  --brand-dark-elevated: #161C2C;
+  --brand-dark-card: #1A2135;
+  --brand-dark-text: #EDF2FF;
+  --brand-dark-text-secondary: #8896B3;
+  --brand-dark-text-muted: #7E8AA3;
+  --brand-dark-border: rgba(255, 255, 255, 0.06);
+  --brand-dark-accent: #F5A623;
+  --brand-dark-accent-dim: #C4851A;
+  --brand-dark-danger: #FF4B6E;
+  --brand-dark-success: #2EE59D;
+  --brand-dark-info: #5B9CF6;
+  --brand-dark-warning: #FBBF24;
+  --brand-dark-on-accent: #080A0F;
+  --brand-dark-on-danger: #080A0F;
+  --brand-dark-disabled: #2A3040;
+  --brand-dark-overlay: rgba(0, 0, 0, 0.5);
+  --brand-dark-shadow: rgba(0, 0, 0, 0.5);
+
+  --brand-light-bg: #F3F5F9;
+  --brand-light-bg-deep: #FFFFFF;
+  --brand-light-surface: #FFFFFF;
+  --brand-light-elevated: #E9EDF4;
+  --brand-light-card: #FFFFFF;
+  --brand-light-text: #141A29;
+  --brand-light-text-secondary: #4A5670;
+  --brand-light-text-muted: #5B677E;
+  --brand-light-border: rgba(20, 26, 41, 0.12);
+  --brand-light-accent: #935B00;
+  --brand-light-accent-dim: #8F5800;
+  --brand-light-danger: #C41E3F;
+  --brand-light-success: #0A7348;
+  --brand-light-info: #1D5CC0;
+  --brand-light-warning: #B45309;
+  --brand-light-on-accent: #FFFFFF;
+  --brand-light-on-danger: #FFFFFF;
+  --brand-light-disabled: #C5CCD9;
+  --brand-light-overlay: rgba(20, 26, 41, 0.4);
+  --brand-light-shadow: rgba(20, 26, 41, 0.18);
+}

@@ -1,5 +1,9 @@
 /* Meridian Colors */
 
+/* Brand palette (raw --brand-dark-* / --brand-light-*), generated from
+   branding/tokens.json by branding/generate-tokens.mjs. */
+@import "./brand-tokens.css";
+
 :root {
   /* Brand fonts (bundled via @fontsource, see main.tsx): Syne 800 for the
      wordmark and screen titles, Inter for the UI, JetBrains Mono for labels,
@@ -10,50 +14,53 @@
   --font-mono:
     "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
-  /* Palette source of truth. Each themed color is defined once as a
-     light/dark pair; the active tokens below and the `data-theme` overrides
-     in App.css reference these, so a hex value lives in exactly one place. */
-  --light-color-text: #0f0f0f;
-  --light-color-background: #fbfbfb;
-  --light-color-logo-primary: #c4851a;
+  /* Each themed color is a light/dark pair. Brand roles come from
+     brand-tokens.css (single source: branding/tokens.json, shared with the
+     website); app-specific ones (logo-stroke, mid-gray, background-ui,
+     text-stroke) stay local. The active tokens below and the `data-theme`
+     overrides reference these. */
+  --light-color-text: var(--brand-light-text);
+  --light-color-background: var(--brand-light-bg);
+  --light-color-logo-primary: var(--brand-light-accent);
   --light-color-logo-stroke: #1f2937;
 
-  /* Dark palette follows the MERIDIAN brand (branding/meridian.html). */
-  --dark-color-text: #edf2ff;
-  --dark-color-background: #080a0f;
-  --dark-color-logo-primary: #f5a623;
+  --dark-color-text: var(--brand-dark-text);
+  --dark-color-background: var(--brand-dark-bg);
+  --dark-color-logo-primary: var(--brand-dark-accent);
   --dark-color-logo-stroke: #e5e7eb;
 
   /* Semantic status colors. First used by SecureInputWarning; intended to
      replace the ad-hoc yellow-500/red-500 usages (e.g. ui/Alert.tsx) over
      time so status styling is themeable from one place. */
-  --light-color-warning: #b45309;
-  --light-color-error: #c81e1e;
-  --dark-color-warning: #fbbf24;
-  --dark-color-error: #ff4b6e;
+  --light-color-warning: var(--brand-light-warning);
+  --light-color-error: var(--brand-light-danger);
+  --dark-color-warning: var(--brand-dark-warning);
+  --dark-color-error: var(--brand-dark-danger);
 
   /* Surface ladder (deep -> card) and secondary text. Used by the meetings UI;
      light values are neutral counterparts of the dark brand surfaces. */
-  --light-color-deep: #f3f4f6;
-  --light-color-surface: #eef0f4;
-  --light-color-elevated: #e6e9ef;
-  --light-color-card: #ffffff;
-  --light-color-muted: #5b6475;
-  --light-color-subtle: #666e7e;
-  --dark-color-deep: #0d1018;
-  --dark-color-surface: #111520;
-  --dark-color-elevated: #161c2c;
-  --dark-color-card: #1a2135;
-  --dark-color-muted: #8896b3;
-  --dark-color-subtle: #808ca4;
+  /* Светлая лестница поверхностей приложения: на сайте bg-deep/surface белые,
+     здесь рейка и панели должны отличаться от карточек. */
+  --light-color-deep: var(--brand-light-bg);
+  --light-color-surface: #eef1f6;
+  --light-color-elevated: var(--brand-light-elevated);
+  --light-color-card: var(--brand-light-card);
+  --light-color-muted: var(--brand-light-text-secondary);
+  --light-color-subtle: var(--brand-light-text-muted);
+  --dark-color-deep: var(--brand-dark-bg-deep);
+  --dark-color-surface: var(--brand-dark-surface);
+  --dark-color-elevated: var(--brand-dark-elevated);
+  --dark-color-card: var(--brand-dark-card);
+  --dark-color-muted: var(--brand-dark-text-secondary);
+  --dark-color-subtle: var(--brand-dark-text-muted);
 
   /* Brand status colors: amber (our side), blue (opponent), green (success). */
-  --light-color-amber: #8a5a0a;
-  --light-color-info: #1d4ed8;
-  --light-color-success: #047857;
-  --dark-color-amber: #f5a623;
-  --dark-color-info: #5b9cf6;
-  --dark-color-success: #2ee59d;
+  --light-color-amber: var(--brand-light-accent);
+  --light-color-info: var(--brand-light-info);
+  --light-color-success: var(--brand-light-success);
+  --dark-color-amber: var(--brand-dark-accent);
+  --dark-color-info: var(--brand-dark-info);
+  --dark-color-success: var(--brand-dark-success);
 
   /* Neutral gray for tertiary text and tinted fills (mid-gray/20). Both values
      keep >= 4.5:1 on the background and card surfaces. */
@@ -61,12 +68,12 @@
   --dark-color-mid-gray: #8a8a8a;
 
   /* Text on top of a solid accent fill (primary buttons, active pills). */
-  --light-color-on-accent: #0f0f0f;
-  --dark-color-on-accent: #080a0f;
+  --light-color-on-accent: var(--brand-light-on-accent);
+  --dark-color-on-accent: var(--brand-dark-on-accent);
 
   /* Text on top of a solid error fill (danger buttons). */
-  --light-color-on-error: #ffffff;
-  --dark-color-on-error: #080a0f;
+  --light-color-on-error: var(--brand-light-on-danger);
+  --dark-color-on-error: var(--brand-dark-on-danger);
 
   /* Tokens that do not change between light and dark */
   --color-background-ui: #b87414;
@@ -177,8 +184,8 @@
  * The base :root values are the `amber` (brand) preset, used when no attribute is set.
  */
 :root[data-accent="amber"] {
-  --light-color-logo-primary: #c4851a;
-  --dark-color-logo-primary: #f5a623;
+  --light-color-logo-primary: var(--brand-light-accent);
+  --dark-color-logo-primary: var(--brand-dark-accent);
   --color-background-ui: #b87414;
 }
 

@@ -10,6 +10,7 @@ on:
     paths:
       - 'meridian-web/backend/**'
       - 'meridian-web/frontend/**'
+      - 'branding/tokens.json'
       - '.github/workflows/deploy.yml'
 
 permissions:
@@ -56,6 +57,10 @@ jobs:
       - name: Frontend install
         working-directory: meridian-web/frontend
         run: npm ci
+
+      - name: Frontend brand tokens in sync
+        working-directory: meridian-web/frontend
+        run: npm run tokens:check
 
       - name: Frontend lint
         working-directory: meridian-web/frontend
