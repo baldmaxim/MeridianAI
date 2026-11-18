@@ -51,6 +51,8 @@ export const createContextSlice: StateCreator<IMeetingStore, [], [], IContextSli
   draftMeetingId: null,
   setSelectedCustomerId: (id) => set({ selectedCustomerId: id }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+  selectedOfferSubmission: null,
+  setSelectedOfferSubmission: (key) => set({ selectedOfferSubmission: key }),
   setSelectedCustomerName: (n) => set({ selectedCustomerName: n }),
   setSelectedObjectName: (n) => set({ selectedObjectName: n }),
   setDraftMeetingId: (id) => set({ draftMeetingId: id }),

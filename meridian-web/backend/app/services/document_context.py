@@ -19,6 +19,7 @@ from ..config import get_settings
 from ..database import async_session
 from ..models.meeting import MeetingDocumentRecord, MeetingSession
 from ..models.document import DocumentRecord, DocumentChunk
+from .offer_submissions import offer_submission_label
 
 logger = logging.getLogger("meridian.documents")
 
@@ -161,8 +162,8 @@ def inherited_documents_stmt(meeting: MeetingSession):
     """SELECT DocumentRecord.id готовых документов заказчика/объекта встречи (или None).
 
     Документы общие для всех сотрудников (services/access.py), поэтому фильтра по пользователю нет:
-    Документ объекта наследуется его встречами. Документ заказчика без привязки
-    к объекту наследуется встречами этого заказчика.
+    Документ объекта наследуется его встречами (при выбранной подаче КП — общие + только её).
+    Документ заказчика без привязки к объекту наследуется встречами этого заказчика.
     """
     conds = []
     if meeting.customer_id is not None:
@@ -171,7 +172,14 @@ def inherited_documents_stmt(meeting: MeetingSession):
             DocumentRecord.object_id.is_(None),
         ))
     if meeting.object_id is not None:
-        conds.append(DocumentRecord.object_id == meeting.object_id)
+        object_cond = DocumentRecord.object_id == meeting.object_id
+        if meeting.offer_submission is not None:
+            # обсуждается одна подача КП: общий контекст объекта (NULL) + документы только этой подачи
+            object_cond = and_(object_cond, or_(
+                DocumentRecord.offer_submission.is_(None),
+                DocumentRecord.offer_submission == meeting.offer_submission,
+            ))
+        conds.append(object_cond)
     if not conds:
         return None
     return select(DocumentRecord.id).where(DocumentRecord.status == "ready", or_(*conds))
@@ -338,9 +346,14 @@ async def build_meeting_doc_context(meeting_id: int, query_text: str, extra_quer
                 db, meeting_id, query_text, limit=settings.document_context_max_chunks,
                 extra_query=extra_query,
             )
-        return format_chunks_block(
+            meeting = await db.get(MeetingSession, meeting_id)
+            submission = meeting.offer_submission if meeting is not None else None
+        block = format_chunks_block(
             chunks, settings.document_context_max_chunks, settings.document_context_max_chars
         )
+        if block and submission is not None:
+            block = f"Обсуждаемая подача КП: {offer_submission_label(submission)}\n\n{block}"
+        return block
     except Exception as e:
         logger.error("doc context build failed for meeting %s: %s", meeting_id, e)
         return ""

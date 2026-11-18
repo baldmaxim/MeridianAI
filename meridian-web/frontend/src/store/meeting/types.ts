@@ -130,6 +130,9 @@ export interface IContextSlice {
   draftMeetingId: number | null;
   setSelectedCustomerId: (id: number | null) => void;
   setSelectedObjectId: (id: number | null) => void;
+  /** Подача КП встречи: null — все документы объекта; строка (в т.ч. "") — ключ подачи. */
+  selectedOfferSubmission: string | null;
+  setSelectedOfferSubmission: (key: string | null) => void;
   setSelectedCustomerName: (n: string | null) => void;
   setSelectedObjectName: (n: string | null) => void;
   setDraftMeetingId: (id: number | null) => void;

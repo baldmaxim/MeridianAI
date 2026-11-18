@@ -1,5 +1,5 @@
 import api from './client';
-import type { ProjectObject } from '../types';
+import type { IOfferSubmission, ProjectObject } from '../types';
 
 export interface ProjectObjectInput {
   customer_name: string;
@@ -35,4 +35,9 @@ export async function updateObject(id: number, input: Partial<ProjectObjectInput
 
 export async function deleteObject(id: number): Promise<void> {
   await api.delete(`/objects/${id}`);
+}
+
+export async function listObjectOfferSubmissions(objectId: number): Promise<IOfferSubmission[]> {
+  const { data } = await api.get<IOfferSubmission[]>(`/objects/${objectId}/offer-submissions`);
+  return data;
 }

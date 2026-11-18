@@ -71,6 +71,7 @@ export interface MeetingDetail {
   status: string | null;
   customer_id: number | null;
   object_id: number | null;
+  offer_submission?: string | null;
   customer_name: string | null;
   object_name: string | null;
   micro_summary: string | null;

@@ -58,6 +58,8 @@ class DocumentRecord(Base):
     doc_meta: Mapped[dict | None] = mapped_column(JSON)
     classify_source: Mapped[str | None] = mapped_column(String(10))  # rules | llm
     classified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Подача КП (имя папки; "" — вне папок) для import_source.kind="offer"; NULL — общий контекст объекта.
+    offer_submission: Mapped[str | None] = mapped_column(String(300))
     created_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -72,6 +74,7 @@ class DocumentRecord(Base):
         Index("ix_documents_object", "object_id"),
         Index("ix_documents_status", "status"),
         Index("ix_documents_doc_type", "doc_type"),
+        Index("ix_documents_object_offer_submission", "object_id", "offer_submission"),
     )
 
 

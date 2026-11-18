@@ -69,6 +69,7 @@ def meeting_doc_item(
         doc_type_label=type_label(doc.doc_type),
         doc_tags=tag_items(doc.doc_tags),
         doc_meta=doc.doc_meta,
+        offer_submission=doc.offer_submission,
     )
 
 

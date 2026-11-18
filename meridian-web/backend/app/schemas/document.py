@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from ..services.offer_submissions import public_doc_meta
+
 
 class DocumentUploadSessionRequest(BaseModel):
     filename: str
@@ -69,8 +71,16 @@ class DocumentResponse(BaseModel):
     doc_type_label: str | None = None
     doc_tags: list[DocClassifierItem] = []
     doc_meta: dict | None = None
+    # Подача КП (имя папки; "" — вне папок); None — документ общего контекста
+    offer_submission: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("doc_meta", mode="after")
+    @classmethod
+    def _hide_local_path(cls, value):
+        # локальный путь оператора (import_source.path) наружу не отдаём; ORM-объект не мутируем
+        return public_doc_meta(value)
 
     @field_validator("doc_tags", mode="before")
     @classmethod
@@ -115,6 +125,12 @@ class MeetingDocumentItem(BaseModel):
     doc_type_label: str | None = None
     doc_tags: list[DocClassifierItem] = []
     doc_meta: dict | None = None
+    offer_submission: str | None = None
+
+    @field_validator("doc_meta", mode="after")
+    @classmethod
+    def _hide_local_path(cls, value):
+        return public_doc_meta(value)
 
 
 class MeetingDocumentPatch(BaseModel):
@@ -130,3 +146,11 @@ class RelevantDocumentChunk(BaseModel):
     page_number: int | None
     sheet_name: str | None
     score: float
+
+
+class OfferSubmission(BaseModel):
+    """Подача КП объекта (группа документов с одним documents.offer_submission)."""
+    key: str  # значение offer_submission; "" — документы вне папок подач
+    label: str
+    date: str | None  # минимальная import_source.date группы (YYYY-MM-DD)
+    document_count: int

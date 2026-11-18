@@ -17,9 +17,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface IObjectDocumentRowProps {
   doc: DocumentRecord;
+  /** Имя для показа (например, без префикса подачи КП); по умолчанию — original_name. */
+  displayName?: string;
 }
 
-export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc }) => {
+export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayName }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,7 +48,7 @@ export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc }) => {
   return (
     <div className={styles.row}>
       <div className={styles.rowMain}>
-        <div className={styles.rowName}>{doc.original_name}</div>
+        <div className={styles.rowName} title={doc.original_name}>{displayName ?? doc.original_name}</div>
         <div className={styles.rowMeta}>
           {meta.length > 0 && <span>{meta.join(' · ')}</span>}
           {doc.status !== 'ready' && (

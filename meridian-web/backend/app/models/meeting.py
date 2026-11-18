@@ -47,6 +47,8 @@ class MeetingSession(Base):
     created_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
+    # Обсуждаемая подача КП объекта (documents.offer_submission); NULL — все документы объекта.
+    offer_submission: Mapped[str | None] = mapped_column(String(300))
     status: Mapped[str | None] = mapped_column(String(30), default="active")
     micro_summary: Mapped[str | None] = mapped_column(Text)
     tags_json: Mapped[str | None] = mapped_column(Text)

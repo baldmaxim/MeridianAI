@@ -8,11 +8,15 @@ from ..auth.dependencies import get_current_user
 from ..database import get_db
 from ..models.user import User
 from ..models.directory import Customer, ProjectObject
+from ..models.document import DocumentRecord
 from ..schemas.directory import (
     ProjectObjectCreate,
     ProjectObjectUpdate,
     ProjectObjectResponse,
 )
+from ..schemas.document import OfferSubmission
+from ..services.access import user_can_access_object
+from ..services.offer_submissions import offer_submission_label
 
 router = APIRouter()
 
@@ -99,6 +103,44 @@ async def get_object(
         raise HTTPException(404, "Объект не найден")
     customer = await db.get(Customer, obj.customer_id)
     return _obj_response(obj, customer.name if customer else None)
+
+
+@router.get("/{object_id}/offer-submissions", response_model=list[OfferSubmission])
+async def list_offer_submissions(
+    object_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Подачи КП объекта: группы документов по offer_submission (новые сверху)."""
+    if await db.get(ProjectObject, object_id) is None:
+        raise HTTPException(404, "Объект не найден")
+    if not await user_can_access_object(db, user.id, object_id):
+        raise HTTPException(403, "Нет доступа к объекту")
+    rows = (
+        await db.execute(
+            select(DocumentRecord.offer_submission, DocumentRecord.doc_meta).where(
+                DocumentRecord.object_id == object_id,
+                DocumentRecord.offer_submission.is_not(None),
+            )
+        )
+    ).all()
+    counts: dict[str, int] = {}
+    dates: dict[str, str] = {}
+    for key, doc_meta in rows:
+        counts[key] = counts.get(key, 0) + 1
+        source = doc_meta.get("import_source") if isinstance(doc_meta, dict) else None
+        date = source.get("date") if isinstance(source, dict) else None
+        if isinstance(date, str) and date and (key not in dates or date < dates[key]):
+            dates[key] = date
+    items = [
+        OfferSubmission(
+            key=key, label=offer_submission_label(key), date=dates.get(key), document_count=count,
+        )
+        for key, count in counts.items()
+    ]
+    items.sort(key=lambda g: g.key, reverse=True)
+    items.sort(key=lambda g: g.date or "", reverse=True)  # без даты — в конце; ключи в группе по убыванию
+    return items
 
 
 @router.put("/{object_id}", response_model=ProjectObjectResponse)

@@ -29,6 +29,16 @@ export interface DocumentRecord {
   updated_at: string;
   chunks_count: number;
   doc_type_label?: string | null;
+  /** null — общий контекст объекта; строка (в т.ч. "") — документ подачи КП с этим ключом. */
+  offer_submission?: string | null;
+}
+
+/** Подача КП объекта (GET /objects/{id}/offer-submissions), от новой к старой. */
+export interface IOfferSubmission {
+  key: string;
+  label: string;
+  date: string | null;
+  document_count: number;
 }
 
 export type DocumentUploadMode = 's3_presigned' | 'legacy_multipart';
@@ -88,6 +98,7 @@ export interface MeetingDocument {
   doc_tags?: DocClassifierItem[];
   doc_meta?: DocMeta | null;
   source?: MeetingDocumentSource;  // откуда документ: встреча / унаследован от контрагента / объекта
+  offer_submission?: string | null;  // ключ подачи КП ("" — вне папок подач); null — общий документ
 }
 
 export interface DocumentChunkPreview {

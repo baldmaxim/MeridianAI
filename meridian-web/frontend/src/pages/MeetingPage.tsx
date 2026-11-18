@@ -131,6 +131,7 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
         s2.setDraftMeetingId(existing);
         s2.setSelectedCustomerId(d.customer_id);
         s2.setSelectedObjectId(d.object_id);
+        s2.setSelectedOfferSubmission(d.offer_submission ?? null);
         s2.setSelectedCustomerName(d.customer_name);
         s2.setSelectedObjectName(d.object_name);
         s2.setMeetingStartedAt(d.started_at ?? null);

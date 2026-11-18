@@ -91,6 +91,18 @@ async def _resolve_customer_object(
     return customer_id, object_id
 
 
+async def _ensure_offer_submission(db: AsyncSession, object_id: int | None, offer_submission: str) -> None:
+    """422, если у объекта нет документов этой подачи ("" — корзина «Вне папок подач»)."""
+    exists = object_id is not None and await db.scalar(
+        select(DocumentRecord.id).where(
+            DocumentRecord.object_id == object_id,
+            DocumentRecord.offer_submission == offer_submission,
+        ).limit(1)
+    ) is not None
+    if not exists:
+        raise HTTPException(422, "Подача не найдена у объекта")
+
+
 def _is_meeting_owner(meeting: MeetingSession, user: User) -> bool:
     # Общая хронология: встреча не принадлежит пользователю — управлять/удалять
     # может любой авторизованный сотрудник.
@@ -140,6 +152,7 @@ async def list_meetings(
             MeetingSession.status,
             MeetingSession.customer_id,
             MeetingSession.object_id,
+            MeetingSession.offer_submission,
             MeetingSession.finalization_status,
             MeetingSession.micro_summary,
             MeetingSession.tags_json,
@@ -191,6 +204,7 @@ async def list_meetings(
             object_id=r.object_id,
             customer_name=r.customer_name,
             object_name=r.object_name,
+            offer_submission=r.offer_submission,
             finalization_status=r.finalization_status,
             micro_summary=r.micro_summary,
             tags=_json.loads(r.tags_json) if r.tags_json else [],
@@ -217,6 +231,8 @@ async def create_meeting(
     customer_id, object_id = await _resolve_customer_object(
         db, user, data.customer_id, data.object_id, data.customer_name
     )
+    if data.offer_submission is not None:
+        await _ensure_offer_submission(db, object_id, data.offer_submission)
 
     # Этап 9: новая встреча получает default AI-профиль пользователя
     from ..services.ai_settings import get_or_create_default_profile
@@ -229,6 +245,7 @@ async def create_meeting(
         status="active",
         customer_id=customer_id,
         object_id=object_id,
+        offer_submission=data.offer_submission,
         title=data.title,
         meeting_topic=data.meeting_topic,
         meeting_notes=data.meeting_notes,
@@ -261,6 +278,8 @@ async def update_meeting(
         raise HTTPException(403, "Нет доступа к встрече")
 
     updates = data.model_dump(exclude_unset=True)
+    # подача КП: явное значение (в т.ч. null — сброс) или сброс при смене объекта
+    object_changed = False
     # привязка заказчик/объект проверяется только если что-то из них меняется
     if "customer_id" in updates or "object_id" in updates or "customer_name" in updates:
         new_object = updates.get("object_id", meeting.object_id)
@@ -275,11 +294,18 @@ async def update_meeting(
         new_customer, new_object = await _resolve_customer_object(
             db, user, new_customer, new_object, cust_name
         )
+        object_changed = new_object != meeting.object_id
+        if "offer_submission" in updates and updates["offer_submission"] is not None:
+            await _ensure_offer_submission(db, new_object, updates["offer_submission"])
         meeting.customer_id = new_customer
         meeting.object_id = new_object
         updates.pop("customer_id", None)
         updates.pop("object_id", None)
         updates.pop("customer_name", None)
+    elif updates.get("offer_submission") is not None:
+        await _ensure_offer_submission(db, meeting.object_id, updates["offer_submission"])
+    if object_changed and "offer_submission" not in updates:
+        updates["offer_submission"] = None
 
     for key, value in updates.items():
         setattr(meeting, key, value)
@@ -776,6 +802,7 @@ async def get_meeting_detail(
         object_id=meeting.object_id,
         customer_name=customer_name,
         object_name=object_name,
+        offer_submission=meeting.offer_submission,
         micro_summary=meeting.micro_summary,
         tags_json=meeting.tags_json,
         segments=segments,

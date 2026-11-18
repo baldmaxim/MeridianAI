@@ -23,6 +23,7 @@ export interface MeetingDraftInput {
   customer_id?: number | null;
   customer_name?: string | null;
   object_id?: number | null;
+  offer_submission?: string | null;
   meeting_topic?: string | null;
   meeting_notes?: string | null;
   negotiation_type?: string | null;
@@ -34,6 +35,7 @@ export interface MeetingDraft {
   id: number;
   customer_id: number | null;
   object_id: number | null;
+  offer_submission?: string | null;
   status: string | null;
   is_active: boolean;
   started_at: string;

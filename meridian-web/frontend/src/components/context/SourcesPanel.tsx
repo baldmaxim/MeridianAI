@@ -6,6 +6,7 @@ import { ContextSourceCard } from './ContextSourceCard';
 import { RagFolderPickerModal } from './RagFolderPickerModal';
 import { ContextPreviewModal } from './ContextPreviewModal';
 import { DocumentUploadQueue } from './DocumentUploadQueue';
+import { OfferSubmissionSelect } from './OfferSubmissionSelect';
 import { SourceFileRow } from './SourceFileRow';
 import {
   ragPlaceholderToContextSourceViewModel,
@@ -17,6 +18,7 @@ import { useRagContextFolders } from '../../hooks/useRagContextFolders';
 import { useMeetingLetters } from '../../hooks/useMeetingLetters';
 import { useDocumentUploadQueue } from '../../hooks/useDocumentUploadQueue';
 import { useMeetingSources } from '../../hooks/useMeetingSources';
+import { useMeetingStore } from '../../store/meetingStore';
 import { extractDroppedFiles } from '../../lib/documentFiles';
 import type { MeetingDocument } from '../../types';
 import type { RagContextAdapter } from './ragContextTypes';
@@ -45,6 +47,7 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const sources = useMeetingSources(meetingId);
+  const offerSubmission = useMeetingStore((s) => s.selectedOfferSubmission);
   const { refresh } = sources;
 
   // Если ensureMeetingId не передан — fallback: вернуть текущий meetingId либо null.
@@ -204,6 +207,14 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
           onClearItem={queue.clearItem}
           onClearFinished={queue.clearFinished}
         />
+
+        {meetingId != null && objectId != null && (
+          <OfferSubmissionSelect
+            objectId={objectId}
+            value={offerSubmission}
+            onChange={(v) => { void sources.changeOfferSubmission(v); }}
+          />
+        )}
 
         {sources.typeChips.length >= 2 && (
           <div className={styles.filters} role="group" aria-label="Фильтр по типу документа">

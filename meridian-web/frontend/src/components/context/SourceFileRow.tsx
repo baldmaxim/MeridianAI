@@ -2,6 +2,7 @@ import type { FC } from 'react';
 import type { MeetingDocument } from '../../types';
 import { Icon } from '../common/Icon';
 import { DocumentIcon } from './DocumentIcon';
+import { stripOfferPrefix } from '../object/offerSubmissions';
 import {
   formatMetaLine, getDocTypeText, getSourceStatus, isDocPending, isInherited, type SourceStatusKind,
 } from './sourcesModel';
@@ -57,7 +58,7 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
         <DocumentIcon ext={doc.file_ext ?? ''} docType={doc.doc_type} />
       </span>
       <div className={styles.main}>
-        <div className={styles.name} title={doc.original_name}>{doc.original_name}</div>
+        <div className={styles.name} title={doc.original_name}>{doc.offer_submission == null ? doc.original_name : stripOfferPrefix(doc.original_name, doc.offer_submission)}</div>
         {(details || status || reprocessAction) && (
           <div className={styles.details}>
             {details && <span>{details}</span>}

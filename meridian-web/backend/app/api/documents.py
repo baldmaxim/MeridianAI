@@ -30,6 +30,7 @@ from ..schemas.document import (
 )
 from ..services import document_storage, s3
 from ..services.document_classify import vocab as classification_vocab
+from ..services.offer_submissions import offer_submission_from_meta
 from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..services.jobs import enqueue
 
@@ -121,6 +122,7 @@ async def create_s3_document_upload(
         status="pending",
         created_by_user_id=user.id,
         doc_meta={"import_source": import_source} if import_source is not None else None,
+        offer_submission=offer_submission_from_meta(import_source),
     )
     db.add(doc)
     await db.flush()

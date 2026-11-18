@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { updateMeeting } from '../api/meetings';
+import { useMeetingStore } from '../store/meetingStore';
 import { getClassificationVocab, reprocessDocument } from '../api/documents';
 import { detachMeetingDocument, listMeetingDocuments, patchMeetingDocument } from '../api/meetingDocuments';
 import { apiErrorMessage } from '../lib/apiError';
@@ -96,6 +98,20 @@ export const useMeetingSources = (meetingId: number | null) => {
     }
   }, [refresh]);
 
+  /** Сменить подачу КП встречи (null — все документы объекта) и перечитать список документов. */
+  const changeOfferSubmission = useCallback(async (value: string | null) => {
+    if (meetingId == null) return;
+    setError('');
+    try {
+      await updateMeeting(meetingId, { offer_submission: value });
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Не удалось сменить подачу КП'));
+      return;
+    }
+    useMeetingStore.getState().setSelectedOfferSubmission(value);
+    await refresh();
+  }, [meetingId, refresh]);
+
   const typeChips = useMemo(() => buildTypeChips(docs, vocab.doc_types), [docs, vocab.doc_types]);
   // Выбранный тип мог исчезнуть из списка (документ удалён) — тогда фильтр сбрасывается.
   const activeType = typeChips.some((c) => c.key === typeFilter) ? typeFilter : null;
@@ -104,6 +120,6 @@ export const useMeetingSources = (meetingId: number | null) => {
 
   return {
     docs, groups, typeChips, activeType, setTypeFilter, counter, error,
-    refresh, toggleIncluded, remove, reprocess,
+    refresh, toggleIncluded, remove, reprocess, changeOfferSubmission,
   };
 };

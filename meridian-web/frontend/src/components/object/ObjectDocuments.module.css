@@ -15,6 +15,21 @@
   margin-top: 4px;
 }
 
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subTitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
 .muted {
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
@@ -76,6 +91,13 @@
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.groupDate {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .groupCount {

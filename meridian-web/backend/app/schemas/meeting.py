@@ -71,6 +71,7 @@ class MeetingListItem(BaseModel):
     object_id: int | None = None
     customer_name: str | None = None
     object_name: str | None = None
+    offer_submission: str | None = None
     # Этап 5: финализация
     finalization_status: str | None = None
     micro_summary: str | None = None
@@ -127,6 +128,7 @@ class MeetingDetailResponse(BaseModel):
     object_id: int | None = None
     customer_name: str | None = None
     object_name: str | None = None
+    offer_submission: str | None = None
     micro_summary: str | None = None
     tags_json: str | None = None
     segments: list[TranscriptSegmentResponse]
@@ -152,6 +154,7 @@ class MeetingCreate(BaseModel):
     customer_id: int | None = None
     customer_name: str | None = None
     object_id: int | None = None
+    offer_submission: str | None = None
     meeting_topic: str | None = None
     meeting_notes: str | None = None
     negotiation_type: str | None = None
@@ -169,6 +172,7 @@ class MeetingUpdate(BaseModel):
     customer_id: int | None = None
     customer_name: str | None = None
     object_id: int | None = None
+    offer_submission: str | None = None
     status: str | None = None
     meeting_topic: str | None = None
     meeting_notes: str | None = None
@@ -186,6 +190,7 @@ class MeetingCreateResponse(BaseModel):
     id: int
     customer_id: int | None = None
     object_id: int | None = None
+    offer_submission: str | None = None
     status: str | None = None
     is_active: bool
     started_at: datetime

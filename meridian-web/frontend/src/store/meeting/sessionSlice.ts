@@ -76,6 +76,7 @@ export const createSessionSlice: StateCreator<IMeetingStore, [], [], ISessionSli
       meetingStats: { positionStrength: 0, suggestionsUsed: 0, activeObjections: 0, meetingStartTime: null },
       selectedCustomerId: null,
       selectedObjectId: null,
+      selectedOfferSubmission: null,
       selectedCustomerName: null,
       selectedObjectName: null,
       draftMeetingId: null,
