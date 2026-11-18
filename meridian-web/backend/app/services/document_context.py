@@ -12,7 +12,7 @@ import re
 from collections import Counter
 from itertools import zip_longest
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
@@ -90,11 +90,15 @@ def inherited_documents_stmt(meeting: MeetingSession):
     """SELECT DocumentRecord.id готовых документов заказчика/объекта встречи (или None).
 
     Документы общие для всех сотрудников (services/access.py), поэтому фильтра по пользователю нет:
-    наследуется всё, что привязано к заказчику или объекту этой встречи.
+    Документ объекта наследуется его встречами. Документ заказчика без привязки
+    к объекту наследуется встречами этого заказчика.
     """
     conds = []
     if meeting.customer_id is not None:
-        conds.append(DocumentRecord.customer_id == meeting.customer_id)
+        conds.append(and_(
+            DocumentRecord.customer_id == meeting.customer_id,
+            DocumentRecord.object_id.is_(None),
+        ))
     if meeting.object_id is not None:
         conds.append(DocumentRecord.object_id == meeting.object_id)
     if not conds:

@@ -77,11 +77,20 @@ def _read_text(path: str) -> str:
 def _extract_docx(path: str) -> list[dict]:
     try:
         from docx import Document as DocxDocument
+        from docx.text.paragraph import Paragraph
     except ImportError as e:
         raise RuntimeError("python-docx не установлен") from e
     doc = DocxDocument(path)
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    text = "\n\n".join(paragraphs)
+
+    def blocks(container):
+        for block in container.iter_inner_content():
+            if isinstance(block, Paragraph):
+                yield block.text.strip()
+            else:
+                for row in block.rows:
+                    yield "\t".join("\n".join(blocks(cell)) for cell in row.cells)
+
+    text = "\n\n".join(part for part in blocks(doc) if part.strip())
     return [{"text": text, "page_number": None, "sheet_name": None}]
 
 

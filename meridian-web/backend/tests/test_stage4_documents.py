@@ -30,6 +30,28 @@ from app.api.history import attach_meeting_document, list_meeting_documents
 
 # ---------- helpers ----------
 
+
+def test_docx_extraction_keeps_tables_and_paragraph_order(tmp_path):
+    from docx import Document
+
+    document = Document()
+    document.add_paragraph("Условия предложения")
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Аванс"
+    table.cell(0, 1).text = "30 процентов"
+    nested = table.cell(0, 1).add_table(rows=1, cols=1)
+    nested.cell(0, 0).text = "Срок 10 дней"
+    document.add_paragraph("Заключительные условия")
+    path = tmp_path / "offer.docx"
+    document.save(path)
+
+    segments, _, _ = dp._extract_segments(str(path), ".docx")
+    text = segments[0]["text"]
+
+    assert "Аванс\t30 процентов" in text
+    assert "Срок 10 дней" in text
+    assert text.index("Условия предложения") < text.index("Аванс") < text.index("Заключительные условия")
+
 async def _mk_user(db, email):
     u = User(email=email, password_hash="x", role="user", is_active=True)
     db.add(u)

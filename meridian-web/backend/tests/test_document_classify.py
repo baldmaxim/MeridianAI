@@ -350,6 +350,31 @@ async def test_meeting_without_customer_and_object_inherits_nothing(db):
     assert await effective_meeting_document_ids(db, meeting) == set()
 
 
+async def test_object_documents_stay_with_their_object_when_customer_is_also_set(db):
+    user, customer, _, obj = await _setup(db)
+    other = ProjectObject(customer_id=customer.id, name="Другой объект")
+    db.add(other)
+    await db.flush()
+    common = await _doc(db, user, "common.txt", customer_id=customer.id)
+    own = await _doc(db, user, "own.txt", customer_id=customer.id, object_id=obj.id)
+    foreign = await _doc(db, user, "foreign.txt", customer_id=customer.id, object_id=other.id)
+    meeting = await _meeting(db, user, customer_id=customer.id, object_id=obj.id)
+
+    assert await effective_meeting_document_ids(db, meeting) == {common.id, own.id}
+    items = {item.document_id: item for item in await list_meeting_document_items(db, meeting)}
+    assert items[own.id].source == "object"
+    assert foreign.id not in items
+    assert await set_document_inclusion(db, meeting, foreign.id, included=True, priority=None) is None
+
+    await attach_document(db, meeting, foreign, user.id)
+    assert await effective_meeting_document_ids(db, meeting) == {common.id, own.id, foreign.id}
+    await detach_document(db, meeting, foreign.id)
+    assert await effective_meeting_document_ids(db, meeting) == {common.id, own.id}
+
+    customer_meeting = await _meeting(db, user, customer_id=customer.id)
+    assert await effective_meeting_document_ids(db, customer_meeting) == {common.id}
+
+
 async def test_excluded_after_patch_and_reincluded(db):
     user, cust_a, _, _ = await _setup(db)
     d = await _doc(db, user, "cust.txt", customer_id=cust_a.id, text="неустойка за просрочку")

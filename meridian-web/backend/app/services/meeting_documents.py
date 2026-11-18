@@ -26,10 +26,11 @@ SOURCE_OBJECT = "object"
 
 def inherited_source(meeting: MeetingSession, doc: DocumentRecord) -> str | None:
     """«customer» / «object», если документ наследуется встречей; иначе None."""
-    if meeting.customer_id is not None and doc.customer_id == meeting.customer_id:
-        return SOURCE_CUSTOMER
     if meeting.object_id is not None and doc.object_id == meeting.object_id:
         return SOURCE_OBJECT
+    if (doc.object_id is None and meeting.customer_id is not None
+            and doc.customer_id == meeting.customer_id):
+        return SOURCE_CUSTOMER
     return None
 
 
