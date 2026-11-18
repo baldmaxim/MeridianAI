@@ -3,7 +3,7 @@ import type { FC, RefObject } from 'react';
 import { downloadBatchClip } from '../../api/batch';
 import type { BatchSegment } from '../../api/batch';
 import { errorTextFromBlob } from '../../api/download';
-import { TextInput } from '../common';
+import { TextInput, TranslatedText } from '../common';
 import { HighlightText } from './HighlightText';
 import { CorrectedText } from './CorrectedText';
 import { fmtTime } from './batchDetailUtils';
@@ -125,14 +125,11 @@ export const BatchTranscript: FC<IBatchTranscriptProps> = ({ jobId, segments, au
             </div>
             <div className={styles.segBody}>
               <div className={styles.segText}>
-                <CorrectedText text={seg.text} corrections={seg.corrections} showOriginal={showOriginal} query={q} />
+                <TranslatedText
+                  text={<CorrectedText text={seg.text} corrections={seg.corrections} showOriginal={showOriginal} query={q} />}
+                  translation={seg.text_ru ? <HighlightText text={seg.text_ru} query={q} /> : null}
+                />
               </div>
-              {seg.text_ru && (
-                <div className={styles.segTextRu}>
-                  <span className={styles.ruTag}>RU</span>
-                  <span><HighlightText text={seg.text_ru} query={q} /></span>
-                </div>
-              )}
             </div>
           </div>
         );

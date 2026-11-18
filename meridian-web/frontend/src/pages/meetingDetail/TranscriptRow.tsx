@@ -2,6 +2,7 @@ import type { FC } from 'react';
 import type { TranscriptSegmentRecord } from '../../types';
 import { foreignLanguageBadge, formatDiarizedSpeaker } from '../../lib/segmentMeta';
 import { getDiarizedSpeakerColor } from '../../styles/theme';
+import { TranslatedText } from '../../components/common/TranslatedText';
 import { formatTime, getSpeakerColorIndex } from './meetingDetailFormat';
 import meta from '../../components/meeting/SegmentMeta.module.css';
 import styles from './TranscriptRow.module.css';
@@ -19,7 +20,7 @@ export const TranscriptRow: FC<ITranscriptRowProps> = ({ segment }) => {
       <span className={styles.time}>{formatTime(segment.wall_clock)}</span>
       <span className={`${styles.speaker} ${styles[`speaker${getSpeakerColorIndex(speaker)}`]}`}>{speaker}</span>
       <span className={styles.text}>
-        {language && <span className={meta.langBadge} title="Язык реплики">{language}</span>}
+        {language && !segment.translation && <span className={meta.langBadge} title="Язык реплики">{language}</span>}
         {diarized && (
           <span
             className={meta.diarSpeaker}
@@ -29,11 +30,8 @@ export const TranscriptRow: FC<ITranscriptRowProps> = ({ segment }) => {
             {formatDiarizedSpeaker(diarized)}
           </span>
         )}
-        {(language || diarized) && ' '}
-        {segment.text}
-        {segment.translation && (
-          <span className={meta.translation} title="Перевод на русский">{segment.translation}</span>
-        )}
+        {((language && !segment.translation) || diarized) && ' '}
+        <TranslatedText text={segment.text} translation={segment.translation} language={segment.language} />
       </span>
     </div>
   );

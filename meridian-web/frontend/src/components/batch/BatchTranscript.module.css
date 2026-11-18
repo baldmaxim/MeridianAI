@@ -165,31 +165,6 @@
   overflow-wrap: anywhere;
 }
 
-.segTextRu {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  margin-top: 3px;
-  font-family: 'Inter', sans-serif;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.ruTag {
-  flex-shrink: 0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--accent-blue);
-  border: 1px solid color-mix(in srgb, var(--accent-blue) 27%, transparent);
-  border-radius: 4px;
-  padding: 0 4px;
-}
-
 .empty {
   color: var(--text-muted);
   font-family: 'Inter', sans-serif;

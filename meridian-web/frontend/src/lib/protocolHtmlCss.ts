@@ -79,8 +79,8 @@ a.tc:hover{color:var(--accent)}
 .seg-time{font:400 10px var(--f-mono);color:var(--muted)}
 .seg-body{flex:1;min-width:0}
 .seg-text{font:400 13px/1.6 var(--f-body);color:var(--text)}
-.seg-ru{display:flex;gap:6px;align-items:baseline;margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--text-2)}
-.ru-tag{flex:none;font:700 9px var(--f-mono);letter-spacing:.08em;color:var(--blue);border:1px solid color-mix(in srgb,var(--blue) 27%,transparent);border-radius:4px;padding:0 4px}
+.seg-orig{margin-top:2px;font-size:11px;line-height:1.5;color:var(--text-2);overflow-wrap:anywhere}
+.orig-tag{display:inline-block;margin-right:6px;font:700 8px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px;vertical-align:middle}
 .t0{color:var(--blue)}.t1{color:var(--green)}.t2{color:var(--accent)}.t3{color:var(--red)}
 .t4{color:color-mix(in srgb,var(--blue) 55%,var(--red) 45%)}.t5{color:color-mix(in srgb,var(--blue) 50%,var(--green) 50%)}
 .t6{color:color-mix(in srgb,var(--red) 50%,var(--accent) 50%)}.t7{color:color-mix(in srgb,var(--green) 50%,var(--accent) 50%)}

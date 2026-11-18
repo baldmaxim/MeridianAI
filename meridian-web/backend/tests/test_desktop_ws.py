@@ -26,6 +26,7 @@ from sqlalchemy.pool import NullPool
 from starlette.websockets import WebSocketDisconnect
 
 import app.database as database
+from app.config import get_settings
 from app.auth.service import create_access_token, hash_password
 from app.database import Base
 from app.logging_setup import RedactionFilter, setup_logging
@@ -479,13 +480,9 @@ def test_ping_pong(env):
         assert _recv_until(ws, "pong") == {"type": "pong", "ts": 123}
 
 
-def test_audio_and_unknown_messages_rejected(env):
+def test_unknown_and_broken_messages_rejected(env):
     _, _, token, meeting_id = _setup(env)
     with env.ws(meeting_id, token) as ws:
-        ws.send_bytes(b"\x00\x01" * 100)
-        assert _recv_until(ws, "error")["code"] == "audio_not_supported"
-        ws.send_json({"type": "start_listening"})
-        assert _recv_until(ws, "error")["code"] == "audio_not_supported"
         ws.send_json({"type": "finalize_meeting"})
         assert _recv_until(ws, "error")["code"] == "unsupported_type"
         ws.send_text("не json")
@@ -493,6 +490,167 @@ def test_audio_and_unknown_messages_rejected(env):
         session = room_registry.get_room(meeting_id).session
         assert session.is_listening is False
     assert env.meeting_row(meeting_id).status == "active"  # встречу сокет не финализирует
+
+
+# ---------- живое распознавание звука (формат сообщений как у веб-клиента) ----------
+
+def _recv_recording(ws, recording: bool, limit: int = 40) -> dict:
+    """recording_status с нужным флагом (первый такой статус приходит ещё при подключении)."""
+    for _ in range(limit):
+        msg = ws.receive_json()
+        if msg.get("type") == "recording_status" and msg["recording"] is recording:
+            return msg
+    raise AssertionError(f"не дождались recording_status recording={recording}")
+
+
+def _fake_start_listening(monkeypatch):
+    """Подменить подключение к ElevenLabs: только флаг и очередь, как у настоящего start_listening."""
+    async def fake(self, stt_provider, api_keys, diarization=True, max_speakers=3):
+        self.audio_queue = asyncio.Queue()
+        self.is_listening = True
+        self.listening_started_server_ms = int(time.time() * 1000)
+
+    monkeypatch.setattr(SessionManager, "start_listening", fake)
+
+
+def _pcm_frame(n=1600) -> bytes:
+    return b"\x01\x02" * n  # ~100 мс 16 кГц s16le (3200 байт)
+
+
+def test_audio_frame_reaches_stt_queue_after_start_and_stops_after_stop(env, monkeypatch):
+    _fake_start_listening(monkeypatch)
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "start_listening"})
+        status = _recv_recording(ws, True)
+        assert status["recording"] is True and status["active_audio_source"]
+        session = room_registry.get_room(meeting_id).session
+        assert session.is_listening is True
+        frame = _pcm_frame()
+        ws.send_bytes(frame)
+        assert _wait(lambda: session.audio_queue.qsize() == 1)
+        assert session.audio_queue.get_nowait()[1] == frame
+
+        ws.send_json({"type": "stop_listening"})
+        assert _recv_recording(ws, False)["recording"] is False
+        assert session.is_listening is False
+        ws.send_bytes(frame)  # после «Стоп» кадры игнорируются, соединение живо
+        ws.send_json({"type": "ping"})
+        _recv_until(ws, "pong")
+
+
+def test_audio_frame_before_start_is_ignored(env):
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_bytes(_pcm_frame())
+        ws.send_json({"type": "ping"})
+        _recv_until(ws, "pong")
+        session = room_registry.get_room(meeting_id).session
+        assert session.is_listening is False and session.audio_queue is None
+
+
+def test_audio_source_levels_mark_online_capture_devices(env, monkeypatch):
+    _fake_start_listening(monkeypatch)
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "start_listening"})
+        _recv_recording(ws, True)
+        ws.send_json({
+            "type": "audio_source_levels", "mic_rms": 0.2, "mic_peak": 0.4, "system_rms": 0.01,
+            "system_peak": 0.02, "system_active": True, "seq": 1, "client_ts_ms": int(time.time() * 1000),
+        })
+        ws.send_json({"type": "ping"})
+        _recv_until(ws, "pong")
+        room = room_registry.get_room(meeting_id)
+        assert room._online_capture_conns  # виртуальные устройства «мы»/«оппонент» заведены
+
+
+def test_oversized_audio_frame_rejected_socket_lives(env, monkeypatch):
+    _fake_start_listening(monkeypatch)
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "start_listening"})
+        _recv_recording(ws, True)
+        ws.send_bytes(b"\x00" * (get_settings().ws_max_binary_frame_bytes + 1))
+        assert "размер" in _recv_until(ws, "error")["message"]
+        assert room_registry.get_room(meeting_id).session.audio_queue.qsize() == 0
+        ws.send_json({"type": "ping"})
+        _recv_until(ws, "pong")
+
+
+def test_foreign_user_cannot_send_audio(env, monkeypatch):
+    _fake_start_listening(monkeypatch)
+    _, _, token, meeting_id = _setup(env)
+    other = env.user("other@test.local")
+    _, other_token = env.device(other)
+    # чужой токен: встреча не его — закрытие 4404 до всякого аудио
+    assert _expect_close(env, meeting_id, other_token, 4404)["code"] == "meeting_not_found"
+    room = room_registry.get_room(meeting_id)
+    assert room is None or room.session.is_listening is False
+
+
+def test_revoked_token_rejects_audio_after_reauth_window(env, monkeypatch):
+    _, device_id, token, meeting_id = _setup(env)
+    monkeypatch.setattr(desktop_handler, "AUDIO_REAUTH_SEC", 0.0)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "ping"})
+        _recv_until(ws, "pong")
+        env.revoke(device_id)
+        ws.send_bytes(_pcm_frame())
+        assert _recv_until(ws, "error")["code"] == "unauthorized"
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+    assert exc.value.code == 4401
+
+
+def test_text_segments_rejected_while_live_audio_active(env, monkeypatch):
+    _fake_start_listening(monkeypatch)
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "start_listening"})
+        _recv_recording(ws, True)
+        ws.send_json({"type": "transcript_segments", "segments": [_seg("a", "Дубль", 0)]})
+        assert _recv_until(ws, "error")["code"] == "live_audio_active"
+        ws.send_json({"type": "stop_listening"})
+        _recv_recording(ws, False)
+        assert _send_segments(ws, _seg("a", "Офлайн-фраза", 0))["created"] == 1  # после «Стоп» снова можно
+
+
+def test_live_committed_segment_reaches_desktop_socket_with_language(env, monkeypatch):
+    """Ответ сервера на звук: committed_transcript с segment_id и language — как у веб-клиента."""
+    from app.core.transcription.models import CommittedSegment
+
+    async def fake_start(self, stt_provider, api_keys, diarization=True, max_speakers=3):
+        self.audio_queue = asyncio.Queue()
+        self.is_listening = True
+        seg = CommittedSegment(
+            segment_id="liveseg00001", text="Merhaba arkadaşlar", start_time=0.0, end_time=1.5,
+            wall_clock=datetime.now(), speaker_id="speaker_0", speaker_label="Speaker_1",
+            language="tr", word_count=2)
+        asyncio.get_running_loop().call_later(0.1, lambda: self._on_committed(seg))
+
+    monkeypatch.setattr(SessionManager, "start_listening", fake_start)
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "start_listening"})
+        msg = _recv_until(ws, "committed_transcript")
+        assert msg["segment_id"] == "liveseg00001" and msg["language"] == "tr"
+        assert msg["text"] == "Merhaba arkadaşlar"
+        ws.send_json({"type": "stop_listening"})
+        _recv_recording(ws, False)
+    rows = env.segments(meeting_id)
+    assert [(r.segment_id, r.language, r.origin) for r in rows] == [("liveseg00001", "tr", "live_committed")]
+
+
+def test_disconnect_stops_listening(env, monkeypatch):
+    _fake_start_listening(monkeypatch)
+    _, _, token, meeting_id = _setup(env)
+    with env.ws(meeting_id, token) as ws:
+        ws.send_json({"type": "start_listening"})
+        _recv_recording(ws, True)
+        session = room_registry.get_room(meeting_id).session
+        assert session.is_listening is True
+    assert _wait(lambda: session.is_listening is False)
 
 
 # ---------- is_active ----------

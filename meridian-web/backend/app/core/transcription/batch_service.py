@@ -27,10 +27,14 @@ class BatchTranscriptionService:
     def __init__(
         self,
         api_key: str,
-        language_code: str = "ru",
+        language_code: Optional[str] = None,
         model_id: str = "scribe_v3",
     ):
         self.api_key = api_key
+        # None → основной язык из настроек (ELEVENLABS_LIVE_LANGUAGE, по умолчанию ru)
+        if language_code is None:
+            from ..batch.transcription_service import stt_language_settings
+            language_code = stt_language_settings()[0]
         self.language_code = language_code
         self.model_id = model_id
         self.base_url = "https://api.elevenlabs.io/v1/speech-to-text"
@@ -77,7 +81,7 @@ class BatchTranscriptionService:
         files = [
             ("audio", ("meeting.wav", wav_bytes, "audio/wav")),
             ("model_id", (None, self.model_id)),
-            ("language_code", (None, self.language_code)),
+            *([("language_code", (None, self.language_code))] if self.language_code else []),
             ("diarize", (None, str(diarize).lower())),
             ("timestamps_granularity", (None, "word")),
         ]

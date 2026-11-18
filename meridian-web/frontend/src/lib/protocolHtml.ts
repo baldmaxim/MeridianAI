@@ -90,12 +90,16 @@ const speakerTone = (speaker: string): number => {
 };
 
 const segmentHtml = (s: BatchSegment): string => {
-  const ru = s.text_ru ? `<div class="seg-ru"><span class="ru-tag">RU</span><span>${escapeHtml(s.text_ru)}</span></div>` : '';
+  // Иноязычная реплика: русский перевод главный, оригинал под ним
+  const body = s.text_ru
+    ? `<div class="seg-text">${escapeHtml(s.text_ru)}</div>` +
+      `<div class="seg-orig"><span class="orig-tag">оригинал</span>${escapeHtml(s.text)}</div>`
+    : `<div class="seg-text">${escapeHtml(s.text)}</div>`;
   return (
     `<div class="seg" data-start="${Number.isFinite(s.start) ? s.start : 0}">` +
     `<div class="seg-meta"><span class="seg-speaker t${speakerTone(s.speaker)}">${escapeHtml(s.speaker)}</span>` +
     `<span class="seg-time">${fmtTime(s.start)}</span></div>` +
-    `<div class="seg-body"><div class="seg-text">${escapeHtml(s.text)}</div>${ru}</div></div>`
+    `<div class="seg-body">${body}</div></div>`
   );
 };
 

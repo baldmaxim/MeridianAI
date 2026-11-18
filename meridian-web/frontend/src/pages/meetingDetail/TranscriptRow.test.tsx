@@ -15,9 +15,20 @@ describe('TranscriptRow (история встречи)', () => {
     render(<TranscriptRow segment={{
       ...base, language: 'tr', translation: 'Здравствуйте', diarized_speaker: 's1_speaker_0',
     }} />);
-    expect(screen.getByText('TR')).toBeTruthy();
+    expect(screen.getByText('TR · оригинал')).toBeTruthy();
     expect(screen.getByText('Спикер 1')).toBeTruthy();
-    expect(screen.getByText('Здравствуйте')).toBeTruthy();
+    // перевод — главный (первый), оригинал — под ним
+    const translation = screen.getByText('Здравствуйте');
+    const original = screen.getByText('Merhaba');
+    expect(translation.getAttribute('title')).toBe('Перевод на русский');
+    expect(translation.compareDocumentPosition(original) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('без перевода иностранная реплика остаётся главной с бейджем языка', () => {
+    render(<TranscriptRow segment={{ ...base, language: 'tr' }} />);
+    expect(screen.getByText('TR')).toBeTruthy();
+    expect(screen.getByText('Merhaba')).toBeTruthy();
+    expect(screen.queryByText('TR · оригинал')).toBeNull();
   });
 
   it('старые записи без полей и русский язык — без бейджей и перевода', () => {

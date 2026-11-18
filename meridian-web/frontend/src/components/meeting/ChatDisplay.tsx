@@ -6,7 +6,7 @@ import type { PublicSpeakerSide, MultiChannelReconciliationEntry } from '../../t
 import { nextPublicSpeakerSide, speakerSideBadge, speakerSideColor, speakerSideLabel } from '../../lib/speakerSides';
 import { resolveSegmentSide, resolveSegmentSpeaker, isSegmentCorrected, segmentKeyForMessage } from '../../lib/segmentCorrections';
 import { SegmentBadges } from './SegmentBadges';
-import { SegmentTranslation } from './SegmentTranslation';
+import { SegmentText } from './SegmentText';
 import styles from './ChatDisplay.module.css';
 
 interface SegmentCorrectionPatch {
@@ -120,8 +120,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                     )}
                     <SegmentBadges segmentIds={turn.segment_ids ?? []} />
                   </span>
-                  <span className={styles.text}>{turn.text}</span>
-                  <SegmentTranslation segmentIds={turn.segment_ids ?? []} />
+                  <SegmentText segmentIds={turn.segment_ids ?? []} text={turn.text} className={styles.text} />
                 </div>
               );
             })
@@ -232,8 +231,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                       )}
                     </div>
                   )}
-                  <span className={styles.text}>{msg.text}</span>
-                  <SegmentTranslation segmentIds={[msg.id]} />
+                  <SegmentText segmentIds={[msg.id]} text={msg.text} className={styles.text} />
                 </div>
               );
             })}

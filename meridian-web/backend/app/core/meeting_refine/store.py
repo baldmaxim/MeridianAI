@@ -11,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...models.meeting import MeetingSession, TranscriptSegmentRecord
 
 DRAFT_ORIGIN = "desktop"
+# Черновик — всё, что было до уточнения: фразы ПК (офлайн) и сегменты живого распознавания сервера
+# (онлайн-режим: звук шёл в WS, origin = SegmentOrigin.LIVE_COMMITTED). Иначе уточнённые реплики
+# легли бы поверх живых дублями.
+DRAFT_ORIGINS = (DRAFT_ORIGIN, "live_committed")
 REFINED_ORIGIN = "refined"
 # speaker_id по стороне (как у каналов приложения); сторона неизвестна — нейтральный.
 SPEAKER_ID_BY_SIDE = {"self": "desktop_mic", "opponent": "desktop_system"}
@@ -24,6 +28,9 @@ class RefinedSegment:
     start: float
     end: float
     side: str | None  # self | opponent | None
+    language: str | None = None  # ISO-код реплики (ru, tr…); None — не определён
+    translation: str | None = None  # русский перевод иноязычной реплики
+    diarized_speaker: str | None = None  # голос ElevenLabs («Speaker_0»), как у живых сегментов
 
 
 def refined_segment_id(meeting_id: int, index: int) -> str:
@@ -35,7 +42,7 @@ async def load_draft_segments(db: AsyncSession, meeting_id: int) -> list[Transcr
     return list((await db.execute(
         select(TranscriptSegmentRecord)
         .where(TranscriptSegmentRecord.session_id == meeting_id,
-               TranscriptSegmentRecord.origin == DRAFT_ORIGIN)
+               TranscriptSegmentRecord.origin.in_(DRAFT_ORIGINS))
         .order_by(TranscriptSegmentRecord.start_time, TranscriptSegmentRecord.id)
     )).scalars().all())
 
@@ -47,6 +54,7 @@ def serialize_draft(rows: list[TranscriptSegmentRecord]) -> str:
             "text": r.text, "start_time": r.start_time, "end_time": r.end_time,
             "wall_clock": r.wall_clock.isoformat() if r.wall_clock else None,
             "origin": r.origin, "word_count": r.word_count,
+            "language": r.language, "translation": r.translation, "diarized_speaker": r.diarized_speaker,
         }
         for r in rows
     ], ensure_ascii=False)
@@ -64,7 +72,7 @@ async def replace_transcript(
     meeting.transcript_draft_json = serialize_draft(draft)
     await db.execute(delete(TranscriptSegmentRecord).where(
         TranscriptSegmentRecord.session_id == meeting.id,
-        TranscriptSegmentRecord.origin == DRAFT_ORIGIN,
+        TranscriptSegmentRecord.origin.in_(DRAFT_ORIGINS),
     ))
     for i, seg in enumerate(refined):
         db.add(TranscriptSegmentRecord(
@@ -76,6 +84,9 @@ async def replace_transcript(
             wall_clock=meeting.started_at + timedelta(seconds=seg.start),
             speaker_id=SPEAKER_ID_BY_SIDE.get(seg.side or "", NEUTRAL_SPEAKER_ID),
             speaker_label=seg.label,
+            language=seg.language,
+            translation=seg.translation,
+            diarized_speaker=seg.diarized_speaker,
             origin=REFINED_ORIGIN,
             word_count=len(seg.text.split()),
         ))

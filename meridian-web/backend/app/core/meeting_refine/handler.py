@@ -26,7 +26,8 @@ from ...services import s3
 from ...services.api_keys import load_api_keys
 from ...services.meeting_finalize import request_finalization
 from ...services.speaker_roles import get_roles_map, upsert_role
-from ..batch.transcription_service import BatchTranscriptionService
+from ..batch.segment_translator import SegmentTranslator, needs_translation
+from ..batch.transcription_service import BatchTranscriptionService, stt_language_settings
 from ..batch.utils import group_words_by_speaker
 from .audio import load_wav_energy, prepare_audio, wav_duration
 from .keyterms import build_meeting_keyterms
@@ -112,17 +113,48 @@ async def _transcribe(paths: dict[str, str], source: _Source, tmpdir: str, api_k
     audio = await prepare_audio(mix, tmpdir)
     if not audio:
         raise RefineError("Не удалось подготовить аудио (ffmpeg)")
+    language, secondary = stt_language_settings()  # ru + tr: смешанные русско-турецкие встречи
     service = BatchTranscriptionService(
-        api_key, max_speakers=source.max_speakers, keyterms=source.keyterms)
+        api_key, max_speakers=source.max_speakers, keyterms=source.keyterms,
+        language_code=language, secondary_language_codes=secondary)
     result = await service.transcribe(audio, timeout=max(600, min(3600, int(longest * 0.3))))
     if not result or not result.get("words"):
         raise RefineError("ElevenLabs не вернул распознавание")
     return result
 
 
+_RU_CODES = {"ru", "rus"}
+
+
+def _segment_language(text: str, primary: str, secondary: list[str], response_language: str | None) -> str | None:
+    """Язык реплики. Batch отдаёт один language_code на файл, поэтому язык реплики — по кириллице.
+
+    Русская по кириллице → основной язык; иноязычная → единственный дополнительный язык из
+    настроек, иначе язык ответа ElevenLabs (если он не русский), иначе не определён.
+    """
+    if not needs_translation(text):
+        return primary or None
+    if len(secondary) == 1:
+        return secondary[0]
+    base = (response_language or "").strip().lower().split("-")[0]
+    return response_language if base and base not in _RU_CODES else None
+
+
+async def _translate(segments, api_key: str | None) -> dict[int, str]:
+    """Русский перевод иноязычных реплик {индекс: текст}. Любой сбой — пустой ответ: уточнение не падает."""
+    if not api_key or not any(needs_translation(s.text) for s in segments):
+        return {}
+    try:
+        return await SegmentTranslator(api_key).translate([s.text for s in segments])
+    except Exception as e:
+        logger.warning("перевод реплик не удался (%s), оставляем оригинал", type(e).__name__)
+        return {}
+
+
 async def _refine(meeting_id: int, tmpdir: str) -> None:
     source = await _load_source(meeting_id)
-    api_key = (await load_api_keys()).get("elevenlabs")
+    api_keys = await load_api_keys()
+    api_key = api_keys.get("elevenlabs")
     if not api_key:
         raise RefineError("Не задан ключ ElevenLabs")
     if not get_settings().s3_enabled:
@@ -134,6 +166,9 @@ async def _refine(meeting_id: int, tmpdir: str) -> None:
     if not segments:
         raise RefineError("Распознавание не вернуло текста")
     energy = await asyncio.to_thread(_side_energy, paths)
+    translations = await _translate(segments, api_keys.get("openrouter"))
+    primary, secondary = stt_language_settings()
+    response_language = transcription.get("language_code")
 
     async with async_session() as db:
         meeting = await db.get(MeetingSession, meeting_id)
@@ -150,8 +185,11 @@ async def _refine(meeting_id: int, tmpdir: str) -> None:
             RefinedSegment(
                 label=mapping[s.speaker], text=s.text.strip(), start=s.start, end=s.end,
                 side=side or roles.get(mapping[s.speaker]),
+                language=_segment_language(s.text, primary, secondary, response_language),
+                translation=translations.get(i),
+                diarized_speaker=s.speaker,
             )
-            for s, side in zip(segments, sides)
+            for i, (s, side) in enumerate(zip(segments, sides))
         ]
         await replace_transcript(db, meeting, draft, refined)
         await db.commit()

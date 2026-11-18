@@ -21,3 +21,4 @@ export { SuccessCheck } from './SuccessCheck';
 export { CollapsibleSection } from './CollapsibleSection';
 export { TextInput } from './TextInput';
 export type { ITextInputProps } from './TextInput';
+export { TranslatedText } from './TranslatedText';

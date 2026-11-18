@@ -2122,6 +2122,8 @@ class MeetingRoom:
 
     async def _persist_segments(self, close: bool, title_override: str | None = None) -> None:
         """Сохранить committed-сегменты этой встречи (skip duplicates). При close — закрыть встречу."""
+        if getattr(self, "persist_frozen", False):
+            return  # встреча финализирована десктопом, реплики уже сохранены до уточнения
         try:
             async with async_session() as db:
                 meeting = (

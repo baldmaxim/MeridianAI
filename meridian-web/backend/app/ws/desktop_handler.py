@@ -3,11 +3,18 @@
 
 /ws/desktop/meetings/{meeting_id}?token=<токен устройства>
 
-Приложение распознаёт речь у себя и шлёт сюда готовые фразы (`transcript_segments`), а в ответ
-получает те же ИИ-подсказки, что и веб-клиент: сокет подключается к общей MeetingRoom встречи
-(room_registry) без аудио. Фразы сохраняются тем же upsert, что и REST
-`PUT /api/desktop/meetings/{id}/segments`, и подаются в историю комнаты как финальные сегменты
-от STT — оттуда их берут ручные подсказки и автоподсказки signal engine.
+Сокет подключается к общей MeetingRoom встречи (room_registry) и работает в двух режимах.
+
+Онлайн (ElevenLabs): приложение шлёт тот же протокол, что веб-клиент в /ws/meetings/{id} —
+`start_listening`/`stop_listening`, binary-кадры PCM 16 кГц mono s16le (~100 мс) и
+`audio_source_levels` (микрофон = «мы», звук системы = «оппонент»). Дальше работает живой пайплайн
+сайта: transcript / committed_transcript / segment_translation / segment_speaker и подсказки
+приходят в тот же сокет. Сегменты сохраняет комната (origin ≠ "desktop").
+
+Офлайн (GigaAM): приложение распознаёт речь у себя и шлёт готовые фразы (`transcript_segments`).
+Они сохраняются тем же upsert, что и REST `PUT /api/desktop/meetings/{id}/segments`, и подаются
+в историю комнаты как финальные сегменты STT — оттуда их берут ручные подсказки и автоподсказки.
+Пока этот сокет — активный источник аудио, `transcript_segments` отклоняются (иначе дубли).
 
 Сокет всегда принимается (accept), а отказ отдаётся закрытием с кодом: до accept клиент увидел бы
 только HTTP 403 и не узнал причину. Коды: 4401 — токен не принят, 4404 — встреча не найдена,
@@ -17,6 +24,7 @@
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +32,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 from sqlalchemy import select
 
+from ..config import get_settings
 from ..core.transcription.models import CommittedSegment
 from ..database import async_session
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord
@@ -46,7 +55,16 @@ SPEAKER_ID_SIDES = {sync.CHANNEL_SPEAKERS[ch][0]: side for ch, side in CHANNEL_S
 
 # Эти сообщения уходят в общий диспетчер комнаты; остальное от приложения не принимается.
 SUGGESTION_TYPES = ("request_suggestion", "strengthen_position")
+# Живое распознавание: те же сообщения, что шлёт веб-клиент (frontend/src/types/ws.ts).
 AUDIO_CONTROL_TYPES = ("start_listening", "stop_listening", "start_audio", "stop_audio")
+LIVE_TYPES = (
+    "audio_source_levels", "audio_capture_metadata", "self_hold",
+    "clock_ping", "clock_report", "set_speaker_role", "mark_speaker",
+)
+# Частые служебные сообщения и бинарные кадры перепроверяют токен раз в AUDIO_REAUTH_SEC,
+# остальные JSON-сообщения — каждый раз.
+FREQUENT_TYPES = ("audio_source_levels", "clock_ping", "clock_report", "self_hold")
+AUDIO_REAUTH_SEC = 30.0
 
 
 # ── флаг is_active на время подключения ───────────────────────────────────
@@ -276,22 +294,35 @@ async def desktop_meeting_ws(websocket: WebSocket, meeting_id: int, token: str =
             except Exception:
                 pass
 
-        # can_record=False: источником аудио приложение не бывает, звука не шлёт.
+        # can_record=True: _authorize пустил только владельца встречи (get_linked_meeting),
+        # поэтому он может быть источником звука для живого распознавания.
         conn = MeetingConnection(
             meeting_id, authorized.user_id, "desktop", send_json,
-            can_record=False, device_label=f"Приложение · {authorized.device_name}"[:120],
+            can_record=True, device_label=f"Приложение · {authorized.device_name}"[:120],
         )
         await room.add_connection(conn)
         logger.info("[WS desktop] user %s joined meeting %s (conn %s)",
                     authorized.user_id, meeting_id, conn.connection_id)
 
+        max_frame = get_settings().ws_max_binary_frame_bytes
+        last_auth = time.monotonic()
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.disconnect":
                 break
-            if message.get("bytes"):
-                await send_json({"type": "error", "code": "audio_not_supported",
-                                 "message": "Аудио не принимается: шлите transcript_segments"})
+            frame = message.get("bytes")
+            if frame:
+                if len(frame) > max_frame:
+                    # слишком большой кадр — отклоняем, соединение живёт (как у веб-клиента)
+                    await send_json({"type": "error", "message": "Аудио-фрейм превышает допустимый размер"})
+                    continue
+                if time.monotonic() - last_auth >= AUDIO_REAUTH_SEC:
+                    if not await _still_authorized(token):
+                        await _reject(websocket, CLOSE_UNAUTHORIZED, "unauthorized",
+                                      "Токен устройства не принят")
+                        break
+                    last_auth = time.monotonic()
+                await room.handle_audio_frame(conn.connection_id, frame)
                 continue
             raw = message.get("text")
             if not raw:
@@ -308,12 +339,18 @@ async def desktop_meeting_ws(websocket: WebSocket, meeting_id: int, token: str =
             if msg_type == "ping":
                 await send_json({"type": "pong", "ts": data.get("ts")})
                 continue
-            if not await _still_authorized(token):
-                await _reject(websocket, CLOSE_UNAUTHORIZED, "unauthorized", "Токен устройства не принят")
-                break
+            # Частые служебные сообщения (уровни ~7 раз/с) не должны каждый раз ходить в БД.
+            if msg_type not in FREQUENT_TYPES or time.monotonic() - last_auth >= AUDIO_REAUTH_SEC:
+                if not await _still_authorized(token):
+                    await _reject(websocket, CLOSE_UNAUTHORIZED, "unauthorized", "Токен устройства не принят")
+                    break
+                last_auth = time.monotonic()
 
             if msg_type == "transcript_segments":
-                if not await _handle_segments(websocket, room, meeting_id, authorized.user_id, data):
+                if room.active_audio_source == conn.connection_id:
+                    await send_json({"type": "error", "code": "live_audio_active",
+                                     "message": "Идёт живое распознавание звука: фразы приложения не принимаются"})
+                elif not await _handle_segments(websocket, room, meeting_id, authorized.user_id, data):
                     break
             elif msg_type in SUGGESTION_TYPES:
                 # LLM отвечает десятки секунд — в фоне, чтобы не вставали ping и сегменты.
@@ -324,9 +361,8 @@ async def desktop_meeting_ws(websocket: WebSocket, meeting_id: int, token: str =
                 pending[msg_type] = asyncio.create_task(
                     room.handle_client_message(conn.connection_id, {"type": msg_type})
                 )
-            elif msg_type in AUDIO_CONTROL_TYPES:
-                await send_json({"type": "error", "code": "audio_not_supported",
-                                 "message": "Аудио-управление недоступно: приложение шлёт готовые фразы"})
+            elif msg_type in AUDIO_CONTROL_TYPES or msg_type in LIVE_TYPES:
+                await room.handle_client_message(conn.connection_id, data)
             else:
                 await send_json({"type": "error", "code": "unsupported_type",
                                  "message": f"Unknown message type: {msg_type}"})

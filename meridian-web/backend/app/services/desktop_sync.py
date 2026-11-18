@@ -311,6 +311,13 @@ async def finalize(db: AsyncSession, meeting: MeetingSession) -> None:
     """
     if is_finalized(meeting):
         return
+    # Живая комната ещё открыта (десктоп не закрыл WS): сохранить её реплики ДО уточнения и
+    # запретить ей дописывать их потом — иначе после замены черновика они лягут дублями.
+    from .meeting_room import room_registry
+    room = room_registry.get_room(meeting.id)
+    if room is not None:
+        await room._persist_segments(close=False)
+        room.persist_frozen = True
     if not meeting.ended_at:
         meeting.ended_at = datetime.utcnow()
     # Встреча от приложения создаётся неактивной, поэтому статус закрываем здесь:

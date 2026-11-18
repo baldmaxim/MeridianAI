@@ -19,12 +19,31 @@ KEYTERMS_MAX_CHARS = 49
 KEYTERMS_MAX_WORDS = 5
 
 
+def stt_language_settings() -> tuple[str, List[str]]:
+    """(основной язык, дополнительные языки) из настроек живого распознавания.
+
+    Те же ELEVENLABS_LIVE_LANGUAGE / ELEVENLABS_LIVE_SECONDARY_LANGUAGES, что у live: смешанные
+    русско-турецкие встречи распознаются одинаково и вживую, и при уточнении записи.
+    """
+    from ...config import get_settings
+    from ..transcription.elevenlabs_live_protocol import LiveOptions
+    options = LiveOptions.from_settings(get_settings())
+    return options.language, list(options.secondary_languages)
+
+
 class BatchTranscriptionService:
     API_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
     def __init__(self, api_key: str, max_speakers: Optional[int] = None,
-                 keyterms: Optional[List[str]] = None):
+                 keyterms: Optional[List[str]] = None,
+                 language_code: Optional[str] = None,
+                 secondary_language_codes: Optional[List[str]] = None):
         self.api_key = api_key
+        # None → из настроек (ru + tr). Пустая строка / пустой список — не передавать (автоопределение).
+        default_language, default_secondary = stt_language_settings()
+        self.language_code = default_language if language_code is None else language_code
+        self.secondary_language_codes = (
+            default_secondary if secondary_language_codes is None else list(secondary_language_codes))
         # Термины предметной области: подсказка модели (смещение к нужному написанию)
         self.keyterms = keyterms or []
         # Число говорящих, если пользователь его знает (num_speakers); None — авто
@@ -50,6 +69,11 @@ class BatchTranscriptionService:
             }
             if self.max_speakers:
                 data["num_speakers"] = str(self.max_speakers)
+            if self.language_code:
+                data["language_code"] = self.language_code
+                if self.secondary_language_codes:
+                    # повторяющееся поле формы (как keyterms)
+                    data["secondary_language_codes"] = list(self.secondary_language_codes)
             if self.keyterms:
                 # requests кладёт список в multipart повторяющимися полями keyterms
                 data["keyterms"] = list(self.keyterms)
@@ -75,6 +99,13 @@ class BatchTranscriptionService:
                                        f"{response.text[:300]}; повтор без них")
                         del data["keyterms"]
                         attempt -= 1  # повтор без keyterms не тратит попытку
+                        continue
+                    if "secondary_language_codes" in data and self._is_secondary_languages_rejection(response):
+                        # Второй язык не принялся — один раз пробуем без него, а не роняем распознавание
+                        logger.warning(f"ElevenLabs отклонил secondary_language_codes ({response.status_code}): "
+                                       f"{response.text[:300]}; повтор без них")
+                        del data["secondary_language_codes"]
+                        attempt -= 1
                         continue
                     if response.status_code not in RETRYABLE_STATUSES:
                         break
@@ -107,8 +138,19 @@ class BatchTranscriptionService:
             return False
         return "keyterm" in (response.text or "").lower()
 
+    @staticmethod
+    def _is_secondary_languages_rejection(response) -> bool:
+        """4xx (кроме 429), в тексте ошибки упомянут secondary-язык."""
+        status = response.status_code
+        if not (400 <= status < 500) or status == 429:
+            return False
+        return "secondary" in (response.text or "").lower()
+
     def _parse_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
         transcription = {"text": result.get("text", ""), "words": []}
+        language = result.get("language_code")
+        if isinstance(language, str) and language:
+            transcription["language_code"] = language  # язык ответа (основной в файле)
 
         for word in result.get("words", []):
             speaker = word.get("speaker_id", word.get("speaker", ""))

@@ -236,8 +236,11 @@ class _FakeService:
     result: dict | None = None
     calls: list[dict] = []
 
-    def __init__(self, api_key, max_speakers=None, keyterms=None):
-        type(self).calls.append({"max_speakers": max_speakers, "keyterms": keyterms})
+    def __init__(self, api_key, max_speakers=None, keyterms=None, language_code=None,
+                 secondary_language_codes=None):
+        type(self).calls.append({"max_speakers": max_speakers, "keyterms": keyterms,
+                                 "language_code": language_code,
+                                 "secondary_language_codes": secondary_language_codes})
 
     async def transcribe(self, path, timeout=600):
         return type(self).result
@@ -337,6 +340,7 @@ async def test_handler_replaces_transcript_and_requests_finalization(sm, client,
     call = _FakeService.calls[0]
     assert call["max_speakers"] == 3
     assert call["keyterms"][:3] == ["ООО Заказчик", "ЖК Север", "КС-2"] and "Иван" in call["keyterms"]
+    assert call["language_code"] == "ru" and call["secondary_language_codes"] == ["tr"]
 
     await refine.handle_meeting_refine({"meeting_id": mid})  # повтор job-а: протокол не дублируется
     assert len(await _jobs(sm, "meeting_finalize")) == 1
@@ -382,6 +386,153 @@ async def test_handler_rejects_too_long_recording(sm, client, monkeypatch, tmp_p
         m = await db.get(MeetingSession, mid)
         assert m.refine_status == "failed" and "длиннее" in m.refine_error
     assert _FakeService.calls == []
+
+
+class _FakeTranslator:
+    """Подмена SegmentTranslator: запоминает тексты, переводит турецкие реплики."""
+
+    texts: list[str] = []
+    fail = False
+
+    def __init__(self, api_key, model=None):
+        pass
+
+    async def translate(self, texts, timeout=180):
+        type(self).texts = list(texts)
+        if type(self).fail:
+            raise RuntimeError("openrouter down")
+        return {i: f"перевод: {t}" for i, t in enumerate(texts) if refine.needs_translation(t)}
+
+
+async def _turkish_setup(sm, client, monkeypatch, tmp_path, *, openrouter=True):
+    mid = await _setup_online_meeting(sm, client, monkeypatch, tmp_path)
+
+    async def _keys():
+        return {"elevenlabs": "test-key", **({"openrouter": "or-key"} if openrouter else {})}
+
+    monkeypatch.setattr(refine, "load_api_keys", _keys)
+    monkeypatch.setattr(refine, "SegmentTranslator", _FakeTranslator)
+    _FakeTranslator.texts, _FakeTranslator.fail = [], False
+    _FakeService.result = {"text": "", "language_code": "rus", "words": (
+        _words("Speaker_0", 0.2, ["Добрый", "день", "коллеги"]) +
+        _words("Speaker_1", 5.2, ["Merhaba", "nasılsınız", "arkadaşlar"]) +
+        _words("Speaker_0", 9.4, ["Спасибо", "начнём"])
+    )}
+    return mid
+
+
+async def _refined_rows(sm, mid):
+    async with sm() as db:
+        return (await db.execute(
+            select(TranscriptSegmentRecord).where(TranscriptSegmentRecord.session_id == mid)
+            .order_by(TranscriptSegmentRecord.start_time))).scalars().all()
+
+
+async def test_refine_translates_non_russian_segments_and_stores_meta(sm, client, monkeypatch, tmp_path):
+    mid = await _turkish_setup(sm, client, monkeypatch, tmp_path)
+    await refine.handle_meeting_refine({"meeting_id": mid})
+
+    segs = await _refined_rows(sm, mid)
+    assert [s.origin for s in segs] == ["refined"] * 3
+    assert [s.language for s in segs] == ["ru", "tr", "ru"]
+    assert segs[0].translation is None and segs[2].translation is None
+    assert segs[1].translation == "перевод: Merhaba nasılsınız arkadaşlar"
+    assert [s.diarized_speaker for s in segs] == ["Speaker_0", "Speaker_1", "Speaker_0"]
+    assert len(_FakeTranslator.texts) == 3  # переводчику уходят все реплики, он сам отбирает иноязычные
+
+
+async def test_refine_survives_translation_failure(sm, client, monkeypatch, tmp_path):
+    mid = await _turkish_setup(sm, client, monkeypatch, tmp_path)
+    _FakeTranslator.fail = True
+    await refine.handle_meeting_refine({"meeting_id": mid})
+
+    async with sm() as db:
+        assert (await db.get(MeetingSession, mid)).refine_status == "done"
+    segs = await _refined_rows(sm, mid)
+    assert [s.language for s in segs] == ["ru", "tr", "ru"]
+    assert all(s.translation is None for s in segs)
+    assert len(await _jobs(sm, "meeting_finalize")) == 1
+
+
+async def test_refine_without_openrouter_key_skips_translation(sm, client, monkeypatch, tmp_path):
+    mid = await _turkish_setup(sm, client, monkeypatch, tmp_path, openrouter=False)
+    await refine.handle_meeting_refine({"meeting_id": mid})
+
+    assert _FakeTranslator.texts == []
+    segs = await _refined_rows(sm, mid)
+    assert len(segs) == 3 and all(s.translation is None for s in segs)
+
+
+async def test_refine_replaces_live_segments_of_online_mode(sm, client, monkeypatch, tmp_path):
+    """Сегменты, распознанные сервером из звука приложения (live_committed), не остаются дублями."""
+    mid = await _setup_online_meeting(sm, client, monkeypatch, tmp_path)
+    async with sm() as db:
+        db.add(TranscriptSegmentRecord(
+            session_id=mid, segment_id="live000001", text="живая фраза", start_time=0.0, end_time=2.0,
+            wall_clock=(await db.get(MeetingSession, mid)).started_at, speaker_id="Speaker_0",
+            speaker_label="Speaker_0", origin="live_committed", word_count=2, language="ru"))
+        await db.commit()
+
+    await refine.handle_meeting_refine({"meeting_id": mid})
+
+    segs = await _refined_rows(sm, mid)
+    assert {s.origin for s in segs} == {"refined"}
+    async with sm() as db:
+        draft = json.loads((await db.get(MeetingSession, mid)).transcript_draft_json)
+    assert sorted(d["text"] for d in draft) == ["живая фраза", "черновик два", "черновик раз"]
+
+
+def test_batch_service_sends_language_and_secondary_codes(monkeypatch, tmp_path):
+    from app.core.batch import transcription_service as ts
+
+    sent: dict = {}
+
+    class _Resp:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"text": "x", "language_code": "rus",
+                    "words": [{"text": "x", "start": 0, "end": 1, "speaker_id": "speaker_0"}]}
+
+    def fake_post(url, headers=None, data=None, files=None, timeout=None, proxies=None):
+        sent.update(data)
+        return _Resp()
+
+    monkeypatch.setattr(ts.requests, "post", fake_post)
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF")
+    result = ts.BatchTranscriptionService("k")._transcribe_sync(str(wav), 10)
+    assert sent["language_code"] == "ru" and sent["secondary_language_codes"] == ["tr"]
+    assert result["language_code"] == "rus"
+
+    sent.clear()
+    ts.BatchTranscriptionService("k", language_code="", secondary_language_codes=[])._transcribe_sync(str(wav), 10)
+    assert "language_code" not in sent and "secondary_language_codes" not in sent
+
+
+def test_batch_service_retries_without_secondary_languages_on_rejection(monkeypatch, tmp_path):
+    from app.core.batch import transcription_service as ts
+
+    bodies: list[dict] = []
+
+    class _Resp:
+        def __init__(self, status, text=""):
+            self.status_code, self.text = status, text
+
+        def json(self):
+            return {"text": "", "words": []}
+
+    def fake_post(url, headers=None, data=None, files=None, timeout=None, proxies=None):
+        bodies.append(dict(data))
+        return _Resp(422, "unknown field secondary_language_codes") if len(bodies) == 1 else _Resp(200)
+
+    monkeypatch.setattr(ts.requests, "post", fake_post)
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF")
+    assert ts.BatchTranscriptionService("k")._transcribe_sync(str(wav), 10) is not None
+    assert "secondary_language_codes" in bodies[0] and "secondary_language_codes" not in bodies[1]
+    assert bodies[1]["language_code"] == "ru"
 
 
 def test_channel_of():
