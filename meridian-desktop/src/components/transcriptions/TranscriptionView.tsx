@@ -1,9 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Copy } from "lucide-react";
 import { commands, type TranscriptionDetail } from "@/bindings";
 import { Button } from "@/components/ui/Button";
+import {
+  buildSpeakerColors,
+  speakerColorClass,
+} from "@/lib/utils/speakerColors";
 import {
   formatTimestamp,
   speakerLabel,
@@ -39,6 +43,10 @@ export const TranscriptionView: React.FC<TranscriptionViewProps> = ({
   }, [id]);
 
   const speaker = t("transcriptions.speaker");
+  const colors = useMemo(
+    () => buildSpeakerColors(detail?.segments.map((s) => s.speaker) ?? []),
+    [detail],
+  );
 
   const copy = async () => {
     if (!detail) return;
@@ -91,17 +99,27 @@ export const TranscriptionView: React.FC<TranscriptionViewProps> = ({
         )}
         {detail && detail.segments.length > 0 && (
           <ul className="mx-auto flex max-w-3xl flex-col gap-3">
-            {detail.segments.map((segment, index) => (
-              <li key={index}>
-                <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted">
-                  {speakerLabel(segment.speaker, speaker)} ·{" "}
-                  {formatTimestamp(segment.start)}
-                </p>
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-text">
-                  {segment.text}
-                </p>
-              </li>
-            ))}
+            {detail.segments.map((segment, index) => {
+              const color = speakerColorClass(colors, segment.speaker);
+              return (
+                <li
+                  key={index}
+                  className={`border-s-2 ps-3 ${color ? `speaker-border ${color}` : "border-border"}`}
+                >
+                  <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted">
+                    <span
+                      className={color ? `speaker-name ${color}` : undefined}
+                    >
+                      {speakerLabel(segment.speaker, speaker)}
+                    </span>{" "}
+                    · {formatTimestamp(segment.start)}
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-text">
+                    {segment.text}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

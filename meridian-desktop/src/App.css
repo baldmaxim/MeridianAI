@@ -124,6 +124,45 @@
   stroke-width: 1;
 }
 
+/* Transcript speakers: `speaker-cN` picks the palette color (--speaker-N from
+   styles/theme.css) into --c; the bar and the name read it. */
+.speaker-c1 {
+  --c: var(--speaker-1);
+}
+.speaker-c2 {
+  --c: var(--speaker-2);
+}
+.speaker-c3 {
+  --c: var(--speaker-3);
+}
+.speaker-c4 {
+  --c: var(--speaker-4);
+}
+.speaker-c5 {
+  --c: var(--speaker-5);
+}
+.speaker-c6 {
+  --c: var(--speaker-6);
+}
+.speaker-c7 {
+  --c: var(--speaker-7);
+}
+.speaker-c8 {
+  --c: var(--speaker-8);
+}
+
+.speaker-bar {
+  background-color: var(--c);
+}
+
+.speaker-border {
+  border-color: var(--c);
+}
+
+.speaker-name {
+  color: var(--c);
+}
+
 /* Meetings: new transcript phrases fade in; the recording dot pulses.
    Opacity/transform only, 200 ms; off for reduced motion. */
 @keyframes meeting-enter {

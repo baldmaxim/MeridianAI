@@ -18,7 +18,7 @@
     "nav": {
       "label": "Main navigation",
       "meetings": "Meetings",
-      "transcriptions": "Transcription",
+      "transcriptions": "Audio",
       "settings": "Settings",
       "account": "Account",
       "accountOf": "Account: {{email}}"
@@ -340,14 +340,6 @@
       "appDataDirectory": {
         "title": "App Data Directory",
         "description": "Location where Meridian stores its data"
-      },
-      "acknowledgments": {
-        "title": "Acknowledgments",
-        "ggml": {
-          "title": "ggml",
-          "description": "High-performance tensor library for on-device machine learning inference",
-          "details": "Meridian's local speech-to-text is built on transcribe.cpp and ggml. Thanks to the amazing work by Georgi Gerganov and contributors."
-        }
       }
     }
   },
@@ -460,6 +452,7 @@
       "mic": "Microphone"
     },
     "speaker": {
+      "prefix": "Speaker",
       "mic": "Us",
       "system": "Opponent",
       "mixed": "Participant"

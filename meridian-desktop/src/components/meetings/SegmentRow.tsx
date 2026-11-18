@@ -9,6 +9,8 @@ import { VoiceMenu } from "./VoiceMenu";
 interface SegmentRowProps {
   segment: Segment;
   animate: boolean;
+  /** Palette class of the voice (`speaker-cN`); `null` — by side/channel. */
+  speakerClass: string | null;
 }
 
 export interface SideStyle {
@@ -29,7 +31,11 @@ export const VOICE_SIDE_CLASSES: Record<"self" | "opponent", SideStyle> = {
   opponent: SIDE_CLASSES.system,
 };
 
-export const SegmentRow: React.FC<SegmentRowProps> = ({ segment, animate }) => {
+export const SegmentRow: React.FC<SegmentRowProps> = ({
+  segment,
+  animate,
+  speakerClass,
+}) => {
   const { t } = useTranslation();
   const voice = segment.voice;
   const voiceSide = useMeetingStore((s): VoiceSide => {
@@ -43,6 +49,13 @@ export const SegmentRow: React.FC<SegmentRowProps> = ({ segment, animate }) => {
       ? VOICE_SIDE_CLASSES[voiceSide]
       : SIDE_CLASSES.mixed
     : (SIDE_CLASSES[segment.channel] ?? SIDE_CLASSES.mixed);
+
+  // A diarized voice takes its speaker color (its side stays in the chip
+  // caption); a phrase without a voice keeps the colors of its channel.
+  const barClass =
+    voice && speakerClass ? `speaker-bar ${speakerClass}` : side.bar;
+  const nameClass =
+    voice && speakerClass ? `speaker-name ${speakerClass}` : side.text;
 
   const handleSelect = async (value: VoiceSide) => {
     if (!voice) return;
@@ -58,7 +71,7 @@ export const SegmentRow: React.FC<SegmentRowProps> = ({ segment, animate }) => {
         {formatClock(segment.start_time)}
       </span>
       <span
-        className={`w-0.5 shrink-0 rounded-full ${side.bar}`}
+        className={`w-0.5 shrink-0 rounded-full ${barClass}`}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
@@ -71,11 +84,11 @@ export const SegmentRow: React.FC<SegmentRowProps> = ({ segment, animate }) => {
             }
             voice={voice}
             side={voiceSide}
-            textClass={side.text}
+            textClass={nameClass}
             onSelect={(value) => void handleSelect(value)}
           />
         ) : (
-          <span className={`text-xs font-semibold ${side.text}`}>
+          <span className={`text-xs font-semibold ${nameClass}`}>
             {t(`meetings.speaker.${side.label}`)}
           </span>
         )}

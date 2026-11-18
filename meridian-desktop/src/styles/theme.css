@@ -73,6 +73,26 @@
   --light-color-on-error: var(--brand-light-on-danger);
   --dark-color-on-error: var(--brand-dark-on-danger);
 
+  /* Speaker palette for transcripts (see lib/utils/speakerColors.ts): 8 hues,
+     none amber-like (the accent). Each has >= 4.5:1 on every surface the
+     transcript sits on (background .. elevated) in its theme. */
+  --light-speaker-1: #0369A1;
+  --light-speaker-2: #6D28D9;
+  --light-speaker-3: #116B33;
+  --light-speaker-4: #BE123C;
+  --light-speaker-5: #456A0E;
+  --light-speaker-6: #B53A0A;
+  --light-speaker-7: #A21CAF;
+  --light-speaker-8: #0F766E;
+  --dark-speaker-1: #4FB8F5;
+  --dark-speaker-2: #B58CFA;
+  --dark-speaker-3: #3DD598;
+  --dark-speaker-4: #FF6B8B;
+  --dark-speaker-5: #C3E34A;
+  --dark-speaker-6: #FF9B5E;
+  --dark-speaker-7: #F08BE0;
+  --dark-speaker-8: #2DD4D4;
+
   /* Tokens that do not change between light and dark */
   --color-background-ui: #b87414;
   --color-text-stroke: #f6f6f6;
@@ -97,6 +117,14 @@
   --color-on-accent: var(--light-color-on-accent);
   --color-on-error: var(--light-color-on-error);
   --color-mid-gray: var(--light-color-mid-gray);
+  --speaker-1: var(--light-speaker-1);
+  --speaker-2: var(--light-speaker-2);
+  --speaker-3: var(--light-speaker-3);
+  --speaker-4: var(--light-speaker-4);
+  --speaker-5: var(--light-speaker-5);
+  --speaker-6: var(--light-speaker-6);
+  --speaker-7: var(--light-speaker-7);
+  --speaker-8: var(--light-speaker-8);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -119,6 +147,14 @@
     --color-on-accent: var(--dark-color-on-accent);
     --color-on-error: var(--dark-color-on-error);
     --color-mid-gray: var(--dark-color-mid-gray);
+    --speaker-1: var(--dark-speaker-1);
+    --speaker-2: var(--dark-speaker-2);
+    --speaker-3: var(--dark-speaker-3);
+    --speaker-4: var(--dark-speaker-4);
+    --speaker-5: var(--dark-speaker-5);
+    --speaker-6: var(--dark-speaker-6);
+    --speaker-7: var(--dark-speaker-7);
+    --speaker-8: var(--dark-speaker-8);
   }
 }
 
@@ -151,6 +187,14 @@
   --color-on-accent: var(--light-color-on-accent);
   --color-on-error: var(--light-color-on-error);
   --color-mid-gray: var(--light-color-mid-gray);
+  --speaker-1: var(--light-speaker-1);
+  --speaker-2: var(--light-speaker-2);
+  --speaker-3: var(--light-speaker-3);
+  --speaker-4: var(--light-speaker-4);
+  --speaker-5: var(--light-speaker-5);
+  --speaker-6: var(--light-speaker-6);
+  --speaker-7: var(--light-speaker-7);
+  --speaker-8: var(--light-speaker-8);
 }
 
 :root[data-theme="dark"] {
@@ -172,6 +216,14 @@
   --color-on-accent: var(--dark-color-on-accent);
   --color-on-error: var(--dark-color-on-error);
   --color-mid-gray: var(--dark-color-mid-gray);
+  --speaker-1: var(--dark-speaker-1);
+  --speaker-2: var(--dark-speaker-2);
+  --speaker-3: var(--dark-speaker-3);
+  --speaker-4: var(--dark-speaker-4);
+  --speaker-5: var(--dark-speaker-5);
+  --speaker-6: var(--dark-speaker-6);
+  --speaker-7: var(--dark-speaker-7);
+  --speaker-8: var(--dark-speaker-8);
 }
 
 /*

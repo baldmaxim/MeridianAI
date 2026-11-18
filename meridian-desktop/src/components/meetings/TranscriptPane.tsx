@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Note, Segment, ViewSegment } from "@/bindings";
+import {
+  buildSpeakerColors,
+  speakerColorClass,
+} from "@/lib/utils/speakerColors";
 import { RefinedSegmentRow } from "./RefinedSegmentRow";
 import { SegmentRow } from "./SegmentRow";
 import { TranscriptNoteRow } from "./TranscriptNoteRow";
@@ -62,6 +66,17 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
     return merged.sort((a, b) => a.time - b.time);
   }, [segments, refined, notes]);
 
+  // Colors by first appearance of a speaker among the shown phrases.
+  const colors = useMemo(
+    () =>
+      buildSpeakerColors(
+        refined
+          ? refined.map((s) => s.speaker_label)
+          : segments.map((s) => s.voice),
+      ),
+    [segments, refined],
+  );
+
   const scrollToBottom = () => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -109,6 +124,10 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
                       key={item.segment.id}
                       segment={item.segment}
                       animate={live}
+                      speakerClass={speakerColorClass(
+                        colors,
+                        item.segment.voice,
+                      )}
                     />
                   );
                 case "refined":
@@ -116,6 +135,10 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
                     <RefinedSegmentRow
                       key={`refined-${item.index}`}
                       segment={item.segment}
+                      speakerClass={speakerColorClass(
+                        colors,
+                        item.segment.speaker_label,
+                      )}
                     />
                   );
                 case "note":

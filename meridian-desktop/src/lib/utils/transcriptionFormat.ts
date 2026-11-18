@@ -30,12 +30,21 @@ export const formatFileSize = (
 };
 
 /**
+ * The 0-based speaker number of a server label: "0", "speaker_0", "Speaker 0",
+ * "Speaker_speaker_0"; `null` for any other label ("Голос 1", a name).
+ */
+export const parseSpeakerNumber = (raw: string): number | null => {
+  const match = /^(?:speaker[_ -]?)*(\d+)$/i.exec(raw.trim());
+  return match ? Number(match[1]) : null;
+};
+
+/**
  * "Спикер N" for a server label such as "speaker_0" or "0" (numbered from 1);
  * any other label is shown as it came.
  */
 export const speakerLabel = (raw: string, prefix: string): string => {
-  const match = /^(?:speaker[_ -]?)?(\d+)$/i.exec(raw.trim());
-  if (match) return `${prefix} ${Number(match[1]) + 1}`;
+  const number = parseSpeakerNumber(raw);
+  if (number !== null) return `${prefix} ${number + 1}`;
   return raw.trim() || prefix;
 };
 

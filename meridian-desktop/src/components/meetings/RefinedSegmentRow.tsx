@@ -3,12 +3,14 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ViewSegment } from "@/bindings";
 import { formatClock } from "@/lib/utils/meetingFormat";
+import { speakerLabel } from "@/lib/utils/transcriptionFormat";
 import { useMeetingStore, type VoiceSide } from "@/stores/meetingStore";
-import { SIDE_CLASSES, VOICE_SIDE_CLASSES } from "./SegmentRow";
 import { VoiceMenu } from "./VoiceMenu";
 
 interface RefinedSegmentRowProps {
   segment: ViewSegment;
+  /** Palette class of the speaker (`speaker-cN`); `null` — neutral. */
+  speakerClass: string | null;
 }
 
 /**
@@ -17,6 +19,7 @@ interface RefinedSegmentRowProps {
  */
 export const RefinedSegmentRow: React.FC<RefinedSegmentRowProps> = ({
   segment,
+  speakerClass,
 }) => {
   const { t } = useTranslation();
   const label = segment.speaker_label;
@@ -28,12 +31,6 @@ export const RefinedSegmentRow: React.FC<RefinedSegmentRowProps> = ({
     return side === "self" || side === "opponent" ? side : null;
   });
   const setVoiceSide = useMeetingStore((s) => s.setVoiceSide);
-
-  const style = known
-    ? voiceSide
-      ? VOICE_SIDE_CLASSES[voiceSide]
-      : SIDE_CLASSES.mixed
-    : SIDE_CLASSES.mixed;
 
   const handleSelect = async (value: VoiceSide) => {
     if (!label) return;
@@ -49,7 +46,7 @@ export const RefinedSegmentRow: React.FC<RefinedSegmentRowProps> = ({
         {segment.start_time !== null ? formatClock(segment.start_time) : ""}
       </span>
       <span
-        className={`w-0.5 shrink-0 rounded-full ${style.bar}`}
+        className={`w-0.5 shrink-0 rounded-full ${speakerClass ? `speaker-bar ${speakerClass}` : "bg-subtle"}`}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
@@ -62,12 +59,18 @@ export const RefinedSegmentRow: React.FC<RefinedSegmentRowProps> = ({
             }
             voice={label}
             side={voiceSide}
-            textClass={style.text}
+            textClass={
+              speakerClass ? `speaker-name ${speakerClass}` : "text-muted"
+            }
             onSelect={(value) => void handleSelect(value)}
           />
         ) : (
-          <span className="text-xs font-semibold text-muted">
-            {label || t("meetings.speaker.mixed")}
+          <span
+            className={`text-xs font-semibold ${speakerClass ? `speaker-name ${speakerClass}` : "text-muted"}`}
+          >
+            {label
+              ? speakerLabel(label, t("meetings.speaker.prefix"))
+              : t("meetings.speaker.mixed")}
           </span>
         )}
         <p className="break-words text-sm text-text">{segment.text}</p>
