@@ -206,7 +206,6 @@ async def test_previous_text_from_last_committed_on_reconnect():
 
 async def test_degrades_options_on_invalid_request_then_keeps_level():
     async def script(ws, conn, idx):
-        q = _query(conn)
         if idx == 0:
             await ws.send(json.dumps({"message_type": "invalid_request", "error": "multilang_mode"}))
         elif idx == 1:
