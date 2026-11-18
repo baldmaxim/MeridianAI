@@ -12,7 +12,7 @@ import re
 from collections import Counter
 from itertools import zip_longest
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
@@ -85,6 +85,77 @@ def _chunk_clauses(metadata_json: str | None) -> list[str]:
 # Приоритет унаследованного документа (у него нет строки meeting_documents) — как у прикреплённого.
 DEFAULT_DOCUMENT_PRIORITY = 100
 
+# Bound text transferred to the API and tokenized by BM25. Keep small document
+# sets unchanged; large PostgreSQL corpora first use native lexical ranking.
+RETRIEVAL_CANDIDATES_PER_QUERY = 512
+
+
+def _stem_pattern(term: str) -> str:
+    # Match the same word alphabet as _TOKEN_RE, including apostrophes. A five
+    # character stem accepts word endings; shorter tokens match the whole word.
+    boundary = "[^[:alnum:]_']"
+    return "(^|" + boundary + ")" + re.escape(term) + ("($|" + boundary + ")" if len(term) < _STEM_LEN else "")
+
+
+def _candidate_query(stmt, query: str, priority, cap: int):
+    terms = sorted(set(_stems(query)))
+    if not terms:
+        return None
+    # Materialize normalization once. Ranking uses only boolean hits and IDs;
+    # the API receives text for the bounded candidates, never the entire corpus.
+    normalized = func.replace(func.lower(DocumentChunk.text), "ё", "е")
+    corpus = stmt.with_only_columns(
+        DocumentChunk.id, normalized.label("normalized"), priority.label("priority"),
+        DocumentChunk.chunk_index,
+    ).cte("context_corpus").prefix_with("MATERIALIZED")
+    hits = select(
+        corpus.c.id, corpus.c.priority, corpus.c.chunk_index,
+        *(corpus.c.normalized.op("~")(_stem_pattern(term)).label(f"hit_{i}")
+          for i, term in enumerate(terms)),
+    ).cte("context_hits").prefix_with("MATERIALIZED")
+    flags = [hits.c[f"hit_{i}"] for i in range(len(terms))]
+    stats = select(
+        func.count().label("total"),
+        *(func.sum(case((flag, 1), else_=0)).label(f"df_{i}") for i, flag in enumerate(flags)),
+    ).cte("context_stats")
+    # Global rarity prevents frequent contract words from crowding out a rare
+    # operative term. BM25 still performs the final frequency/length ranking.
+    score = sum(case((flag, func.ln(1 + (stats.c.total - stats.c[f"df_{i}"] + 0.5)
+                                    / (stats.c[f"df_{i}"] + 0.5))), else_=0)
+                for i, flag in enumerate(flags))
+    ids = select(hits.c.id).join(stats, true()).where(or_(*flags)).order_by(
+        score.desc(), hits.c.priority.desc(), hits.c.chunk_index, hits.c.id,
+    ).limit(cap)
+    return stmt.where(DocumentChunk.id.in_(ids))
+
+
+async def _candidate_rows(db: AsyncSession, stmt, query_text: str, extra_query: str):
+    # SQLite exists only in unit tests; production requires PostgreSQL.
+    if db.get_bind().dialect.name != "postgresql":
+        return (await db.execute(stmt)).all()
+    cap = RETRIEVAL_CANDIDATES_PER_QUERY
+    probe = (await db.execute(stmt.limit(cap + 1))).all()
+    if len(probe) <= cap:
+        return probe
+    priority = func.coalesce(func.nullif(MeetingDocumentRecord.priority, 0), DEFAULT_DOCUMENT_PRIORITY)
+    if not _stems(query_text):
+        return (await db.execute(stmt.order_by(
+            (priority / 100000.0 - DocumentChunk.chunk_index / 1000000.0).desc(), DocumentChunk.id,
+        ).limit(cap))).all()
+
+    rows, seen = [], set()
+    # Separate pools preserve direct hits when topic expansion has many matches.
+    for query in dict.fromkeys((query_text, extra_query)):
+        candidates_stmt = _candidate_query(stmt, query, priority, cap)
+        if candidates_stmt is None:
+            continue
+        candidates = (await db.execute(candidates_stmt)).all()
+        for row in candidates:
+            if row.id not in seen:
+                seen.add(row.id)
+                rows.append(row)
+    return rows
+
 
 def inherited_documents_stmt(meeting: MeetingSession):
     """SELECT DocumentRecord.id готовых документов заказчика/объекта встречи (или None).
@@ -145,9 +216,8 @@ async def get_relevant_chunks_for_meeting(
     doc_ids = await effective_meeting_document_ids(db, meeting)
     if not doc_ids:
         return []
-    rows = (
-        await db.execute(
-            select(
+    stmt = (
+        select(
                 DocumentChunk.id,
                 DocumentChunk.document_id,
                 DocumentChunk.chunk_index,
@@ -169,8 +239,8 @@ async def get_relevant_chunks_for_meeting(
                 DocumentRecord.id.in_(doc_ids),
                 DocumentRecord.status == "ready",
             )
-        )
-    ).all()
+    )
+    rows = await _candidate_rows(db, stmt, query_text, extra_query)
     if not rows:
         return []
 

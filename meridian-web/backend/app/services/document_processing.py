@@ -77,20 +77,44 @@ def _read_text(path: str) -> str:
 def _extract_docx(path: str) -> list[dict]:
     try:
         from docx import Document as DocxDocument
-        from docx.text.paragraph import Paragraph
+        from docx.oxml.ns import qn
     except ImportError as e:
         raise RuntimeError("python-docx не установлен") from e
     doc = DocxDocument(path)
 
-    def blocks(container):
-        for block in container.iter_inner_content():
-            if isinstance(block, Paragraph):
-                yield block.text.strip()
-            else:
-                for row in block.rows:
-                    yield "\t".join("\n".join(blocks(cell)) for cell in row.cells)
+    wrappers = {qn("w:ins"), qn("w:moveTo"), qn("w:sdt"), qn("w:sdtContent"), qn("w:customXml")}
+    deleted = {qn("w:del"), qn("w:moveFrom")}
 
-    text = "\n\n".join(part for part in blocks(doc) if part.strip())
+    def children(container, tags):
+        for child in container:
+            if child.tag in tags:
+                yield child
+            elif child.tag in wrappers:
+                yield from children(child, tags)
+
+    def paragraph_text(node):
+        if node.tag in deleted or node.tag in {qn("w:pPr"), qn("w:rPr")}:
+            return ""
+        if node.tag == qn("w:t"):
+            return node.text or ""
+        if node.tag == qn("w:tab"):
+            return "\t"
+        if node.tag in {qn("w:br"), qn("w:cr")}:
+            return "\n"
+        return "".join(paragraph_text(child) for child in node)
+
+    def blocks(container):
+        # python-docx Paragraph.text omits runs inside tracked insertions. Traverse
+        # accepted OOXML content so newly negotiated terms survive extraction.
+        for block in children(container, {qn("w:p"), qn("w:tbl")}):
+            if block.tag == qn("w:p"):
+                yield paragraph_text(block).strip()
+            else:
+                for row in children(block, {qn("w:tr")}):
+                    yield "\t".join("\n".join(blocks(cell))
+                                    for cell in children(row, {qn("w:tc")}))
+
+    text = "\n\n".join(part for part in blocks(doc.element.body) if part.strip())
     return [{"text": text, "page_number": None, "sheet_name": None}]
 
 

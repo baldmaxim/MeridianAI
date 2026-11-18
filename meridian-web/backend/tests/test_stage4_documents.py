@@ -52,6 +52,59 @@ def test_docx_extraction_keeps_tables_and_paragraph_order(tmp_path):
     assert "Срок 10 дней" in text
     assert text.index("Условия предложения") < text.index("Аванс") < text.index("Заключительные условия")
 
+
+def test_docx_extraction_uses_current_tracked_revision(tmp_path):
+    from docx import Document
+    from docx.oxml import OxmlElement
+
+    def revision(tag, text, text_tag="w:t"):
+        wrapper = OxmlElement(tag)
+        run = OxmlElement("w:r")
+        node = OxmlElement(text_tag)
+        node.text = text
+        run.append(node)
+        wrapper.append(run)
+        return wrapper
+
+    document = Document()
+    paragraph = document.add_paragraph("Аванс: ")
+    paragraph._p.append(revision("w:del", "10 процентов", "w:delText"))
+    paragraph._p.append(revision("w:ins", "30 процентов"))
+    paragraph._p.append(revision("w:moveFrom", "Старая гарантия"))
+    paragraph._p.append(revision("w:moveTo", "Новая гарантия"))
+    inserted = OxmlElement("w:ins")
+    moved_paragraph = OxmlElement("w:p")
+    moved_paragraph.append(revision("w:ins", "Срок 10 дней"))
+    inserted.append(moved_paragraph)
+    paragraph._p.addnext(inserted)
+    path = tmp_path / "tracked.docx"
+    document.save(path)
+
+    text = dp._extract_docx(str(path))[0]["text"]
+    assert "Аванс: 30 процентов" in text
+    assert "Новая гарантия" in text
+    assert "Срок 10 дней" in text
+    assert "10 процентов" not in text
+    assert "Старая гарантия" not in text
+
+
+def test_docx_with_only_deleted_text_stays_empty(tmp_path):
+    from docx import Document
+    from docx.oxml import OxmlElement
+
+    document = Document()
+    paragraph = document.add_paragraph()
+    deleted = OxmlElement("w:del")
+    run = OxmlElement("w:r")
+    node = OxmlElement("w:delText")
+    node.text = "Удалённые условия не являются действующей редакцией"
+    run.append(node)
+    deleted.append(run)
+    paragraph._p.append(deleted)
+    path = tmp_path / "deleted.docx"
+    document.save(path)
+    assert dp._extract_docx(str(path))[0]["text"] == ""
+
 async def _mk_user(db, email):
     u = User(email=email, password_hash="x", role="user", is_active=True)
     db.add(u)
@@ -348,6 +401,49 @@ async def test_retrieval_matches_word_forms_and_prefers_rare_terms(db):
     res = await get_relevant_chunks_for_meeting(
         db, meeting.id, "Заказчик: будем удерживать десять процентов от каждого платежа по договору", limit=1)
     assert "13.2.2" in res[0]["text"]
+
+
+def test_retrieval_stem_patterns_keep_word_boundaries():
+    from app.services.document_context import _stem_pattern, _stems
+    assert _stems("УДЕРЖИВАТЬ платёж") == ["удерж", "плате"]
+    assert _stem_pattern("o'nei") == "(^|[^[:alnum:]_'])o'nei"
+    assert _stem_pattern("срок") == "(^|[^[:alnum:]_'])срок($|[^[:alnum:]_'])"
+
+
+async def test_large_postgres_corpus_keeps_direct_and_expanded_hits_bounded(db, monkeypatch):
+    if db.get_bind().dialect.name != "postgresql":
+        pytest.skip("Native PostgreSQL candidate retrieval")
+    from app.services import document_context as context
+    owner = await _mk_user(db, "large-corpus@test.local")
+    meeting = await _mk_meeting(db, owner)
+    doc = await _mk_document(db, owner)
+    cap = context.RETRIEVAL_CANDIDATES_PER_QUERY
+    db.add_all([DocumentChunk(document_id=doc.id, chunk_index=i,
+                             text=f"{i}. Себестоимость ресурсов. Застройщик компенсирует затраты подрядчика.")
+                for i in range(cap + 80)])
+    await _mk_chunk(db, doc, cap + 80, "13.2.2 СТОИМОСТЬ работ по договору десять миллионов.")
+    hidden = await _mk_document(db, owner)
+    await _mk_chunk(db, hidden, 0, "СТОИМОСТЬ СТОИМОСТЬ СТОИМОСТЬ")
+    db.add(MeetingDocumentRecord(session_id=meeting.id, document_id=doc.id, included=True, priority=100))
+    db.add(MeetingDocumentRecord(session_id=meeting.id, document_id=hidden.id, included=False, priority=100))
+    await db.flush()
+    sizes = []
+    rank = context._rank_rows
+
+    def bounded_rank(rows, query):
+        sizes.append(len(rows))
+        assert len(rows) <= 2 * cap
+        return rank(rows, query)
+
+    monkeypatch.setattr(context, "_rank_rows", bounded_rank)
+    hits = await get_relevant_chunks_for_meeting(db, meeting.id, "стоимость", limit=2,
+                                                extra_query="компенсация затрат")
+    assert hits[0]["text"].startswith("13.2.2")
+    assert any("компенсирует" in hit["text"] for hit in hits)
+    assert {hit["document_id"] for hit in hits} == {doc.id}
+    assert sizes and max(sizes) <= 2 * cap
+    beginning = await get_relevant_chunks_for_meeting(db, meeting.id, "", limit=1)
+    assert beginning[0]["text"].startswith("0.")
 
 
 def test_safe_processing_error_redacts_s3_details():
