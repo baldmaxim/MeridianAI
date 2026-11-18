@@ -5,6 +5,7 @@ import {
   buildSpeakerColors,
   speakerColorClass,
 } from "@/lib/utils/speakerColors";
+import { useMeetingStore } from "@/stores/meetingStore";
 import { RefinedSegmentRow } from "./RefinedSegmentRow";
 import { SegmentRow } from "./SegmentRow";
 import { TranscriptNoteRow } from "./TranscriptNoteRow";
@@ -40,6 +41,8 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stuckRef = useRef(live);
   const [atBottom, setAtBottom] = useState(true);
+  // The phrase the server is hearing right now (online recognition).
+  const partial = useMeetingStore((s) => (live ? s.partial : ""));
 
   const items = useMemo<TimelineItem[]>(() => {
     const phrases: TimelineItem[] = refined
@@ -72,7 +75,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
       buildSpeakerColors(
         refined
           ? refined.map((s) => s.speaker_label)
-          : segments.map((s) => s.voice),
+          : segments.map((s) => s.voice ?? s.speaker),
       ),
     [segments, refined],
   );
@@ -85,7 +88,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
   useEffect(() => {
     // A hidden pane has no height, so this is a no-op until it is shown again.
     if (live && stuckRef.current) scrollToBottom();
-  }, [items.length, live, visible]);
+  }, [items.length, live, visible, partial]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -126,7 +129,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
                       animate={live}
                       speakerClass={speakerColorClass(
                         colors,
-                        item.segment.voice,
+                        item.segment.voice ?? item.segment.speaker,
                       )}
                     />
                   );
@@ -148,6 +151,11 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
               }
             })}
           </div>
+        )}
+        {partial && (
+          <p className="mt-3 break-words ps-[4.625rem] text-sm italic text-muted">
+            {partial}
+          </p>
         )}
       </div>
       <button

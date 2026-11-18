@@ -157,6 +157,10 @@ mod tests {
             created_at: "2026-01-01T00:00:00.000Z".to_string(),
             synced,
             voice: None,
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         };
         for s in [
             segment("a", "mic", 0.0, 3.0, false),

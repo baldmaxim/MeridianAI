@@ -53,6 +53,10 @@ async fn sides_go_after_the_segments_with_the_voice_of_each_segment() {
             created_at: "2026-03-01T10:00:00.000Z".into(),
             synced: false,
             voice: label.map(str::to_string),
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         });
     }
     for segment in &spoken {

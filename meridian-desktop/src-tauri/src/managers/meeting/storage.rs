@@ -8,6 +8,10 @@ use anyhow::{bail, Context, Result};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Sender};
+use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime};
 
 pub const SAMPLE_RATE: u32 = 16_000;
@@ -15,6 +19,9 @@ pub const SAMPLE_RATE: u32 = 16_000;
 pub const PCM_PIECE_SECONDS: usize = 60;
 /// Buffered audio reaches the OS at least this often.
 pub const FLUSH_INTERVAL: Duration = Duration::from_secs(1);
+/// The current piece is forced to the disk (`fsync`) at least this often, so a
+/// power cut or a sleep that never wakes loses seconds, not minutes.
+pub const SYNC_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Size of the header `hound` writes for 16-bit mono PCM.
 const WAV_HEADER_BYTES: u64 = 44;
@@ -64,14 +71,18 @@ pub fn channel_wav_size(audio_dir: &Path, channel: &str) -> u64 {
     pcm + WAV_HEADER_BYTES
 }
 
-/// Seconds of audio recorded for `channel`, from the file sizes alone.
-pub fn channel_duration_seconds(audio_dir: &Path, channel: &str) -> f64 {
-    let samples: u64 = list_pieces(audio_dir, channel)
+/// Samples recorded for `channel`, from the file sizes alone.
+pub fn channel_samples(audio_dir: &Path, channel: &str) -> u64 {
+    list_pieces(audio_dir, channel)
         .iter()
         .filter_map(|(_, path)| fs::metadata(path).ok())
         .map(|meta| meta.len() / 2)
-        .sum();
-    samples as f64 / f64::from(SAMPLE_RATE)
+        .sum()
+}
+
+/// Seconds of audio recorded for `channel`, from the file sizes alone.
+pub fn channel_duration_seconds(audio_dir: &Path, channel: &str) -> f64 {
+    channel_samples(audio_dir, channel) as f64 / f64::from(SAMPLE_RATE)
 }
 
 /// When any audio file of the meeting was last written.
@@ -81,6 +92,80 @@ pub fn last_audio_write(audio_dir: &Path) -> Option<SystemTime> {
         .flatten()
         .filter_map(|entry| entry.metadata().ok()?.modified().ok())
         .max()
+}
+
+/// What the sync thread of a writer is asked to do.
+enum SyncJob {
+    /// `fsync` this handle (a duplicate of a piece's file).
+    File(File),
+    /// `fsync` the folder, so a new piece's name survives a power cut.
+    Dir(PathBuf),
+}
+
+/// Forces the audio to the disk off the capture thread: `fsync` can take tens
+/// of milliseconds, and a capture callback must not wait that long.
+struct Syncer {
+    tx: Option<Sender<SyncJob>>,
+    thread: Option<JoinHandle<()>>,
+    /// Counts the finished syncs (read by the tests).
+    #[cfg_attr(not(test), allow(dead_code))]
+    done: Arc<AtomicU64>,
+}
+
+impl Syncer {
+    fn start() -> Option<Self> {
+        let (tx, rx) = mpsc::channel::<SyncJob>();
+        let done = Arc::new(AtomicU64::new(0));
+        let counter = Arc::clone(&done);
+        let thread = std::thread::Builder::new()
+            .name("meeting-fsync".into())
+            .spawn(move || {
+                for job in rx {
+                    let result = match job {
+                        SyncJob::File(file) => file.sync_data(),
+                        SyncJob::Dir(dir) => sync_dir(&dir),
+                    };
+                    match result {
+                        Ok(()) => {
+                            counter.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Err(e) => log::warn!("Syncing meeting audio to disk failed: {e}"),
+                    }
+                }
+            })
+            .ok()?;
+        Some(Self {
+            tx: Some(tx),
+            thread: Some(thread),
+            done,
+        })
+    }
+
+    fn request(&self, job: SyncJob) {
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(job);
+        }
+    }
+
+    /// Waits until everything asked for is on the disk.
+    fn finish(mut self) {
+        // Closing the channel ends the thread once it has done the queue.
+        self.tx.take();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+#[cfg(unix)]
+fn sync_dir(dir: &Path) -> std::io::Result<()> {
+    File::open(dir)?.sync_all()
+}
+
+/// Windows cannot `fsync` a folder; NTFS keeps the names in its journal.
+#[cfg(not(unix))]
+fn sync_dir(_dir: &Path) -> std::io::Result<()> {
+    Ok(())
 }
 
 /// Appends 16 kHz mono samples to numbered pieces of one channel. A resumed
@@ -93,6 +178,9 @@ pub struct PcmWriter {
     current: Option<BufWriter<File>>,
     in_piece: usize,
     last_flush: Instant,
+    last_sync: Instant,
+    sync_interval: Duration,
+    syncer: Option<Syncer>,
 }
 
 impl PcmWriter {
@@ -112,7 +200,18 @@ impl PcmWriter {
             current: None,
             in_piece: 0,
             last_flush: Instant::now(),
+            last_sync: Instant::now(),
+            sync_interval: SYNC_INTERVAL,
+            syncer: Syncer::start(),
         })
+    }
+
+    /// How many `fsync`s the background thread has completed (for tests).
+    #[cfg(test)]
+    fn syncs_done(&self) -> u64 {
+        self.syncer
+            .as_ref()
+            .map_or(0, |s| s.done.load(Ordering::Relaxed))
     }
 
     fn open_next(&mut self) -> std::io::Result<()> {
@@ -121,14 +220,33 @@ impl PcmWriter {
         self.current = Some(BufWriter::with_capacity(WRITE_BUFFER_BYTES, file));
         self.next_index += 1;
         self.in_piece = 0;
+        // The new name goes to the disk with the next sync of the folder.
+        if let Some(syncer) = &self.syncer {
+            syncer.request(SyncJob::Dir(self.dir.clone()));
+        }
         Ok(())
+    }
+
+    /// Asks the background thread to `fsync` the current piece (already flushed
+    /// to the OS). Never waits.
+    fn request_sync(&mut self) {
+        self.last_sync = Instant::now();
+        let (Some(syncer), Some(writer)) = (&self.syncer, &self.current) else {
+            return;
+        };
+        match writer.get_ref().try_clone() {
+            Ok(file) => syncer.request(SyncJob::File(file)),
+            Err(e) => log::warn!("Cannot duplicate a meeting audio handle: {e}"),
+        }
     }
 
     pub fn write(&mut self, mut samples: &[i16]) -> std::io::Result<()> {
         while !samples.is_empty() {
             if self.current.is_none() || self.in_piece >= self.samples_per_piece {
-                // Finish the full piece before starting the next one.
+                // Finish the full piece before starting the next one, and make
+                // sure it is on the disk for good.
                 self.flush()?;
+                self.request_sync();
                 self.open_next()?;
             }
             let room = self.samples_per_piece - self.in_piece;
@@ -151,17 +269,33 @@ impl PcmWriter {
         }
     }
 
-    /// Flushes when [`FLUSH_INTERVAL`] has passed since the last flush.
+    /// Flushes when [`FLUSH_INTERVAL`] has passed since the last flush, and
+    /// asks for an `fsync` when the sync interval has passed.
     pub fn flush_if_due(&mut self) -> std::io::Result<()> {
         if self.last_flush.elapsed() >= FLUSH_INTERVAL {
-            self.flush()
-        } else {
-            Ok(())
+            self.flush()?;
+            if self.last_sync.elapsed() >= self.sync_interval {
+                self.request_sync();
+            }
         }
+        Ok(())
     }
 
+    /// Writes out what is buffered and waits until it is on the disk.
     pub fn finish(mut self) -> std::io::Result<()> {
-        self.flush()
+        let flushed = self.flush();
+        // Stop and restart of a capture end here: this one may wait.
+        let synced = match self.current.take() {
+            Some(writer) => writer
+                .into_inner()
+                .map_err(std::io::IntoInnerError::into_error)
+                .and_then(|file| file.sync_data()),
+            None => Ok(()),
+        };
+        if let Some(syncer) = self.syncer.take() {
+            syncer.finish();
+        }
+        flushed.and(synced)
     }
 }
 
@@ -269,6 +403,46 @@ mod tests {
         // Simulates a crash: the writer is never finished.
         assert_eq!(channel_duration_seconds(&audio, "mic"), 800.0 / 16_000.0);
         std::mem::forget(writer);
+    }
+
+    #[test]
+    fn rotation_and_finish_force_the_audio_to_the_disk() {
+        let dir = tempdir().unwrap();
+        let audio = dir.path().join("audio");
+        let mut writer = PcmWriter::new(&audio, "mic", 1000).unwrap();
+        writer.write(&ramp(2500)).unwrap();
+        // Two full pieces were closed by the rotation: each asked for an
+        // fsync of the file, and the folder for each new name. The thread
+        // does them on its own time, so wait for it.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while writer.syncs_done() < 5 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(writer.syncs_done() >= 5, "synced {}", writer.syncs_done());
+        writer.finish().unwrap();
+        // Nothing was lost on the way, and the pieces are plain PCM.
+        assert_eq!(channel_duration_seconds(&audio, "mic"), 2500.0 / 16_000.0);
+    }
+
+    #[test]
+    fn the_current_piece_is_synced_on_the_interval_without_rotation() {
+        let dir = tempdir().unwrap();
+        let audio = dir.path().join("audio");
+        let mut writer = PcmWriter::new(&audio, "mic", 16_000).unwrap();
+        writer.sync_interval = Duration::ZERO;
+        writer.write(&ramp(100)).unwrap();
+        let before = writer.syncs_done();
+        // Make both the flush and the sync due.
+        writer.last_flush = Instant::now() - FLUSH_INTERVAL * 2;
+        writer.flush_if_due().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while writer.syncs_done() <= before && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(writer.syncs_done() > before);
+        // On disk before the writer is finished (a power cut here keeps it).
+        assert_eq!(channel_duration_seconds(&audio, "mic"), 100.0 / 16_000.0);
+        writer.finish().unwrap();
     }
 
     #[test]

@@ -58,6 +58,10 @@ async fn upsert_body(customer: Option<i64>, object: Option<i64>) -> serde_json::
         created_at: "2026-03-01T10:00:00.000Z".into(),
         synced: false,
         voice: None,
+        language: None,
+        translation: None,
+        speaker: None,
+        server_id: None,
     })
     .unwrap();
     let client = ApiClient::new(&mock.url, Some("tok"));

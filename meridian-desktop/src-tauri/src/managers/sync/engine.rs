@@ -9,6 +9,10 @@
 //! 5. audio, channel by channel (`audio_state`, `audio_done`),
 //! 6. the meeting's sources (`document_queue`, see `documents.rs`),
 //! 7. finalize.
+//!
+//! An interrupted meeting is held (see `hold.rs`): steps 1-4 and 6 go, so its
+//! text is safe on the server, but the audio (5) and the finalization (7) wait
+//! until the user finishes it or the hold runs out.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -20,6 +24,7 @@ use super::client::{
     ApiClient, ApiError, AudioUploadBody, ContextPatchBody, MeetingBody, NoteBody, PatchBody,
     SegmentBody,
 };
+use super::hold::{hold_expired, is_held};
 use crate::managers::meeting::{
     export_channel_wav, recorded_channels, CaptureMode, MeetingDb, MeetingInfo, MeetingStatus,
     Segment,
@@ -48,6 +53,16 @@ pub enum Outcome {
     Unauthorized,
     /// The meeting was deleted or is being recorded again: nothing to do now.
     Postponed,
+    /// An interrupted meeting: its text went to the server, and the rest
+    /// waits for the user (or the end of the hold).
+    Held,
+}
+
+/// How a pass over one meeting ended, before the result is recorded.
+enum Step {
+    Done,
+    Postponed,
+    Held,
 }
 
 pub struct Engine<'a> {
@@ -98,8 +113,9 @@ impl Engine<'_> {
     /// Runs the steps and records the result in the database.
     pub async fn sync_meeting(&self, meeting_id: &str) -> Outcome {
         let outcome = match self.run(meeting_id).await {
-            Ok(Some(())) => Outcome::Synced,
-            Ok(None) => Outcome::Postponed,
+            Ok(Step::Done) => Outcome::Synced,
+            Ok(Step::Postponed) => Outcome::Postponed,
+            Ok(Step::Held) => Outcome::Held,
             Err(ApiError::Unauthorized) => Outcome::Unauthorized,
             Err(ApiError::Retry { status, message }) => Outcome::Retry {
                 message,
@@ -127,7 +143,7 @@ impl Engine<'_> {
                 Some("Войдите в аккаунт заново"),
                 None,
             ),
-            Outcome::Postponed => Ok(()),
+            Outcome::Postponed | Outcome::Held => Ok(()),
         };
         if let Err(e) = recorded {
             warn!("Cannot record the sync result of {meeting_id}: {e:#}");
@@ -135,16 +151,30 @@ impl Engine<'_> {
         outcome
     }
 
-    /// `Ok(None)`: the meeting is gone or recording again.
-    async fn run(&self, meeting_id: &str) -> Result<Option<()>, ApiError> {
-        let Some(meeting) = self.db.get_meeting(meeting_id).map_err(db_error)? else {
-            return Ok(None);
+    /// `Step::Postponed`: the meeting is gone or recording again.
+    async fn run(&self, meeting_id: &str) -> Result<Step, ApiError> {
+        let Some(mut meeting) = self.db.get_meeting(meeting_id).map_err(db_error)? else {
+            return Ok(Step::Postponed);
         };
         if meeting.status == MeetingStatus::Recording {
-            return Ok(None);
+            return Ok(Step::Postponed);
         }
+        // Nobody continued the interrupted meeting for 12 hours: finish it.
+        if meeting.status == MeetingStatus::Interrupted
+            && hold_expired(meeting.ended_at.as_deref(), Utc::now())
+            && self.db.finish_interrupted(meeting_id).map_err(db_error)?
+        {
+            info!("Interrupted meeting {meeting_id} is finished: the hold is over");
+            meeting.status = MeetingStatus::Stopped;
+        }
+        let held = is_held(&meeting, Utc::now());
         // Старт и сразу стоп: протокол из пустоты не нужен, на сервер не шлём.
+        // Запись без текста (диктофон без связи) — не пустая: её звук уходит на
+        // сервер, и текст появится при уточнении.
+        let has_audio_to_send =
+            self.upload_audio && !recorded_channels(self.root, meeting_id).is_empty();
         if meeting.server_meeting_id.is_none()
+            && !has_audio_to_send
             && self
                 .db
                 .list_segments(meeting_id)
@@ -157,16 +187,27 @@ impl Engine<'_> {
                 .map_err(db_error)?
                 .is_empty()
         {
+            // Nothing to send. A held meeting may still be continued: it is
+            // not "empty" yet.
+            if held {
+                return Ok(Step::Held);
+            }
             self.db
                 .set_sync_state(meeting_id, "empty", None, None)
                 .map_err(db_error)?;
-            return Ok(None);
+            return Ok(Step::Postponed);
         }
         let server_id = self.create_meeting(&meeting).await?;
         self.send_context(meeting_id).await?;
         self.send_segments(&meeting, server_id).await?;
         self.send_voices(meeting_id).await?;
         self.send_details(&meeting, server_id).await?;
+        if held {
+            // The audio and the finalization wait: the user may continue the
+            // recording, and the server keeps only the first upload of a channel.
+            self.send_documents(Some(meeting_id)).await?;
+            return Ok(Step::Held);
+        }
         self.send_audio(&meeting, server_id).await?;
         // The sources go before the finalization, so the protocol can use them.
         // A file that fails stays in its queue and does not hold the meeting back.
@@ -175,14 +216,14 @@ impl Engine<'_> {
         // Recorded again while we were sending: finalize after the next stop.
         match self.db.get_meeting(meeting_id).map_err(db_error)? {
             Some(now) if now.status != MeetingStatus::Recording => {}
-            _ => return Ok(None),
+            _ => return Ok(Step::Postponed),
         }
         self.client.finalize(server_id).await?;
         info!("Meeting {meeting_id} is synced (server id {server_id})");
-        Ok(Some(()))
+        Ok(Step::Done)
     }
 
-    async fn create_meeting(&self, meeting: &MeetingInfo) -> Result<i64, ApiError> {
+    pub(super) async fn create_meeting(&self, meeting: &MeetingInfo) -> Result<i64, ApiError> {
         if let Some(id) = meeting.server_meeting_id {
             return Ok(id);
         }
@@ -238,10 +279,7 @@ impl Engine<'_> {
                 &ContextPatchBody {
                     negotiation_type: meeting.negotiation_type.as_deref().unwrap_or_default(),
                     key_terms: meeting.key_terms.as_deref().unwrap_or_default(),
-                    opponent_weaknesses: meeting
-                        .opponent_weaknesses
-                        .as_deref()
-                        .unwrap_or_default(),
+                    opponent_weaknesses: meeting.opponent_weaknesses.as_deref().unwrap_or_default(),
                 },
             )
             .await?;

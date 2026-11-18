@@ -4,32 +4,24 @@
 //! - microphone, and system sound on Linux (a PulseAudio "Monitor of ...")
 //!   come from `handy-recorder`;
 //! - system sound on Windows (WASAPI) and macOS 14.6+ (Core Audio tap) is a
-//!   loopback: `handy-cpal` turns an input stream built on a playback (render)
-//!   device into a loopback capture, which `handy-recorder` can't open because
-//!   it lists capture devices only.
+//!   loopback, see `loopback.rs`.
 
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::FromSample;
 use handy_recorder::{AudioChunk, Channels, ErrorKind, Recorder, RecorderConfig, Sink, StartError};
-use log::{debug, error, info, warn};
+use log::{error, warn};
 use serde::Serialize;
 use specta::Type;
 
+use super::live_mix::{LiveTap, Source};
 use super::storage::{PcmWriter, SAMPLE_RATE};
-use crate::audio_toolkit::StreamResampler;
+use super::timeline::Timeline;
 
 /// Frames per chunk handed to the pipe: one Silero frame.
 const CHUNK_FRAMES: usize = 512;
-/// Loopback delivers nothing while nothing plays; silence is added every tick.
-const LOOPBACK_TICK: Duration = Duration::from_millis(250);
-/// Audio may lag the wall clock this much before silence is added for it.
-const LOOPBACK_TOLERANCE_SECS: f64 = 0.5;
 
 /// A capture device offered to the UI.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
@@ -54,6 +46,13 @@ pub struct ChannelShared {
     /// Peak level since the last read, as `f32` bits.
     level_bits: AtomicU32,
     error: Mutex<Option<String>>,
+    /// Which capture of the channel is current: a restart starts a new one,
+    /// and the failure reports of the old one are ignored.
+    generation: AtomicU64,
+    /// The current capture failed (the device went away, the stream broke):
+    /// the supervisor reopens it.
+    failed: AtomicBool,
+    failure: Mutex<Option<String>>,
 }
 
 impl ChannelShared {
@@ -63,6 +62,42 @@ impl ChannelShared {
         if slot.is_none() {
             *slot = Some(message);
         }
+    }
+
+    /// A new capture of the channel begins: returns its number, and clears
+    /// the failure of the one before.
+    pub(super) fn next_generation(&self) -> u64 {
+        self.failed.store(false, Ordering::SeqCst);
+        self.generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    pub(super) fn generation(&self) -> u64 {
+        self.generation.load(Ordering::SeqCst)
+    }
+
+    /// The capture numbered `generation` failed. Not shown to the user: the
+    /// supervisor tries to reopen it first (and shows the error if it cannot).
+    pub(super) fn report_failure(&self, generation: u64, message: String) {
+        if generation != self.generation() {
+            return;
+        }
+        warn!("Meeting capture failed, it will be reopened: {message}");
+        *self.failure.lock().unwrap_or_else(|e| e.into_inner()) = Some(message);
+        self.failed.store(true, Ordering::SeqCst);
+    }
+
+    /// The failure of the current capture, once (`None`: it runs).
+    pub(super) fn take_failure(&self) -> Option<String> {
+        if !self.failed.swap(false, Ordering::SeqCst) {
+            return None;
+        }
+        Some(
+            self.failure
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take()
+                .unwrap_or_else(|| "audio device failed".to_string()),
+        )
     }
 
     /// The first error not yet taken.
@@ -103,8 +138,13 @@ fn to_i16(sample: f32) -> i16 {
 /// then the phrase cutter.
 pub struct ChannelPipe {
     writer: PcmWriter,
-    tx: Sender<ChanMsg>,
-    shared: Arc<ChannelShared>,
+    /// `None`: no local recognition (the server recognizes), only the disk.
+    tx: Option<Sender<ChanMsg>>,
+    /// The copy of the audio for the live stream to the server.
+    tap: Option<(Arc<LiveTap>, Source)>,
+    /// What the channel has recorded, for the meeting's time.
+    timeline: Option<(Arc<Timeline>, Source)>,
+    pub(super) shared: Arc<ChannelShared>,
     /// Meeting time (seconds) at which the capture of this session began.
     session_start: Instant,
     base_seconds: f64,
@@ -121,11 +161,55 @@ impl ChannelPipe {
     ) -> Self {
         Self {
             writer,
-            tx,
+            tx: Some(tx),
+            tap: None,
+            timeline: None,
             shared,
             session_start,
             base_seconds,
             started: false,
+        }
+    }
+
+    /// A pipe without a phrase cutter: the audio goes to disk (and the tap).
+    pub fn disk_only(
+        writer: PcmWriter,
+        shared: Arc<ChannelShared>,
+        session_start: Instant,
+        base_seconds: f64,
+    ) -> Self {
+        Self {
+            writer,
+            tx: None,
+            tap: None,
+            timeline: None,
+            shared,
+            session_start,
+            base_seconds,
+            started: false,
+        }
+    }
+
+    /// Also copies the audio to the live stream's tap.
+    pub(super) fn with_tap(mut self, tap: Arc<LiveTap>, source: Source) -> Self {
+        self.tap = Some((tap, source));
+        self
+    }
+
+    /// Also counts what the channel records into the meeting's timeline.
+    pub(super) fn with_timeline(mut self, timeline: Arc<Timeline>, source: Source) -> Self {
+        self.timeline = Some((timeline, source));
+        self
+    }
+
+    /// Records `samples` of silence: a channel that came back after a failure
+    /// (or a shorter one of a resumed meeting) is brought level with the other.
+    pub(super) fn pad_silence(&mut self, mut samples: usize) {
+        const PART: usize = SAMPLE_RATE as usize;
+        while samples > 0 {
+            let part = samples.min(PART);
+            self.push(&vec![0.0; part]);
+            samples -= part;
         }
     }
 
@@ -137,10 +221,21 @@ impl ChannelPipe {
             self.started = true;
             // The stream may take a while to deliver (Bluetooth), so the
             // channel's own clock starts when its first audio arrives.
-            let lag = samples.len() as f64 / f64::from(SAMPLE_RATE);
-            let offset_secs =
-                self.base_seconds + (self.session_start.elapsed().as_secs_f64() - lag).max(0.0);
-            let _ = self.tx.send(ChanMsg::Start { offset_secs });
+            // With the timeline it is the place in the channel's own audio:
+            // right across a sleep and a reopened channel. Without it (a
+            // test) the session's clock stands in.
+            let offset_secs = match &self.timeline {
+                Some((timeline, source)) => {
+                    timeline.samples(*source) as f64 / f64::from(SAMPLE_RATE)
+                }
+                None => {
+                    let lag = samples.len() as f64 / f64::from(SAMPLE_RATE);
+                    self.base_seconds + (self.session_start.elapsed().as_secs_f64() - lag).max(0.0)
+                }
+            };
+            if let Some(tx) = &self.tx {
+                let _ = tx.send(ChanMsg::Start { offset_secs });
+            }
         }
         self.shared.note_level(level_of(samples));
 
@@ -152,7 +247,15 @@ impl ChannelPipe {
         {
             self.shared.report_error(format!("disk write failed: {e}"));
         }
-        let _ = self.tx.send(ChanMsg::Samples(samples.to_vec()));
+        if let Some((timeline, source)) = &self.timeline {
+            timeline.add(*source, pcm.len());
+        }
+        if let Some((tap, source)) = &self.tap {
+            tap.push(*source, samples);
+        }
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(ChanMsg::Samples(samples.to_vec()));
+        }
     }
 
     /// Writes out what is buffered and closes the file. Dropping the pipe also
@@ -162,15 +265,6 @@ impl ChannelPipe {
             error!("Closing meeting audio file failed: {e}");
         }
     }
-}
-
-/// Zero samples to add so the channel keeps up with the wall clock: loopback
-/// sends no packets while nothing plays. `incoming` samples are about to be
-/// pushed and are the newest audio.
-fn silence_to_add(pushed: u64, elapsed_secs: f64, incoming: usize, tolerance_secs: f64) -> usize {
-    let expected =
-        ((elapsed_secs - tolerance_secs) * f64::from(SAMPLE_RATE)) as i64 - incoming as i64;
-    (expected - pushed as i64).max(0) as usize
 }
 
 /* ---------------- handy-recorder: microphone, Linux monitor ---------------- */
@@ -201,10 +295,11 @@ fn open_recorder(
     channel: Option<u16>,
     shared: &Arc<ChannelShared>,
 ) -> Result<Recorder<RecorderSink>, handy_recorder::Error> {
+    let generation = shared.generation();
     let open = |channel: Option<u16>| {
         let shared = Arc::clone(shared);
         Recorder::open_with_failure_handler(recorder_config(device.clone(), channel), move |e| {
-            shared.report_error(format!("audio device failed: {e}"));
+            shared.report_failure(generation, format!("audio device failed: {e}"));
         })
     };
     match open(channel) {
@@ -294,229 +389,10 @@ pub fn list_monitor_sources() -> Vec<CaptureDevice> {
     }
 }
 
-/* ---------------- handy-cpal: WASAPI / Core Audio loopback of a render device ---------------- */
-
-struct LoopbackState {
-    pipe: ChannelPipe,
-    resampler: StreamResampler,
-    started: Instant,
-    pushed: u64,
-}
-
-impl LoopbackState {
-    /// Adds the silence the wall clock calls for before `incoming` new samples.
-    fn pad(&mut self, incoming: usize, tolerance_secs: f64) {
-        let mut missing = silence_to_add(
-            self.pushed,
-            self.started.elapsed().as_secs_f64(),
-            incoming,
-            tolerance_secs,
-        );
-        while missing > 0 {
-            let part = missing.min(SAMPLE_RATE as usize);
-            self.pipe.push(&vec![0.0; part]);
-            self.pushed += part as u64;
-            missing -= part;
-        }
-    }
-
-    fn feed(&mut self, mono_native: &[f32], scratch: &mut Vec<f32>) {
-        scratch.clear();
-        self.resampler.push(mono_native, scratch);
-        // The resampler holds back a few samples, so count what it produced
-        // plus what it will produce: small enough for the tolerance.
-        self.pad(scratch.len(), LOOPBACK_TOLERANCE_SECS);
-        self.pipe.push(scratch);
-        self.pushed += scratch.len() as u64;
-    }
-}
-
-/// Interleaved device samples of any format, averaged to mono f32.
-fn mix_to_mono<T>(samples: &[T], channels: usize, out: &mut Vec<f32>)
-where
-    T: cpal::SizedSample + Copy,
-    f32: FromSample<T>,
-{
-    out.clear();
-    out.extend(
-        samples.chunks_exact(channels).map(|frame| {
-            frame.iter().map(|&s| f32::from_sample_(s)).sum::<f32>() / channels as f32
-        }),
-    );
-}
-
-fn data_to_mono(data: &cpal::Data, channels: usize, out: &mut Vec<f32>) -> bool {
-    use cpal::SampleFormat as F;
-    match data.sample_format() {
-        F::F32 => data
-            .as_slice::<f32>()
-            .map(|s| mix_to_mono(s, channels, out)),
-        F::F64 => data
-            .as_slice::<f64>()
-            .map(|s| mix_to_mono(s, channels, out)),
-        F::I16 => data
-            .as_slice::<i16>()
-            .map(|s| mix_to_mono(s, channels, out)),
-        F::I32 => data
-            .as_slice::<i32>()
-            .map(|s| mix_to_mono(s, channels, out)),
-        F::U16 => data
-            .as_slice::<u16>()
-            .map(|s| mix_to_mono(s, channels, out)),
-        F::I8 => data.as_slice::<i8>().map(|s| mix_to_mono(s, channels, out)),
-        _ => None,
-    }
-    .is_some()
-}
-
-#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
-pub struct LoopbackCapture {
-    stop_tx: Sender<()>,
-    join: Option<JoinHandle<()>>,
-    state: Arc<Mutex<Option<LoopbackState>>>,
-}
-
-fn find_render_device(id: Option<&str>) -> Result<cpal::Device, String> {
-    let host = cpal::default_host();
-    match id {
-        Some(id) => host
-            .output_devices()
-            .map_err(|e| e.to_string())?
-            .find(|d| d.id().is_ok_and(|device_id| device_id.to_string() == id))
-            .ok_or_else(|| format!("no playback device with ID {id:?}")),
-        None => host
-            .default_output_device()
-            .ok_or_else(|| "no default playback device".to_string()),
-    }
-}
-
-/// Playback devices, the sources of system sound on Windows and macOS.
-#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
-pub fn list_render_devices() -> Vec<CaptureDevice> {
-    let host = cpal::default_host();
-    let default_id = host.default_output_device().and_then(|d| d.id().ok());
-    let Ok(devices) = host.output_devices() else {
-        return Vec::new();
-    };
-    devices
-        .filter_map(|device| {
-            let id = device.id().ok()?;
-            let name = device
-                .description()
-                .map(|d| d.name().to_owned())
-                .unwrap_or_else(|_| id.to_string());
-            Some(CaptureDevice {
-                is_default: default_id.as_ref() == Some(&id),
-                id: id.to_string(),
-                name,
-            })
-        })
-        .collect()
-}
-
-#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
-impl LoopbackCapture {
-    /// Opens the stream on its own thread (some hosts' streams are not
-    /// `Send`) and waits until it plays or fails. On failure the pipe is gone.
-    pub fn start(device_id: Option<String>, pipe: ChannelPipe) -> Result<Self, String> {
-        let shared = Arc::clone(&pipe.shared);
-        let device = find_render_device(device_id.as_deref())?;
-        let config = device.default_output_config().map_err(|e| e.to_string())?;
-        let resampler =
-            StreamResampler::new(config.sample_rate(), SAMPLE_RATE).map_err(|e| e.to_string())?;
-        info!(
-            "System sound loopback: {} Hz, {} ch, {:?}",
-            config.sample_rate(),
-            config.channels(),
-            config.sample_format()
-        );
-        let state = Arc::new(Mutex::new(Some(LoopbackState {
-            pipe,
-            resampler,
-            started: Instant::now(),
-            pushed: 0,
-        })));
-        let (stop_tx, stop_rx) = mpsc::channel::<()>();
-        let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
-
-        let thread_state = Arc::clone(&state);
-        let join = std::thread::Builder::new()
-            .name("meeting-loopback".into())
-            .spawn(move || {
-                let channels = usize::from(config.channels().max(1));
-                let callback_state = Arc::clone(&thread_state);
-                let mut mono = Vec::new();
-                let mut scratch = Vec::new();
-                let stream = device.build_input_stream_raw(
-                    config.config(),
-                    config.sample_format(),
-                    move |data, _| {
-                        if !data_to_mono(data, channels, &mut mono) {
-                            return;
-                        }
-                        let mut guard = callback_state.lock().unwrap_or_else(|e| e.into_inner());
-                        if let Some(state) = guard.as_mut() {
-                            state.feed(&mono, &mut scratch);
-                        }
-                    },
-                    move |e| shared.report_error(format!("system sound capture failed: {e}")),
-                    None,
-                );
-                let stream = match stream.and_then(|stream| stream.play().map(|()| stream)) {
-                    Ok(stream) => stream,
-                    Err(e) => {
-                        let _ = ready_tx.send(Err(e.to_string()));
-                        return;
-                    }
-                };
-                let _ = ready_tx.send(Ok(()));
-                // Ends on a stop request, or when the capture handle is gone.
-                while let Err(RecvTimeoutError::Timeout) = stop_rx.recv_timeout(LOOPBACK_TICK) {
-                    let mut guard = thread_state.lock().unwrap_or_else(|e| e.into_inner());
-                    if let Some(state) = guard.as_mut() {
-                        state.pad(0, LOOPBACK_TOLERANCE_SECS);
-                    }
-                }
-                drop(stream);
-            })
-            .map_err(|e| format!("cannot start capture thread: {e}"))?;
-
-        match ready_rx.recv_timeout(Duration::from_secs(10)) {
-            Ok(Ok(())) => Ok(Self {
-                stop_tx,
-                join: Some(join),
-                state,
-            }),
-            outcome => {
-                let _ = stop_tx.send(());
-                let _ = join.join();
-                Err(match outcome {
-                    Ok(Err(e)) => e,
-                    _ => "system sound capture did not start in time".to_string(),
-                })
-            }
-        }
-    }
-
-    pub fn stop(mut self) -> Option<ChannelPipe> {
-        let _ = self.stop_tx.send(());
-        if let Some(join) = self.join.take() {
-            if join.join().is_err() {
-                error!("System sound capture thread panicked");
-            }
-        }
-        debug!("System sound loopback stopped");
-        self.state
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take()
-            .map(|s| s.pipe)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
 
     #[test]
     fn level_scale_is_logarithmic_and_clamped() {
@@ -539,24 +415,98 @@ mod tests {
     }
 
     #[test]
-    fn silence_fills_only_what_the_clock_demands() {
-        // Audio keeps up: nothing to add.
-        assert_eq!(silence_to_add(16_000 * 10, 10.2, 0, 0.5), 0);
-        // Two idle seconds beyond the tolerance.
-        assert_eq!(silence_to_add(16_000 * 10, 12.5, 0, 0.5), 32_000);
-        // New audio is the newest part of the timeline, so less is padded.
-        assert_eq!(silence_to_add(16_000 * 10, 12.5, 8_000, 0.5), 24_000);
-        // Never negative.
-        assert_eq!(silence_to_add(16_000 * 10, 1.0, 0, 0.5), 0);
+    fn a_reopened_channel_is_levelled_with_the_other_by_silence() {
+        use super::super::storage::channel_samples;
+        let mic_dir = tempfile::tempdir().unwrap();
+        let sys_dir = tempfile::tempdir().unwrap();
+        let timeline = Arc::new(Timeline::new(0, 0));
+        let pipe = |dir: &std::path::Path, name: &str, source| {
+            let writer = PcmWriter::new(dir, name, 16_000 * 60).unwrap();
+            ChannelPipe::disk_only(
+                writer,
+                Arc::new(ChannelShared::default()),
+                Instant::now(),
+                0.0,
+            )
+            .with_timeline(Arc::clone(&timeline), source)
+        };
+        let mut mic = pipe(mic_dir.path(), "mic", Source::Mic);
+        let mut system = pipe(sys_dir.path(), "system", Source::System);
+        mic.push(&[0.1; 16_000]);
+        system.push(&[0.1; 16_000]);
+        // The system channel fails for three seconds while the microphone runs.
+        for _ in 0..3 {
+            mic.push(&[0.1; 16_000]);
+        }
+        system.finish();
+        // It comes back: a new pipe on the same files is padded to the microphone.
+        let mut system = pipe(sys_dir.path(), "system", Source::System);
+        system.pad_silence(timeline.lag(Source::System));
+        system.push(&[0.1; 16_000]);
+        mic.push(&[0.1; 16_000]);
+        mic.finish();
+        system.finish();
+        assert_eq!(channel_samples(mic_dir.path(), "mic"), 5 * 16_000);
+        assert_eq!(channel_samples(sys_dir.path(), "system"), 5 * 16_000);
+        assert_eq!(timeline.lag(Source::System), 0);
     }
 
     #[test]
-    fn mixes_interleaved_samples_to_mono() {
-        let mut out = Vec::new();
-        mix_to_mono(&[1.0f32, 0.0, 0.5, 0.5], 2, &mut out);
-        assert_eq!(out, vec![0.5, 0.5]);
-        mix_to_mono(&[i16::MAX, i16::MAX], 2, &mut out);
-        assert!((out[0] - 1.0).abs() < 1e-3);
+    fn the_first_audio_starts_the_cutter_at_the_channels_own_position() {
+        let dir = tempfile::tempdir().unwrap();
+        let (tx, rx) = mpsc::channel();
+        let writer = PcmWriter::new(dir.path(), "mic", 16_000).unwrap();
+        // A resumed meeting: 7 s are on disk already.
+        let timeline = Arc::new(Timeline::new(7 * 16_000, 0));
+        let mut pipe = ChannelPipe::new(
+            writer,
+            tx,
+            Arc::new(ChannelShared::default()),
+            Instant::now(),
+            0.0,
+        )
+        .with_timeline(timeline, Source::Mic);
+        pipe.push(&[0.5; 512]);
+        match rx.recv().unwrap() {
+            ChanMsg::Start { offset_secs } => assert_eq!(offset_secs, 7.0),
+            ChanMsg::Samples(_) => panic!("start comes first"),
+        }
+        pipe.finish();
+    }
+
+    #[test]
+    fn a_channel_that_opens_late_keeps_the_times_of_its_phrases() {
+        // The microphone has 2 s; the system channel opens now. It is levelled
+        // with silence first, so the cutter sees its audio 2 s in, not at 0.
+        let dir = tempfile::tempdir().unwrap();
+        let (tx, rx) = mpsc::channel();
+        let timeline = Arc::new(Timeline::new(2 * 16_000, 0));
+        let writer = PcmWriter::new(dir.path(), "system", 16_000 * 60).unwrap();
+        let mut pipe = ChannelPipe::new(
+            writer,
+            tx,
+            Arc::new(ChannelShared::default()),
+            Instant::now(),
+            0.0,
+        )
+        .with_timeline(Arc::clone(&timeline), Source::System);
+        pipe.pad_silence(timeline.lag(Source::System));
+        pipe.push(&[0.5; 512]);
+        pipe.finish();
+
+        let mut offset = None;
+        let mut before_audio = 0usize;
+        for message in rx {
+            match message {
+                ChanMsg::Start { offset_secs } => offset = Some(offset_secs),
+                ChanMsg::Samples(s) if s.iter().all(|v| *v == 0.0) => before_audio += s.len(),
+                ChanMsg::Samples(_) => break,
+            }
+        }
+        // The cutter's own clock starts at the channel's first sample (0) and
+        // counts the silence, so the audio lands at 2 s.
+        assert_eq!(offset, Some(0.0));
+        assert_eq!(before_audio, 2 * 16_000);
     }
 
     #[test]

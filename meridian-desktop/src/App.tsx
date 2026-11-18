@@ -45,6 +45,8 @@ function App() {
   // Set when a returning user's selected model is a retired (ONNX) model that
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
+  // Where the live text of a meeting comes from; "online" needs no model.
+  const [recognitionMode, setRecognitionMode] = useState<string>("online");
   const [currentSection, setCurrentSection] = useState<AppSection>("meetings");
   const [settingsTab, setSettingsTab] = useState<SettingsSection>("account");
   const { settings, updateSetting } = useSettings();
@@ -166,6 +168,9 @@ function App() {
         settingsResult.status === "ok" &&
         settingsResult.data.onboarding_completed === true;
       const currentPlatform = platform();
+      if (settingsResult.status === "ok") {
+        setRecognitionMode(settingsResult.data.recognition_mode ?? "online");
+      }
 
       if (hasCompletedOnboarding) {
         // Returning user - check if they need to grant permissions first
@@ -227,6 +232,16 @@ function App() {
     } else {
       setOnboardingStep("model");
     }
+  };
+
+  // Online recognition needs no model: leave the model step, nothing chosen.
+  const handleSkipModel = async () => {
+    const result = await commands.completeOnboarding();
+    if (result.status === "error") {
+      toast.error(result.error);
+      return;
+    }
+    setOnboardingStep("done");
   };
 
   const handleModelSelected = async () => {
@@ -306,6 +321,11 @@ function App() {
     content = (
       <Onboarding
         onModelSelected={handleModelSelected}
+        onSkip={
+          recognitionMode === "online" && !migrationModelId
+            ? handleSkipModel
+            : undefined
+        }
         onBack={
           migrationModelId ? () => setOnboardingStep("migration") : undefined
         }

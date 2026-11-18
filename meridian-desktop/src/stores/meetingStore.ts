@@ -3,6 +3,7 @@ import {
   commands,
   type MeetingDetails,
   type MeetingInfo,
+  type LiveStatus,
   type MeetingLevels,
   type MeetingState,
   type MeetingVoice,
@@ -26,6 +27,7 @@ export interface DeviceError {
 }
 
 const NO_LEVELS: MeetingLevels = { mic: 0, system: 0 };
+const NO_LIVE: LiveStatus = { state: "off", message: null };
 
 /** Action result: `null` on success, otherwise the backend's error message. */
 type ActionError = string | null;
@@ -49,6 +51,10 @@ interface MeetingStore {
   voices: MeetingVoice[];
   /** Meeting whose computer sound has been silent for over a minute. */
   silentMeetingId: string | null;
+  /** Link of the live text to the server (the recording meeting). */
+  live: LiveStatus;
+  /** The phrase the server is hearing now (not final); empty: none. */
+  partial: string;
 
   loadList: () => Promise<void>;
   syncActive: () => Promise<void>;
@@ -57,6 +63,7 @@ interface MeetingStore {
   startMeeting: (request: StartMeetingRequest) => Promise<ActionError>;
   resumeMeeting: (id: string) => Promise<ActionError>;
   stopMeeting: () => Promise<ActionError>;
+  finishInterrupted: (id: string) => Promise<ActionError>;
   deleteMeeting: (id: string) => Promise<ActionError>;
   renameMeeting: (id: string, title: string) => Promise<ActionError>;
   saveNote: (
@@ -82,6 +89,8 @@ interface MeetingStore {
   applyVoices: (meetingId: string, voices: MeetingVoice[]) => void;
   applySegmentRemoved: (meetingId: string, segmentId: string) => void;
   applySystemSilent: (meetingId: string, silent: boolean) => void;
+  applyLive: (meetingId: string, status: LiveStatus) => void;
+  applyPartial: (meetingId: string, text: string) => void;
 }
 
 const upsertMeeting = (
@@ -112,6 +121,8 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
       queueLen: 0,
       levels: NO_LEVELS,
       silentMeetingId: null,
+      live: NO_LIVE,
+      partial: "",
     });
     void get().loadList();
     if (get().openId === id) void get().openMeeting(id);
@@ -139,6 +150,8 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
     deviceErrors: [],
     voices: [],
     silentMeetingId: null,
+    live: NO_LIVE,
+    partial: "",
 
     loadList: async () => {
       const result = await commands.listMeetings();
@@ -164,6 +177,8 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
           queueLen: 0,
           levels: NO_LEVELS,
           silentMeetingId: null,
+          live: NO_LIVE,
+          partial: "",
         });
         return;
       }
@@ -174,6 +189,7 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
         },
         queueLen: state.queue_len,
         levels: state.levels,
+        live: state.live ?? NO_LIVE,
         meetings: upsertMeeting(s.meetings, state.meeting),
       }));
     },
@@ -251,6 +267,20 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
             : s.details,
       }));
       finishActive(info.id);
+      return null;
+    },
+
+    finishInterrupted: async (id) => {
+      const result = await commands.finishInterruptedMeeting(id);
+      if (result.status === "error") return result.error;
+      const info = result.data;
+      set((s) => ({
+        meetings: upsertMeeting(s.meetings, info),
+        details:
+          s.details?.meeting.id === info.id
+            ? { ...s.details, meeting: info }
+            : s.details,
+      }));
       return null;
     },
 
@@ -449,6 +479,14 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
             }
           : {},
       ),
+
+    applyLive: (meetingId, status) => {
+      if (get().active?.id === meetingId) set({ live: status });
+    },
+
+    applyPartial: (meetingId, text) => {
+      if (get().active?.id === meetingId) set({ partial: text });
+    },
 
     applySystemSilent: (meetingId, silent) =>
       set((s) => {

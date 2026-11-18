@@ -43,6 +43,10 @@ pub fn local_meeting(db: &MeetingDb, id: &str, title: &str, texts: &[&str], note
             created_at: STARTED.to_string(),
             synced: false,
             voice: None,
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         })
         .unwrap();
     }

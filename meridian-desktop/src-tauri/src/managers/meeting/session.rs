@@ -1,52 +1,34 @@
 //! One running meeting: the channels, their threads and the setup/teardown.
 
-use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use log::{error, warn};
+use log::warn;
+use tokio::sync::watch;
 
-use super::capture::{self, ChannelPipe, ChannelShared, LoopbackCapture, RecorderCapture};
+use super::capture::{self, ChannelShared};
+use super::channel::{channel_title, ChannelFactory, ChannelRuntime, Devices};
+use super::live_mix::LiveTap;
+use super::live_stream::{LiveContext, LiveStream};
+use super::live_types::LiveStatus;
 use super::recognizer::PhraseQueue;
-use super::storage::{self, PCM_PIECE_SECONDS, SAMPLE_RATE};
-use super::workers::cut_phrases;
+use super::storage;
+use super::supervisor::{Supervisor, SupervisorCtx};
+use super::timeline::Timeline;
 use super::{
     io_err, meeting_duration, now_iso, system_audio_supported, CaptureDevices, CaptureMode,
     MeetingInfo, MeetingLevels, MeetingManager, MeetingStateKind, MeetingStatus,
-    StartMeetingRequest, CHANNEL_MIC, CHANNEL_MIXED, CHANNEL_SYSTEM, DRAIN_TIMEOUT,
+    StartMeetingRequest, CHANNEL_MIC, CHANNEL_SYSTEM,
 };
-use crate::audio_toolkit::vad::create_detector;
 use crate::managers::model::ModelManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::get_settings;
+use crate::settings::{get_settings, RecognitionMode};
 use tauri::Manager;
 
 /* ------------------------------ session ------------------------------ */
-
-#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
-pub(super) enum CaptureHandle {
-    Recorder(Box<RecorderCapture>),
-    Loopback(LoopbackCapture),
-}
-
-impl CaptureHandle {
-    fn stop(self) -> Option<ChannelPipe> {
-        match self {
-            Self::Recorder(capture) => capture.stop(),
-            Self::Loopback(capture) => capture.stop(),
-        }
-    }
-}
-
-pub(super) struct ChannelRuntime {
-    pub(super) audio_name: &'static str,
-    pub(super) shared: Arc<ChannelShared>,
-    pub(super) capture: CaptureHandle,
-    pub(super) cutter: JoinHandle<()>,
-}
 
 /// Last levels the ticker read, for `get_active_meeting`.
 #[derive(Default)]
@@ -72,15 +54,36 @@ impl LastLevels {
 
 pub(super) struct Session {
     pub(super) meeting_id: String,
-    /// Seconds already recorded before this session (a resumed meeting).
-    pub(super) base_seconds: f64,
-    pub(super) started: Instant,
-    pub(super) channels: Vec<ChannelRuntime>,
+    /// Shared with the supervisor, which reopens a channel that failed.
+    pub(super) channels: Arc<Mutex<Vec<ChannelRuntime>>>,
+    /// What the channels have recorded: the meeting's time.
+    pub(super) timeline: Arc<Timeline>,
+    pub(super) supervisor: Option<Supervisor>,
+    /// Bumped to make the live connection anew (the computer woke up).
+    pub(super) live_reset: Arc<watch::Sender<u64>>,
     pub(super) queue: Arc<PhraseQueue>,
     pub(super) levels: Arc<LastLevels>,
     pub(super) recognizer_done: Receiver<()>,
     pub(super) ticker_stop: Sender<()>,
     pub(super) ticker: JoinHandle<()>,
+    /// The copy of the audio for the server; `None`: local recognition.
+    pub(super) tap: Option<Arc<LiveTap>>,
+    /// The live link to the server, running once the meeting is stored.
+    pub(super) live: Option<LiveStream>,
+}
+
+impl Session {
+    pub(super) fn live_status(&self) -> LiveStatus {
+        self.live
+            .as_ref()
+            .map(LiveStream::status)
+            .unwrap_or_default()
+    }
+}
+
+/// The channels of a session whose supervisor has stopped.
+fn take_channels(channels: &Mutex<Vec<ChannelRuntime>>) -> Vec<ChannelRuntime> {
+    std::mem::take(&mut *channels.lock().unwrap_or_else(|e| e.into_inner()))
 }
 
 pub(super) enum Slot {
@@ -90,13 +93,6 @@ pub(super) enum Slot {
     Active(Box<Session>),
 }
 
-/// Devices a session captures from.
-pub(super) struct Devices {
-    pub(super) mic: Option<String>,
-    pub(super) mic_channel: Option<u16>,
-    pub(super) system: Option<String>,
-}
-
 impl MeetingManager {
     /* -------------------------- devices -------------------------- */
 
@@ -104,7 +100,7 @@ impl MeetingManager {
         let inputs = capture::list_microphones();
         #[cfg(any(windows, target_os = "macos"))]
         let system_sources = if system_audio_supported() {
-            capture::list_render_devices()
+            super::loopback::list_render_devices()
         } else {
             Vec::new()
         };
@@ -166,10 +162,18 @@ impl MeetingManager {
         }
     }
 
-    /// The model must be loaded before recording starts: phrases are
-    /// recognized as they come, and a meeting without recognition would only
-    /// pile up a queue.
+    /// Whether this meeting is recognized on this computer (the setting).
+    pub(super) fn recognizes_locally(&self) -> bool {
+        get_settings(&self.app).recognition_mode == RecognitionMode::Local
+    }
+
+    /// The model must be loaded before a locally recognized meeting starts:
+    /// phrases are recognized as they come, and a meeting without recognition
+    /// would only pile up a queue. Online (the server recognizes) needs no model.
     pub(super) fn require_model(&self) -> Result<(), String> {
+        if !self.recognizes_locally() {
+            return Ok(());
+        }
         let tm = self.app.state::<Arc<TranscriptionManager>>();
         if tm.is_model_loaded() {
             return Ok(());
@@ -202,7 +206,24 @@ impl MeetingManager {
         let audio_dir = storage::audio_dir(&self.root, &meeting.id);
         let started = Instant::now();
         let queue = Arc::new(PhraseQueue::default());
-        let backend = get_settings(&self.app).vad_backend;
+        let local = self.recognizes_locally();
+        let tap = (!local).then(|| Arc::new(LiveTap::new(wants_system)));
+        // A resumed meeting carries on from the audio it has.
+        let timeline = Arc::new(Timeline::new(
+            storage::channel_samples(&audio_dir, CHANNEL_MIC),
+            storage::channel_samples(&audio_dir, CHANNEL_SYSTEM),
+        ));
+        let factory = Arc::new(ChannelFactory {
+            app: self.app.clone(),
+            audio_dir,
+            wants_system,
+            started,
+            base_seconds,
+            queue: Arc::clone(&queue),
+            backend: get_settings(&self.app).vad_backend,
+            tap: tap.clone(),
+            timeline: Arc::clone(&timeline),
+        });
 
         let mut specs = vec![CHANNEL_MIC];
         if wants_system {
@@ -210,128 +231,77 @@ impl MeetingManager {
         }
         let mut channels: Vec<ChannelRuntime> = Vec::new();
         for audio_name in specs {
-            let label = if wants_system {
-                audio_name
-            } else {
-                CHANNEL_MIXED
-            };
-            match self.open_channel(
-                &audio_dir,
-                audio_name,
-                label,
-                started,
-                base_seconds,
-                devices,
-                &queue,
-                backend,
-            ) {
+            let shared = Arc::new(ChannelShared::default());
+            match factory.open(audio_name, devices, shared) {
                 Ok(channel) => channels.push(channel),
                 Err(message) => {
                     Self::close_channels(channels);
-                    return Err(format!("{}: {message}", Self::channel_title(audio_name)));
+                    return Err(format!("{}: {message}", channel_title(audio_name)));
                 }
             }
         }
 
         let (recognizer_done_tx, recognizer_done) = mpsc::channel();
-        self.spawn_recognizer(&meeting.id, &queue, recognizer_done_tx);
+        if local {
+            self.spawn_recognizer(&meeting.id, &queue, recognizer_done_tx);
+        } else {
+            // Nothing to wait for at the stop: the server recognizes.
+            let _ = recognizer_done_tx.send(());
+        }
         let levels = Arc::new(LastLevels::default());
         let (ticker_stop, ticker_rx) = mpsc::channel();
         let ticker = self.spawn_ticker(&meeting.id, &channels, &queue, &levels, ticker_rx);
+        let channels = Arc::new(Mutex::new(channels));
+        let (live_reset, _) = watch::channel(0u64);
+        let live_reset = Arc::new(live_reset);
+        let supervisor = Supervisor::start(SupervisorCtx {
+            factory,
+            channels: Arc::clone(&channels),
+            devices: devices.clone(),
+            db: Arc::clone(&self.db),
+            meeting_id: meeting.id.clone(),
+            timeline: Arc::clone(&timeline),
+            live_reset: Arc::clone(&live_reset),
+        });
         Ok(Session {
             meeting_id: meeting.id.clone(),
-            base_seconds,
-            started,
             channels,
+            timeline,
+            supervisor,
+            live_reset,
             queue,
             levels,
             recognizer_done,
             ticker_stop,
             ticker,
+            tap,
+            live: None,
         })
     }
 
-    fn channel_title(audio_name: &str) -> &'static str {
-        if audio_name == CHANNEL_SYSTEM {
-            "Звук системы"
-        } else {
-            "Микрофон"
-        }
+    /// Opens the live link to the server for a session of the online
+    /// recognition. Called once the meeting is in the database (the link
+    /// makes it on the server). The capture does not wait for the link.
+    pub(super) fn start_live(&self, session: &mut Session, meeting: &MeetingInfo) {
+        let Some(tap) = session.tap.clone() else {
+            return;
+        };
+        session.live = LiveStream::start(LiveContext {
+            app: self.app.clone(),
+            db: Arc::clone(&self.db),
+            meeting: meeting.clone(),
+            timeline: Arc::clone(&session.timeline),
+            tap,
+            reset: session.live_reset.subscribe(),
+        });
     }
-    #[allow(clippy::too_many_arguments)]
-    fn open_channel(
+
+    /// `drain`: how long the recognizer may take to finish the queue.
+    pub(super) fn finish_session(
         &self,
-        audio_dir: &Path,
-        audio_name: &'static str,
-        label: &str,
-        started: Instant,
-        base_seconds: f64,
-        devices: &Devices,
-        queue: &Arc<PhraseQueue>,
-        backend: crate::settings::VadBackend,
-    ) -> Result<ChannelRuntime, String> {
-        let scorer = create_detector(backend, &self.app).map_err(|e| format!("{e:#}"))?;
-        let writer = storage::PcmWriter::new(
-            audio_dir,
-            audio_name,
-            PCM_PIECE_SECONDS * SAMPLE_RATE as usize,
-        )
-        .map_err(|e| format!("{e:#}"))?;
-        let (tx, rx) = mpsc::channel();
-        let shared = Arc::new(ChannelShared::default());
-        let pipe = ChannelPipe::new(writer, tx, Arc::clone(&shared), started, base_seconds);
-
-        let cutter = {
-            let queue = Arc::clone(queue);
-            let label = label.to_string();
-            std::thread::Builder::new()
-                .name(format!("meeting-cut-{audio_name}"))
-                .spawn(move || cut_phrases(rx, scorer, &queue, &label))
-                .map_err(io_err)?
-        };
-
-        let capture = if audio_name == CHANNEL_SYSTEM {
-            Self::open_system(devices, pipe)
-        } else {
-            RecorderCapture::start(devices.mic.clone(), devices.mic_channel, pipe)
-                .map(|c| CaptureHandle::Recorder(Box::new(c)))
-        };
-        match capture {
-            Ok(capture) => Ok(ChannelRuntime {
-                audio_name,
-                shared,
-                capture,
-                cutter,
-            }),
-            Err(message) => {
-                // The pipe went down with the failed start, which ends the cutter.
-                let _ = cutter.join();
-                Err(message)
-            }
-        }
-    }
-
-    /// Windows (WASAPI) and macOS (Core Audio tap): an input stream on a playback device.
-    #[cfg(any(windows, target_os = "macos"))]
-    fn open_system(devices: &Devices, pipe: ChannelPipe) -> Result<CaptureHandle, String> {
-        LoopbackCapture::start(devices.system.clone(), pipe).map(CaptureHandle::Loopback)
-    }
-
-    #[cfg(not(any(windows, target_os = "macos")))]
-    fn open_system(devices: &Devices, pipe: ChannelPipe) -> Result<CaptureHandle, String> {
-        let source = match devices.system.clone() {
-            Some(id) => id,
-            None => capture::list_monitor_sources()
-                .into_iter()
-                .next()
-                .map(|d| d.id)
-                .ok_or_else(|| "не найден источник звука системы (Monitor of ...)".to_string())?,
-        };
-        RecorderCapture::start(Some(source), None, pipe)
-            .map(|c| CaptureHandle::Recorder(Box::new(c)))
-    }
-
-    pub(super) fn finish_session(&self, session: Session) -> Result<MeetingInfo, String> {
+        mut session: Session,
+        drain: Duration,
+    ) -> Result<MeetingInfo, String> {
         let id = session.meeting_id.clone();
         self.emit_state(
             MeetingStateKind::Stopping,
@@ -341,10 +311,19 @@ impl MeetingManager {
             None,
         );
 
-        Self::close_channels(session.channels);
+        // No reopening of a channel from here on; then the channels close.
+        if let Some(supervisor) = session.supervisor.take() {
+            supervisor.stop();
+        }
+        Self::close_channels(take_channels(&session.channels));
+        // The last audio is in the tap now: it goes to the server, and the
+        // phrases still on their way are taken before the meeting counts as stopped.
+        if let Some(live) = session.live.take() {
+            live.stop();
+        }
         session.queue.close();
-        if session.recognizer_done.recv_timeout(DRAIN_TIMEOUT).is_err() {
-            warn!("Recognition did not finish within {DRAIN_TIMEOUT:?}; dropping the rest of the queue");
+        if session.recognizer_done.recv_timeout(drain).is_err() {
+            warn!("Recognition did not finish within {drain:?}; dropping the rest of the queue");
             session.queue.abort();
         }
         let _ = session.ticker_stop.send(());
@@ -368,24 +347,20 @@ impl MeetingManager {
     /// Stops the captures, closes the audio files, and waits for the cutters
     /// to hand their last phrases to the queue.
     pub(super) fn close_channels(channels: Vec<ChannelRuntime>) {
-        let mut cutters = Vec::new();
         for channel in channels {
-            if let Some(pipe) = channel.capture.stop() {
-                // Closing the pipe closes the channel to its cutter.
-                pipe.finish();
-            }
-            cutters.push(channel.cutter);
-        }
-        for cutter in cutters {
-            if cutter.join().is_err() {
-                error!("A meeting phrase cutter panicked");
-            }
+            channel.close();
         }
     }
 
     /// A session that never became active (the database refused the meeting).
-    pub(super) fn discard_session(&self, session: Session) {
-        Self::close_channels(session.channels);
+    pub(super) fn discard_session(&self, mut session: Session) {
+        if let Some(supervisor) = session.supervisor.take() {
+            supervisor.stop();
+        }
+        Self::close_channels(take_channels(&session.channels));
+        if let Some(live) = session.live.take() {
+            live.stop();
+        }
         session.queue.abort();
         let _ = session.ticker_stop.send(());
         let _ = session.ticker.join();

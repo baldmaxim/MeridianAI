@@ -10,27 +10,48 @@
 //!   -> recognizer (one) -> meetings.db + `meeting-segment`
 //! ticker: `meeting-levels` ~10 Hz, queue length and device errors
 //! ```
+//!
+//! With the online recognition (the default) there is no cutter and no
+//! recognizer: the audio goes to disk and, mixed, to the server over a
+//! WebSocket (`live_stream.rs`); the phrases come back into the same database.
+//! Without a link the meeting is recorded like a dictaphone.
 
 mod api;
 mod capture;
+mod channel;
 mod db;
 mod db_context;
 mod db_documents;
+mod db_live;
+mod db_pauses;
 mod db_recluster;
 mod db_sync;
 mod db_transcriptions;
 mod db_voices;
 mod documents;
 mod echo;
+mod exit;
+mod live_conn;
+mod live_inbox;
+mod live_mix;
+mod live_proto;
+mod live_proxy;
+mod live_report;
+mod live_stream;
+mod live_types;
+mod loopback;
 mod queries;
 mod recognizer;
 mod segmenter;
 mod session;
 mod silence;
+mod sleep;
 mod sink;
 mod storage;
+mod supervisor;
 #[cfg(test)]
 mod tests;
+mod timeline;
 mod transcriptions;
 pub mod voice;
 mod voices;
@@ -60,6 +81,7 @@ pub use db_transcriptions::{
 };
 pub use db_voices::MeetingVoice;
 pub use documents::AddDocumentsResult;
+pub use live_types::{MeetingLive, MeetingPartial};
 use session::{Session, Slot};
 pub use storage::export_channel_wav;
 pub use transcriptions::{audio_mime, delete_local_copy, TranscriptionsChanged};
@@ -195,6 +217,11 @@ pub fn recorded_channels(meetings_root: &Path, meeting_id: &str) -> Vec<(&'stati
         .collect()
 }
 
+#[cfg(test)]
+pub(crate) fn resume_blocker_for_tests(meeting: &MeetingInfo) -> Option<&'static str> {
+    resume_blocker(meeting)
+}
+
 /// Writes `samples` as the meeting's audio for `channel` (a test fixture).
 #[cfg(test)]
 pub(crate) fn write_test_audio(
@@ -215,6 +242,17 @@ fn meeting_duration(meetings_root: &Path, meeting_id: &str) -> f64 {
         .iter()
         .map(|channel| storage::channel_duration_seconds(&audio, channel))
         .fold(0.0, f64::max)
+}
+
+/// Why a meeting cannot be continued, if it cannot. A stopped or interrupted
+/// meeting can, until the server has it finalized.
+pub(crate) fn resume_blocker(meeting: &MeetingInfo) -> Option<&'static str> {
+    if meeting.status == MeetingStatus::Recording {
+        return Some("Встреча уже записывается");
+    }
+    // На сервере она уже финализирована и новых фраз не примет.
+    (meeting.sync_state == "synced")
+        .then_some("Встреча уже отправлена на сервер — начните новую")
 }
 
 pub struct MeetingManager {
@@ -390,12 +428,8 @@ impl MeetingManager {
             .get_meeting(id)
             .map_err(io_err)?
             .ok_or_else(|| "Встреча не найдена".to_string())?;
-        if previous.status == MeetingStatus::Recording {
-            return Err("Встреча уже записывается".to_string());
-        }
-        // На сервере она уже финализирована и новых фраз не примет.
-        if previous.sync_state == "synced" {
-            return Err("Встреча уже отправлена на сервер — начните новую".to_string());
+        if let Some(reason) = resume_blocker(&previous) {
+            return Err(reason.to_string());
         }
         self.require_model()?;
         let base_seconds = meeting_duration(&self.root, id);
@@ -414,7 +448,22 @@ impl MeetingManager {
         Ok(meeting)
     }
 
-    fn activate(&self, session: Session, meeting: &MeetingInfo) {
+    /// The user finished an interrupted meeting instead of continuing it: it
+    /// counts as stopped from now on, so the sync may finalize it.
+    pub fn finish_interrupted(&self, id: &str) -> Result<MeetingInfo, String> {
+        if !self.db.finish_interrupted(id).map_err(io_err)? {
+            return Err("Встреча не была прервана".to_string());
+        }
+        self.reindex(id);
+        self.db
+            .get_meeting(id)
+            .map_err(io_err)?
+            .ok_or_else(|| "Встреча не найдена".to_string())
+    }
+
+    fn activate(&self, mut session: Session, meeting: &MeetingInfo) {
+        // The meeting is in the database now: the live link may make it on the server.
+        self.start_live(&mut session, meeting);
         *self.slot() = Slot::Active(Box::new(session));
         self.emit_state(MeetingStateKind::Started, &meeting.id, 0, None, None);
     }
@@ -433,7 +482,7 @@ impl MeetingManager {
                 }
             }
         };
-        let result = self.finish_session(*session);
+        let result = self.finish_session(*session, DRAIN_TIMEOUT);
         *self.slot() = Slot::Idle;
         if let Ok(meeting) = &result {
             self.reindex(&meeting.id);

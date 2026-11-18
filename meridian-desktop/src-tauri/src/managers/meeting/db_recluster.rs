@@ -296,6 +296,10 @@ mod tests {
                 created_at: "2026-01-01T00:00:00.000Z".into(),
                 synced: true,
                 voice: Some(old.into()),
+                language: None,
+                translation: None,
+                speaker: None,
+                server_id: None,
             };
             db.insert_segment_embedded(&segment, Some(&embedding(speaker, n)))
                 .unwrap();
@@ -337,6 +341,10 @@ mod tests {
             created_at: String::new(),
             synced: false,
             voice: None,
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         };
         db.insert_segment(&plain).unwrap();
         assert!(db

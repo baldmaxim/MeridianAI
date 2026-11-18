@@ -45,7 +45,9 @@ anyhow = "1.0.95"
 hound = "3.5.1"
 log = "0.4.25"
 env_filter = "0.1.0"
-tokio = "1.43.0"
+tokio = { version = "1.43.0", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
+# Живое распознавание встречи: WebSocket к серверу. native-tls — то же TLS, что у reqwest.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
 earshot = "1.2.2"
 # Output device enumeration (audio_toolkit). No `recording`: microphone capture is handy-recorder's.
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "wav", "flac", "mp3", "vorbis"] }

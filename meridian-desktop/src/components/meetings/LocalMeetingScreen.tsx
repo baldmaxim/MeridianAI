@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useAskChat } from "@/hooks/useAskChat";
 import { useRefineView } from "@/hooks/useRefineView";
 import { useMeetingStore } from "@/stores/meetingStore";
+import { isResumable } from "@/lib/utils/meetingFormat";
 import { AskPane } from "./AskPane";
 import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
 import { DeviceErrorBanner } from "./DeviceErrorBanner";
+import { InterruptedBanner } from "./InterruptedBanner";
 import { LocalMeetingHeader } from "./LocalMeetingHeader";
 import { LocalContextTab } from "./LocalContextTab";
 import { LocalProtocolTab } from "./LocalProtocolTab";
@@ -96,10 +98,12 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
       />
       <DeviceErrorBanner meetingId={meeting.id} />
       <SystemSilentBanner meetingId={meeting.id} />
-      {meeting.status === "interrupted" && (
-        <p className="mx-5 mt-2 rounded-lg bg-amber/10 px-3 py-2 text-sm text-amber">
-          {t("meetings.interrupted.hint")}
-        </p>
+      {meeting.status === "interrupted" && isResumable(meeting) && (
+        <InterruptedBanner
+          meeting={meeting}
+          resuming={resuming}
+          onResume={onResume}
+        />
       )}
 
       <div className="flex min-h-0 flex-1">

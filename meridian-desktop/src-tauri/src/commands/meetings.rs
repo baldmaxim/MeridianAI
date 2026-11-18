@@ -48,7 +48,17 @@ pub async fn start_meeting(
 pub async fn stop_meeting(app: AppHandle) -> Result<MeetingInfo, String> {
     let meeting = blocking(&app, |m| m.stop_meeting()).await?;
     // The stopped meeting goes to the server at once, if there is a connection.
-    app.state::<Arc<SyncManager>>().wake();
+    // (It may have waited as an interrupted one: that wait is over.)
+    app.state::<Arc<SyncManager>>().release_meeting(&meeting.id);
+    Ok(meeting)
+}
+
+/// "Finish" on an interrupted meeting: no more continuing, send it all.
+#[tauri::command]
+#[specta::specta]
+pub async fn finish_interrupted_meeting(app: AppHandle, id: String) -> Result<MeetingInfo, String> {
+    let meeting = blocking(&app, move |m| m.finish_interrupted(&id)).await?;
+    app.state::<Arc<SyncManager>>().release_meeting(&meeting.id);
     Ok(meeting)
 }
 

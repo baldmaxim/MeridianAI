@@ -10,9 +10,10 @@ use tauri::Manager;
 use tauri_specta::Event;
 
 use super::capture::{ChanMsg, ChannelShared};
+use super::channel::ChannelRuntime;
 use super::recognizer::{run_recognizer, PhraseJob, PhraseQueue};
 use super::segmenter::PhraseSegmenter;
-use super::session::{ChannelRuntime, LastLevels};
+use super::session::LastLevels;
 use super::silence::SilenceDetector;
 use super::sink::SegmentSink;
 use super::voices::{embed_fn, EmbedderCell};

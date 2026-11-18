@@ -60,6 +60,15 @@ fn level_filter_from_u8(value: u8) -> log::LevelFilter {
     }
 }
 
+/// The WebSocket library logs the address it connects to at debug and trace
+/// level, and the live stream's address carries the device token: below
+/// warnings nothing from it is logged anywhere.
+fn hides_socket_address(metadata: &log::Metadata<'_>) -> bool {
+    let target = metadata.target();
+    (target.starts_with("tungstenite") || target.starts_with("tokio_tungstenite"))
+        && metadata.level() > log::Level::Warn
+}
+
 fn build_console_filter() -> env_filter::Filter {
     let mut builder = EnvFilterBuilder::new();
 
@@ -578,6 +587,8 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::update_custom_words,
             commands::settings::change_long_form_chunking_setting,
             commands::settings::change_upload_audio_setting,
+            commands::settings::change_recognition_mode_setting,
+            commands::settings::complete_onboarding,
             commands::settings::change_vad_backend_setting,
             commands::settings::change_filler_word_removal_enabled_setting,
             commands::settings::change_number_normalization_enabled_setting,
@@ -600,6 +611,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::start_meeting,
             commands::meetings::stop_meeting,
             commands::meetings::resume_meeting,
+            commands::meetings::finish_interrupted_meeting,
             commands::meetings::get_active_meeting,
             commands::meetings::list_meetings,
             commands::meetings::get_meeting,
@@ -660,6 +672,8 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             managers::meeting::MeetingVoices,
             managers::meeting::MeetingSystemSilent,
             managers::meeting::MeetingLevels,
+            managers::meeting::MeetingLive,
+            managers::meeting::MeetingPartial,
             managers::meeting::MeetingState,
             managers::sync::SyncState,
             managers::sync::AccountChanged,
@@ -733,7 +747,9 @@ pub fn run(cli_args: CliArgs) {
                     })
                     .filter({
                         let console_filter = console_filter.clone();
-                        move |metadata| console_filter.enabled(metadata)
+                        move |metadata| {
+                            !hides_socket_address(metadata) && console_filter.enabled(metadata)
+                        }
                     }),
                     // File logs respect the user's settings (stored in FILE_LOG_LEVEL atomic)
                     Target::new(if let Some(data_dir) = portable::data_dir() {
@@ -748,7 +764,8 @@ pub fn run(cli_args: CliArgs) {
                     })
                     .filter(|metadata| {
                         let file_level = FILE_LOG_LEVEL.load(Ordering::Relaxed);
-                        metadata.level() <= level_filter_from_u8(file_level)
+                        !hides_socket_address(metadata)
+                            && metadata.level() <= level_filter_from_u8(file_level)
                     }),
                     // Stream logs to the webview (via the `log://log` event) so the
                     // debug panel's live log viewer can show them in real time. Only
@@ -756,6 +773,7 @@ pub fn run(cli_args: CliArgs) {
                     // file log level so the "Log Level" setting controls verbosity.
                     Target::new(TargetKind::Webview).filter(|metadata| {
                         WEBVIEW_LOG_STREAMING.load(Ordering::Relaxed)
+                            && !hides_socket_address(metadata)
                             && metadata.level()
                                 <= level_filter_from_u8(FILE_LOG_LEVEL.load(Ordering::Relaxed))
                     }),
@@ -1006,6 +1024,12 @@ pub fn run(cli_args: CliArgs) {
                 tray::recreate_tray_icon(app);
             }
             show_main_window(app);
+        }
+        // The app quits (tray "Quit", the OS shutting the session down): a
+        // meeting that is recording is stopped properly first, so its audio is
+        // closed and on the disk, and it is not left as "interrupted".
+        tauri::RunEvent::Exit => {
+            app.state::<Arc<MeetingManager>>().stop_for_exit();
         }
         // No transcription teardown on exit: transcribe.cpp runs only in the
         // worker process, which exits by itself as soon as this process's end

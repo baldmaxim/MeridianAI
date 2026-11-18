@@ -150,6 +150,18 @@ pub enum VadBackend {
     Earshot,
 }
 
+/// Where a meeting's live text comes from.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RecognitionMode {
+    /// The server (ElevenLabs) recognizes the sound as it is recorded; without
+    /// a connection the meeting is recorded like a dictaphone (no live text).
+    #[default]
+    Online,
+    /// The local model (GigaAM) recognizes phrases on this computer.
+    Local,
+}
+
 /* still handy for composing the initial JSON in the store ------------- */
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// guarantees every field — including ones added in the future — falls back to
@@ -238,6 +250,9 @@ pub struct AppSettings {
     /// Send the meetings' audio to the server together with the text.
     #[serde(default = "default_upload_audio")]
     pub upload_audio: bool,
+    /// Live text of a meeting: the server (default) or the local model.
+    #[serde(default)]
+    pub recognition_mode: RecognitionMode,
 }
 
 fn default_server_url() -> String {
@@ -374,6 +389,7 @@ pub fn get_default_settings() -> AppSettings {
         long_form_chunking: default_long_form_chunking(),
         server_url: default_server_url(),
         upload_audio: default_upload_audio(),
+        recognition_mode: RecognitionMode::default(),
     }
 }
 

@@ -14,6 +14,7 @@ import { AudioStateNote } from "./AudioStateNote";
 import { ChangeProjectDialog } from "./ChangeProjectDialog";
 import { DateTimeChips } from "./DateTimeChips";
 import { LevelMeters } from "./LevelMeters";
+import { LiveStatusChip } from "./LiveStatusChip";
 import { MeetingDuration } from "./MeetingDuration";
 import { MeetingStatusBadge } from "./MeetingStatusBadge";
 import { MeetingSyncActions } from "./MeetingSyncActions";
@@ -103,6 +104,7 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
             <RefineStatusChip status={refine.status} error={refine.error} />
           )}
           <AudioStateNote audioState={meeting.audio_state} />
+          {isActive && <LiveStatusChip />}
           {isActive && <LevelMeters captureMode={meeting.capture_mode} />}
           {isActive && queueLen > 0 && (
             <span className="text-xs text-muted">
@@ -124,7 +126,7 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
           ) : (
             <>
               <MeetingSyncActions meeting={meeting} />
-              {isResumable(meeting) && (
+              {isResumable(meeting) && meeting.status !== "interrupted" && (
                 <Button
                   variant="primary"
                   disabled={resuming}

@@ -13,12 +13,15 @@ interface OnboardingProps {
   onModelSelected: () => void;
   // Shown when the picker was opened from another step (the model update).
   onBack?: () => void;
+  // Online recognition needs no model: the step may be skipped.
+  onSkip?: () => void;
   preview?: boolean;
 }
 
 const Onboarding: React.FC<OnboardingProps> = ({
   onModelSelected,
   onBack,
+  onSkip,
   preview = false,
 }) => {
   const { t } = useTranslation();
@@ -180,6 +183,22 @@ const Onboarding: React.FC<OnboardingProps> = ({
             {t("onboarding.subtitle")}
           </p>
         </div>
+
+        {onSkip && (
+          <div className="max-w-[600px] w-full mx-auto flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 text-start">
+            <p className="min-w-0 flex-1 text-sm text-muted">
+              {t("onboarding.skip.hint")}
+            </p>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={onSkip}
+              disabled={isBusy}
+            >
+              {t("onboarding.skip.button")}
+            </Button>
+          </div>
+        )}
 
         <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
           <div className="space-y-6 pb-6">

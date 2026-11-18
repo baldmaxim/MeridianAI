@@ -3,6 +3,10 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Segment } from "@/bindings";
 import { formatClock } from "@/lib/utils/meetingFormat";
+import {
+  foreignLanguageBadge,
+  formatDiarizedSpeaker,
+} from "@/lib/utils/liveSegment";
 import { useMeetingStore, type VoiceSide } from "@/stores/meetingStore";
 import { VoiceMenu } from "./VoiceMenu";
 
@@ -50,12 +54,36 @@ export const SegmentRow: React.FC<SegmentRowProps> = ({
       : SIDE_CLASSES.mixed
     : (SIDE_CLASSES[segment.channel] ?? SIDE_CLASSES.mixed);
 
+  // The speaker the server told apart (online recognition) colors the phrase
+  // like a voice does; its side stays in the caption.
+  const serverSpeaker = voice ? null : segment.speaker;
+  const colored = (voice ?? serverSpeaker) && speakerClass;
   // A diarized voice takes its speaker color (its side stays in the chip
   // caption); a phrase without a voice keeps the colors of its channel.
-  const barClass =
-    voice && speakerClass ? `speaker-bar ${speakerClass}` : side.bar;
-  const nameClass =
-    voice && speakerClass ? `speaker-name ${speakerClass}` : side.text;
+  const barClass = colored ? `speaker-bar ${speakerClass}` : side.bar;
+  const nameClass = colored ? `speaker-name ${speakerClass}` : side.text;
+
+  // A foreign phrase: the Russian translation is the main text, the original
+  // goes under it, muted, with the language.
+  const badge = foreignLanguageBadge(segment.language);
+  const translation = segment.translation?.trim() || null;
+  const mainText = translation ?? segment.text;
+  const sideCaption =
+    segment.channel === "mic" || segment.channel === "system"
+      ? t(`meetings.speaker.${side.label}`)
+      : null;
+  const serverCaption = serverSpeaker
+    ? [
+        formatDiarizedSpeaker(
+          serverSpeaker,
+          t("meetings.speaker.prefix"),
+          (count) => t("meetings.speaker.session", { count }),
+        ),
+        sideCaption,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
 
   const handleSelect = async (value: VoiceSide) => {
     if (!voice) return;
@@ -88,11 +116,29 @@ export const SegmentRow: React.FC<SegmentRowProps> = ({
             onSelect={(value) => void handleSelect(value)}
           />
         ) : (
-          <span className={`text-xs font-semibold ${nameClass}`}>
-            {t(`meetings.speaker.${side.label}`)}
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`text-xs font-semibold ${nameClass}`}>
+              {serverCaption ?? t(`meetings.speaker.${side.label}`)}
+            </span>
+            {badge && (
+              <span className="rounded border border-border px-1 font-mono text-[10px] leading-4 text-muted">
+                {badge}
+              </span>
+            )}
           </span>
         )}
-        <p className="break-words text-sm text-text">{segment.text}</p>
+        <p className="break-words text-sm text-text">{mainText}</p>
+        {translation && translation !== segment.text && (
+          <p className="break-words text-xs text-muted">
+            <span className="font-mono">
+              {badge
+                ? t("meetings.transcript.original", { lang: badge })
+                : t("meetings.transcript.originalNoLang")}
+              :
+            </span>{" "}
+            {segment.text}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,10 @@ mod documents;
 #[cfg(test)]
 mod documents_tests;
 mod engine;
+mod hold;
+#[cfg(test)]
+mod hold_tests;
+mod live;
 #[cfg(test)]
 mod project_tests;
 #[cfg(test)]
@@ -36,6 +40,7 @@ use tauri_specta::Event;
 pub use account::{AccountInfo, AccountStore};
 pub use client::{ApiClient, ApiError, LoginBody, ServerDocument};
 use engine::{Engine, Outcome};
+pub use live::{prepare_live, LiveError};
 
 use crate::managers::meeting::{MeetingDb, MeetingManager, TranscriptionsChanged};
 use crate::settings::get_settings;
@@ -400,6 +405,7 @@ impl SyncCore {
             }
             Outcome::Unauthorized => self.sign_out(),
             Outcome::Postponed => {}
+            Outcome::Held => self.hold_back(id),
         }
         self.announce(Some(id));
     }
@@ -490,4 +496,5 @@ impl SyncManager {
         self.wake();
         Ok(())
     }
+
 }

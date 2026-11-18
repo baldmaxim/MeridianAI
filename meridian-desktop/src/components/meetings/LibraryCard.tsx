@@ -1,7 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Play } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useMeetingStore } from "@/stores/meetingStore";
 import { getEntryStatus, type LibraryEntry } from "@/lib/utils/library";
 import {
   formatClock,
@@ -85,7 +87,7 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
       {local && status === "interrupted" && isResumable(local) && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 text-xs text-amber">
-            {t("meetings.interrupted.hint")}
+            {t("meetings.interrupted.title")}
           </p>
           <Button
             size="sm"
@@ -101,6 +103,25 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
             {resuming
               ? t("meetings.actions.resuming")
               : t("meetings.actions.resume")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={resuming}
+            onClick={(event) => {
+              event.stopPropagation();
+              void useMeetingStore
+                .getState()
+                .finishInterrupted(local.id)
+                .then((error) => {
+                  if (error)
+                    toast.error(t("meetings.errors.finishFailed"), {
+                      description: error,
+                    });
+                });
+            }}
+          >
+            {t("meetings.interrupted.finish")}
           </Button>
         </div>
       )}

@@ -88,6 +88,15 @@ impl MeetingDb {
         )? > 0)
     }
 
+    /// An interrupted meeting becomes stopped (the user chose "Finish", or the
+    /// hold ran out), so the sync may finalize it. `false`: it was not interrupted.
+    pub fn finish_interrupted(&self, id: &str) -> Result<bool> {
+        Ok(self.conn().execute(
+            "UPDATE meetings SET status = 'stopped' WHERE id = ?1 AND status = 'interrupted'",
+            [id],
+        )? > 0)
+    }
+
     pub fn set_audio_state(&self, id: &str, state: &str) -> Result<()> {
         self.conn().execute(
             "UPDATE meetings SET audio_state = ?2 WHERE id = ?1",
@@ -156,6 +165,28 @@ mod tests {
         assert!(!db.reset_sync("b").unwrap());
         assert!(!db.reset_sync("missing").unwrap());
         assert_eq!(db.count_meetings_for_sync().unwrap(), 2);
+    }
+
+    #[test]
+    fn finishing_an_interrupted_meeting_makes_it_stopped() {
+        let db = MeetingDb::open_in_memory().unwrap();
+        let mut meeting = sample_meeting("a", "2026-01-01T10:00:00.000Z");
+        meeting.status = MeetingStatus::Interrupted;
+        db.insert_meeting(&meeting).unwrap();
+        db.insert_meeting(&sample_meeting("b", "2026-01-01T11:00:00.000Z"))
+            .unwrap();
+        assert!(db.finish_interrupted("a").unwrap());
+        assert_eq!(
+            db.get_meeting("a").unwrap().unwrap().status,
+            MeetingStatus::Stopped
+        );
+        // Only an interrupted meeting changes; a recording one is left alone.
+        assert!(!db.finish_interrupted("a").unwrap());
+        assert!(!db.finish_interrupted("b").unwrap());
+        assert_eq!(
+            db.get_meeting("b").unwrap().unwrap().status,
+            MeetingStatus::Recording
+        );
     }
 
     #[test]

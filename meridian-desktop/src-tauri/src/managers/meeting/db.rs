@@ -171,6 +171,31 @@ pub(super) static MIGRATIONS: &[M] = &[
         PRIMARY KEY (meeting_id, label)
     );",
     ),
+    // Live recognition on the server (see `db_live.rs`): the phrase's language
+    // (ISO code), its Russian translation, the speaker the server told apart
+    // (`s1_speaker_0`) and the id the server gave the phrase (`NULL`: it is a
+    // local phrase). A server phrase is stored with `synced = 1`: the server
+    // has it already.
+    M::up(
+        "ALTER TABLE segments ADD COLUMN language TEXT;
+    ALTER TABLE segments ADD COLUMN translation TEXT;
+    ALTER TABLE segments ADD COLUMN speaker TEXT;
+    ALTER TABLE segments ADD COLUMN server_id TEXT;",
+    ),
+    // Stretches in which the recording did not run because the computer slept
+    // (see `db_pauses.rs`): where in the meeting's time it happened and the
+    // wall clock on both sides of it.
+    M::up(
+        "CREATE TABLE meeting_pauses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        at_seconds REAL NOT NULL,
+        paused_at TEXT NOT NULL,
+        resumed_at TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'sleep'
+    );
+    CREATE INDEX idx_meeting_pauses_meeting ON meeting_pauses(meeting_id, at_seconds);",
+    ),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one
@@ -276,6 +301,19 @@ pub struct Segment {
     /// Whose voice it is ("Голос 1"); `None`: not told apart (no voice model,
     /// a too short phrase, a meeting from before voices).
     pub voice: Option<String>,
+    /// ISO code of the phrase's language, as the server heard it (live
+    /// recognition on the server only).
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Russian translation of a foreign phrase.
+    #[serde(default)]
+    pub translation: Option<String>,
+    /// The speaker the server told apart (`s1_speaker_0`).
+    #[serde(default)]
+    pub speaker: Option<String>,
+    /// The server's id of the phrase; `None` for a phrase recognized here.
+    #[serde(default)]
+    pub server_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
@@ -334,6 +372,10 @@ pub(super) fn map_segment(row: &Row<'_>) -> rusqlite::Result<Segment> {
         created_at: row.get("created_at")?,
         synced: row.get::<_, i64>("synced")? != 0,
         voice: row.get("voice")?,
+        language: row.get("language")?,
+        translation: row.get("translation")?,
+        speaker: row.get("speaker")?,
+        server_id: row.get("server_id")?,
     })
 }
 
@@ -609,6 +651,10 @@ mod tests {
             created_at: "2026-01-01T00:00:00.000Z".to_string(),
             synced: false,
             voice: None,
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         }
     }
 

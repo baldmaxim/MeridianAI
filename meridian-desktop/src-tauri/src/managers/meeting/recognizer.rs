@@ -125,6 +125,10 @@ pub fn run_recognizer(
             created_at: now(),
             synced: false,
             voice: None,
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         };
         if let Err(e) = store(segment, &phrase.samples) {
             on_error(format!("Не удалось сохранить фразу: {e:#}"));

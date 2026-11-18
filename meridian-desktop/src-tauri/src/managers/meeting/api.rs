@@ -5,6 +5,7 @@ use specta::Type;
 use tauri_specta::Event;
 
 use super::db_voices::MeetingVoice;
+use super::live_types::LiveStatus;
 use super::{CaptureDevice, CaptureMode, MeetingInfo, Note, Segment};
 
 #[derive(Clone, Debug, Deserialize, Type)]
@@ -65,6 +66,8 @@ pub struct ActiveMeetingState {
     pub elapsed_seconds: f64,
     pub queue_len: u32,
     pub levels: MeetingLevels,
+    /// The link of the live text to the server (`off` for local recognition).
+    pub live: LiveStatus,
 }
 
 #[derive(Clone, Debug, Deserialize, Type)]

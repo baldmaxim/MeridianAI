@@ -188,6 +188,10 @@ mod tests {
             created_at: "2026-01-01T00:00:00.000Z".to_string(),
             synced: false,
             voice: None,
+            language: None,
+            translation: None,
+            speaker: None,
+            server_id: None,
         }
     }
 

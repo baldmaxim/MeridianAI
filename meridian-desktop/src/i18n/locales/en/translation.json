@@ -106,6 +106,10 @@
         "checkFailed": "Failed to check permissions. Please try again.",
         "requestFailed": "Failed to request permission. Please try again."
       }
+    },
+    "skip": {
+      "hint": "A model is only needed for local recognition. Online recognition works without one — you can download a model later in settings.",
+      "button": "Skip"
     }
   },
   "modelSelector": {
@@ -181,6 +185,15 @@
         "tooltip": "Rescan for models added to the models folder or Hugging Face cache outside Meridian"
       },
       "noModelsMatch": "No models match this filter."
+    },
+    "recognition": {
+      "groupTitle": "Recognition",
+      "title": "Live text of a meeting",
+      "description": "Online: the server recognizes speech as you record (translation of foreign phrases, speakers). Without a connection the meeting is recorded like a dictaphone and the text appears after the stop. Local: the model on this computer recognizes.",
+      "options": {
+        "online": "Online (ElevenLabs)",
+        "local": "Local (GigaAM)"
+      }
     },
     "sound": {
       "title": "Sound",
@@ -384,7 +397,7 @@
     },
     "status": {
       "recording": "Recording",
-      "interrupted": "Interrupted",
+      "interrupted": "Recording interrupted",
       "stopped": "Stopped"
     },
     "sync": {
@@ -394,7 +407,9 @@
       "empty": "Empty"
     },
     "interrupted": {
-      "hint": "Recording was interrupted: the app closed during the meeting. Audio up to that point is saved."
+      "title": "Recording interrupted",
+      "hint": "Audio up to this point is saved: the computer went to sleep, the app closed or the power went off. Continue recording in this same meeting or finish it. It finishes by itself after 12 hours.",
+      "finish": "Finish"
     },
     "actions": {
       "resume": "Resume recording",
@@ -452,6 +467,7 @@
       "mic": "Microphone"
     },
     "speaker": {
+      "session": "session {{count}}",
       "prefix": "Speaker",
       "mic": "Us",
       "system": "Opponent",
@@ -467,7 +483,16 @@
       "emptyLive": "No phrases yet. Speak — the text will appear here.",
       "empty": "This meeting has no recognized phrases.",
       "jumpToNew": "↓ to new",
-      "note": "Note"
+      "note": "Note",
+      "original": "{{lang}} · original",
+      "originalNoLang": "original"
+    },
+    "live": {
+      "connecting": "Connecting…",
+      "online": "Online",
+      "reconnecting": "Reconnecting…",
+      "recorder": "Dictaphone (no connection)",
+      "recorderHint": "No connection: recording like a dictaphone, the text will appear after the stop"
     },
     "notes": {
       "title": "Notes",
@@ -500,7 +525,8 @@
       "openSiteFailed": "Could not open the site",
       "protocolFailed": "Could not load the protocol",
       "libraryFailed": "Could not refresh the list from the site",
-      "projectFailed": "Could not change the project"
+      "projectFailed": "Could not change the project",
+      "finishFailed": "Could not finish the meeting"
     },
     "audio": {
       "noStorage": "audio not sent: the server has no storage"

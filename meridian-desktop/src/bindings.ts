@@ -85,6 +85,26 @@ async changeUploadAudioSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: e  as any };
 }
 },
+async changeRecognitionModeSetting(mode: RecognitionMode) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_recognition_mode_setting", { mode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The first-run steps are over without choosing a model (online recognition
+ * needs none): the next start goes straight to the app.
+ */
+async completeOnboarding() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("complete_onboarding") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeVadBackendSetting(backend: VadBackend) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_vad_backend_setting", { backend }) };
@@ -258,6 +278,17 @@ async stopMeeting() : Promise<Result<MeetingInfo, string>> {
 async resumeMeeting(id: string) : Promise<Result<MeetingInfo, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("resume_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "Finish" on an interrupted meeting: no more continuing, send it all.
+ */
+async finishInterruptedMeeting(id: string) : Promise<Result<MeetingInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("finish_interrupted_meeting", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -728,6 +759,8 @@ async unloadModelManually() : Promise<Result<null, string>> {
 export const events = __makeEvents__<{
 accountChanged: AccountChanged,
 meetingLevels: MeetingLevels,
+meetingLive: MeetingLive,
+meetingPartial: MeetingPartial,
 meetingSegment: MeetingSegment,
 meetingSegmentRemoved: MeetingSegmentRemoved,
 meetingState: MeetingState,
@@ -738,6 +771,8 @@ transcriptionsChanged: TranscriptionsChanged
 }>({
 accountChanged: "account-changed",
 meetingLevels: "meeting-levels",
+meetingLive: "meeting-live",
+meetingPartial: "meeting-partial",
 meetingSegment: "meeting-segment",
 meetingSegmentRemoved: "meeting-segment-removed",
 meetingState: "meeting-state",
@@ -763,7 +798,11 @@ export type AccountChanged = { account: AccountInfo | null; reason: string | nul
 export type AccountInfo = { server_url: string; user: AccountUser; device_id: number; logged_in: boolean }
 export type AccountLoginRequest = { server_url: string; email: string; password: string }
 export type AccountUser = { id: number; email: string; display_name: string | null }
-export type ActiveMeetingState = { meeting: MeetingInfo; elapsed_seconds: number; queue_len: number; levels: MeetingLevels }
+export type ActiveMeetingState = { meeting: MeetingInfo; elapsed_seconds: number; queue_len: number; levels: MeetingLevels; 
+/**
+ * The link of the live text to the server (`off` for local recognition).
+ */
+live: LiveStatus }
 export type AddDocumentsResult = { added: number; rejected: RejectedDocument[] }
 /**
  * The container-level `serde(default)` (backed by the `Default` impl below)
@@ -822,7 +861,11 @@ server_url?: string;
 /**
  * Send the meetings' audio to the server together with the text.
  */
-upload_audio?: boolean }
+upload_audio?: boolean; 
+/**
+ * Live text of a meeting: the server (default) or the local model.
+ */
+recognition_mode?: RecognitionMode }
 export type AskAnswer = { answer: string; sources: AskSource[] }
 export type AskSource = { 
 /**
@@ -882,6 +925,37 @@ offline: boolean; signed_in: boolean }
  * Where the meeting came from: any link with this app, or the site itself.
  */
 export type LibrarySource = "desktop" | "web"
+/**
+ * How the live text of the meeting is doing.
+ */
+export type LiveState = 
+/**
+ * No live text from the server: the local model recognizes (or nothing).
+ */
+"off" | 
+/**
+ * The first connection is being made.
+ */
+"connecting" | 
+/**
+ * The server recognizes the sound as it is recorded.
+ */
+"online" | 
+/**
+ * The link was lost; a new connection is being made.
+ */
+"reconnecting" | 
+/**
+ * No link: the meeting is recorded like a dictaphone (the text comes
+ * after the stop). The next attempt follows, unless the message says why
+ * it will not.
+ */
+"recorder"
+export type LiveStatus = { state: LiveState; 
+/**
+ * Why there is no link (shown to the user).
+ */
+message: string | null }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MeetingDetails = { meeting: MeetingInfo; segments: Segment[]; notes: Note[] }
 /**
@@ -930,6 +1004,14 @@ web_url: string | null }
  * Input levels 0..1 of the two channels.
  */
 export type MeetingLevels = { mic: number; system: number }
+/**
+ * The state of the live link changed.
+ */
+export type MeetingLive = { meeting_id: string; status: LiveStatus }
+/**
+ * The phrase the server is hearing right now (not final; empty: gone).
+ */
+export type MeetingPartial = { meeting_id: string; text: string }
 /**
  * A recognized phrase, as it is stored.
  */
@@ -1057,6 +1139,19 @@ export type QueuedDocument = { id: number; original_name: string; size: number;
  */
 state: string; error: string | null }
 /**
+ * Where a meeting's live text comes from.
+ */
+export type RecognitionMode = 
+/**
+ * The server (ElevenLabs) recognizes the sound as it is recorded; without
+ * a connection the meeting is recorded like a dictaphone (no live text).
+ */
+"online" | 
+/**
+ * The local model (GigaAM) recognizes phrases on this computer.
+ */
+"local"
+/**
  * Why a dropped file was not taken.
  */
 export type RejectReason = 
@@ -1092,7 +1187,24 @@ channel: string; start_time: number; end_time: number; text: string; created_at:
  * Whose voice it is ("Голос 1"); `None`: not told apart (no voice model,
  * a too short phrase, a meeting from before voices).
  */
-voice: string | null }
+voice: string | null; 
+/**
+ * ISO code of the phrase's language, as the server heard it (live
+ * recognition on the server only).
+ */
+language?: string | null; 
+/**
+ * Russian translation of a foreign phrase.
+ */
+translation?: string | null; 
+/**
+ * The speaker the server told apart (`s1_speaker_0`).
+ */
+speaker?: string | null; 
+/**
+ * The server's id of the phrase; `None` for a phrase recognized here.
+ */
+server_id?: string | null }
 /**
  * A document of a meeting as the server describes it. Type and tags are
  * found by the server and only shown here.

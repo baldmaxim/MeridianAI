@@ -7,6 +7,7 @@ import type {
   ChineseScript,
   LogLevel,
   TranscribeAcceleratorSetting,
+  RecognitionMode,
   VadBackend,
 } from "@/bindings";
 import { commands } from "@/bindings";
@@ -104,6 +105,15 @@ const settingUpdaters: {
     ),
   transcribe_gpu_device: (value) =>
     commands.changeTranscribeGpuDevice(value as string | null),
+  recognition_mode: async (value) => {
+    const result = await commands.changeRecognitionModeSetting(
+      value as RecognitionMode,
+    );
+    if (result.status === "error") {
+      toast.error(result.error);
+      throw new Error(result.error);
+    }
+  },
   upload_audio: async (value) => {
     const result = await commands.changeUploadAudioSetting(value as boolean);
     if (result.status === "error") {

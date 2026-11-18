@@ -251,6 +251,10 @@ fn segment(meeting: &str, n: usize) -> Segment {
         created_at: STARTED.to_string(),
         synced: false,
         voice: None,
+        language: None,
+        translation: None,
+        speaker: None,
+        server_id: None,
     }
 }
 
@@ -260,6 +264,10 @@ impl Fixture {
         for n in 0..segments {
             self.db.insert_segment(&segment(id, n)).unwrap();
         }
+    }
+
+    pub(super) fn root_path(&self) -> &std::path::Path {
+        self.root.path()
     }
 
     pub(super) fn meeting(&self, id: &str) -> MeetingInfo {
@@ -584,4 +592,38 @@ fn retry_delay_doubles_up_to_fifteen_minutes() {
     assert_eq!(secs, [30, 60, 120, 240, 480, 900, 900, 900]);
     assert_eq!(super::retry_delay(0), Duration::from_secs(30));
     assert_eq!(super::retry_delay(u32::MAX), Duration::from_secs(900));
+}
+
+#[tokio::test]
+async fn a_dictaphone_meeting_without_text_still_goes_to_the_server() {
+    // No connection during the meeting: no phrases, but the audio is on disk.
+    let server = start_mock(happy).await;
+    let fx = fixture(&server.url);
+    fx.add_meeting("m1", MeetingStatus::Stopped, 0);
+    write_test_audio(fx.root.path(), "m1", "mic", &[100; 16_000]);
+
+    fx.core.run_pass(true).await;
+
+    let lines = server.lines();
+    assert!(lines.contains(&"POST /api/desktop/meetings".to_string()));
+    assert!(lines.contains(&"POST /api/desktop/meetings/42/audio-upload".to_string()));
+    assert!(lines.contains(&"POST /api/desktop/meetings/42/finalize".to_string()));
+    assert_eq!(fx.meeting("m1").sync_state, "synced");
+}
+
+#[tokio::test]
+async fn an_empty_meeting_is_still_not_sent() {
+    let server = start_mock(happy).await;
+    let fx = fixture(&server.url);
+    // No text, no audio on disk.
+    fx.add_meeting("none", MeetingStatus::Stopped, 0);
+    // Audio, but sending audio is switched off: nothing to send either.
+    fx.add_meeting("quiet", MeetingStatus::Stopped, 0);
+    write_test_audio(fx.root.path(), "quiet", "mic", &[100; 1_600]);
+
+    fx.core.run_pass(false).await;
+
+    assert_eq!(server.count(), 0);
+    assert_eq!(fx.meeting("none").sync_state, "empty");
+    assert_eq!(fx.meeting("quiet").sync_state, "empty");
 }

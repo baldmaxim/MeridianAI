@@ -30,16 +30,17 @@ impl MeetingManager {
     }
 
     pub fn get_active_meeting(&self) -> Result<Option<ActiveMeetingState>, String> {
-        let (id, elapsed, queue_len, levels) = {
+        let (id, elapsed, queue_len, levels, live) = {
             let slot = self.slot();
             let Slot::Active(session) = &*slot else {
                 return Ok(None);
             };
             (
                 session.meeting_id.clone(),
-                session.base_seconds + session.started.elapsed().as_secs_f64(),
+                session.timeline.seconds(),
                 session.queue.len(),
                 session.levels.load(),
+                session.live_status(),
             )
         };
         let meeting = self
@@ -52,6 +53,7 @@ impl MeetingManager {
             elapsed_seconds: elapsed,
             queue_len: queue_len as u32,
             levels,
+            live,
         }))
     }
 

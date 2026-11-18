@@ -157,6 +157,30 @@ pub fn change_upload_audio_setting(app: AppHandle, enabled: bool) -> Result<(), 
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_recognition_mode_setting(
+    app: AppHandle,
+    mode: settings::RecognitionMode,
+) -> Result<(), String> {
+    // A meeting reads the mode from settings when it starts.
+    let mut settings = settings::get_settings(&app);
+    settings.recognition_mode = mode;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// The first-run steps are over without choosing a model (online recognition
+/// needs none): the next start goes straight to the app.
+#[tauri::command]
+#[specta::specta]
+pub fn complete_onboarding(app: AppHandle) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.onboarding_completed = true;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_long_form_chunking_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.long_form_chunking = enabled;
