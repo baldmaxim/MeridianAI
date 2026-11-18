@@ -9,6 +9,7 @@ import { FIN_LABELS, finBadgeStyle, formatDuration } from '../lib/meetingMeta';
 import { useMeetingStore } from '../store/meetingStore';
 import { Dropdown } from '../components/common/Dropdown';
 import { Modal } from '../components/common/Modal';
+import { ObjectDocuments } from '../components/object/ObjectDocuments';
 import type { ProjectObject, MeetingListItem } from '../types';
 import styles from './ObjectDetailPage.module.css';
 import { cx } from '../utils/cx';
@@ -93,7 +94,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
         </button>
         <div className={styles.titleWrap}>
           <span className={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
-          {object && (object.address || object.description) && (
+          {object && (
             <div className={styles.infoWrap}>
               <button
                 type="button"
@@ -111,6 +112,12 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                 )}
                 {object.description && (
                   <div className={styles.infoRow}><span className={styles.infoLabel}>Описание</span><span className={styles.infoVal}>{object.description}</span></div>
+                )}
+                {object.notes && (
+                  <div className={styles.infoRow}><span className={styles.infoLabel}>Заметки</span><span className={styles.infoVal}>{object.notes}</span></div>
+                )}
+                {!object.address && !object.description && !object.notes && (
+                  <div className={styles.infoVal}>Нет описания</div>
                 )}
               </Dropdown>
             </div>
@@ -214,6 +221,8 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
           );
         })}
       </div>
+
+      {object && <ObjectDocuments key={objectId} objectId={objectId} />}
 
       <Modal open={confirmDelete != null} onClose={() => { if (!deleting) setConfirmDelete(null); }} maxWidth={420}>
         <div className={styles.modalTitle}>Удалить встречу?</div>

@@ -94,6 +94,8 @@ export interface DocumentFilters {
   object_id?: number;
   status?: string;
   q?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export async function listDocumentRecords(filters?: DocumentFilters): Promise<DocumentRecord[]> {
@@ -102,6 +104,8 @@ export async function listDocumentRecords(filters?: DocumentFilters): Promise<Do
   if (filters?.object_id != null) params.object_id = filters.object_id;
   if (filters?.status) params.status = filters.status;
   if (filters?.q) params.q = filters.q;
+  if (filters?.limit != null) params.limit = filters.limit;
+  if (filters?.offset != null) params.offset = filters.offset;
   const { data } = await api.get<DocumentRecord[]>('/documents', { params });
   return data;
 }
@@ -109,6 +113,12 @@ export async function listDocumentRecords(filters?: DocumentFilters): Promise<Do
 export async function getDocumentRecord(id: number): Promise<DocumentRecord> {
   const { data } = await api.get<DocumentRecord>(`/documents/${id}`);
   return data;
+}
+
+/** Presigned GET на оригинал документа (URL — секрет: не логировать, не сохранять). */
+export async function getDocumentDownloadUrl(id: number): Promise<string> {
+  const { data } = await api.get<{ url: string }>(`/documents/${id}/download-url`);
+  return data.url;
 }
 
 export async function deleteDocumentRecord(id: number): Promise<void> {

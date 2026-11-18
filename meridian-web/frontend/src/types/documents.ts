@@ -28,6 +28,7 @@ export interface DocumentRecord {
   created_at: string;
   updated_at: string;
   chunks_count: number;
+  doc_type_label?: string | null;
 }
 
 export type DocumentUploadMode = 's3_presigned' | 'legacy_multipart';

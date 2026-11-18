@@ -27,6 +27,10 @@ class DocumentUploadSessionResponse(BaseModel):
     legacy_upload_url: str | None = None
 
 
+class DocumentDownloadUrlResponse(BaseModel):
+    url: str
+
+
 class DocumentConfirmResponse(BaseModel):
     document_id: int
     status: str

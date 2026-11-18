@@ -25,9 +25,10 @@ from ..schemas.document import (
     DocumentUploadSessionResponse,
     DocumentConfirmResponse,
     DocumentResponse,
+    DocumentDownloadUrlResponse,
     DocClassificationVocab,
 )
-from ..services import document_storage
+from ..services import document_storage, s3
 from ..services.document_classify import vocab as classification_vocab
 from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..services.jobs import enqueue
@@ -46,6 +47,7 @@ from ..services.access import (
 from ..core.context.document_loader import SUPPORTED_EXTENSIONS, DOC_TYPE_LABELS
 from ..services.session_manager import get_session_manager
 from ..utils.files import safe_filename
+from .stash import _safe_download_name
 
 router = APIRouter()
 
@@ -235,7 +237,7 @@ async def list_documents(
     """Список документов (общая хронология — видны все)."""
     stmt = (
         select(DocumentRecord, _chunks_count_subq().label("chunks_count"))
-        .order_by(DocumentRecord.created_at.desc())
+        .order_by(DocumentRecord.created_at.desc(), DocumentRecord.id.desc())
     )
     if customer_id is not None:
         stmt = stmt.where(DocumentRecord.customer_id == customer_id)
@@ -266,6 +268,33 @@ async def get_document(
         select(func.count(DocumentChunk.id)).where(DocumentChunk.document_id == document_id)
     )
     return _to_response(doc, cc or 0)
+
+
+@router.get("/{document_id}/download-url", response_model=DocumentDownloadUrlResponse)
+async def get_document_download_url(
+    document_id: int,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Presigned GET URL оригинала документа (имя файла — через Content-Disposition)."""
+    doc = await db.get(DocumentRecord, document_id)
+    if not doc:
+        raise HTTPException(404, "Документ не найден")
+    if not await user_can_access_document(db, user.id, document_id):
+        raise HTTPException(403, "Нет доступа к документу")
+    if not get_settings().s3_enabled:
+        raise HTTPException(503, "S3-хранилище не настроено")
+    file_rec = await db.get(FileRecord, doc.file_id) if doc.file_id else None
+    if file_rec is None or file_rec.status == "deleted" or not file_rec.object_key:
+        raise HTTPException(404, "Файл документа не найден")
+    # ответ содержит presigned URL (подпись в query) — не кэшировать; URL НЕ логировать (§18)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    url = s3.presign_get(
+        file_rec.object_key,
+        download_name=_safe_download_name(doc.original_name or file_rec.original_name),
+    )
+    return DocumentDownloadUrlResponse(url=url)
 
 
 @router.post("/{document_id}/reprocess")
