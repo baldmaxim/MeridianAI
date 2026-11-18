@@ -103,6 +103,23 @@ unset PGPASSWORD
 
 Перед деструктивными операциями на проде делайте свежий дамп вручную: `sudo systemctl start meridian-pg-backup.service`.
 
+## Установщики десктопа на сайте
+
+Кнопки на странице приложения ведут на `/downloads/...`. Файлы подтягивает таймер из последнего опубликованного релиза GitHub (`baldmaxim/MeridianAI`, тег `desktop-v*`) в `/opt/portals/meridian/desktop-dist/` (монтируется в frontend read-only).
+
+```bash
+# с dev-машины, из meridian-web/deploy/desktop-dist
+ssh <прод> mkdir -p /opt/infra/desktop-sync
+scp meridian-desktop-sync.sh <прод>:/opt/infra/desktop-sync/
+scp meridian-desktop-sync.{service,timer} <прод>:/etc/systemd/system/
+# на сервере
+sudo systemctl daemon-reload && sudo systemctl enable --now meridian-desktop-sync.timer
+sudo systemctl start meridian-desktop-sync.service   # первый прогон
+journalctl -u meridian-desktop-sync.service -n 20    # лог
+```
+
+После релиза `desktop-v*` файлы появятся на сайте в течение 15 минут (только опубликованные релизы, черновики — нет). Автообновление приложения (`/desktop/latest.json`) по-прежнему ходит на GitHub.
+
 ## Запрещено на проде (§19)
 
 - `docker system prune -a`, `docker compose down --volumes`, `docker stop $(docker ps -q)`, `rm -rf /opt/portals/*`

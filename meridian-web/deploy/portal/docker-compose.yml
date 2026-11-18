@@ -91,6 +91,9 @@ services:
     networks:
       infra_web:
         aliases: [meridian-frontend]
+    # установщики десктопа (наполняет meridian-desktop-sync.timer), раздаются как /downloads/
+    volumes:
+      - ${DESKTOP_DIST_DIR:-/opt/portals/meridian/desktop-dist}:/usr/share/nginx/html/downloads:ro
     restart: unless-stopped
 
 networks:

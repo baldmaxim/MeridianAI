@@ -82,10 +82,10 @@ export const DesktopAppPage: FC<IProps> = ({ onBack }) => {
         <section className={styles.card}>
           <h2 className={styles.h2}>Скачать</h2>
           <div className="dk-downloads">
-            <a className={cx('dk-btn t-btn', styles.primaryBtn)} href={DESKTOP_DOWNLOAD_WINDOWS} target="_blank" rel="noopener noreferrer">
+            <a className={cx('dk-btn t-btn', styles.primaryBtn)} href={DESKTOP_DOWNLOAD_WINDOWS} download>
               Windows (.exe)
             </a>
-            <a className={cx('dk-btn t-btn', styles.primaryBtn)} href={DESKTOP_DOWNLOAD_MACOS} target="_blank" rel="noopener noreferrer">
+            <a className={cx('dk-btn t-btn', styles.primaryBtn)} href={DESKTOP_DOWNLOAD_MACOS} download>
               macOS, Apple Silicon (.dmg)
             </a>
           </div>

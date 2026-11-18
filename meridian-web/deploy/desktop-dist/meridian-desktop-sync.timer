@@ -1,0 +1,10 @@
+[Unit]
+Description=Meridian: проверка нового релиза десктопа (каждые 15 мин)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

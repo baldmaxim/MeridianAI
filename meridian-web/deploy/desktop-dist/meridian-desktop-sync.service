@@ -1,0 +1,12 @@
+[Unit]
+Description=Meridian: синхронизация установщиков десктопа из GitHub Releases
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# скрипт копируется отдельно: чекаут на проде не обновляется (код приходит образами GHCR)
+ExecStart=/opt/infra/desktop-sync/meridian-desktop-sync.sh
+# два файла по ~45 МБ
+TimeoutStartSec=1h
+Nice=10

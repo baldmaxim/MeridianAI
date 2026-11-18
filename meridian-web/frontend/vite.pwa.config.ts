@@ -73,6 +73,7 @@ export const pwaOptions: Partial<VitePWAOptions> = {
       /^\/ws(\/|$)/,
       /^\/s3(\/|$)/,
       /^\/health(\/|$)/,
+      /^\/downloads(\/|$)/,
       /^\/desktop\/latest\.json$/,
     ],
     runtimeCaching: [
