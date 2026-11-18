@@ -52,6 +52,59 @@ def test_docx_extraction_keeps_tables_and_paragraph_order(tmp_path):
     assert "Срок 10 дней" in text
     assert text.index("Условия предложения") < text.index("Аванс") < text.index("Заключительные условия")
 
+
+def test_docx_extraction_uses_current_tracked_revision(tmp_path):
+    from docx import Document
+    from docx.oxml import OxmlElement
+
+    def revision(tag, text, text_tag="w:t"):
+        wrapper = OxmlElement(tag)
+        run = OxmlElement("w:r")
+        node = OxmlElement(text_tag)
+        node.text = text
+        run.append(node)
+        wrapper.append(run)
+        return wrapper
+
+    document = Document()
+    paragraph = document.add_paragraph("Аванс: ")
+    paragraph._p.append(revision("w:del", "10 процентов", "w:delText"))
+    paragraph._p.append(revision("w:ins", "30 процентов"))
+    paragraph._p.append(revision("w:moveFrom", "Старая гарантия"))
+    paragraph._p.append(revision("w:moveTo", "Новая гарантия"))
+    inserted = OxmlElement("w:ins")
+    moved_paragraph = OxmlElement("w:p")
+    moved_paragraph.append(revision("w:ins", "Срок 10 дней"))
+    inserted.append(moved_paragraph)
+    paragraph._p.addnext(inserted)
+    path = tmp_path / "tracked.docx"
+    document.save(path)
+
+    text = dp._extract_docx(str(path))[0]["text"]
+    assert "Аванс: 30 процентов" in text
+    assert "Новая гарантия" in text
+    assert "Срок 10 дней" in text
+    assert "10 процентов" not in text
+    assert "Старая гарантия" not in text
+
+
+def test_docx_with_only_deleted_text_stays_empty(tmp_path):
+    from docx import Document
+    from docx.oxml import OxmlElement
+
+    document = Document()
+    paragraph = document.add_paragraph()
+    deleted = OxmlElement("w:del")
+    run = OxmlElement("w:r")
+    node = OxmlElement("w:delText")
+    node.text = "Удалённые условия не являются действующей редакцией"
+    run.append(node)
+    deleted.append(run)
+    paragraph._p.append(deleted)
+    path = tmp_path / "deleted.docx"
+    document.save(path)
+    assert dp._extract_docx(str(path))[0]["text"] == ""
+
 async def _mk_user(db, email):
     u = User(email=email, password_hash="x", role="user", is_active=True)
     db.add(u)
