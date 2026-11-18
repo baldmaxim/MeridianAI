@@ -225,7 +225,8 @@ async def test_process_writes_classification_and_matches_customer_by_inn(sqlite_
         db.add(Customer(name="ООО Заказчик", inn="7701234567"))
         db.add(Customer(name="Другой", inn="5000000000"))
         doc = DocumentRecord(owner_user_id=owner.id, created_by_user_id=owner.id, original_name="d.txt",
-                             file_ext=".txt", status="uploaded", s3_key="k/d.txt")
+                             file_ext=".txt", status="uploaded", s3_key="k/d.txt",
+                             doc_meta={"import_source": {"key": "source-key", "sha256": "source-hash"}})
         db.add(doc)
         await db.commit()
         doc_id = doc.id
@@ -239,6 +240,7 @@ async def test_process_writes_classification_and_matches_customer_by_inn(sqlite_
         assert doc.doc_type == "contract" and doc.classify_source == "rules" and doc.classified_at
         assert "penalty" in doc.doc_tags
         assert doc.doc_meta["inn"] == ["7701234567"] and doc.doc_meta["number"] == "5"
+        assert doc.doc_meta["import_source"] == {"key": "source-key", "sha256": "source-hash"}
         customer = (await db.execute(select(Customer).where(Customer.inn == "7701234567"))).scalar_one()
         assert doc.customer_id == customer.id
 

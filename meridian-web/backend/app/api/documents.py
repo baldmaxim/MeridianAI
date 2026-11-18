@@ -70,6 +70,7 @@ def _to_response(doc: DocumentRecord, chunks_count: int = 0) -> DocumentResponse
 
 async def create_s3_document_upload(
     db: AsyncSession, user: User, data: DocumentUploadSessionRequest, *, meeting_id: int | None,
+    import_source: dict | None = None,
 ) -> DocumentUploadSessionResponse:
     """Создать запись документа + presigned PUT (S3 уже проверен вызывающим).
 
@@ -117,6 +118,7 @@ async def create_s3_document_upload(
         s3_key=key,
         status="pending",
         created_by_user_id=user.id,
+        doc_meta={"import_source": import_source} if import_source is not None else None,
     )
     db.add(doc)
     await db.flush()

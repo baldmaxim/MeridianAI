@@ -24,7 +24,7 @@ from app.services import s3 as s3mod
 from app.services import document_storage
 from app.services import document_processing as dp
 from app.services.document_context import get_relevant_chunks_for_meeting, format_chunks_block
-from app.api.documents import create_document_upload_session, confirm_document_upload
+from app.api.documents import create_document_upload_session, confirm_document_upload, create_s3_document_upload
 from app.api.history import attach_meeting_document, list_meeting_documents
 
 
@@ -149,6 +149,21 @@ async def test_upload_session_accepts_supported_exts(commit_db, monkeypatch):
             user=owner, db=commit_db,
         )
         assert resp.document_id and resp.upload_url == "http://fake-s3/put"
+
+
+async def test_import_source_is_saved_atomically_with_upload_session(commit_db, monkeypatch):
+    _enable_s3(monkeypatch)
+    owner = await _mk_user(commit_db, "source@test.local")
+    source = {"key": "source-key", "sha256": "source-hash", "kind": "offer"}
+
+    response = await create_s3_document_upload(
+        commit_db, owner, DocumentUploadSessionRequest(filename="offer.docx", size_bytes=10),
+        meeting_id=None, import_source=source,
+    )
+
+    document = await commit_db.get(DocumentRecord, response.document_id)
+    assert document.doc_meta["import_source"] == source
+    assert document.status == "pending"
 
 
 async def test_upload_session_object_open_to_everyone(commit_db, monkeypatch):

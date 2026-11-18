@@ -343,7 +343,10 @@ async def handle_document_process(payload: dict) -> None:
                 result, customer_id = classification
                 doc.doc_type = result.doc_type
                 doc.doc_tags = result.tags
-                doc.doc_meta = result.meta
+                import_source = (doc.doc_meta or {}).get("import_source")
+                doc.doc_meta = dict(result.meta)
+                if import_source is not None:
+                    doc.doc_meta["import_source"] = import_source
                 doc.classify_source = result.source
                 doc.classified_at = datetime.utcnow()
                 if doc.customer_id is None and customer_id is not None:
