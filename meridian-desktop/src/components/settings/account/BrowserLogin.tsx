@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
 import { Button } from "@/components/ui/Button";
@@ -9,85 +9,51 @@ import { useSyncStore } from "@/stores/syncStore";
 const DEFAULT_SERVER_URL = "https://meridianai.ru";
 const FIELD_CLASS = "w-full min-h-11 text-[16px]!";
 
-/** Sign-in form; the server field hides under "Another server". */
-export const LoginForm: React.FC = () => {
+/** Sign-in through the system browser; the server field hides under "Another server". */
+export const BrowserLogin: React.FC = () => {
   const { t } = useTranslation();
   const { settings } = useSettings();
   const setAccount = useSyncStore((s) => s.setAccount);
   const [serverEdit, setServerEdit] = useState<string | null>(null);
   const [serverOpen, setServerOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [pending, setPending] = useState(false);
+  const cancelledRef = useRef(false);
 
   const serverUrl = serverEdit ?? (settings?.server_url || DEFAULT_SERVER_URL);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
+  const handleLogin = async () => {
+    if (pending) return;
+    setPending(true);
     setError(null);
+    cancelledRef.current = false;
     try {
-      const result = await commands.accountLogin({
-        server_url: serverUrl,
-        email,
-        password,
-      });
+      const result = await commands.accountBrowserLogin(serverUrl);
       if (result.status === "ok") {
-        setPassword("");
         setAccount(result.data);
-      } else {
+      } else if (!cancelledRef.current) {
         setError(result.error);
       }
     } catch (e) {
       setError(String(e));
     } finally {
-      setSubmitting(false);
+      setPending(false);
     }
   };
 
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    void commands.accountBrowserLoginCancel();
+  };
+
   return (
-    <form
-      onSubmit={(event) => void handleSubmit(event)}
-      className="flex flex-col gap-4 rounded-lg border border-mid-gray/20 p-4"
-    >
+    <div className="flex flex-col gap-4 rounded-lg border border-mid-gray/20 p-4">
       <div>
         <h2 className="text-base font-semibold text-text">
           {t("account.login.title")}
         </h2>
         <p className="mt-1 text-sm text-muted">{t("account.login.hint")}</p>
       </div>
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-muted">{t("account.login.email")}</span>
-        <Input
-          type="email"
-          name="email"
-          autoComplete="username"
-          value={email}
-          disabled={submitting}
-          onChange={(e) => setEmail(e.target.value)}
-          onClear={() => setEmail("")}
-          clearLabel={t("account.login.clearEmail")}
-          className={FIELD_CLASS}
-        />
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-muted">{t("account.login.password")}</span>
-        <Input
-          type="password"
-          name="password"
-          autoComplete="current-password"
-          value={password}
-          disabled={submitting}
-          onChange={(e) => setPassword(e.target.value)}
-          onClear={() => setPassword("")}
-          clearLabel={t("account.login.clearPassword")}
-          className={FIELD_CLASS}
-        />
-      </label>
 
       <div className="flex flex-col gap-2">
         <button
@@ -105,7 +71,7 @@ export const LoginForm: React.FC = () => {
               type="url"
               name="server"
               value={serverUrl}
-              disabled={submitting}
+              disabled={pending}
               onChange={(e) => setServerEdit(e.target.value)}
               onClear={() => setServerEdit("")}
               clearLabel={t("account.login.clearServer")}
@@ -124,15 +90,32 @@ export const LoginForm: React.FC = () => {
         </p>
       )}
 
-      <Button
-        type="submit"
-        variant="primary"
-        size="lg"
-        disabled={submitting || !email.trim() || !password}
-        className="min-h-11 self-start"
-      >
-        {submitting ? t("account.login.submitting") : t("account.login.submit")}
-      </Button>
-    </form>
+      {pending ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="status" className="text-sm text-muted">
+            {t("account.login.waiting")}
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="lg"
+            onClick={handleCancel}
+            className="min-h-11"
+          >
+            {t("account.login.cancel")}
+          </Button>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          variant="primary"
+          size="lg"
+          onClick={() => void handleLogin()}
+          className="min-h-11 self-start"
+        >
+          {t("account.login.submit")}
+        </Button>
+      )}
+    </div>
   );
 };

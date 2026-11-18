@@ -23,7 +23,7 @@ from .directory import (
 )
 from .document import DocumentRecord, DocumentChunk
 from .ocr import OcrAgent, DocumentOcrTask, DocumentOcrPage
-from .desktop import DesktopDevice, DesktopMeetingLink
+from .desktop import DesktopDevice, DesktopLoginCode, DesktopMeetingLink
 from .protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from .knowledge import (
     LearningCandidate, GlossaryTerm, TriggerPhrase,
@@ -45,6 +45,7 @@ __all__ = [
     "DocumentOcrTask",
     "DocumentOcrPage",
     "DesktopDevice",
+    "DesktopLoginCode",
     "DesktopMeetingLink",
     "MeetingSession",
     "TranscriptSegmentRecord",

@@ -17,3 +17,9 @@ export async function listDevices(): Promise<IDesktopDevice[]> {
 export async function revokeDevice(id: number): Promise<void> {
   await api.delete(`/desktop/devices/${id}`);
 }
+
+/** Одноразовый код входа для приложения на ПК (после подтверждения пользователем на сайте). */
+export async function requestDesktopBrowserCode(challenge: string): Promise<string> {
+  const { data } = await api.post<{ code: string }>('/desktop/browser-code', { challenge });
+  return data.code;
+}

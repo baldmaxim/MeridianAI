@@ -14,6 +14,7 @@ import { LettersSearchPage } from './pages/LettersSearchPage';
 import { ProjectLinkPage } from './pages/ProjectLinkPage';
 import { SettingsHubPage } from './pages/SettingsHubPage';
 import { DesktopAppPage } from './pages/DesktopAppPage';
+import { DesktopLoginPage } from './pages/DesktopLoginPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { PageTransition } from './components/common/PageTransition';
 import { RecorderPage } from './pages/RecorderPage';
@@ -97,6 +98,11 @@ function App() {
   // pathname сохраняется → после входа рендерится исходный маршрут.
   if (!user) {
     return <LoginPage onLogin={login} onRegister={register} />;
+  }
+
+  // Вход приложения на ПК через браузер: на весь экран, без каркаса портала.
+  if (route.kind === 'desktop-login') {
+    return <DesktopLoginPage email={user.email} />;
   }
 
   // Мобильные маршруты по URL (для прямых ссылок/QR)

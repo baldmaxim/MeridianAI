@@ -4,6 +4,7 @@
 //! See `engine.rs` for the steps and `account.rs` for the stored account.
 
 pub mod account;
+pub mod browser_login;
 mod client;
 #[cfg(test)]
 mod context_tests;
@@ -38,7 +39,7 @@ use tauri::AppHandle;
 use tauri_specta::Event;
 
 pub use account::{AccountInfo, AccountStore};
-pub use client::{ApiClient, ApiError, LoginBody, ServerDocument};
+pub use client::{ApiClient, ApiError, LoginResponse, ServerDocument};
 use engine::{Engine, Outcome};
 pub use live::{prepare_live, LiveError};
 

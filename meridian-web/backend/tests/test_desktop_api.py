@@ -5,8 +5,9 @@
 повтор не плодит дубли: ни встреч, ни сегментов, ни задач финализации.
 """
 
+import hashlib
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 import pytest_asyncio
@@ -17,7 +18,7 @@ from sqlalchemy.pool import StaticPool
 from app.auth.service import create_access_token, hash_password
 from app.config import get_settings
 from app.database import Base, get_db
-from app.models.desktop import DesktopDevice, DesktopMeetingLink
+from app.models.desktop import DesktopDevice, DesktopLoginCode, DesktopMeetingLink
 from app.models.file import FileRecord
 from app.models.job import Job
 from app.models.meeting import MeetingSession, TranscriptSegmentRecord
@@ -752,3 +753,117 @@ async def test_audio_confirm_missing_object_is_400(sm, client, monkeypatch):
                           json={"filename": "a.opus", "size": 5, "channel": "mixed"})
     c = await client.post(f"/api/desktop/meetings/{mid}/audio-confirm/{r.json()['file_id']}", headers=h)
     assert c.status_code == 400
+
+
+# ---------- вход через браузер ----------
+
+VERIFIER = "ab" * 32
+CHALLENGE = hashlib.sha256(VERIFIER.encode()).hexdigest()
+BAD_CODE_MSG = "Код входа недействителен или истёк"
+
+
+async def _browser_code(client, user: User, challenge: str = CHALLENGE) -> str:
+    r = await client.post("/api/desktop/browser-code", json={"challenge": challenge}, headers=_jwt(user))
+    assert r.status_code == 200, r.text
+    return r.json()["code"]
+
+
+def _token_body(code: str, verifier: str = VERIFIER) -> dict:
+    return {"code": code, "verifier": verifier, "device_name": "Рабочий ПК",
+            "platform": "windows", "app_version": "0.7.0"}
+
+
+async def test_browser_login_happy_path(sm, client):
+    user = await _user(sm)
+    code = await _browser_code(client, user)
+    async with sm() as db:
+        row = (await db.execute(select(DesktopLoginCode))).scalar_one()
+        assert row.code_hash != code and len(row.code_hash) == 64 and row.used_at is None
+
+    r = await client.post("/api/desktop/token", json=_token_body(code))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["user"]["id"] == user.id and body["device_id"]
+    ev = client.audit_events[-1]
+    assert ev[0] == "desktop_login_success" and ev[1]["method"] == "browser"
+    assert body["device_token"] not in str(client.audit_events) and code not in str(client.audit_events)
+
+    me = await client.get("/api/desktop/me", headers=_bearer(body["device_token"]))
+    assert me.status_code == 200 and me.json()["device"]["name"] == "Рабочий ПК"
+
+
+async def test_browser_login_wrong_verifier_burns_code(sm, client):
+    user = await _user(sm)
+    code = await _browser_code(client, user)
+    r = await client.post("/api/desktop/token", json=_token_body(code, verifier="cd" * 32))
+    assert r.status_code == 400 and r.json()["detail"] == BAD_CODE_MSG
+    ev = client.audit_events[-1]
+    assert ev[0] == "desktop_login_failed" and ev[1]["method"] == "browser"
+    # Одна попытка на код: правильный verifier после неудачной уже не принимается.
+    r = await client.post("/api/desktop/token", json=_token_body(code))
+    assert r.status_code == 400 and r.json()["detail"] == BAD_CODE_MSG
+    async with sm() as db:
+        assert (await db.execute(select(func.count(DesktopDevice.id)))).scalar_one() == 0
+
+
+async def test_browser_login_expired_code(sm, client):
+    user = await _user(sm)
+    code = await _browser_code(client, user)
+    async with sm() as db:
+        row = (await db.execute(select(DesktopLoginCode))).scalar_one()
+        row.expires_at = datetime.utcnow() - timedelta(seconds=1)
+        await db.commit()
+    r = await client.post("/api/desktop/token", json=_token_body(code))
+    assert r.status_code == 400 and r.json()["detail"] == BAD_CODE_MSG
+
+
+async def test_browser_login_code_is_single_use(sm, client):
+    user = await _user(sm)
+    code = await _browser_code(client, user)
+    assert (await client.post("/api/desktop/token", json=_token_body(code))).status_code == 200
+    r = await client.post("/api/desktop/token", json=_token_body(code))
+    assert r.status_code == 400 and r.json()["detail"] == BAD_CODE_MSG
+
+
+async def test_browser_login_unknown_code(sm, client):
+    await _user(sm)
+    r = await client.post("/api/desktop/token", json=_token_body("nope"))
+    assert r.status_code == 400 and r.json()["detail"] == BAD_CODE_MSG
+
+
+async def test_browser_code_requires_site_auth(sm, client):
+    r = await client.post("/api/desktop/browser-code", json={"challenge": CHALLENGE})
+    assert r.status_code in (401, 403)
+
+
+async def test_browser_login_inactive_user_is_403(sm, client):
+    user = await _user(sm)
+    code = await _browser_code(client, user)
+    async with sm() as db:
+        (await db.get(User, user.id)).is_active = False
+        await db.commit()
+    r = await client.post("/api/desktop/token", json=_token_body(code))
+    assert r.status_code == 403
+    assert client.audit_events[-1][1]["reason"] == "inactive"
+
+
+async def test_browser_code_bad_challenge_is_422(sm, client):
+    user = await _user(sm)
+    for bad in ("", "abc", "A" * 64, "g" * 64, CHALLENGE + "0"):
+        r = await client.post("/api/desktop/browser-code", json={"challenge": bad}, headers=_jwt(user))
+        assert r.status_code == 422, bad
+    r = await client.post("/api/desktop/token", json=_token_body("x", verifier="short"))
+    assert r.status_code == 422
+
+
+async def test_issue_code_cleans_users_stale_codes(sm, client):
+    user = await _user(sm)
+    first = await _browser_code(client, user)
+    async with sm() as db:
+        row = (await db.execute(select(DesktopLoginCode))).scalar_one()
+        row.expires_at = datetime.utcnow() - timedelta(seconds=1)
+        await db.commit()
+    await _browser_code(client, user)
+    async with sm() as db:
+        assert (await db.execute(select(func.count(DesktopLoginCode.id)))).scalar_one() == 1
+    assert first

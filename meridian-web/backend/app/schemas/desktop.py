@@ -19,6 +19,23 @@ class DesktopLoginRequest(BaseModel):
     app_version: str | None = Field(default=None, max_length=40)
 
 
+class DesktopBrowserCodeRequest(BaseModel):
+    # sha256(verifier) в нижнем hex — 64 символа.
+    challenge: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class DesktopBrowserCodeResponse(BaseModel):
+    code: str
+
+
+class DesktopTokenRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=200)
+    verifier: str = Field(pattern=r"^[0-9a-f]{64}$")
+    device_name: str = Field(min_length=1, max_length=120)
+    platform: str | None = Field(default=None, max_length=20)
+    app_version: str | None = Field(default=None, max_length=40)
+
+
 class DesktopUserOut(BaseModel):
     id: int
     email: str

@@ -714,14 +714,11 @@
     "login": {
       "title": "Sign in to Meridian",
       "hint": "Recording works without signing in; after signing in the meetings go to the server.",
-      "email": "Email",
-      "password": "Password",
       "server": "Server address",
       "anotherServer": "Another server",
-      "submit": "Sign in",
-      "submitting": "Signing in…",
-      "clearEmail": "Clear email",
-      "clearPassword": "Clear password",
+      "submit": "Sign in with browser",
+      "waiting": "Finish signing in in the browser that opened…",
+      "cancel": "Cancel",
       "clearServer": "Clear server address"
     },
     "logout": {

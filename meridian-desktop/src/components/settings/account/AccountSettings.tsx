@@ -5,7 +5,7 @@ import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { useSettings } from "@/hooks/useSettings";
 import { useSyncStore } from "@/stores/syncStore";
 import { AccountCard } from "./AccountCard";
-import { LoginForm } from "./LoginForm";
+import { BrowserLogin } from "./BrowserLogin";
 
 export const AccountSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -16,7 +16,7 @@ export const AccountSettings: React.FC = () => {
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
       {accountLoaded &&
-        (account ? <AccountCard account={account} /> : <LoginForm />)}
+        (account ? <AccountCard account={account} /> : <BrowserLogin />)}
       <SettingsGroup title={t("account.upload.title")}>
         <ToggleSwitch
           checked={getSetting("upload_audio") ?? true}

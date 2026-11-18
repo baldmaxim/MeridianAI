@@ -18,7 +18,7 @@ use reqwest::{Body, Client, RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use super::account::{app_version, join_url};
+use super::account::{app_version, device_name, join_url, platform};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
@@ -61,7 +61,9 @@ impl ApiError {
     /// The reason a sign-in failed, as shown on the login screen.
     pub fn login_message(&self) -> String {
         match self {
-            Self::Unauthorized => "Неверный логин или пароль".to_string(),
+            Self::Unauthorized | Self::Rejected { status: 400, .. } => {
+                "Код входа недействителен или истёк. Попробуйте ещё раз.".to_string()
+            }
             Self::Rejected { status: 403, .. } => "Пользователь отключён".to_string(),
             Self::Retry {
                 status: Some(429), ..
@@ -72,9 +74,11 @@ impl ApiError {
 }
 
 #[derive(Serialize)]
-pub struct LoginBody<'a> {
-    pub email: &'a str,
-    pub password: &'a str,
+pub struct DesktopTokenBody<'a> {
+    /// The one-time code the browser brought back.
+    pub code: &'a str,
+    /// The PKCE verifier whose SHA-256 the site was given.
+    pub verifier: &'a str,
     pub device_name: &'a str,
     pub platform: &'a str,
     pub app_version: &'a str,
@@ -311,8 +315,20 @@ impl ApiClient {
         }
     }
 
-    pub async fn login(&self, body: &LoginBody<'_>) -> Result<LoginResponse, ApiError> {
-        send_json(self.http.post(self.url("login")).json(body)).await
+    /// Exchanges the code from the browser sign-in for a device token.
+    pub async fn exchange_browser_code(
+        &self,
+        code: &str,
+        verifier: &str,
+    ) -> Result<LoginResponse, ApiError> {
+        let body = DesktopTokenBody {
+            code,
+            verifier,
+            device_name: &device_name(),
+            platform: platform(),
+            app_version: app_version(),
+        };
+        send_json(self.http.post(self.url("token")).json(&body)).await
     }
 
     pub async fn logout(&self) -> Result<(), ApiError> {

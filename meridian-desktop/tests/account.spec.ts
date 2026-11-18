@@ -70,6 +70,7 @@ const installTauriMock = async (page: Page, options: MockOptions) => {
         logged_in: true,
       };
       let current: typeof account | null = opts.signedIn ? account : null;
+      let attempts = 0;
       const settings = {
         onboarding_completed: true,
         selected_model: "gigaam",
@@ -121,14 +122,16 @@ const installTauriMock = async (page: Page, options: MockOptions) => {
             return current;
           case "get_sync_status":
             return status();
-          case "account_login": {
-            const request = args?.request as { password: string };
-            if (request.password !== "right") {
-              throw "Неверный логин или пароль";
+          case "account_browser_login": {
+            attempts += 1;
+            if (attempts === 1) {
+              throw "Вход отменён";
             }
             current = account;
             return account;
           }
+          case "account_browser_login_cancel":
+            return null;
           case "account_logout":
             current = null;
             return null;
@@ -203,7 +206,7 @@ const calls = (page: Page) =>
   page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
 
 test.describe("Account and sync (mocked Tauri)", () => {
-  test("signed out: hint, header, login form with error then success", async ({
+  test("signed out: hint, header, browser login with error then success", async ({
     page,
   }) => {
     await installTauriMock(page, { signedIn: false, pending: 0 });
@@ -219,15 +222,10 @@ test.describe("Account and sync (mocked Tauri)", () => {
       .getByRole("navigation")
       .getByRole("button", { name: "Аккаунт", exact: true })
       .click();
-    await page.getByLabel("Почта").fill("boss@example.com");
-    await page.getByLabel("Пароль", { exact: true }).fill("wrong");
-    await page.getByRole("button", { name: "Войти" }).click();
-    await expect(page.getByRole("alert")).toHaveText(
-      "Неверный логин или пароль",
-    );
+    await page.getByRole("button", { name: "Войти через браузер" }).click();
+    await expect(page.getByRole("alert")).toHaveText("Вход отменён");
 
-    await page.getByLabel("Пароль", { exact: true }).fill("right");
-    await page.getByRole("button", { name: "Войти" }).click();
+    await page.getByRole("button", { name: "Войти через браузер" }).click();
     await expect(page.getByText("boss@example.com")).toBeVisible();
     await expect(page.getByRole("button", { name: "Выйти" })).toBeVisible();
   });
@@ -241,12 +239,12 @@ test.describe("Account and sync (mocked Tauri)", () => {
       .getByRole("navigation")
       .getByRole("button", { name: "Аккаунт", exact: true })
       .click();
-    const email = page.getByLabel("Почта");
-    await email.fill("a@b.ru");
-    await page.getByRole("button", { name: "Очистить почту" }).click();
-    await expect(email).toHaveValue("");
-    await expect(email).toBeFocused();
-    const fontSize = await email.evaluate((el) =>
+    await page.getByRole("button", { name: "Другой сервер" }).click();
+    const server = page.getByLabel("Адрес сервера", { exact: true });
+    await page.getByRole("button", { name: "Очистить адрес сервера" }).click();
+    await expect(server).toHaveValue("");
+    await expect(server).toBeFocused();
+    const fontSize = await server.evaluate((el) =>
       parseFloat(getComputedStyle(el).fontSize),
     );
     expect(fontSize).toBeGreaterThanOrEqual(16);

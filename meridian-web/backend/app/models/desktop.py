@@ -64,3 +64,23 @@ class DesktopMeetingLink(Base):
         UniqueConstraint("user_id", "client_uuid", name="uq_desktop_meeting_link_client"),
         Index("ix_desktop_meeting_links_meeting_id", "meeting_id"),
     )
+
+
+class DesktopLoginCode(Base):
+    """Одноразовый код входа через браузер (loopback + PKCE): в базе только sha256 кода и challenge."""
+
+    __tablename__ = "desktop_login_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    code_challenge: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    __table_args__ = (
+        Index("ix_desktop_login_codes_user_id", "user_id"),
+    )

@@ -30,6 +30,8 @@ from ..schemas.desktop import (
     AudioConfirmResponse,
     AudioUploadRequest,
     AudioUploadResponse,
+    DesktopBrowserCodeRequest,
+    DesktopBrowserCodeResponse,
     DesktopDeviceOut,
     DesktopDocumentConfirmRequest,
     DesktopDocumentPatchRequest,
@@ -38,6 +40,7 @@ from ..schemas.desktop import (
     DesktopLoginResponse,
     DesktopMeResponse,
     DesktopMeetingItem,
+    DesktopTokenRequest,
     DesktopUserOut,
     MeetingPatchRequest,
     MeetingPatchResponse,
@@ -74,7 +77,9 @@ from ..services.desktop_devices import (
     check_credentials,
     enroll_device,
     get_user_device,
+    issue_login_code,
     list_devices,
+    redeem_login_code,
     revoke_device,
     touch_device,
 )
@@ -146,6 +151,40 @@ async def desktop_login(request: Request, data: DesktopLoginRequest, db: AsyncSe
     await db.commit()
     await audit("desktop_login_success", actor_user_id=user.id, ip=ip,
                 email_hmac=email_hmac, device_id=device.id)
+    return DesktopLoginResponse(device_token=token, device_id=device.id, user=_user_out(user))
+
+
+@router.post("/browser-code", response_model=DesktopBrowserCodeResponse)
+@limiter.limit("10/minute")
+async def desktop_browser_code(
+    request: Request, data: DesktopBrowserCodeRequest,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    """Сайт: пользователь разрешил вход приложению — выдать одноразовый код (живёт 2 минуты)."""
+    code = await issue_login_code(db, user.id, data.challenge)
+    await db.commit()
+    return DesktopBrowserCodeResponse(code=code)
+
+
+@router.post("/token", response_model=DesktopLoginResponse)
+@limiter.limit("10/minute")
+async def desktop_token(request: Request, data: DesktopTokenRequest, db: AsyncSession = Depends(get_db)):
+    """Приложение: обменять код из браузера и verifier на токен устройства. Токен показывается один раз."""
+    ip = client_ip(request)
+    user, reason = await redeem_login_code(db, data.code, data.verifier)
+    # Пометка «код использован» должна сохраниться и при отказе.
+    await db.commit()
+    if reason is not None:
+        await audit("desktop_login_failed", actor_user_id=user.id if user else None,
+                    ip=ip, method="browser", reason=reason)
+        if reason == "inactive":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Код входа недействителен или истёк")
+
+    device, token = await enroll_device(db, user.id, data.device_name, data.platform, data.app_version)
+    await db.commit()
+    await audit("desktop_login_success", actor_user_id=user.id, ip=ip,
+                method="browser", device_id=device.id)
     return DesktopLoginResponse(device_token=token, device_id=device.id, user=_user_out(user))
 
 

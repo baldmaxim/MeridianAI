@@ -416,13 +416,24 @@ async setMeetingSystemDevice(deviceId: string | null) : Promise<Result<null, str
     else return { status: "error", error: e  as any };
 }
 },
-async accountLogin(request: AccountLoginRequest) : Promise<Result<AccountInfo, string>> {
+/**
+ * Signs in through the system browser: opens the site's sign-in page, waits
+ * for the browser to come back to a loopback port with a one-time code and
+ * exchanges the code for a device token.
+ */
+async accountBrowserLogin(serverUrl: string) : Promise<Result<AccountInfo, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("account_login", { request }) };
+    return { status: "ok", data: await TAURI_INVOKE("account_browser_login", { serverUrl }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Aborts the sign-in that waits for the browser (nothing happens if none does).
+ */
+async accountBrowserLoginCancel() : Promise<void> {
+    await TAURI_INVOKE("account_browser_login_cancel");
 },
 /**
  * Asks the server to forget the device, then forgets the account here. Without
@@ -796,7 +807,6 @@ export type AccountChanged = { account: AccountInfo | null; reason: string | nul
  * What the frontend may see of the account.
  */
 export type AccountInfo = { server_url: string; user: AccountUser; device_id: number; logged_in: boolean }
-export type AccountLoginRequest = { server_url: string; email: string; password: string }
 export type AccountUser = { id: number; email: string; display_name: string | null }
 export type ActiveMeetingState = { meeting: MeetingInfo; elapsed_seconds: number; queue_len: number; levels: MeetingLevels; 
 /**

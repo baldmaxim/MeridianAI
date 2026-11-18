@@ -5,16 +5,18 @@
 коммит оставляют вызывающему, кроме touch_device — там обновление раз в минуту.
 """
 
+import hashlib
+import hmac
 import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.service import verify_password
-from ..models.desktop import DesktopDevice
+from ..models.desktop import DesktopDevice, DesktopLoginCode
 from ..models.user import User
 from .ocr_queue import hash_token
 
@@ -22,6 +24,9 @@ logger = logging.getLogger("meridian.desktop_devices")
 
 # last_seen_at пишем не чаще раза в минуту: приложение шлёт пачки запросов подряд.
 LAST_SEEN_THROTTLE = timedelta(seconds=60)
+
+# Код входа через браузер живёт две минуты: пользователь жмёт «Разрешить», приложение сразу меняет код.
+LOGIN_CODE_TTL = timedelta(seconds=120)
 
 
 @dataclass
@@ -46,6 +51,47 @@ async def check_credentials(db: AsyncSession, email: str, password: str) -> tupl
         return None, "no_user"
     if not verify_password(password, user.password_hash):
         return user, "bad_password"
+    if not user.is_active:
+        return user, "inactive"
+    return user, None
+
+
+async def issue_login_code(db: AsyncSession, user_id: int, challenge: str) -> str:
+    """Выдать одноразовый код входа. В базе только sha256 кода; коммит — на вызывающем."""
+    now = _now()
+    # Просроченные и использованные коды этого пользователя больше не нужны.
+    await db.execute(delete(DesktopLoginCode).where(
+        DesktopLoginCode.user_id == user_id,
+        or_(DesktopLoginCode.expires_at < now, DesktopLoginCode.used_at.is_not(None)),
+    ))
+    code = secrets.token_urlsafe(32)
+    db.add(DesktopLoginCode(
+        user_id=user_id, code_hash=hash_token(code), code_challenge=challenge,
+        created_at=now, expires_at=now + LOGIN_CODE_TTL,
+    ))
+    await db.flush()
+    return code
+
+
+async def redeem_login_code(db: AsyncSession, code: str, verifier: str) -> tuple[User | None, str | None]:
+    """(пользователь, None) при успехе, иначе (user|None, причина): bad_code | bad_verifier | inactive.
+
+    Одна попытка на код: любое найденное обращение помечает код использованным, даже при неверном
+    verifier. Коммит — на вызывающем (при отказе пометка тоже должна сохраниться).
+    """
+    row = (await db.execute(
+        select(DesktopLoginCode).where(DesktopLoginCode.code_hash == hash_token(code or ""))
+    )).scalar_one_or_none()
+    now = _now()
+    if row is None or row.used_at is not None or row.expires_at < now:
+        return None, "bad_code"
+    row.used_at = now
+    challenge = hashlib.sha256((verifier or "").encode("utf-8")).hexdigest()
+    if not hmac.compare_digest(challenge, row.code_challenge):
+        return None, "bad_verifier"
+    user = await db.get(User, row.user_id)
+    if user is None:
+        return None, "bad_code"
     if not user.is_active:
         return user, "inactive"
     return user, None
