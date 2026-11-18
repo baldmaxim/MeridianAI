@@ -45,6 +45,9 @@ export interface TranscriptSegmentRecord {
   end_time: number;
   wall_clock: string;
   origin: string;
+  language?: string | null;          // ISO-код языка реплики (ElevenLabs)
+  translation?: string | null;       // перевод иноязычной реплики на русский
+  diarized_speaker?: string | null;  // метка говорящего из диаризации («s1_speaker_0»)
 }
 
 export interface MeetingDocumentRecord {

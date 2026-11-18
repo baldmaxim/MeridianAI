@@ -110,6 +110,11 @@ class TranscriptSegmentRecord(Base):
 
     origin: Mapped[str] = mapped_column(String(20))  # SegmentOrigin.value
 
+    # ISO-код языка реплики, перевод на русский и метка говорящего из диаризации (только для UI)
+    language: Mapped[str | None] = mapped_column(String(16))
+    translation: Mapped[str | None] = mapped_column(Text)
+    diarized_speaker: Mapped[str | None] = mapped_column(String(64))
+
     word_count: Mapped[int] = mapped_column(Integer, default=0)
     avg_logprob: Mapped[float | None] = mapped_column(Float)
     min_logprob: Mapped[float | None] = mapped_column(Float)

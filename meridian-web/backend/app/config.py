@@ -130,6 +130,21 @@ class Settings(BaseSettings):
     # шлём через egress в разрешённой стране (NL). Пусто → прямой вызов (без прокси).
     # URL вида http://host:port (IP-allowlist прокси, без креденшелов → не секрет).
     elevenlabs_proxy_url: str = Field(default="", alias="ELEVENLABS_PROXY_URL")
+    # ElevenLabs Scribe v3 Live (онлайн-встречи): параметры прямого WebSocket.
+    # Язык основной (пусто — автоопределение) и дополнительные через запятую (пусто — не передавать).
+    elevenlabs_live_language: str = Field(default="ru", alias="ELEVENLABS_LIVE_LANGUAGE")
+    elevenlabs_live_secondary_languages: str = Field(default="tr", alias="ELEVENLABS_LIVE_SECONDARY_LANGUAGES")
+    # multilang_mode: переключение языка посреди фразы (только scribe_v3_live)
+    elevenlabs_live_multilang: bool = Field(default=True, alias="ELEVENLABS_LIVE_MULTILANG")
+    # diarize: метки говорящих (diarized_transcript, speakers_merged)
+    elevenlabs_live_diarize: bool = Field(default=True, alias="ELEVENLABS_LIVE_DIARIZE")
+    # vad | turn_prediction (VAD-параметры передаются в обоих случаях)
+    elevenlabs_live_commit_strategy: str = Field(default="turn_prediction", alias="ELEVENLABS_LIVE_COMMIT_STRATEGY")
+    # keyterm_library: весь словарь (до 10 000 терминов) в первом чанке сессии
+    elevenlabs_live_keyterm_library: bool = Field(default=True, alias="ELEVENLABS_LIVE_KEYTERM_LIBRARY")
+    # Если реальный звук не уходил столько секунд — шлём 100 мс тишины (сервер рвёт сессию через 15 с)
+    elevenlabs_live_keepalive_secs: int = Field(default=5, alias="ELEVENLABS_LIVE_KEEPALIVE_SECS")
+
     # OpenRouter тоже гео-блокирует РФ (403 «Access denied by security policy» с IP сервера) →
     # тот же NL-прокси для генерации протокола (батч). Пусто → прямой вызов.
     openrouter_proxy_url: str = Field(default="", alias="OPENROUTER_PROXY_URL")

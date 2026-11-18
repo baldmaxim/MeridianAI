@@ -14,7 +14,8 @@ _CONDITIONAL = ("если", "при услови", "в обмен", "взаме�
 
 # Номер пункта договора: 5.1, 13.2.1, 20.7.1.13. Даты (01.09.2025) не подходят.
 _CLAUSE_RE = re.compile(r"(?<![\d.])\d{1,2}(?:\.\d{1,3}){1,4}(?!\d)(?!\.\d)")
-_WORD_RE = re.compile(r"[a-zа-я0-9]+")
+# Юникод-слова (ё, турецкие ç ş ğ ı ö ü), без подчёркивания
+_WORD_RE = re.compile(r"[^\W_]+", re.UNICODE)
 _ELLIPSIS_RE = re.compile(r"\.\.\.|…")
 _BRACKET_RE = re.compile(r"\[([^\]]+)\]")
 # Цитата считается взятой из документа, если хотя бы такая доля её трёхсловных
@@ -109,9 +110,14 @@ def parse_suggestion_response(text: str | None, source_mode: str = "auto",
     return SuggestionResponse(cards=cards, raw_text=text, model=model, degraded=False)
 
 
+def _fold(text: str) -> str:
+    """Нижний регистр для сравнения: casefold, турецкая İ → i (без комбинирующей точки), ё → е."""
+    return (text or "").casefold().replace("\u0307", "").replace("ё", "е")
+
+
 def _stem_words(text: str) -> list[str]:
     stems = []
-    for word in _WORD_RE.findall((text or "").lower().replace("ё", "е")):
+    for word in _WORD_RE.findall(_fold(text)):
         if word in _REFERENCE_WORDS:
             continue  # «п. 13.1.4», «стр. 57» — служебная обвязка ссылки, не текст пункта
         stems += [w[:5] for w in _ABBREVIATIONS.get(word, word).split()]

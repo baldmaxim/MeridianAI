@@ -7,7 +7,9 @@ import type { ConversationTopic, CutoverQualityInfo, PublicSpeakerSide, RoomPart
 // WebSocket message types
 export type WSMessageFromServer =
   | { type: 'transcript'; speaker: string; text: string; timestamp: string; is_partial: boolean }
-  | { type: 'committed_transcript'; segment_id: string; segment_key: string; speaker: string; text: string; words: TranscriptWord[]; start_time: number; end_time: number; confidence: number | null; timestamp: string; server_ts_ms: number; speech_start_ms: number | null; speech_end_ms: number | null }
+  | { type: 'committed_transcript'; segment_id: string; segment_key: string; speaker: string; text: string; words: TranscriptWord[]; start_time: number; end_time: number; confidence: number | null; timestamp: string; server_ts_ms: number; speech_start_ms: number | null; speech_end_ms: number | null; language?: string | null }
+  | { type: 'segment_translation'; segment_id: string; text: string }
+  | { type: 'segment_speaker'; segment_id: string; speaker: string }
   | { type: 'batch_finalized'; segments: CommittedSegmentWire[] }
   | { type: 'suggestion'; text: string; is_auto: boolean; suggestion_type?: SuggestionType; trigger?: string; confidence?: number; context_info?: string; cards?: SuggestionCard[]; degraded?: boolean; source_mode?: string; raw_text?: string | null }
   | { type: 'strengthen_summary'; cards: SuggestionCard[] }
@@ -22,7 +24,7 @@ export type WSMessageFromServer =
   | { type: 'meeting_settings_updated'; diarization_max_speakers: number }
   | { type: 'speaker_corrections_updated'; meeting_id: number; corrections: SpeakerSegmentCorrection[] }
   | { type: 'segment_side_hint'; meeting_id: number; segment_key: string; side: PublicSpeakerSide | null; confidence: number; reason: string; source?: string | null; device_count: number; window_ms: number; auto_apply: boolean }
-  | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number }
+  | { type: 'turn_update'; turn_id: string; speaker: string; text: string; start_time: number; end_time: number; timestamp: string; segment_count: number; segment_ids?: string[] }
   | { type: 'turns_reset' }
   // --- Этап 2: MeetingRoom / multi-device ---
   | { type: 'room_joined'; meeting_id: number; connection_id: string; device_role: string; can_send_audio: boolean; active_audio_source: string | null }

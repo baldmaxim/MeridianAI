@@ -20,6 +20,7 @@ export const createSessionSlice: StateCreator<IMeetingStore, [], [], ISessionSli
 
   newMeetingSession: () => set({
     messages: [], committedSegments: [], partialMessage: null, turns: [],
+    segmentTranslations: {}, segmentSpeakers: {},
     suggestions: [], currentSuggestionIndex: -1, currentStreamingText: null,
     analysisStatus: null, isListening: false, lastError: null, activeRoleName: null,
     meetingStartedAt: null,
@@ -51,6 +52,8 @@ export const createSessionSlice: StateCreator<IMeetingStore, [], [], ISessionSli
       committedSegments: [],
       partialMessage: null,
       turns: [],
+      segmentTranslations: {},
+      segmentSpeakers: {},
       suggestions: [],
       currentSuggestionIndex: -1,
       currentStreamingText: null,

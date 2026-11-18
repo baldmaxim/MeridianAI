@@ -2,7 +2,6 @@
 """Словарь терминов как keyterms ElevenLabs (batch scribe_v3 и live scribe_v3_live)."""
 
 import asyncio
-from types import SimpleNamespace
 
 import pytest
 import requests
@@ -10,6 +9,7 @@ import requests
 from app.core.batch import processor as proc
 from app.core.batch.deepgram_transcription_service import DeepgramBatchTranscriptionService
 from app.core.batch.transcription_service import BatchTranscriptionService
+from app.core.transcription.elevenlabs_live_protocol import LiveOptions
 from app.core.transcription.streaming_service import StreamingTranscriptionService
 from app.services.asr_lexicon import build_keyterms
 
@@ -144,53 +144,35 @@ def test_deepgram_service_unchanged_and_keyterms_only_for_elevenlabs():
     assert proc.BATCH_STT["elevenlabs"][1] is BatchTranscriptionService
 
 
-# ---------- live: SDK-опции ----------
+# ---------- live: параметры прямого WebSocket ----------
 
-def _live_service(keyterms, connect):
+def _live_query(keyterms, degrade_level=0):
+    from urllib.parse import parse_qs, urlsplit
     svc = StreamingTranscriptionService(
         api_key="k", audio_queue=asyncio.Queue(),
         on_partial=lambda p: None, on_committed=lambda c: None, keyterms=keyterms,
+        options=LiveOptions(),
     )
-    svc.client = SimpleNamespace(speech_to_text=SimpleNamespace(realtime=SimpleNamespace(connect=connect)))
-    return svc
+    svc._degrade_level = degrade_level
+    return svc, parse_qs(urlsplit(svc._session_url()).query)
 
 
-@pytest.mark.asyncio
-async def test_live_passes_keyterms_to_sdk_options():
-    seen = []
-
-    async def connect(options):
-        seen.append(options)
-        return object()
-
-    assert await _live_service(["бетон", "КС-2"], connect).connect() is True
-    assert seen[0]["keyterms"] == ["бетон", "КС-2"]
-    assert seen[0]["model_id"] == "scribe_v3_live"
+def test_live_passes_keyterms_in_query():
+    _svc, q = _live_query(["бетон", "КС-2"])
+    assert q["keyterms"] == ["бетон", "КС-2"]
+    assert q["model_id"] == ["scribe_v3_live"]
 
 
-@pytest.mark.asyncio
-async def test_live_no_keyterms_key_when_empty():
-    seen = []
-
-    async def connect(options):
-        seen.append(options)
-        return object()
-
-    assert await _live_service(None, connect).connect() is True
-    assert "keyterms" not in seen[0]
+def test_live_no_keyterms_key_when_empty():
+    assert "keyterms" not in _live_query(None)[1]
 
 
-@pytest.mark.asyncio
-async def test_live_falls_back_without_keyterms_on_connect_error():
-    seen = []
+def test_live_keyterms_limits_50x20():
+    svc, q = _live_query([f"term{i}" for i in range(80)] + ["x" * 21])
+    assert len(q["keyterms"]) == 50 and all(len(t) <= 20 for t in q["keyterms"])
 
-    async def connect(options):
-        seen.append(options)
-        if "keyterms" in options:
-            raise RuntimeError("bad keyterms")
-        return object()
 
-    svc = _live_service(["бетон"], connect)
-    assert await svc.connect() is True
-    assert len(seen) == 2 and "keyterms" not in seen[1]
-    assert svc.keyterms == []
+def test_live_drops_keyterms_at_last_degrade_level():
+    # откат без keyterms при отказе сервера — сценарий целиком в test_elevenlabs_live_stream.py
+    assert "keyterms" in _live_query(["бетон"], degrade_level=1)[1]
+    assert "keyterms" not in _live_query(["бетон"], degrade_level=2)[1]

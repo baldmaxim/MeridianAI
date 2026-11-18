@@ -17,6 +17,11 @@ export interface ITranscriptSlice {
   partialMessage: ChatMessage | null;
   updatePartial: (msg: ChatMessage) => void;
   clearPartial: () => void;
+  // Перевод на русский и метка говорящего (диаризация) приходят отдельно от реплики, по segment_id
+  segmentTranslations: Record<string, string>;
+  segmentSpeakers: Record<string, string>;
+  setSegmentTranslation: (segmentId: string, text: string) => void;
+  setSegmentSpeaker: (segmentId: string, speaker: string) => void;
 
   // Turns (server-assembled utterances)
   turns: TurnWire[];

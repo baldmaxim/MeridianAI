@@ -29,6 +29,7 @@ export interface CommittedSegmentWire {
   confidence: number | null;
   timestamp: string;
   server_ts_ms: number;      // абсолютный server timeline (epoch ms)
+  language?: string | null;  // ISO-код языка реплики (ElevenLabs); null/нет — не определён
 }
 
 // Этап 9.1: качество синхронизации часов устройства с backend.

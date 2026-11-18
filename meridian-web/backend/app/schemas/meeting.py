@@ -88,6 +88,9 @@ class TranscriptSegmentResponse(BaseModel):
     end_time: float
     wall_clock: datetime
     origin: str
+    language: str | None = None
+    translation: str | None = None
+    diarized_speaker: str | None = None
 
     model_config = {"from_attributes": True}
 

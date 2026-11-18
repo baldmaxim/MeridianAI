@@ -5,6 +5,8 @@ import { withAlpha } from '../../utils/cssVar';
 import type { PublicSpeakerSide, MultiChannelReconciliationEntry } from '../../types';
 import { nextPublicSpeakerSide, speakerSideBadge, speakerSideColor, speakerSideLabel } from '../../lib/speakerSides';
 import { resolveSegmentSide, resolveSegmentSpeaker, isSegmentCorrected, segmentKeyForMessage } from '../../lib/segmentCorrections';
+import { SegmentBadges } from './SegmentBadges';
+import { SegmentTranslation } from './SegmentTranslation';
 import styles from './ChatDisplay.module.css';
 
 interface SegmentCorrectionPatch {
@@ -116,8 +118,10 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                     {badge && (
                       <span className={styles.roleBadge} style={{ background: withAlpha(badgeColor, 15), color: badgeColor }}>{badge}</span>
                     )}
+                    <SegmentBadges segmentIds={turn.segment_ids ?? []} />
                   </span>
                   <span className={styles.text}>{turn.text}</span>
+                  <SegmentTranslation segmentIds={turn.segment_ids ?? []} />
                 </div>
               );
             })
@@ -146,6 +150,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                       {badge && (
                         <span className={styles.roleBadge} style={{ background: withAlpha(badgeColor, 15), color: badgeColor }}>{badge}</span>
                       )}
+                      <SegmentBadges segmentIds={[msg.id]} />
                       {corrected && <span className={styles.correctedMark} title="Спикер/сторона этой реплики исправлены вручную">✎</span>}
                       {isLowConf && (
                         <span className={styles.lowConfBadge} title="Низкая уверенность транскрипции">?</span>
@@ -228,6 +233,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
                     </div>
                   )}
                   <span className={styles.text}>{msg.text}</span>
+                  <SegmentTranslation segmentIds={[msg.id]} />
                 </div>
               );
             })}

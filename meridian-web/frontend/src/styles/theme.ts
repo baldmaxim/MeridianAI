@@ -70,6 +70,15 @@ export const speakerTextColors: Record<string, string> = {
 const SPEAKER_BG_CYCLE = ['var(--speaker-customer)', 'var(--speaker-red)', 'var(--speaker-subcontractor)', 'var(--speaker-you)'];
 const SPEAKER_TEXT_CYCLE = ['var(--accent-blue)', 'var(--accent-red)', 'var(--accent-green)', 'var(--accent-amber)'];
 
+/* Метка говорящего из диаризации ElevenLabs: «s1_speaker_0» → сессия 1, говорящий 0 */
+const DIARIZED_RE = /^s(\d+)_speaker_(\d+)$/i;
+
+export function getDiarizedSpeakerColor(label: string): string {
+  const m = DIARIZED_RE.exec(label);
+  const idx = m ? Number(m[2]) : 0;
+  return SPEAKER_TEXT_CYCLE[idx % SPEAKER_TEXT_CYCLE.length];
+}
+
 /* Get speaker bg, with fallback for DG_S0, GM_S0 etc */
 export function getSpeakerBg(speaker: string): string {
   if (theme.speaker[speaker]) return theme.speaker[speaker];

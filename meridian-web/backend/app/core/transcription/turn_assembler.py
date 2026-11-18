@@ -22,6 +22,8 @@ class UtteranceTurn:
     segment_count: int = 1
     # Сторона по источнику звука онлайн-встречи ("self" / "opponent"), если известна.
     side: Optional[str] = None
+    # Реплики (segment_id), из которых собран ход — фронт по ним показывает язык/перевод/говорящего.
+    segment_ids: List[str] = field(default_factory=list)
 
     def to_wire(self) -> dict:
         return {
@@ -32,6 +34,7 @@ class UtteranceTurn:
             "end_time": self.end_time,
             "timestamp": self.wall_clock.strftime("%H:%M:%S"),
             "segment_count": self.segment_count,
+            "segment_ids": list(self.segment_ids),
         }
 
 
@@ -56,6 +59,7 @@ class TurnAssembler:
         end_time: float,
         wall_clock: datetime,
         side: Optional[str] = None,
+        segment_id: Optional[str] = None,
     ) -> Tuple[UtteranceTurn, bool]:
         """Feed a new final segment. Returns (turn, is_new_turn).
 
@@ -73,6 +77,8 @@ class TurnAssembler:
             self._open.end_time = end_time
             self._open.segment_count += 1
             self._open.side = self._open.side or side
+            if segment_id:
+                self._open.segment_ids.append(segment_id)
             return self._open, False
 
         # Close previous open turn (already in _turns) and start new
@@ -83,6 +89,7 @@ class TurnAssembler:
             end_time=end_time,
             wall_clock=wall_clock,
             side=side,
+            segment_ids=[segment_id] if segment_id else [],
         )
         self._turns.append(turn)
         self._open = turn

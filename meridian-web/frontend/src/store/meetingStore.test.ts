@@ -44,6 +44,17 @@ describe('meetingStore', () => {
     ]);
   });
 
+  it('перевод и метка говорящего хранятся по segment_id и сбрасываются', () => {
+    const st = useMeetingStore.getState();
+    st.setSegmentTranslation('seg-1', 'Здравствуйте');
+    st.setSegmentSpeaker('seg-1', 's1_speaker_0');
+    expect(useMeetingStore.getState().segmentTranslations).toEqual({ 'seg-1': 'Здравствуйте' });
+    expect(useMeetingStore.getState().segmentSpeakers).toEqual({ 'seg-1': 's1_speaker_0' });
+    useMeetingStore.getState().newMeetingSession();
+    expect(useMeetingStore.getState().segmentTranslations).toEqual({});
+    expect(useMeetingStore.getState().segmentSpeakers).toEqual({});
+  });
+
   it('addSuggestion обновляет индекс, статистику и время', () => {
     useMeetingStore.getState().addSuggestion({ id: 's1' } as unknown as Suggestion);
     const s = useMeetingStore.getState();

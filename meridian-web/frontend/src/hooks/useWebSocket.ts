@@ -67,7 +67,16 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
           confidence: data.confidence,
           timestamp: data.timestamp,
           server_ts_ms: data.server_ts_ms,
+          language: data.language ?? null,
         });
+        break;
+
+      case 'segment_translation':
+        s.setSegmentTranslation(data.segment_id, data.text);
+        break;
+
+      case 'segment_speaker':
+        s.setSegmentSpeaker(data.segment_id, data.speaker);
         break;
 
       case 'batch_finalized':
@@ -297,6 +306,7 @@ export function useWebSocket(onMeetingClosed?: (reason?: string) => void) {
           end_time: data.end_time,
           timestamp: data.timestamp,
           segment_count: data.segment_count,
+          segment_ids: data.segment_ids,
         });
         break;
 

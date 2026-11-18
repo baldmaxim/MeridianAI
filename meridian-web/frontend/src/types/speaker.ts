@@ -40,6 +40,7 @@ export interface TurnWire {
   end_time: number;
   timestamp: string;
   segment_count: number;
+  segment_ids?: string[];   // реплики хода — по ним показываем язык, перевод и говорящего
 }
 
 // --- Conversation Tree (дерево общения встречи) ---

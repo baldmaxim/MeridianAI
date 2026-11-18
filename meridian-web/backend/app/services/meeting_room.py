@@ -60,6 +60,7 @@ from ..core.context.segment_source_attribution import (
 )
 from .multi_channel_live_session import live_multi_channel_segment_to_source_candidate
 from .session_manager import SessionManager
+from .segment_meta_store import SegmentMetaSync, segment_meta
 from .meeting_setup import (
     load_user_settings,
     load_default_role,
@@ -159,6 +160,10 @@ class MeetingRoom:
         self.session = SessionManager(owner_user_id or 0)
         self.session.db_session_id = meeting_id
         self.session.set_segment_side_provider(self._online_segment_side)
+        # язык/перевод/метка говорящего реплик → колонки transcript_segments (в т.ч. поздние)
+        self._meta_sync = SegmentMetaSync(meeting_id)
+        self._meta_tasks: set[asyncio.Task] = set()
+        self.session.set_segment_meta_hook(self._schedule_meta_flush)
         # Conversation Tree (дерево общения)
         self._tree_enabled = True
         self._tree_version = 0
@@ -2107,6 +2112,14 @@ class MeetingRoom:
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] enqueue audio archive failed: {e}")
 
+    def _schedule_meta_flush(self, _segment=None) -> None:
+        """Фон: дописать в БД язык/перевод/метку говорящего у уже сохранённых реплик."""
+        task = asyncio.create_task(
+            self._meta_sync.flush(async_session, self.session.committed_segments)
+        )
+        self._meta_tasks.add(task)
+        task.add_done_callback(self._meta_tasks.discard)
+
     async def _persist_segments(self, close: bool, title_override: str | None = None) -> None:
         """Сохранить committed-сегменты этой встречи (skip duplicates). При close — закрыть встречу."""
         try:
@@ -2143,12 +2156,19 @@ class MeetingRoom:
                     )
                 )
                 existing_ids = {row[0] for row in existing.all()}
+                self._meta_sync.mark_existing(existing_ids)
+                new_segments = []
                 for seg in self.session.committed_segments:
                     if seg.segment_id in existing_ids:
                         continue
+                    language, translation, diarized_speaker = segment_meta(seg)
+                    new_segments.append(seg)
                     db.add(TranscriptSegmentRecord(
                         session_id=self.meeting_id,
                         segment_id=seg.segment_id,
+                        language=language,
+                        translation=translation,
+                        diarized_speaker=diarized_speaker,
                         text=seg.text,
                         start_time=seg.start_time,
                         end_time=seg.end_time,
@@ -2166,6 +2186,10 @@ class MeetingRoom:
                         ) if seg.words else None,
                     ))
                 await db.commit()
+                for seg in new_segments:
+                    self._meta_sync.mark_inserted(seg)
+            # строки, сохранённые раньше, и поля, пришедшие во время записи пачки
+            await self._meta_sync.flush(async_session, self.session.committed_segments)
         except Exception as e:
             logger.error(f"[room {self.meeting_id}] persist segments failed: {e}")
         # Задача 3: архив живого аудио (после сегментов; ошибки не ломают персист)

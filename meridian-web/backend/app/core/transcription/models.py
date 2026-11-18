@@ -100,6 +100,13 @@ class CommittedSegment:
     # Заполняется только pipeline'ом, который реально знает изолированный per-speaker источник.
     # НЕ сторона и НЕ личность. None по умолчанию → старое поведение/сериализация не меняются.
     source_attribution: Optional[dict] = None
+    # ISO-код языка реплики из ElevenLabs (language_code committed-сообщения); None — не определён.
+    language: Optional[str] = None
+    # Метка говорящего из диаризации ElevenLabs («s1_speaker_0»): только для UI, в БД не пишется.
+    # НЕ speaker_id/speaker_label — на них держатся роли, коррекции и сторона мы/оппонент.
+    diarized_speaker: Optional[str] = None
+    # Перевод иноязычной реплики на русский (живая встреча, в БД не пишется — нет колонки).
+    translation: Optional[str] = None
 
     def __post_init__(self):
         if self.words:
@@ -172,6 +179,9 @@ class CommittedSegment:
             "server_ts_ms": self.server_ts_ms,
             "speech_start_ms": self.speech_start_ms,
             "speech_end_ms": self.speech_end_ms,
+            "language": self.language,
+            "translation": self.translation,
+            "diarized_speaker": self.diarized_speaker,
         }
 
     def to_dict(self) -> dict:
@@ -189,6 +199,9 @@ class CommittedSegment:
             "word_count": self.word_count,
             "avg_logprob": self.avg_logprob,
             "min_logprob": self.min_logprob,
+            "language": self.language,
+            "translation": self.translation,
+            "diarized_speaker": self.diarized_speaker,
         }
 
     def to_legacy(self) -> TranscriptSegment:

@@ -41,6 +41,7 @@ from ..core.context.per_channel_stt_trace import (
 )
 from ..core.audio.per_channel_stt import PerChannelSttPipeline
 from .speaker_identity_service import SpeakerIdentityService
+from .live_translation import LiveSegmentTranslator
 from ..core.context.speaker_audio_links import (
     extract_audio_links_from_metadata, build_speaker_audio_link_map,
 )
@@ -219,6 +220,10 @@ class SessionManager:
 
         # Turn assembler (merges consecutive same-speaker segments)
         self._turn_assembler = TurnAssembler()
+        # Перевод иноязычных реплик на русский (ключ OpenRouter берётся на момент реплики)
+        self._live_translator = LiveSegmentTranslator(
+            lambda: self._llm_api_key, self._send_json, self._notify_segment_meta,
+        )
         # Формулировки реплики в языке договора для поиска по документам (хвост диалога → термины)
         self._doc_query_cache: Dict[str, str] = {}
 
@@ -261,6 +266,8 @@ class SessionManager:
         # Conversation Tree: хук на committed-сегмент (fn(segment, role) -> awaitable).
         # Ставит MeetingRoom (есть доступ к БД). Fire-and-forget, не блокирует STT.
         self._committed_hook: Optional[Callable] = None
+        # язык/перевод/метка говорящего реплики изменились (поздние события) → запись в БД
+        self._segment_meta_hook: Optional[Callable] = None
 
         # Этап 4: провайдер контекста документов встречи (DB-backed), async(meeting_id, query)->str
         self._doc_context_provider: Optional[Callable] = None
@@ -290,6 +297,18 @@ class SessionManager:
     def set_ws_send(self, send_func: Callable):
         """Set WebSocket send function for pushing messages to client."""
         self._ws_send = send_func
+
+    def set_segment_meta_hook(self, hook: Callable):
+        """Колбэк sync(segment): у реплики появились/изменились перевод или метка говорящего."""
+        self._segment_meta_hook = hook
+
+    def _notify_segment_meta(self, segment: CommittedSegment) -> None:
+        if not self._segment_meta_hook:
+            return
+        try:
+            self._segment_meta_hook(segment)
+        except Exception as e:
+            logger.warning("segment_meta_hook: %s", type(e).__name__)
 
     def set_committed_hook(self, hook: Callable):
         """Conversation Tree: колбэк на committed-сегмент, async(segment, role)."""
@@ -635,9 +654,10 @@ class SessionManager:
         self.audio_recorder.start()
 
         # Create transcription service based on provider
+        keyterms, keyterm_library = await self._load_keyterms() if stt_provider == "elevenlabs" else (None, None)
         service = self._build_transcription_service(
             stt_provider, api_keys, diarization, max_speakers,
-            keyterms=await self._load_keyterms() if stt_provider == "elevenlabs" else None,
+            keyterms=keyterms, keyterm_library=keyterm_library,
         )
         if service is None:
             await self._send_error(f"Unknown STT provider: {stt_provider}")
@@ -651,10 +671,12 @@ class SessionManager:
         )
         await self._send_status("Прослушивание активно...")
 
-    async def _load_keyterms(self) -> list[str]:
-        """Подсказки ElevenLabs Scribe v3 Live: заказчик/объект/участники встречи, затем словарь.
+    async def _load_keyterms(self) -> tuple[list[str], list[str]]:
+        """Подсказки ElevenLabs Scribe v3 Live: (keyterms, keyterm_library).
 
-        Лимит live — 50 терминов по ≤20 символов. Любой сбой → [] (подключаемся без подсказок).
+        Порядок: заказчик/объект/участники встречи, затем словарь. keyterms (query) — до 50
+        терминов по ≤20 символов; keyterm_library (первый чанк) — до 10 000 по ≤50 символов.
+        Любой сбой → ([], []) (подключаемся без подсказок).
         """
         try:
             from ..database import async_session
@@ -671,14 +693,19 @@ class SessionManager:
                     # заказчик и объект важнее имён участников
                     priority = [x.name for x in (customer, obj) if x] + priority
                 entries = await load_job_lexicon_entries(db, self.user_id)
-            return build_keyterms(entries, limit=50, max_chars=20, priority_terms=priority)
+            short = build_keyterms(entries, limit=50, max_chars=20, priority_terms=priority)
+            library: list[str] = []
+            if get_settings().elevenlabs_live_keyterm_library:
+                library = build_keyterms(entries, limit=10000, max_chars=50, priority_terms=priority)
+            return short, library
         except Exception as e:
             logger.warning("keyterms для live-распознавания не загружены: %s", e)
-            return []
+            return [], []
 
     def _build_transcription_service(self, stt_provider: str, api_keys: dict,
                                      diarization: bool, max_speakers: int,
-                                     keyterms: Optional[list[str]] = None):
+                                     keyterms: Optional[list[str]] = None,
+                                     keyterm_library: Optional[list[str]] = None):
         """Собрать STT-сервис по провайдеру (использует текущий self.audio_queue).
 
         Общий код для start_listening и restart_transcription. Возвращает None для
@@ -706,6 +733,8 @@ class SessionManager:
                 on_error=self._on_stt_error,
                 audio_recorder=self.audio_recorder,
                 keyterms=keyterms,
+                keyterm_library=keyterm_library,
+                on_speaker=self._on_segment_speaker,
             )
         if stt_provider == "speechmatics":
             from ..core.transcription.speechmatics_streaming_service import (
@@ -740,9 +769,10 @@ class SessionManager:
                 pass
         # свежая очередь + новый сервис (is_listening остаётся True)
         self.audio_queue = asyncio.Queue()
+        keyterms, keyterm_library = await self._load_keyterms() if stt_provider == "elevenlabs" else (None, None)
         service = self._build_transcription_service(
             stt_provider, api_keys, diarization, max_speakers,
-            keyterms=await self._load_keyterms() if stt_provider == "elevenlabs" else None,
+            keyterms=keyterms, keyterm_library=keyterm_library,
         )
         if service is None:
             return False
@@ -854,9 +884,11 @@ class SessionManager:
             wall_clock=segment.wall_clock,
             side=self._live_segment_side(segment.segment_id, segment.wall_clock,
                                          segment.speech_start_ms, segment.speech_end_ms),
+            segment_id=segment.segment_id,
         )
         if self._ws_send and not replay:
             asyncio.create_task(self._send_turn_update(turn))
+            self._live_translator.schedule(segment)  # иноязычная реплика → перевод на русский
 
         # Feed meeting memory
         self._meeting_memory.ingest_turn(turn)
@@ -870,6 +902,21 @@ class SessionManager:
 
         # Conversation Tree: обновить дерево общения (fire-and-forget)
         self._fire_committed_hook(segment)
+
+    def _on_segment_speaker(self, segment: CommittedSegment, label: str):
+        """Диаризация ElevenLabs: метка говорящего у уже выданной реплики.
+
+        Только метка для UI: speaker_id/speaker_label (роли, коррекции, ход, сторона мы/оппонент
+        по уровням источников) не меняются.
+        """
+        segment.diarized_speaker = label
+        self._notify_segment_meta(segment)
+        if self._ws_send:
+            asyncio.create_task(self._send_json({
+                "type": "segment_speaker",
+                "segment_id": segment.segment_id,
+                "speaker": label,
+            }))
 
     def _on_stt_error(self, error_type: str, error_msg: str):
         """Handle STT error events."""

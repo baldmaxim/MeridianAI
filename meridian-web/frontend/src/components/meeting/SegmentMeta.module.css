@@ -1,0 +1,37 @@
+.langBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  background: var(--bg-elevated);
+  color: var(--accent-amber);
+  border: 1px solid var(--border-amber);
+}
+
+.diarSpeaker {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+}
+
+.translation {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
