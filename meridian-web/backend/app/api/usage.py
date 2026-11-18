@@ -89,40 +89,34 @@ def _round2(v: float) -> float:
 async def _fetch_openrouter_credits(
     api_key: str, proxy: str, transport: httpx.AsyncBaseTransport | None = None
 ) -> dict:
-    """Баланс OpenRouter → {"total": float|None, "used": float}.
+    """Баланс OpenRouter → {"balance": float | None, "source": "key" | "account" | None}.
 
-    Сначала /credits (нужен ключ с доступом к кредитам); при 401/403 — /key
-    (лимит ключа: total=limit, used=usage). Через прокси, если задан. Ключ в логи не попадает.
+    Сначала /key: остаток по лимиту ключа (limit_remaining), source="key".
+    Если у ключа нет лимита (null) — /credits: total_credits − total_usage, source="account";
+    401/403 на /credits → balance=None. Через прокси, если задан. Ключ в логи не попадает.
     """
     headers = {"Authorization": f"Bearer {api_key}"}
     async with httpx.AsyncClient(proxy=proxy or None, timeout=_TIMEOUT_SEC, transport=transport) as client:
+        resp = await client.get(_OPENROUTER_KEY_URL, headers=headers)
+        resp.raise_for_status()
+        remaining = (resp.json().get("data") or {}).get("limit_remaining")
+        if remaining is not None:
+            return {"balance": float(remaining), "source": "key"}
+
         resp = await client.get(_OPENROUTER_CREDITS_URL, headers=headers)
         if resp.status_code in (401, 403):
-            resp = await client.get(_OPENROUTER_KEY_URL, headers=headers)
-            resp.raise_for_status()
-            data = resp.json().get("data") or {}
-            limit = data.get("limit")
-            return {
-                "total": float(limit) if limit is not None else None,
-                "used": float(data.get("usage") or 0),
-            }
+            return {"balance": None, "source": None}
         resp.raise_for_status()
         data = resp.json().get("data") or {}
-        return {
-            "total": float(data.get("total_credits") or 0),
-            "used": float(data.get("total_usage") or 0),
-        }
+        balance = float(data.get("total_credits") or 0) - float(data.get("total_usage") or 0)
+        return {"balance": balance, "source": "account"}
 
 
 def _build_openrouter_payload(raw: dict) -> dict:
-    total = raw.get("total")
-    used = float(raw.get("used") or 0)
-    return {
-        "total": _round2(total) if total is not None else None,
-        "used": _round2(used),
-        "remaining": _round2(total - used) if total is not None else None,
-        "percent_used": round(used * 100 / total) if total else 0,
-    }
+    balance = raw.get("balance")
+    if balance is None:
+        return {"balance": None, "source": None}
+    return {"balance": _round2(balance), "source": raw.get("source")}
 
 
 @router.get("/openrouter")

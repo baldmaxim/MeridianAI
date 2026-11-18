@@ -15,13 +15,10 @@ export const getElevenLabsUsage = async (): Promise<IElevenLabsUsage> => {
 };
 
 export interface IOpenRouterUsage {
-  /** Всего кредитов (или лимит ключа), $; null — лимита нет */
-  total: number | null;
-  /** Израсходовано, $ */
-  used: number;
-  /** Остаток, $; null — если total неизвестен */
-  remaining: number | null;
-  percent_used: number;
+  /** Остаток, $: по лимиту ключа либо баланс аккаунта; null — неизвестен */
+  balance: number | null;
+  /** Откуда остаток: лимит ключа или баланс аккаунта */
+  source: 'key' | 'account' | null;
 }
 
 /** Только для админа (иначе 403) */

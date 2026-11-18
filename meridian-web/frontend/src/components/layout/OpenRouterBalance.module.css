@@ -1,0 +1,67 @@
+/* Пилюля остатка OpenRouter: 26px на мобильном, 28px от 768px; префикс — только от 768px */
+.wrap {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Тап-цель ≥44px по высоте при визуальных 26–28px */
+.pill::before {
+  content: '';
+  position: absolute;
+  inset: -9px 0;
+}
+
+.prefix {
+  display: none;
+}
+
+.tip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 20px));
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .pill {
+    height: 28px;
+  }
+
+  .prefix {
+    display: inline;
+  }
+}

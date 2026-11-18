@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""GET /api/usage/openrouter (только админ): математика, кэш, 404 без ключа, 502 без утечки ключа, 403/401, фолбэк /credits → /key."""
+"""GET /api/usage/openrouter (только админ): баланс (ключ → аккаунт), кэш, 404 без ключа, 502 без утечки ключа, 403/401, порядок /key → /credits."""
 
 import httpx
 import pytest
@@ -10,7 +10,7 @@ from app.auth.dependencies import get_current_user
 from app.main import app
 from app.models.user import User
 
-RAW = {"total": 50.0, "used": 12.3456}
+RAW = {"balance": 37.6544, "source": "key"}
 ADMIN = User(id=1, email="a@test.local", role="admin")
 
 
@@ -39,26 +39,32 @@ async def client(monkeypatch):
         usage_api._reset_cache()
 
 
-def test_payload_math():
-    assert usage_api._build_openrouter_payload(RAW) == {
-        "total": 50.0, "used": 12.35, "remaining": 37.65, "percent_used": 25,
+def test_payload_balance():
+    assert usage_api._build_openrouter_payload(RAW) == {"balance": 37.65, "source": "key"}
+
+
+def test_payload_balance_none():
+    assert usage_api._build_openrouter_payload({"balance": None, "source": None}) == {
+        "balance": None, "source": None,
     }
-
-
-def test_payload_total_none():
-    p = usage_api._build_openrouter_payload({"total": None, "used": 3.0})
-    assert p == {"total": None, "used": 3.0, "remaining": None, "percent_used": 0}
-
-
-def test_payload_total_zero():
-    assert usage_api._build_openrouter_payload({"total": 0.0, "used": 0.0})["percent_used"] == 0
 
 
 @pytest.mark.asyncio
 async def test_endpoint_payload(client):
     r = await client.get("/api/usage/openrouter")
     assert r.status_code == 200
-    assert r.json()["remaining"] == 37.65
+    assert r.json() == {"balance": 37.65, "source": "key"}
+
+
+@pytest.mark.asyncio
+async def test_endpoint_balance_none(client, monkeypatch):
+    async def _fetch_none(api_key: str, proxy: str) -> dict:
+        return {"balance": None, "source": None}
+
+    monkeypatch.setattr(usage_api, "_fetch_openrouter_credits", _fetch_none)
+    r = await client.get("/api/usage/openrouter")
+    assert r.status_code == 200
+    assert r.json() == {"balance": None, "source": None}
 
 
 @pytest.mark.asyncio
@@ -106,37 +112,40 @@ async def test_unauthenticated_401():
 
 
 @pytest.mark.asyncio
-async def test_fetch_credits_ok():
-    def handler(req: httpx.Request) -> httpx.Response:
-        assert req.url.path == "/api/v1/credits"
-        assert req.headers["authorization"] == "Bearer k"
-        return httpx.Response(200, json={"data": {"total_credits": 50, "total_usage": 12.5}})
-
-    raw = await usage_api._fetch_openrouter_credits("k", "", httpx.MockTransport(handler))
-    assert raw == {"total": 50.0, "used": 12.5}
-
-
-@pytest.mark.asyncio
-async def test_fetch_fallback_to_key_on_403():
+async def test_fetch_key_with_limit():
     paths: list[str] = []
 
     def handler(req: httpx.Request) -> httpx.Response:
         paths.append(req.url.path)
-        if req.url.path == "/api/v1/credits":
-            return httpx.Response(403, json={"error": "forbidden"})
+        assert req.headers["authorization"] == "Bearer k"
         return httpx.Response(200, json={"data": {"usage": 4.0, "limit": 20.0, "limit_remaining": 16.0}})
 
     raw = await usage_api._fetch_openrouter_credits("k", "", httpx.MockTransport(handler))
-    assert paths == ["/api/v1/credits", "/api/v1/key"]
-    assert raw == {"total": 20.0, "used": 4.0}
+    assert paths == ["/api/v1/key"]
+    assert raw == {"balance": 16.0, "source": "key"}
 
 
 @pytest.mark.asyncio
-async def test_fetch_fallback_key_without_limit():
+async def test_fetch_key_without_limit_falls_back_to_credits():
+    paths: list[str] = []
+
     def handler(req: httpx.Request) -> httpx.Response:
-        if req.url.path == "/api/v1/credits":
-            return httpx.Response(401)
-        return httpx.Response(200, json={"data": {"usage": 4.0, "limit": None, "limit_remaining": None}})
+        paths.append(req.url.path)
+        if req.url.path == "/api/v1/key":
+            return httpx.Response(200, json={"data": {"usage": 4.0, "limit": None, "limit_remaining": None}})
+        return httpx.Response(200, json={"data": {"total_credits": 50, "total_usage": 12.5}})
 
     raw = await usage_api._fetch_openrouter_credits("k", "", httpx.MockTransport(handler))
-    assert raw == {"total": None, "used": 4.0}
+    assert paths == ["/api/v1/key", "/api/v1/credits"]
+    assert raw == {"balance": 37.5, "source": "account"}
+
+
+@pytest.mark.asyncio
+async def test_fetch_credits_403_balance_none():
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/api/v1/key":
+            return httpx.Response(200, json={"data": {"limit": None, "limit_remaining": None}})
+        return httpx.Response(403, json={"error": "forbidden"})
+
+    raw = await usage_api._fetch_openrouter_credits("k", "", httpx.MockTransport(handler))
+    assert raw == {"balance": None, "source": None}
