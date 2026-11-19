@@ -10,7 +10,14 @@ const DEFAULT_SERVER_URL = "https://meridianai.ru";
 const FIELD_CLASS = "w-full min-h-11 text-[16px]!";
 
 /** Sign-in through the system browser; the server field hides under "Another server". */
-export const BrowserLogin: React.FC = () => {
+interface BrowserLoginProps {
+  /** "plain": no card border, title or hint (the host screen has its own). */
+  variant?: "card" | "plain";
+}
+
+export const BrowserLogin: React.FC<BrowserLoginProps> = ({
+  variant = "card",
+}) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
   const setAccount = useSyncStore((s) => s.setAccount);
@@ -47,13 +54,21 @@ export const BrowserLogin: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-mid-gray/20 p-4">
-      <div>
-        <h2 className="text-base font-semibold text-text">
-          {t("account.login.title")}
-        </h2>
-        <p className="mt-1 text-sm text-muted">{t("account.login.hint")}</p>
-      </div>
+    <div
+      className={
+        variant === "card"
+          ? "flex flex-col gap-4 rounded-lg border border-mid-gray/20 p-4"
+          : "flex flex-col gap-4"
+      }
+    >
+      {variant === "card" && (
+        <div>
+          <h2 className="text-base font-semibold text-text">
+            {t("account.login.title")}
+          </h2>
+          <p className="mt-1 text-sm text-muted">{t("account.login.hint")}</p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <button

@@ -38,6 +38,12 @@
       "openNamed": "Open the meeting in progress: {{title}}"
     }
   },
+  "signIn": {
+    "title": "Sign in to Meridian",
+    "text": "Sign in so your meetings are saved on the website and the projects and documents are visible.",
+    "skip": "Continue without signing in",
+    "skipHint": "Recording works without signing in too — you can sign in later in settings."
+  },
   "onboarding": {
     "aside": {
       "title": "Meetings stay on your computer",

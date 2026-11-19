@@ -9,6 +9,7 @@ import "./App.css";
 import Onboarding, {
   PermissionsOnboarding,
   ModelMigration,
+  SignInScreen,
 } from "./components/onboarding";
 import { type OnboardingPreviewStep } from "./components/settings";
 import { AppShell } from "./components/shell/AppShell";
@@ -23,6 +24,7 @@ import { useMeetingStore } from "./stores/meetingStore";
 import { useSettings } from "./hooks/useSettings";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useSettingsStore } from "./stores/settingsStore";
+import { useSyncStore } from "./stores/syncStore";
 import { commands } from "@/bindings";
 import { deleteRetiredModel } from "@/components/onboarding/retiredModels";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
@@ -54,10 +56,28 @@ function App() {
   const refreshAudioDevices = useSettingsStore(
     (state) => state.refreshAudioDevices,
   );
+  const account = useSyncStore((state) => state.account);
+  const setAccount = useSyncStore((state) => state.setAccount);
+  const [accountChecked, setAccountChecked] = useState(false);
+  // "Continue without signing in" holds for this run only; not persisted.
+  const [signInSkipped, setSignInSkipped] = useState(false);
   const hasCompletedPostOnboardingInit = useRef(false);
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
+
+  // The sign-in offer comes first, so the account is checked before anything.
+  useEffect(() => {
+    commands
+      .getAccount()
+      .then(setAccount)
+      .catch((e) => {
+        console.error("Failed to check the account:", e);
+        // Unknown account: don't gate, fall through to the normal app.
+        setSignInSkipped(true);
+      })
+      .finally(() => setAccountChecked(true));
+  }, [setAccount]);
 
   // Meeting events live as long as the main app does; a meeting that is
   // already recording (e.g. after a window reload) opens straight away.
@@ -283,11 +303,18 @@ function App() {
     return null;
   }
 
+  // Still checking the account
+  if (!accountChecked) {
+    return null;
+  }
+
   // Select the content for the current step. The Toaster is rendered once, in a
   // stable wrapper around this node, so crossing between onboarding steps and
   // the main app never remounts it (which would drop any in-flight toast).
   let content: ReactNode;
-  if (onboardingPreview) {
+  if (!account && !signInSkipped) {
+    content = <SignInScreen onSkip={() => setSignInSkipped(true)} />;
+  } else if (onboardingPreview) {
     // Render previews in the same top-level slot as real onboarding. Keeping
     // the settings layout unmounted ensures viewport overflow behaves exactly
     // as it does during first-run onboarding.

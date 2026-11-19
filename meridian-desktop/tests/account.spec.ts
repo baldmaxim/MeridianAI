@@ -202,6 +202,9 @@ const emit = (page: Page, event: string, payload: unknown) =>
     [event, payload],
   );
 
+const skipSignIn = (page: Page) =>
+  page.getByRole("button", { name: "Продолжить без входа" }).click();
+
 const calls = (page: Page) =>
   page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
 
@@ -211,6 +214,7 @@ test.describe("Account and sync (mocked Tauri)", () => {
   }) => {
     await installTauriMock(page, { signedIn: false, pending: 0 });
     await page.goto("/");
+    await skipSignIn(page);
     await expect(
       page.getByText("Войдите, чтобы видеть встречи с сайта"),
     ).toBeVisible();
@@ -230,11 +234,59 @@ test.describe("Account and sync (mocked Tauri)", () => {
     await expect(page.getByRole("button", { name: "Выйти" })).toBeVisible();
   });
 
+  test("signed out: sign-in screen comes first, skip opens the app", async ({
+    page,
+  }) => {
+    await installTauriMock(page, { signedIn: false, pending: 0 });
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Вход в Meridian" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Запись работает и без входа — войти можно позже"),
+    ).toBeVisible();
+    await expect(page.getByRole("navigation")).toHaveCount(0);
+
+    await skipSignIn(page);
+    await expect(
+      page.getByRole("heading", { name: "Вход в Meridian" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Не выполнен вход" }),
+    ).toBeVisible();
+  });
+
+  test("sign-in screen: browser login error, then success opens the app", async ({
+    page,
+  }) => {
+    await installTauriMock(page, { signedIn: false, pending: 0 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Войти через браузер" }).click();
+    await expect(page.getByRole("alert")).toHaveText("Вход отменён");
+    await page.getByRole("button", { name: "Войти через браузер" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Вход в Meridian" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Не выполнен вход" }),
+    ).toHaveCount(0);
+  });
+
+  test("signed in: no sign-in screen", async ({ page }) => {
+    await installTauriMock(page, { signedIn: true, pending: 0 });
+    await page.goto("/");
+    await expect(page.getByText("Отправленная встреча")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Вход в Meridian" }),
+    ).toHaveCount(0);
+  });
+
   test("clear cross is shown for a non-empty field and keeps the focus", async ({
     page,
   }) => {
     await installTauriMock(page, { signedIn: false, pending: 0 });
     await page.goto("/");
+    await skipSignIn(page);
     await page
       .getByRole("navigation")
       .getByRole("button", { name: "Аккаунт", exact: true })

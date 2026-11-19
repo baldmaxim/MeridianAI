@@ -802,6 +802,7 @@ test.describe("Library (mocked Tauri)", () => {
 
   test("signed out: banner with a link to the account", async ({ page }) => {
     await open(page, { signedIn: false });
+    await page.getByRole("button", { name: "Продолжить без входа" }).click();
     await expect(
       page.getByText("Войдите, чтобы видеть встречи с сайта"),
     ).toBeVisible();

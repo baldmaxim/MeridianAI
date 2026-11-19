@@ -169,6 +169,10 @@ const installTauriMock = async (page: Page) => {
   }, MEETINGS);
 };
 
+// The mock has no account: the sign-in screen comes first.
+const skipSignIn = (page: Page) =>
+  page.getByRole("button", { name: "Продолжить без входа" }).click();
+
 test.describe("Meetings UI (mocked Tauri)", () => {
   test.beforeEach(async ({ page }) => {
     await installTauriMock(page);
@@ -178,6 +182,7 @@ test.describe("Meetings UI (mocked Tauri)", () => {
     page,
   }) => {
     await page.goto("/");
+    await skipSignIn(page);
     await expect(page.getByText("Совещание по смете")).toBeVisible();
     await expect(page.getByText("10:05")).toBeVisible();
     await expect(page.getByText("Не отправлена")).toBeVisible();
@@ -191,6 +196,7 @@ test.describe("Meetings UI (mocked Tauri)", () => {
     page,
   }) => {
     await page.goto("/");
+    await skipSignIn(page);
     await page.getByText("Совещание по смете").click();
     await expect(page.getByText("Первая фраза")).toBeVisible();
     await expect(page.getByText("Проверить объёмы").first()).toBeVisible();
@@ -219,6 +225,7 @@ test.describe("Meetings UI (mocked Tauri)", () => {
     page,
   }) => {
     await page.goto("/");
+    await skipSignIn(page);
     await page.getByText("Совещание по смете").click();
     const chip = page.getByRole("button", { name: "Голос 1 · Оппонент" });
     await expect(chip).toBeVisible();
