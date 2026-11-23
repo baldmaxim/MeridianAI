@@ -480,6 +480,8 @@ button:disabled {
     height: auto !important;
     padding: 0 max(16px, env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
     border-top: none !important;
+    border-bottom: none !important;
+    order: 99; /* в DOM панель стоит под вкладками; на мобиле — внизу, над fixed-навигацией */
     background: linear-gradient(to top, var(--bg) 70%, transparent) !important;
     gap: 10px !important;
     align-items: stretch !important;

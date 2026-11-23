@@ -310,6 +310,17 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
         <ParticipantsBadge />
       </div>
 
+      {/* Панель управления: ≥769px — под вкладками; на мобиле CSS (order) уводит её вниз */}
+      {activeTab === 0 && (
+        <ControlButtons
+          onStartListening={handleStartListening}
+          onStopListening={handleStopListening}
+          onRequestSuggestion={() => sendJSON({ type: 'request_suggestion' })}
+          onStrengthenPosition={() => sendJSON({ type: 'strengthen_position' })}
+          modelName={settings?.llm_model}
+        />
+      )}
+
       {/* Tab content */}
       <div className={activeTab === 0 ? styles.contentNegotiations : styles.content}>
         {activeTab === 0 && (
@@ -344,17 +355,6 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
           <div className="drawer-handle" />
           <span className="drawer-label">Транскрипция</span>
         </div>
-      )}
-
-      {/* Bottom bar — edge-to-edge, outside padded content */}
-      {activeTab === 0 && (
-        <ControlButtons
-          onStartListening={handleStartListening}
-          onStopListening={handleStopListening}
-          onRequestSuggestion={() => sendJSON({ type: 'request_suggestion' })}
-          onStrengthenPosition={() => sendJSON({ type: 'strengthen_position' })}
-          modelName={settings?.llm_model}
-        />
       )}
 
       {/* Toast notification */}
