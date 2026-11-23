@@ -1,9 +1,11 @@
 import type { FC } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { loadMultichannelShadowEnabled } from '../../audio/audioCaptureMetadata';
+import { CollapsibleSection } from '../../components/common/CollapsibleSection';
 import { PopNumber } from '../../components/common/PopNumber';
 import { ChatDisplay } from '../../components/meeting/ChatDisplay';
 import { ConversationTreePanel } from '../../components/meeting/ConversationTreePanel';
+import { CustomerQuestionChat } from '../../components/meeting/CustomerQuestionChat';
 import { MeetingStats } from '../../components/meeting/MeetingStats';
 import { SpeakerIdentityReviewPanel } from '../../components/meeting/SpeakerIdentityReviewPanel';
 import { SpeakerSideAssignmentPanel } from '../../components/meeting/SpeakerSideAssignmentPanel';
@@ -58,6 +60,11 @@ export const NegotiationsTab: FC<INegotiationsTabProps> = ({
         {/* Left: suggestions (wide) */}
         <div className={styles.leftPanel}>
           <SuggestionPanel />
+          <div className={styles.askBlock}>
+            <CollapsibleSection title="Вопрос Заказчика" defaultOpen>
+              <CustomerQuestionChat key={currentMeetingId ?? 'none'} />
+            </CollapsibleSection>
+          </div>
         </div>
         {/* Right: transcript (bottom sheet on mobile) */}
         {drawerOpen && <div className="drawer-backdrop" onClick={onCloseDrawer} />}

@@ -9,6 +9,8 @@ AskSourceKind = Literal["document", "meeting", "transcript", "note", "knowledge"
 
 class MeetingAskRequest(BaseModel):
     question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    # answer — обычный ответ; anticipate — вопрос Заказчика, готовый ответ для произнесения
+    mode: Literal["answer", "anticipate"] = "answer"
 
 
 class MeetingAskSource(BaseModel):

@@ -28,6 +28,6 @@ async def ask_meeting(
     if not await user_can_access_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Нет доступа к встрече")
     try:
-        return await answer_question(db, user, meeting, data.question)
+        return await answer_question(db, user, meeting, data.question, data.mode)
     except MeetingAskError as e:
         raise HTTPException(e.status_code, e.message)

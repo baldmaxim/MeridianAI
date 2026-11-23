@@ -334,7 +334,7 @@ async def meetings_ask(
     """
     meeting, _ = await _linked(db, auth, meeting_id)
     try:
-        return await answer_question(db, auth.user, meeting, data.question)
+        return await answer_question(db, auth.user, meeting, data.question, data.mode)
     except MeetingAskError as e:
         raise HTTPException(e.status_code, e.message)
 

@@ -45,6 +45,15 @@ def fake_llm(monkeypatch):
     monkeypatch.setattr(meeting_ask, "load_api_keys", _keys)
 
 
+@pytest.fixture(autouse=True)
+def no_letters(monkeypatch):
+    """Письма по умолчанию не ходят во внешний пул/БД; тесты писем подменяют провайдер сами."""
+    async def _empty(meeting_id, query=""):
+        return ""
+
+    monkeypatch.setattr(meeting_ask, "build_meeting_letters_context", _empty)
+
+
 async def _prepare(sm, client, token) -> int:
     """Встреча с транскриптом, заметкой и документом."""
     mid = (await _meeting(client, token))["meeting_id"]
@@ -188,6 +197,161 @@ async def test_web_ask_requires_auth_and_validates(sm, client):
     user = await _user(sm)
     r = await client.post("/api/meetings/1/ask", headers=_jwt(user), json={"question": ""})
     assert r.status_code == 422
+
+
+# ---------- режимы ----------
+
+class _SystemSpy(_FakeLLM):
+    systems: list[str] = []
+
+    def set_system_prompt(self, prompt):
+        _SystemSpy.systems.append(prompt)
+
+
+@pytest.fixture
+def spy(monkeypatch):
+    _SystemSpy.systems = []
+    monkeypatch.setattr(meeting_ask, "LLMClient", _SystemSpy)
+    return _SystemSpy
+
+
+@pytest.fixture
+def chunk_limits(monkeypatch):
+    limits: list[int] = []
+    orig = meeting_ask.get_relevant_chunks_for_meeting
+
+    async def _wrap(db, meeting_id, question, limit=6, **kw):
+        limits.append(limit)
+        return await orig(db, meeting_id, question, limit=limit, **kw)
+
+    monkeypatch.setattr(meeting_ask, "get_relevant_chunks_for_meeting", _wrap)
+    return limits
+
+
+@pytest.fixture
+def letters(monkeypatch):
+    from app.config import Settings
+
+    calls: list[tuple[int, str]] = []
+
+    async def _provider(meeting_id, query=""):
+        calls.append((meeting_id, query))
+        return "ПИСЬМО-МАРКЕР: Заказчик согласовал аванс 30%"
+
+    monkeypatch.setattr(Settings, "letters_rag_effective_enabled", property(lambda self: True))
+    monkeypatch.setattr(meeting_ask, "build_meeting_letters_context", _provider)
+    return calls
+
+
+async def test_ask_default_mode_is_answer(sm, client, spy, chunk_limits):
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "какая неустойка?"})
+    assert r.status_code == 200, r.text
+    assert spy.systems == [meeting_ask.SYSTEM_PROMPT]
+    assert chunk_limits == [meeting_ask.DOC_CHUNKS] == [8]
+
+
+async def test_ask_anticipate_mode_prompt_and_chunks(sm, client, spy, chunk_limits):
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "какая неустойка?", "mode": "anticipate"})
+    assert r.status_code == 200, r.text
+    assert set(r.json()) == {"answer", "sources"}
+    assert spy.systems == [meeting_ask.ANTICIPATE_SYSTEM_PROMPT]
+    assert "суфлёр" in spy.systems[0]
+    assert chunk_limits == [12]
+    assert "Неустойка за просрочку составляет 0,1%" in _FakeLLM.prompts[-1]
+
+
+async def test_web_ask_anticipate_mode(sm, client, spy, chunk_limits):
+    user = await _user(sm)
+    token = await _device(sm, user)
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/meetings/{mid}/ask", headers=_jwt(user),
+                          json={"question": "почему такая цена?", "mode": "anticipate"})
+    assert r.status_code == 200, r.text
+    assert spy.systems == [meeting_ask.ANTICIPATE_SYSTEM_PROMPT]
+    assert chunk_limits == [12]
+
+
+async def test_ask_invalid_mode_422(sm, client):
+    user = await _user(sm)
+    token = await _device(sm, user)
+    mid = (await _meeting(client, token))["meeting_id"]
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "q", "mode": "bogus"})
+    assert r.status_code == 422
+    r = await client.post(f"/api/meetings/{mid}/ask", headers=_jwt(user),
+                          json={"question": "q", "mode": "bogus"})
+    assert r.status_code == 422
+    assert _FakeLLM.prompts == []
+
+
+async def test_ask_header_has_offer_submission(sm, client):
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    async with sm() as db:
+        (await db.get(MeetingSession, mid)).offer_submission = "КП-2 от 01.10"
+        await db.commit()
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "q", "mode": "anticipate"})
+    assert r.status_code == 200, r.text
+    assert "Подача КП: КП-2 от 01.10" in _FakeLLM.prompts[-1]
+
+
+async def test_ask_header_without_offer_submission(sm, client):
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "q"})
+    assert r.status_code == 200, r.text
+    assert "Подача КП" not in _FakeLLM.prompts[-1]
+
+
+@pytest.mark.parametrize("mode", ["answer", "anticipate"])
+async def test_ask_includes_letters_section(sm, client, letters, mode):
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "неустойка и аванс?", "mode": mode})
+    assert r.status_code == 200, r.text
+    prompt = _FakeLLM.prompts[-1]
+    assert "===== ПИСЬМА ПО ОБЪЕКТУ =====" in prompt
+    assert "ПИСЬМО-МАРКЕР: Заказчик согласовал аванс 30%" in prompt
+    assert letters == [(mid, "неустойка и аванс?")]
+    assert {"kind": "document", "title": "Письма по объекту", "ref": None} in r.json()["sources"]
+    # порядок: после документов, до прошлых встреч/базы знаний
+    assert prompt.index("ФРАГМЕНТЫ ДОКУМЕНТОВ") < prompt.index("ПИСЬМА ПО ОБЪЕКТУ")
+
+
+async def test_ask_letters_error_is_swallowed(sm, client, letters, monkeypatch):
+    async def _boom(meeting_id, query=""):
+        raise RuntimeError("секретный текст письма")
+
+    monkeypatch.setattr(meeting_ask, "build_meeting_letters_context", _boom)
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "q"})
+    assert r.status_code == 200, r.text
+    assert "ПИСЬМА ПО ОБЪЕКТУ" not in _FakeLLM.prompts[-1]
+
+
+async def test_ask_letters_disabled_in_meeting_ai(sm, client, letters, monkeypatch):
+    async def _ai(db, meeting_id):
+        return {"letters_context_enabled": False}
+
+    monkeypatch.setattr(meeting_ask, "resolve_for_meeting", _ai)
+    token = await _device(sm, await _user(sm))
+    mid = await _prepare(sm, client, token)
+    r = await client.post(f"/api/desktop/meetings/{mid}/ask", headers=_bearer(token),
+                          json={"question": "q"})
+    assert r.status_code == 200, r.text
+    assert letters == []
+    assert "ПИСЬМА ПО ОБЪЕКТУ" not in _FakeLLM.prompts[-1]
 
 
 # ---------- контекст ----------

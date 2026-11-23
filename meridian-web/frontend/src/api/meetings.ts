@@ -66,3 +66,23 @@ export async function addParticipant(meetingId: number, userId: number, role = '
 export async function removeParticipant(meetingId: number, userId: number): Promise<void> {
   await api.delete(`/meetings/${meetingId}/participants/${userId}`);
 }
+
+// --- «Вопрос Заказчика»: готовый короткий ответ по КП и документам встречи ---
+
+export type TAskMode = 'answer' | 'anticipate';
+
+export interface IAskSource {
+  kind: 'document' | 'meeting' | 'transcript' | 'note' | 'knowledge';
+  title: string;
+  ref: string | null;
+}
+
+export interface IAskResponse {
+  answer: string;
+  sources: IAskSource[];
+}
+
+export async function askMeeting(meetingId: number, question: string, mode: TAskMode): Promise<IAskResponse> {
+  const { data } = await api.post<IAskResponse>(`/meetings/${meetingId}/ask`, { question, mode }, { timeout: 90_000 });
+  return data;
+}

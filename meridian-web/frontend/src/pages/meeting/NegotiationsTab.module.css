@@ -22,6 +22,16 @@
   min-height: 0;
 }
 
+/* «Вопрос Заказчика» под подсказками: не растягивается, при нехватке места скроллится сам */
+.askBlock {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 60%;
+  margin-top: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .rightPanel {
   width: 260px;
   flex-shrink: 0;
