@@ -5,6 +5,10 @@ import { SettingContainer } from "../ui/SettingContainer";
 import { ResetButton } from "../ui/ResetButton";
 import { useSettings } from "../../hooks/useSettings";
 
+// Reset sits left of the field so every row's field shares one right edge.
+const RESET_BUTTON_CLASS =
+  "flex h-[32px] w-[32px] shrink-0 items-center justify-center";
+
 interface MicrophoneSelectorProps {
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
@@ -48,7 +52,12 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
         descriptionMode={descriptionMode}
         grouped={grouped}
       >
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center gap-1">
+          <ResetButton
+            onClick={handleReset}
+            disabled={isUpdating("selected_microphone") || isLoading}
+            className={RESET_BUTTON_CLASS}
+          />
           <Dropdown
             options={microphoneOptions}
             selectedValue={selectedMicrophone}
@@ -64,10 +73,6 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
               audioDevices.length === 0
             }
             onOpen={refreshAudioDevices}
-          />
-          <ResetButton
-            onClick={handleReset}
-            disabled={isUpdating("selected_microphone") || isLoading}
           />
         </div>
       </SettingContainer>

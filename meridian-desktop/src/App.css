@@ -205,3 +205,34 @@
 .shell-tabs::-webkit-scrollbar {
   display: none;
 }
+
+/* Dropdown list (components/ui/Dropdown.tsx): fades and slides 4px from the
+   trigger; only opacity and transform are animated. */
+@keyframes dropdown-in-below {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes dropdown-in-above {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.dropdown-panel-below {
+  animation: dropdown-in-below 150ms ease-out;
+}
+
+.dropdown-panel-above {
+  animation: dropdown-in-above 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-panel-below,
+  .dropdown-panel-above {
+    animation: none;
+  }
+}

@@ -121,13 +121,13 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
 
   // Horizontal layout (default)
   const horizontalContainerClasses = grouped
-    ? "flex items-center justify-between min-h-12 px-4 p-2"
-    : "flex items-center justify-between min-h-12 px-4 p-2 rounded-lg border border-mid-gray/20";
+    ? "flex items-center justify-between gap-4 min-h-[48px] px-4 py-2"
+    : "flex items-center justify-between gap-4 min-h-[48px] px-4 py-2 rounded-lg border border-mid-gray/20";
 
   if (descriptionMode === "tooltip") {
     return (
       <div className={horizontalContainerClasses}>
-        <div className="max-w-2/3">
+        <div className="min-w-0 max-w-2/3">
           <div className="flex items-center gap-2">
             <h3
               className={`text-sm font-medium ${disabled ? "opacity-50" : ""}`}
@@ -173,14 +173,14 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
             </div>
           </div>
         </div>
-        <div className="relative">{children}</div>
+        <div className="relative min-w-0">{children}</div>
       </div>
     );
   }
 
   return (
     <div className={horizontalContainerClasses}>
-      <div className="max-w-2/3">
+      <div className="min-w-0 max-w-2/3">
         <h3 className={`text-sm font-medium ${disabled ? "opacity-50" : ""}`}>
           {title}
         </h3>
@@ -188,7 +188,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
           {description}
         </p>
       </div>
-      <div className="relative">{children}</div>
+      <div className="relative min-w-0">{children}</div>
     </div>
   );
 };
