@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { commands, type AskSource } from "@/bindings";
+import { commands, type AskMode, type AskSource } from "@/bindings";
 
 export interface AskMessage {
   id: number;
@@ -11,7 +11,7 @@ export interface AskMessage {
 export interface AskChat {
   messages: AskMessage[];
   asking: boolean;
-  ask: (question: string) => Promise<void>;
+  ask: (question: string, mode: AskMode) => Promise<void>;
 }
 
 /** Question-answer history of one meeting; lives as long as the screen. */
@@ -30,12 +30,12 @@ export const useAskChat = (serverMeetingId: number | null): AskChat => {
   );
 
   const ask = useCallback(
-    async (question: string) => {
+    async (question: string, mode: AskMode) => {
       const text = question.trim();
       if (!text || serverMeetingId === null) return;
       push("user", text);
       setAsking(true);
-      const result = await commands.meetingAsk(serverMeetingId, text);
+      const result = await commands.meetingAsk(serverMeetingId, text, mode);
       setAsking(false);
       if (result.status === "ok") {
         push("assistant", result.data.answer, result.data.sources);

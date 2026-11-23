@@ -9,7 +9,7 @@ use tauri_specta::Event;
 
 use crate::commands::account::clear_library_cache;
 use crate::managers::library::{
-    self, AskAnswer, LibrarySnapshot, MeetingViewResult, SearchHit,
+    self, AskAnswer, AskMode, LibrarySnapshot, MeetingViewResult, SearchHit,
 };
 use crate::managers::meeting::{MeetingDb, MeetingManager};
 use crate::managers::sync::{AccountChanged, AccountStore, ApiClient, ApiError};
@@ -82,9 +82,10 @@ pub async fn meeting_ask(
     app: AppHandle,
     server_meeting_id: i64,
     question: String,
+    mode: AskMode,
 ) -> Result<AskAnswer, String> {
     let client = client(&app);
-    library::meeting_ask(client.as_ref(), server_meeting_id, &question)
+    library::meeting_ask(client.as_ref(), server_meeting_id, &question, mode)
         .await
         .map_err(|e| failure(&app, e))
 }

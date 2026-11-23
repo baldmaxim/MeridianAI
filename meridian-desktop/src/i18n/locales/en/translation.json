@@ -614,6 +614,21 @@
       "needSync": "Available after the meeting is sent",
       "placeholder": "Ask about the meeting…",
       "send": "Send question",
+      "placeholderAnticipate": "A question the Customer may ask…",
+      "modeLabel": "Question mode",
+      "mode": {
+        "anticipate": "Customer question",
+        "answer": "Reference"
+      },
+      "quickLabel": "Quick questions",
+      "quick": {
+        "expensive": "Why is it so expensive?",
+        "composition": "What makes up the price?",
+        "terms": "What are the terms and schedule?",
+        "advance": "What is the advance and payment procedure?",
+        "excluded": "What is not included in the offer?"
+      },
+      "emptyAnticipate": "Enter a question the Customer may ask or pick one — you get a short answer ready to say aloud.",
       "empty": "Ask a question — the answer comes from the protocol, the transcript and the documents.",
       "thinking": "Thinking…",
       "failed": "Could not get an answer",

@@ -100,6 +100,16 @@ pub struct AskSource {
     pub reference: Option<String>,
 }
 
+/// What the question is: `answer` - a reference answer about the meeting,
+/// `anticipate` - a question the Customer may ask and a short ready reply.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum AskMode {
+    #[default]
+    Answer,
+    Anticipate,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
 pub struct AskAnswer {
     pub answer: String,

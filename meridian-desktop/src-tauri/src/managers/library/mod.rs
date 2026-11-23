@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use log::warn;
 
-pub use types::{AskAnswer, LibrarySnapshot, MeetingViewResult, SearchHit};
+pub use types::{AskAnswer, AskMode, LibrarySnapshot, MeetingViewResult, SearchHit};
 
 use crate::managers::meeting::MeetingDb;
 use crate::managers::sync::{ApiClient, ApiError};
@@ -124,13 +124,14 @@ pub async fn meeting_ask(
     client: Option<&ApiClient>,
     server_meeting_id: i64,
     question: &str,
+    mode: AskMode,
 ) -> Result<AskAnswer, ApiError> {
     let client = client.ok_or_else(|| ApiError::Local(MSG_NO_ACCOUNT.to_string()))?;
     let question = question.trim();
     if question.is_empty() {
         return Err(ApiError::Local("Введите вопрос".to_string()));
     }
-    match client.ask(server_meeting_id, question).await {
+    match client.ask(server_meeting_id, question, mode).await {
         Err(ApiError::Retry { status: None, .. }) => {
             Err(ApiError::Local(MSG_ASK_OFFLINE.to_string()))
         }

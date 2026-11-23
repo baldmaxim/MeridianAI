@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use super::test_support::{item, local_meeting, STARTED};
-use super::{library_get, meeting_ask, meeting_view_get};
+use super::{library_get, meeting_ask, meeting_view_get, AskMode};
 use crate::managers::meeting::MeetingDb;
 use crate::managers::sync::tests::{err, ok, start_mock, Mock, Reply, Req};
 use crate::managers::sync::{ApiClient, ApiError};
@@ -217,7 +217,7 @@ async fn view_errors_are_explained() {
 #[tokio::test]
 async fn ask_returns_answer_and_sources() {
     let mock = start_mock(server).await;
-    let answer = meeting_ask(Some(&client(&mock)), 7, "  Какой срок?  ")
+    let answer = meeting_ask(Some(&client(&mock)), 7, "  Какой срок?  ", AskMode::Answer)
         .await
         .unwrap();
     assert_eq!(answer.answer, "Срок — май");
@@ -225,25 +225,40 @@ async fn ask_returns_answer_and_sources() {
     assert_eq!(answer.sources[0].reference.as_deref(), Some("p. 3"));
     assert_eq!(answer.sources[1].reference, None);
     assert_eq!(mock.all()[0].json()["question"], "Какой срок?");
+    assert_eq!(mock.all()[0].json()["mode"], "answer");
+}
+
+#[tokio::test]
+async fn ask_sends_the_anticipate_mode() {
+    let mock = start_mock(server).await;
+    meeting_ask(
+        Some(&client(&mock)),
+        7,
+        "Почему так дорого?",
+        AskMode::Anticipate,
+    )
+    .await
+    .unwrap();
+    assert_eq!(mock.all()[0].json()["mode"], "anticipate");
 }
 
 #[tokio::test]
 async fn ask_needs_a_connection() {
-    let offline = meeting_ask(Some(&dead_client().await), 7, "Что решили?")
+    let offline = meeting_ask(Some(&dead_client().await), 7, "Что решили?", AskMode::Answer)
         .await
         .unwrap_err();
     assert_eq!(
         offline.to_string(),
         "Спросить можно только при подключении к сети"
     );
-    assert!(meeting_ask(None, 7, "Что решили?").await.is_err());
+    assert!(meeting_ask(None, 7, "Что решили?", AskMode::Answer).await.is_err());
     let mock = start_mock(server).await;
-    assert!(meeting_ask(Some(&client(&mock)), 7, "   ").await.is_err());
+    assert!(meeting_ask(Some(&client(&mock)), 7, "   ", AskMode::Answer).await.is_err());
     assert_eq!(mock.count(), 0);
 
     let refused = start_mock(|_| err(401, "x")).await;
     assert_eq!(
-        meeting_ask(Some(&client(&refused)), 7, "Вопрос")
+        meeting_ask(Some(&client(&refused)), 7, "Вопрос", AskMode::Answer)
             .await
             .unwrap_err(),
         ApiError::Unauthorized

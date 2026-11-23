@@ -490,9 +490,9 @@ async meetingViewGet(serverMeetingId: number) : Promise<Result<MeetingViewResult
     else return { status: "error", error: e  as any };
 }
 },
-async meetingAsk(serverMeetingId: number, question: string) : Promise<Result<AskAnswer, string>> {
+async meetingAsk(serverMeetingId: number, question: string, mode: AskMode) : Promise<Result<AskAnswer, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("meeting_ask", { serverMeetingId, question }) };
+    return { status: "ok", data: await TAURI_INVOKE("meeting_ask", { serverMeetingId, question, mode }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -877,6 +877,11 @@ upload_audio?: boolean;
  */
 recognition_mode?: RecognitionMode }
 export type AskAnswer = { answer: string; sources: AskSource[] }
+/**
+ * What the question is: `answer` - a reference answer about the meeting,
+ * `anticipate` - a question the Customer may ask and a short ready reply.
+ */
+export type AskMode = "answer" | "anticipate"
 export type AskSource = { 
 /**
  * `document`, `meeting`, `transcript`, `note` or `knowledge`.

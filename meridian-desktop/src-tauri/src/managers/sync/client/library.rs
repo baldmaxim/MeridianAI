@@ -5,12 +5,13 @@ use serde::Serialize;
 
 use super::{send_json, ApiClient, ApiError};
 use crate::managers::library::types::{
-    AskAnswer, LibraryItem, MeetingView, ProjectCustomer,
+    AskAnswer, AskMode, LibraryItem, MeetingView, ProjectCustomer,
 };
 
 #[derive(Serialize)]
 struct AskBody<'a> {
     question: &'a str,
+    mode: AskMode,
 }
 
 impl ApiClient {
@@ -32,8 +33,13 @@ impl ApiClient {
         send_json(self.authorized(self.http.get(url))).await
     }
 
-    pub async fn ask(&self, meeting_id: i64, question: &str) -> Result<AskAnswer, ApiError> {
+    pub async fn ask(
+        &self,
+        meeting_id: i64,
+        question: &str,
+        mode: AskMode,
+    ) -> Result<AskAnswer, ApiError> {
         let url = self.url(&format!("meetings/{meeting_id}/ask"));
-        send_json(self.authorized(self.http.post(url).json(&AskBody { question }))).await
+        send_json(self.authorized(self.http.post(url).json(&AskBody { question, mode }))).await
     }
 }
