@@ -67,12 +67,12 @@ describe('useTheme', () => {
     act(() => result.current.setMode('dark'));
     expect(localStorage.getItem(KEY)).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#0D1018');
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#080A0F');
 
     act(() => result.current.setMode('light'));
     expect(localStorage.getItem(KEY)).toBe('light');
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#FFFFFF');
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#F3F5F9');
   });
 
   it('режим system следует за темой ОС', async () => {
