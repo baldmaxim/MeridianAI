@@ -33,6 +33,7 @@ from .previous_meeting_context import (
 )
 from .rag_context import format_rag_chunks_block, get_relevant_rag_chunks_for_meeting
 from .access import user_can_access_meeting
+from .document_names import document_display_name
 from .offer_submissions import offer_submission_label
 
 logger = logging.getLogger("meridian.meeting_ask")
@@ -105,8 +106,11 @@ def _tc(seconds: float | None) -> str:
     return f"{s // 60:02d}:{s % 60:02d}"
 
 
-def _src(kind: str, title: str, ref: str | None = None) -> dict:
-    return {"kind": kind, "title": title, "ref": ref}
+def _src(kind: str, title: str, ref: str | None = None, full_title: str | None = None) -> dict:
+    src = {"kind": kind, "title": title, "ref": ref}
+    if full_title and full_title != title:
+        src["full_title"] = full_title
+    return src
 
 
 def _probe(text: str) -> str:
@@ -165,14 +169,22 @@ async def _document_sections(
     chunks = await get_relevant_chunks_for_meeting(db, meeting_id, question, limit=doc_chunks)
     block = format_chunks_block(chunks, doc_chunks, doc_cap)
     if block:
-        pages: dict[str, list[int]] = {}
-        probes: dict[str, str] = {}
+        # ключ — id документа: у разных документов отображаемые имена могут совпасть
+        pages: dict[object, list[int]] = {}
+        probes: dict[object, str] = {}
+        titles: dict[object, str] = {}
+        full_titles: dict[object, str] = {}
         for c in chunks:
-            pages.setdefault(c["document_name"], [])
+            key = c["document_id"]
+            pages.setdefault(key, [])
             if c.get("page_number"):
-                pages[c["document_name"]].append(c["page_number"])
-            probes.setdefault(c["document_name"], _probe(c["text"]))
-        items = [(probes[name], _src("document", name, _pages_ref(p))) for name, p in pages.items()]
+                pages[key].append(c["page_number"])
+            probes.setdefault(key, _probe(c["text"]))
+            titles.setdefault(key, document_display_name(c["document_name"]))
+            full_titles.setdefault(key, c["document_name"])
+        items = [
+            (probes[k], _src("document", titles[k], _pages_ref(p), full_titles[k])) for k, p in pages.items()
+        ]
         out.append(_Section("document", "Релевантные фрагменты документов встречи", block, items))
 
     if settings.rag_context_enabled:
@@ -182,13 +194,19 @@ async def _document_sections(
         if rag_block:
             pages = {}
             probes = {}
+            titles = {}
+            full_titles = {}
             for c in rag:
-                key = f"{c['folder_title']} / {c['document_name']}"
+                key = (c["folder_id"], c["document_id"])
                 pages.setdefault(key, [])
                 if c.get("page_number"):
                     pages[key].append(c["page_number"])
                 probes.setdefault(key, _probe(c["text"]))
-            items = [(probes[k], _src("document", k, _pages_ref(p))) for k, p in pages.items()]
+                titles.setdefault(key, f"{c['folder_title']} / {document_display_name(c['document_name'])}")
+                full_titles.setdefault(key, f"{c['folder_title']} / {c['document_name']}")
+            items = [
+                (probes[k], _src("document", titles[k], _pages_ref(p), full_titles[k])) for k, p in pages.items()
+            ]
             out.append(_Section("rag", "Фрагменты подключённых папок (RAG)", rag_block, items))
     return out
 

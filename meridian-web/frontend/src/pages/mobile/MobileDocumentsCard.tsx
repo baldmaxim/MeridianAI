@@ -2,6 +2,7 @@ import { useState, type FC } from 'react';
 import { patchMeetingDocument } from '../../api/meetingDocuments';
 import { formatMetaLine, getDocTypeText, groupBySource, isDocPending } from '../../components/context/sourcesModel';
 import { apiErrorMessage } from '../../lib/apiError';
+import { getDocumentDisplayName } from '../../lib/documentName';
 import type { MeetingDocument } from '../../types';
 import styles from './MobileDocumentsCard.module.css';
 
@@ -51,10 +52,10 @@ export const MobileDocumentsCard: FC<IMobileDocumentsCardProps> = ({ meetingId, 
                   className={styles.checkbox}
                   checked={d.included}
                   onChange={() => { void toggle(d); }}
-                  aria-label={`В контексте: ${d.original_name}`}
+                  aria-label={`В контексте: ${getDocumentDisplayName(d)}`}
                 />
                 <span className={styles.main}>
-                  <span className={styles.name}>{d.original_name}</span>
+                  <span className={styles.name} title={d.original_name}>{getDocumentDisplayName(d)}</span>
                   {details && <span className={styles.details}>{details}</span>}
                   {tags && <span className={styles.tags}>{tags}</span>}
                 </span>

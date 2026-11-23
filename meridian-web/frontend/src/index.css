@@ -192,7 +192,6 @@ button:disabled {
 .chat-display,
 .suggestion-panel,
 .meeting-right-panel,
-.meeting-tree-panel,
 .detail-panels,
 .admin-container,
 .history-container,
@@ -240,18 +239,6 @@ button:disabled {
 
 /* ── Responsive breakpoints ── */
 
-/* Узкий desktop: дерево общения переносится на всю ширину под подсказки/транскрипт */
-@media (max-width: 1280px) {
-  .meeting-layout {
-    flex-wrap: wrap;
-  }
-  .meeting-tree-panel {
-    width: 100% !important;
-    max-height: 320px;
-    order: 3;
-  }
-}
-
 /* iPad / Tablet */
 @media (max-width: 1024px) {
   .meeting-layout {
@@ -260,10 +247,6 @@ button:disabled {
   .meeting-right-panel {
     min-width: unset !important;
     max-height: 300px;
-  }
-  .meeting-tree-panel {
-    width: 100% !important;
-    max-height: 280px;
   }
   .context-columns {
     grid-template-columns: 1fr !important;

@@ -3,7 +3,6 @@ import type { DocumentRecord, IOfferSubmission } from '../../types';
 import { Collapse } from '../common/Collapse';
 import { cx } from '../../utils/cx';
 import { ObjectDocumentRow } from './ObjectDocumentRow';
-import { stripOfferPrefix } from './offerSubmissions';
 import styles from './ObjectDocuments.module.css';
 
 interface IObjectSubmissionCardProps {
@@ -37,7 +36,6 @@ export const ObjectSubmissionCard: FC<IObjectSubmissionCardProps> = ({ submissio
           <ObjectDocumentRow
             key={d.id}
             doc={d}
-            displayName={stripOfferPrefix(d.original_name, submission.key)}
           />
         ))}
       </Collapse>

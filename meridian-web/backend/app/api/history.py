@@ -469,7 +469,7 @@ async def list_meeting_documents(
     meeting = await db.get(MeetingSession, meeting_id)
     if meeting is None:
         return []
-    return await list_meeting_document_items(db, meeting)
+    return await list_meeting_document_items(db, meeting, include_not_ready=True)
 
 
 @router.post("/{meeting_id}/documents/{document_id}", response_model=MeetingDocumentItem)

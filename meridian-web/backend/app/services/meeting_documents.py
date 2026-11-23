@@ -17,7 +17,9 @@ from ..models.document import DocumentChunk, DocumentRecord
 from ..models.meeting import MeetingDocumentRecord, MeetingSession
 from ..schemas.document import MeetingDocumentItem
 from .document_classify import tag_items, type_label
-from .document_context import DEFAULT_DOCUMENT_PRIORITY, inherited_documents_stmt
+from .document_context import (
+    DEFAULT_DOCUMENT_PRIORITY, INHERITED_DISPLAY_STATUSES, inherited_documents_stmt,
+)
 
 SOURCE_MEETING = "meeting"
 SOURCE_CUSTOMER = "customer"
@@ -55,7 +57,8 @@ def meeting_doc_item(
         original_name=doc.original_name,
         file_ext=doc.file_ext,
         status=doc.status,
-        included=md.included if md is not None else True,
+        # унаследованный не готовый документ в контекст не попадает — показываем выключенным
+        included=md.included if md is not None else doc.status == "ready",
         priority=md.priority if md is not None else DEFAULT_DOCUMENT_PRIORITY,
         chunks_count=chunks_count,
         page_count=doc.page_count,
@@ -101,8 +104,13 @@ async def get_meeting_document_row(
     ).scalar_one_or_none()
 
 
-async def list_meeting_document_items(db: AsyncSession, meeting: MeetingSession) -> list[MeetingDocumentItem]:
-    """Прикреплённые документы встречи + готовые документы её заказчика/объекта."""
+async def list_meeting_document_items(
+    db: AsyncSession, meeting: MeetingSession, *, include_not_ready: bool = False,
+) -> list[MeetingDocumentItem]:
+    """Прикреплённые документы встречи + готовые документы её заказчика/объекта.
+
+    include_not_ready — дополнительно унаследованные документы в ошибке/обработке (только для показа на сайте:
+    их можно распознать заново; в контекст LLM они не идут)."""
     from .ocr_queue import ocr_waiting_notes
     chunks_subq = _chunks_count_subq()
     rows = (
@@ -118,7 +126,10 @@ async def list_meeting_document_items(db: AsyncSession, meeting: MeetingSession)
     ).all()
 
     inherited_rows: list = []
-    inherited = inherited_documents_stmt(meeting)
+    inherited = (
+        inherited_documents_stmt(meeting, INHERITED_DISPLAY_STATUSES) if include_not_ready
+        else inherited_documents_stmt(meeting)
+    )
     if inherited is not None:
         attached_ids = {doc.id for _, doc, _ in rows}
         inherited_rows = [

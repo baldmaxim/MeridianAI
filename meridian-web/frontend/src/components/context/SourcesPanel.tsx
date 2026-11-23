@@ -8,6 +8,7 @@ import { ContextPreviewModal } from './ContextPreviewModal';
 import { DocumentUploadQueue } from './DocumentUploadQueue';
 import { OfferSubmissionSelect } from './OfferSubmissionSelect';
 import { SourceFileRow } from './SourceFileRow';
+import { getDocumentDisplayName } from '../../lib/documentName';
 import {
   ragPlaceholderToContextSourceViewModel,
   ragAttachedFolderToContextSourceViewModel,
@@ -112,8 +113,8 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
 
   const removeDoc = (doc: MeetingDocument) => {
     const question = isInherited(doc)
-      ? `Скрыть «${doc.original_name}» из этой встречи?`
-      : `Открепить «${doc.original_name}»?`;
+      ? `Скрыть «${getDocumentDisplayName(doc)}» из этой встречи?`
+      : `Открепить «${getDocumentDisplayName(doc)}»?`;
     if (confirm(question)) void sources.remove(doc);
   };
 

@@ -17,6 +17,7 @@ export interface DocumentRecord {
   object_id: number | null;
   file_id: number | null;
   original_name: string;
+  display_name?: string;  // читаемое имя (без служебного префикса); нет — original_name
   mime_type: string | null;
   file_ext: string;
   file_size: number | null;
@@ -81,6 +82,7 @@ export interface MeetingDocument {
   id: number;
   document_id: number;
   original_name: string;
+  display_name?: string;
   file_ext: string | null;
   status: DocumentStatus;
   included: boolean;

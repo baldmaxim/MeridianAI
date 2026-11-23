@@ -19,6 +19,7 @@ from ..config import get_settings
 from ..database import async_session
 from ..models.meeting import MeetingDocumentRecord, MeetingSession
 from ..models.document import DocumentRecord, DocumentChunk
+from .document_names import document_display_name
 from .offer_submissions import offer_submission_label
 
 logger = logging.getLogger("meridian.documents")
@@ -161,8 +162,14 @@ async def _candidate_rows(db: AsyncSession, stmt, query_text: str, extra_query: 
     return rows
 
 
-def inherited_documents_stmt(meeting: MeetingSession):
-    """SELECT DocumentRecord.id готовых документов заказчика/объекта встречи (или None).
+# Статусы унаследованных документов, которые показываем в списке источников (в контекст идут только ready)
+INHERITED_DISPLAY_STATUSES = ("ready", "error", "processing", "uploaded")  # pending — брошенные загрузки не показываем
+
+
+def inherited_documents_stmt(meeting: MeetingSession, statuses: tuple[str, ...] = ("ready",)):
+    """SELECT DocumentRecord.id документов заказчика/объекта встречи (или None); по умолчанию — готовых.
+
+    statuses шире ("ready",) — только для показа в списке источников, не для контекста LLM.
 
     Документы общие для всех сотрудников (services/access.py), поэтому фильтра по пользователю нет:
     Документ объекта наследуется его встречами (при выбранной подаче КП — общие + только её).
@@ -185,7 +192,7 @@ def inherited_documents_stmt(meeting: MeetingSession):
         conds.append(object_cond)
     if not conds:
         return None
-    return select(DocumentRecord.id).where(DocumentRecord.status == "ready", or_(*conds))
+    return select(DocumentRecord.id).where(DocumentRecord.status.in_(statuses), or_(*conds))
 
 
 async def effective_meeting_document_ids(db: AsyncSession, meeting: MeetingSession) -> set[int]:
@@ -333,7 +340,7 @@ def format_chunks_block(chunks: list[dict], max_chunks: int, max_chars: int) -> 
         clauses = c.get("clauses") or []
         if clauses:
             loc += " | Пункты " + (clauses[0] if len(clauses) == 1 else f"{clauses[0]}–{clauses[-1]}")
-        header = f"[Документ: {c['document_name']}{loc}]"
+        header = f"[Документ: {document_display_name(c['document_name'])}{loc}]"
         text = c["text"]
         if total + len(text) > max_chars:
             remaining = max_chars - total

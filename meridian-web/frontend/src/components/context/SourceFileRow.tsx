@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import type { MeetingDocument } from '../../types';
 import { Icon } from '../common/Icon';
 import { DocumentIcon } from './DocumentIcon';
-import { stripOfferPrefix } from '../object/offerSubmissions';
+import { getDocumentDisplayName } from '../../lib/documentName';
 import {
   formatMetaLine, getDocTypeText, getSourceStatus, isDocPending, isInherited, type SourceStatusKind,
 } from './sourcesModel';
@@ -23,6 +23,7 @@ const STATUS_CLASS: Record<SourceStatusKind, string> = {
 
 export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, onRemove, onReprocess }) => {
   const inherited = isInherited(doc);
+  const name = getDocumentDisplayName(doc);
   const status = getSourceStatus(doc);
   const metaLine = formatMetaLine(doc.doc_meta);
   const tags = doc.doc_tags ?? [];
@@ -30,8 +31,8 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
   const typeText = getDocTypeText(doc);
   const typeShown = !!doc.doc_type_label || isDocPending(doc);
   const removeLabel = inherited
-    ? `Скрыть «${doc.original_name}» из встречи`
-    : `Открепить «${doc.original_name}»`;
+    ? `Скрыть «${name}» из встречи`
+    : `Открепить «${name}»`;
 
   const reprocessAction = doc.status === 'error'
     ? { label: 'Распознать заново', missing: false }
@@ -51,14 +52,14 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
           className={styles.checkbox}
           checked={doc.included}
           onChange={() => onToggleIncluded(doc)}
-          aria-label={`Учитывать в подсказках: ${doc.original_name}`}
+          aria-label={`Учитывать в подсказках: ${name}`}
         />
       </label>
       <span className={styles.icon}>
         <DocumentIcon ext={doc.file_ext ?? ''} docType={doc.doc_type} />
       </span>
       <div className={styles.main}>
-        <div className={styles.name} title={doc.original_name}>{doc.offer_submission == null ? doc.original_name : stripOfferPrefix(doc.original_name, doc.offer_submission)}</div>
+        <div className={styles.name} title={doc.original_name}>{name}</div>
         {(details || status || reprocessAction) && (
           <div className={styles.details}>
             {details && <span>{details}</span>}

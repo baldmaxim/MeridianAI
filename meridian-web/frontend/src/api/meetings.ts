@@ -75,6 +75,7 @@ export interface IAskSource {
   kind: 'document' | 'meeting' | 'transcript' | 'note' | 'knowledge';
   title: string;
   ref: string | null;
+  full_title?: string;  // полное имя файла для подсказки при наведении
 }
 
 export interface IAskResponse {

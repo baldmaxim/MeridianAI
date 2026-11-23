@@ -23,6 +23,7 @@ from ..models.rag import RagFolder, RagFolderDocument
 from ..models.document import DocumentRecord, DocumentChunk
 from ..models.context_source import MeetingContextSource
 from ..models.directory import Customer, ProjectObject
+from .document_names import document_display_name
 from ..schemas.rag import (
     RAG_FOLDER_STATUSES, RagFolderCreate, RagFolderUpdate, RagFolderOut,
     RagFolderDocumentOut, RagAttachedFolderOut,
@@ -441,7 +442,7 @@ def format_rag_chunks_block(chunks: list[dict], max_chunks: int, max_chars: int)
             loc = f" | Страница {c['page_number']}"
         elif c.get("sheet_name"):
             loc = f" | Лист: {c['sheet_name']}"
-        header = f"[RAG-папка: {c['folder_title']} | Документ: {c['document_name']}{loc}]"
+        header = f"[RAG-папка: {c['folder_title']} | Документ: {document_display_name(c['document_name'])}{loc}]"
         text = c["text"]
         if total + len(text) > max_chars:
             remaining = max_chars - total

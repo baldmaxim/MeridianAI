@@ -68,9 +68,18 @@ const renderAnswer = (text: string): ReactNode[] => {
   return nodes;
 };
 
-const uniqueSourceLabels = (sources: IAskSource[]): string[] => {
-  const labels = sources.map((s) => (s.ref ? `${s.title} · ${s.ref}` : s.title));
-  return Array.from(new Set(labels));
+interface ISourceLabel {
+  label: string;
+  fullTitle: string | null;
+}
+
+const uniqueSourceLabels = (sources: IAskSource[]): ISourceLabel[] => {
+  const byLabel = new Map<string, ISourceLabel>();
+  sources.forEach((s) => {
+    const label = s.ref ? `${s.title} · ${s.ref}` : s.title;
+    if (!byLabel.has(label)) byLabel.set(label, { label, fullTitle: s.full_title ?? null });
+  });
+  return Array.from(byLabel.values());
 };
 
 const Sources: FC<{ sources: IAskSource[] }> = ({ sources }) => {
@@ -82,7 +91,7 @@ const Sources: FC<{ sources: IAskSource[] }> = ({ sources }) => {
   return (
     <>
       <ul className={styles.sources}>
-        {visible.map((l) => <li key={l}>{l}</li>)}
+        {visible.map((l) => <li key={l.label} title={l.fullTitle ?? undefined}>{l.label}</li>)}
       </ul>
       {hidden > 0 && !expanded && (
         <button type="button" className={styles.sourcesToggle} onClick={() => setExpanded(true)}>

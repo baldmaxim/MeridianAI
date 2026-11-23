@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { getDocumentDownloadUrl } from '../../api/documents';
 import { apiErrorMessage } from '../../lib/apiError';
 import { formatFileSize } from '../../lib/documentFiles';
+import { getDocumentDisplayName } from '../../lib/documentName';
 import type { DocumentRecord } from '../../types';
 import { cx } from '../../utils/cx';
 import styles from './ObjectDocuments.module.css';
@@ -17,7 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface IObjectDocumentRowProps {
   doc: DocumentRecord;
-  /** Имя для показа (например, без префикса подачи КП); по умолчанию — original_name. */
+  /** Имя для показа (например, без префикса подачи КП); по умолчанию — display_name документа. */
   displayName?: string;
 }
 
@@ -48,7 +49,7 @@ export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayNam
   return (
     <div className={styles.row}>
       <div className={styles.rowMain}>
-        <div className={styles.rowName} title={doc.original_name}>{displayName ?? doc.original_name}</div>
+        <div className={styles.rowName} title={doc.original_name}>{displayName ?? getDocumentDisplayName(doc)}</div>
         <div className={styles.rowMeta}>
           {meta.length > 0 && <span>{meta.join(' · ')}</span>}
           {doc.status !== 'ready' && (
@@ -64,7 +65,7 @@ export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayNam
         className={cx('t-btn', styles.downloadBtn)}
         onClick={download}
         disabled={busy}
-        aria-label={`Скачать ${doc.original_name}`}
+        aria-label={`Скачать ${displayName ?? getDocumentDisplayName(doc)}`}
       >
         {busy ? '…' : 'Скачать'}
       </button>

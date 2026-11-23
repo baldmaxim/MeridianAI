@@ -2,8 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, computed_field, field_validator, model_validator
 
+from ..services.document_names import document_display_name
 from ..services.offer_submissions import public_doc_meta
 
 
@@ -76,6 +77,11 @@ class DocumentResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @computed_field
+    @property
+    def display_name(self) -> str:
+        return document_display_name(self.original_name)
+
     @field_validator("doc_meta", mode="after")
     @classmethod
     def _hide_local_path(cls, value):
@@ -126,6 +132,11 @@ class MeetingDocumentItem(BaseModel):
     doc_tags: list[DocClassifierItem] = []
     doc_meta: dict | None = None
     offer_submission: str | None = None
+
+    @computed_field
+    @property
+    def display_name(self) -> str:
+        return document_display_name(self.original_name)
 
     @field_validator("doc_meta", mode="after")
     @classmethod

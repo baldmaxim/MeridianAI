@@ -17,6 +17,8 @@ class MeetingAskSource(BaseModel):
     kind: AskSourceKind
     title: str
     ref: str | None = None
+    # полное имя файла (title — читаемое), для подсказки при наведении
+    full_title: str | None = None
 
 
 class MeetingAskResponse(BaseModel):

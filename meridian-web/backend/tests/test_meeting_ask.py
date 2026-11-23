@@ -91,7 +91,7 @@ async def test_desktop_ask_returns_answer_and_context_in_prompt(sm, client):
     kinds = {s["kind"] for s in body["sources"]}
     assert {"transcript", "note", "document"} <= kinds
     doc = next(s for s in body["sources"] if s["kind"] == "document")
-    assert doc == {"kind": "document", "title": "Договор.pdf", "ref": "стр. 3"}
+    assert doc == {"kind": "document", "title": "Договор.pdf", "ref": "стр. 3", "full_title": None}
     tr = next(s for s in body["sources"] if s["kind"] == "transcript")
     assert tr["ref"] == "01:05–01:12"
 
@@ -322,7 +322,7 @@ async def test_ask_includes_letters_section(sm, client, letters, mode):
     assert "===== ПИСЬМА ПО ОБЪЕКТУ =====" in prompt
     assert "ПИСЬМО-МАРКЕР: Заказчик согласовал аванс 30%" in prompt
     assert letters == [(mid, "неустойка и аванс?")]
-    assert {"kind": "document", "title": "Письма по объекту", "ref": None} in r.json()["sources"]
+    assert {"kind": "document", "title": "Письма по объекту", "ref": None, "full_title": None} in r.json()["sources"]
     # порядок: после документов, до прошлых встреч/базы знаний
     assert prompt.index("ФРАГМЕНТЫ ДОКУМЕНТОВ") < prompt.index("ПИСЬМА ПО ОБЪЕКТУ")
 

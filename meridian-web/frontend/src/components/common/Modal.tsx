@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useOpenClose } from '../../hooks/useOpenClose';
 import styles from './Modal.module.css';
 
 /**
  * Modal — modal open/close (transitions.dev 06).
  * Backdrop с blur + диалог, масштабирующийся 0.96→1 на открытии и обратно
- * на закрытии. Оркестрация .is-open/.is-closing — через useOpenClose,
+ * на закрытии. Рендерится порталом в document.body: иначе position:fixed
+ * оказывается внутри stacking context предков (transform/filter у t-page-enter,
+ * t-panel-slide) и поля страницы рисуются поверх модалки. Оркестрация .is-open/.is-closing — через useOpenClose,
  * поэтому exit-анимация не срезается размонтажем. Закрытие по Esc и клику
  * на backdrop. Reduced-motion гасится CSS-guard'ом.
  *
@@ -32,7 +35,7 @@ export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop
 
   if (!m.mounted) return null;
 
-  return (
+  return createPortal(
     <div className={styles.overlay} onClick={closeOnBackdrop ? onClose : undefined}>
       <div
         className={`t-modal ${m.cls} ${styles.modal}`.trim()}
@@ -43,6 +46,7 @@ export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

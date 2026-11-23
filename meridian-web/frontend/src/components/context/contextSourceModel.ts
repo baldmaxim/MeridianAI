@@ -4,6 +4,7 @@ import type {
 } from '../../types';
 import type { RagFolderViewModel, RagAttachedFolderViewModel, RagFolderStatus } from './ragContextTypes';
 import type { LetterHit, MeetingLetter } from '../../api/letters';
+import { getDocumentDisplayName } from '../../lib/documentName';
 
 // ── UI-only модель источников контекста ───────────────────────────────────────
 // Эти типы НЕ совпадают с backend ContextSourceType. RAG-папки здесь существуют
@@ -95,7 +96,7 @@ export function documentToContextSourceViewModel(doc: MeetingDocument): ContextS
   return {
     id: `doc-${doc.id}`,
     kind: 'document',
-    title: doc.original_name || `Документ #${doc.id}`,
+    title: getDocumentDisplayName(doc) || `Документ #${doc.id}`,
     subtitle,
     meta,
     included: !!doc.included,
