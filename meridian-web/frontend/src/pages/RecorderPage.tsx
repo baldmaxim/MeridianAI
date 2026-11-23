@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useMeetingStore } from '../store/meetingStore';
 import { getMobileMeeting } from '../api/mobile';
+import { uploadBatchAudio } from '../api/batch';
+import { offlineAudioBuffer } from '../lib/offlineAudioBuffer';
 import { navigate } from '../lib/navigation';
 import type { MobileMeetingDetail } from '../types';
 import styles from './RecorderPage.module.css';
@@ -15,7 +17,7 @@ interface Props {
 
 export function RecorderPage({ meetingId }: Props) {
   const [closed, setClosed] = useState(false);
-  const { connect, disconnect, sendJSON, sendBinary } = useWebSocket(() => setClosed(true));
+  const { connect, disconnect, sendJSON, sendBinary, ws } = useWebSocket(() => setClosed(true));
   const [level, setLevel] = useState(0);
   const [micOn, setMicOn] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -36,18 +38,43 @@ export function RecorderPage({ meetingId }: Props) {
 
   const isActiveSource = !!activeAudioSource && !!connectionId && activeAudioSource === connectionId;
 
-  // отправлять аудио только когда мы — активный источник
+  // отправлять аудио только когда мы — активный источник. Если WS разорван, а мы были
+  // источником — копим чанки в IndexedDB (как useMeetingAudioCapture) и дошлём после реконнекта.
   const guardedSend = useCallback((buf: ArrayBuffer) => {
     const st = useMeetingStore.getState();
-    if (st.connectionId && st.activeAudioSource === st.connectionId) {
-      sendBinary(buf);
-    }
-  }, [sendBinary]);
+    if (!st.connectionId || st.activeAudioSource !== st.connectionId) return;
+    if (ws.current?.readyState === WebSocket.OPEN) sendBinary(buf);
+    else void offlineAudioBuffer.append(meetingId, buf);
+  }, [sendBinary, ws, meetingId]);
 
   // Прерывание захвата ОС (экран заблокирован/звонок). Обработчики снимаются в stop(),
   // поэтому колбэк прилетает только во время активной записи.
   const onMicInterrupt = useCallback(() => setPaused(true), []);
   const { start: startMic, stop: stopMic } = useAudioRecorder(guardedSend, setLevel, onMicInterrupt);
+
+  // При восстановлении WS (false→true) дослать накопленный офлайн-звук как gap_fill
+  // (тот же протокол, что в useMeetingAudioCapture). Остаток прошлой сессии тоже уйдёт при входе.
+  const prevConnectedRef = useRef(false);
+  const flushingRef = useRef(false);
+  useEffect(() => {
+    const wasConnected = prevConnectedRef.current;
+    prevConnectedRef.current = isConnected;
+    if (!isConnected || wasConnected || flushingRef.current) return;
+    flushingRef.current = true;
+    (async () => {
+      try {
+        const wav = await offlineAudioBuffer.drainToWav(meetingId);
+        if (wav) {
+          const file = new File([wav], `gap_${meetingId}_${Date.now()}.wav`, { type: 'audio/wav' });
+          await uploadBatchAudio(file, undefined, { meetingId, kind: 'gap_fill' });
+        }
+      } catch {
+        useMeetingStore.getState().setError('Не удалось отправить офлайн-аудио');
+      } finally {
+        flushingRef.current = false;
+      }
+    })();
+  }, [isConnected, meetingId]);
 
   // подключение к комнате как phone
   useEffect(() => {
@@ -81,6 +108,17 @@ export function RecorderPage({ meetingId }: Props) {
     }
   }, [micOn, activeAudioSource, isActiveSource, stopMic, wakeLock]);
 
+  // После реконнекта сервер уже снял нас с источника (audio_source_disconnected), а микрофон
+  // ещё пишет — заново занимаем источник, иначе guardedSend молча выбрасывает звук.
+  // claimedConnRef — соединение, для которого start_audio уже отправлен (без дублей на старте).
+  const claimedConnRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isConnected || !connectionId || !micOn || paused || !canSendAudio || activeAudioSource) return;
+    if (claimedConnRef.current === connectionId) return;
+    claimedConnRef.current = connectionId;
+    sendJSON({ type: 'start_audio' });
+  }, [isConnected, connectionId, micOn, paused, canSendAudio, activeAudioSource, sendJSON]);
+
   // таймер записи
   useEffect(() => {
     if (isActiveSource && recording) {
@@ -97,6 +135,7 @@ export function RecorderPage({ meetingId }: Props) {
       void wakeLock.request();
       setMicOn(true);
       setPaused(false);
+      claimedConnRef.current = useMeetingStore.getState().connectionId;
       sendJSON({ type: 'start_audio' });
     } catch {
       useMeetingStore.getState().setError('Не удалось получить доступ к микрофону');
@@ -119,6 +158,7 @@ export function RecorderPage({ meetingId }: Props) {
       stopMic();
       await startMic();
       void wakeLock.request();
+      claimedConnRef.current = useMeetingStore.getState().connectionId;
       sendJSON({ type: 'start_audio' });
       setPaused(false);
     } catch {

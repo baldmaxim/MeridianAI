@@ -5,6 +5,8 @@ import { uniqueParticipantUsers } from '../../lib/participants';
 import { SyncBadge } from './SyncBadge';
 import styles from './HelperPanel.module.css';
 
+const SCREEN_HINT = 'Не блокируйте экран — на iPhone помощь работает только при включённом экране.';
+
 // Авто-помощь распознаванию (задача 2). Роль устройства выводится из состояния комнаты:
 // если звук уже пишет ДРУГОЕ устройство, а это может слать аудио — оно становится
 // помощником (shadow). Браузеру для микрофона нужен жест → одна кнопка-согласие,
@@ -16,7 +18,7 @@ export function HelperPanel() {
   const canSendAudio = useMeetingStore((s) => s.canSendAudio);
   const participants = useMeetingStore((s) => s.participants);
 
-  const { active, side, level, error, sync, start, stop, setSideHint } = useSecondaryShadow(meetingId);
+  const { active, interrupted, side, level, error, sync, start, stop, setSideHint } = useSecondaryShadow(meetingId);
   // Активная помощь свёрнута в пилюлю; по тапу раскрывается выбор стороны и «стоп».
   const [expanded, setExpanded] = useState(false);
 
@@ -25,9 +27,10 @@ export function HelperPanel() {
   const shouldHelp = someoneElseRecording && canSendAudio && !isPrimary;
 
   // Авто-стоп: помощь больше не нужна (стали primary / запись остановлена) → гасим shadow.
+  // При прерванной помощи stop() сбрасывает interrupted, чтобы плашка не висела после конца записи.
   useEffect(() => {
-    if (active && !shouldHelp) stop();
-  }, [active, shouldHelp, stop]);
+    if ((active || interrupted) && !shouldHelp) stop();
+  }, [active, interrupted, shouldHelp, stop]);
 
   const helpers = uniqueParticipantUsers(participants).filter((u) => u.isHelper);
   const pct = Math.min(100, Math.round(level * 100));
@@ -70,6 +73,21 @@ export function HelperPanel() {
     );
   }
 
+  // 2a) Помощь прервалась (экран погас / приложение свернули) — продолжить по тапу
+  //     (повторный getUserMedia на iOS требует жеста пользователя).
+  if (interrupted && shouldHelp) {
+    return (
+      <div className={styles.panel}>
+        <div className={styles.note}>Помощь прервалась: экран погас или приложение свернули.</div>
+        <button type="button" className={styles.startBtn} onClick={() => void start()}>
+          Продолжить помогать
+        </button>
+        <div className={styles.muted}>{SCREEN_HINT}</div>
+        {error && <div className={styles.error}>{error}</div>}
+      </div>
+    );
+  }
+
   // 2) Можно помочь (кто-то другой пишет звук) — предложить согласие на микрофон.
   //    Кнопка активна всегда: shouldHelp ⇒ комната подключена ⇒ meetingId проставлен.
   if (shouldHelp) {
@@ -79,6 +97,7 @@ export function HelperPanel() {
           Запись уже идёт с другого устройства. Это устройство может помочь распознаванию:
           положите его ближе к одной из сторон и включите помощь.
         </div>
+        <div className={styles.muted}>{SCREEN_HINT}</div>
         <button type="button" className={styles.startBtn} onClick={() => void start()}>
           Помогать распознаванию
         </button>
