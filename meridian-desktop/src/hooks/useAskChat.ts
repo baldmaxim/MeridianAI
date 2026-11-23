@@ -35,8 +35,15 @@ export const useAskChat = (serverMeetingId: number | null): AskChat => {
       if (!text || serverMeetingId === null) return;
       push("user", text);
       setAsking(true);
-      const result = await commands.meetingAsk(serverMeetingId, text, mode);
-      setAsking(false);
+      let result: Awaited<ReturnType<typeof commands.meetingAsk>>;
+      try {
+        result = await commands.meetingAsk(serverMeetingId, text, mode);
+      } catch (e) {
+        push("error", String(e));
+        return;
+      } finally {
+        setAsking(false);
+      }
       if (result.status === "ok") {
         push("assistant", result.data.answer, result.data.sources);
       } else {

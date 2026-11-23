@@ -52,11 +52,9 @@
   display: none;
 }
 
-/* Чат занимает всю левую панель и скроллится сам */
+/* Чат занимает всю левую панель: история скроллится внутри, композер прибит к низу */
 .chatPane {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 12px 14px;
+  overflow: hidden;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
   border-radius: 10px;

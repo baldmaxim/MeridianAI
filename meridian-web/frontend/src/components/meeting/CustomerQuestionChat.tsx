@@ -1,10 +1,9 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { FC, KeyboardEvent, ReactNode } from 'react';
 import axios from 'axios';
 import { askMeeting } from '../../api/meetings';
 import type { IAskSource } from '../../api/meetings';
 import { useMeetingStore } from '../../store/meetingStore';
-import { TextInput } from '../common/TextInput';
 import styles from './CustomerQuestionChat.module.css';
 
 const QUICK_QUESTIONS = [
@@ -16,6 +15,7 @@ const QUICK_QUESTIONS = [
 ];
 
 const MAX_QUESTION = 1000;
+const INPUT_MAX_HEIGHT = 96;
 const SOURCES_VISIBLE = 3;
 const FALLBACK_ERROR = 'Не удалось получить ответ';
 
@@ -109,6 +109,7 @@ export const CustomerQuestionChat: FC = () => {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const historyRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const nextId = useRef(1);
 
   const disabled = meetingId == null || loading;
@@ -117,6 +118,14 @@ export const CustomerQuestionChat: FC = () => {
     const el = historyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [items, loading]);
+
+  // Авто-рост поля ввода до ~4 строк
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, INPUT_MAX_HEIGHT)}px`;
+  }, [text]);
 
   const send = async (raw: string) => {
     const question = raw.trim().slice(0, MAX_QUESTION);
@@ -136,8 +145,8 @@ export const CustomerQuestionChat: FC = () => {
     setLoading(false);
   };
 
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void send(text);
     }
@@ -145,56 +154,60 @@ export const CustomerQuestionChat: FC = () => {
 
   return (
     <div className={styles.root}>
-      <p className={styles.subtitle}>Ответ по КП и документам встречи</p>
-      {meetingId == null && <p className={styles.hint}>Откройте или начните встречу</p>}
-
-      <div className={styles.chips}>
-        {QUICK_QUESTIONS.map((q) => (
-          <button key={q} type="button" className={styles.chip} disabled={disabled} onClick={() => void send(q)}>
-            {q}
-          </button>
+      <div className={styles.history} ref={historyRef} aria-live="polite">
+        {items.length === 0 && !loading && (
+          <div className={styles.empty}>
+            <p className={styles.subtitle}>Ответ по КП и документам встречи</p>
+            {meetingId == null && <p className={styles.hint}>Откройте или начните встречу</p>}
+          </div>
+        )}
+        {items.map((it) => (
+          <Fragment key={it.id}>
+            <div className={styles.question}>{it.question}</div>
+            {it.answer != null && (
+              <div className={styles.answer}>
+                {renderAnswer(it.answer)}
+                <Sources sources={it.sources} />
+              </div>
+            )}
+            {it.error != null && <div className={styles.error} role="alert">{it.error}</div>}
+          </Fragment>
         ))}
+        {loading && <div className={styles.loading}>Готовлю ответ…</div>}
       </div>
 
-      {(items.length > 0 || loading) && (
-        <div className={styles.history} ref={historyRef} aria-live="polite">
-          {items.map((it) => (
-            <Fragment key={it.id}>
-              <div className={styles.question}>{it.question}</div>
-              {it.answer != null && (
-                <div className={styles.answer}>
-                  {renderAnswer(it.answer)}
-                  <Sources sources={it.sources} />
-                </div>
-              )}
-              {it.error != null && <div className={styles.error} role="alert">{it.error}</div>}
-            </Fragment>
-          ))}
-          {loading && <div className={styles.loading}>Готовлю ответ…</div>}
+      <div className={styles.composer}>
+        <div className={styles.chipsRow}>
+          <div className={styles.chips}>
+            {QUICK_QUESTIONS.map((q) => (
+              <button key={q} type="button" className={styles.chip} disabled={disabled} onClick={() => void send(q)}>
+                {q}
+              </button>
+            ))}
+          </div>
+          {items.length > 0 && (
+            <button type="button" className={styles.clearHistory} disabled={loading} onClick={() => setItems([])}>
+              Очистить
+            </button>
+          )}
         </div>
-      )}
-
-      {items.length > 0 && (
-        <button type="button" className={styles.clearHistory} disabled={loading} onClick={() => setItems([])}>
-          Очистить историю
-        </button>
-      )}
-
-      <div className={styles.inputRow}>
-        <TextInput
-          aria-label="Вопрос Заказчика"
-          placeholder="Вопрос, который может задать Заказчик"
-          maxLength={MAX_QUESTION}
-          value={text}
-          disabled={disabled}
-          clearLabel="вопрос"
-          onChange={(e) => setText(e.target.value)}
-          onClear={() => setText('')}
-          onKeyDown={onKeyDown}
-        />
-        <button type="button" className={styles.send} disabled={disabled || !text.trim()} onClick={() => void send(text)}>
-          Спросить
-        </button>
+        <div className={styles.inputBox}>
+          <textarea
+            ref={inputRef}
+            className={styles.input}
+            rows={1}
+            aria-label="Вопрос Заказчика"
+            placeholder="Что спросит Заказчик?"
+            maxLength={MAX_QUESTION}
+            value={text}
+            disabled={disabled}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <button type="button" className={styles.send} disabled={disabled || !text.trim()} onClick={() => void send(text)}>
+            Спросить
+          </button>
+        </div>
       </div>
     </div>
   );
