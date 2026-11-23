@@ -26,7 +26,7 @@ export const CollapsibleBlock: React.FC<CollapsibleBlockProps> = ({
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center gap-1.5 rounded-lg py-1 text-start text-sm font-medium text-text transition-colors duration-200 hover:text-logo-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
+        className="flex w-full cursor-pointer items-center gap-1.5 rounded-lg py-0.5 text-start text-sm font-medium text-text transition-colors duration-200 hover:text-logo-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
       >
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 motion-reduce:transition-none ${
@@ -41,7 +41,7 @@ export const CollapsibleBlock: React.FC<CollapsibleBlockProps> = ({
           </span>
         )}
       </button>
-      <div id={bodyId} hidden={!open} className="mt-1.5">
+      <div id={bodyId} hidden={!open} className="mt-1">
         {children}
       </div>
     </section>

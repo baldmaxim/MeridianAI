@@ -16,6 +16,7 @@ const BADGE_CLASSES: Record<EntryStatusKind, string> = {
   error: "border-error/40 text-error",
   empty: "border-border text-subtle",
   onServer: "border-info/40 text-info",
+  unfinished: "border-amber/40 text-amber",
   protocolReady: "border-transparent bg-success/15 text-success",
 };
 
@@ -27,6 +28,7 @@ const LABEL_KEYS: Record<EntryStatusKind, string> = {
   error: "meetings.sync.error",
   empty: "meetings.sync.empty",
   onServer: "meetings.library.status.onServer",
+  unfinished: "meetings.library.status.unfinished",
   protocolReady: "meetings.library.status.protocolReady",
 };
 

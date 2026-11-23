@@ -109,7 +109,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-full select-text overflow-y-auto overscroll-contain px-4 py-3"
+        className="h-full select-text overflow-y-auto overscroll-contain px-3 py-2"
       >
         {items.length === 0 ? (
           <p className="mt-10 text-center text-sm text-muted">
@@ -118,7 +118,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
               : t("meetings.transcript.empty")}
           </p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {items.map((item) => {
               switch (item.kind) {
                 case "segment":
@@ -153,7 +153,7 @@ export const TranscriptPane: React.FC<TranscriptPaneProps> = ({
           </div>
         )}
         {partial && (
-          <p className="mt-3 break-words ps-[4.625rem] text-sm italic text-muted">
+          <p className="mt-2 break-words ps-[4.125rem] text-sm italic text-muted">
             {partial}
           </p>
         )}

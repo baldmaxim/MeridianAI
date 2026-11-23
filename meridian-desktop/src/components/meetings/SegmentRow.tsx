@@ -94,7 +94,7 @@ export const SegmentRow: React.FC<SegmentRowProps> = ({
   };
 
   return (
-    <div className={`flex gap-3 ${animate ? "meeting-enter" : ""}`}>
+    <div className={`flex gap-2 ${animate ? "meeting-enter" : ""}`}>
       <span className="w-12 shrink-0 pt-0.5 text-end font-mono text-xs tabular-nums text-muted">
         {formatClock(segment.start_time)}
       </span>

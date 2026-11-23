@@ -682,7 +682,7 @@ test.describe("Library (mocked Tauri)", () => {
   }) => {
     await open(page);
     await page.getByText("Приёмка фасада").click();
-    await page.getByRole("tab", { name: "Спросить" }).click();
+    await page.getByRole("radio", { name: "Чат" }).click();
     const input = page.getByRole("textbox", { name: "Спросите о встрече…" });
     await input.fill("Что решили по фасаду?");
     await input.press("Shift+Enter");
@@ -702,9 +702,9 @@ test.describe("Library (mocked Tauri)", () => {
     await input.press("Enter");
     await expect(page.getByRole("alert")).toContainText("Нет сети");
 
-    // The history stays when the tab is switched.
-    await page.getByRole("tab", { name: "Транскрипт" }).click();
-    await page.getByRole("tab", { name: "Спросить" }).click();
+    // The history stays when the main view is switched.
+    await page.getByRole("radio", { name: "Протокол" }).click();
+    await page.getByRole("radio", { name: "Чат" }).click();
     await expect(page.getByText("швы — устранить до 15 ноября")).toBeVisible();
   });
 
@@ -778,7 +778,7 @@ test.describe("Library (mocked Tauri)", () => {
     await expect(
       page.getByText("Протокол появится после отправки встречи в Meridian"),
     ).toBeVisible();
-    await page.getByRole("tab", { name: "Спросить" }).click();
+    await page.getByRole("radio", { name: "Чат" }).click();
     await expect(
       page.getByText("Доступно после отправки встречи"),
     ).toBeVisible();

@@ -51,7 +51,7 @@ export const SourcesSection: React.FC<SourcesSectionProps> = ({
   );
 
   const renderDocs = (docs: ServerDocument[]) => (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-0.5 ps-5">
       {docs.map((doc) => (
         <SourceRow
           key={doc.document_id}
@@ -71,7 +71,7 @@ export const SourcesSection: React.FC<SourcesSectionProps> = ({
   const nothing = queued.length === 0 && server.length === 0;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted">
           {t("meetings.sources.title")}
@@ -102,7 +102,7 @@ export const SourcesSection: React.FC<SourcesSectionProps> = ({
       <button
         type="button"
         onClick={() => void pickFiles()}
-        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-border px-3 py-1.5 text-sm font-medium text-text transition-colors duration-200 hover:border-logo-primary/60 hover:bg-elevated focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
+        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-3 py-1 text-sm font-medium text-text transition-colors duration-200 hover:border-logo-primary/60 hover:bg-elevated focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
       >
         <FilePlus2 className="h-4 w-4" aria-hidden="true" />
         {t("meetings.sources.add")}
@@ -133,7 +133,7 @@ export const SourcesSection: React.FC<SourcesSectionProps> = ({
           </p>
         )
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
           {groups.submissions.map((group) => (
             <CollapsibleBlock
               key={`submission-${group.value}`}
@@ -160,9 +160,9 @@ export const SourcesSection: React.FC<SourcesSectionProps> = ({
               title={t("meetings.sources.groupAdded")}
               meta={added.docs.length > 0 ? counter(added.docs) : undefined}
             >
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-0.5">
                 {added.queued.length > 0 && (
-                  <ul className="flex flex-col gap-2">
+                  <ul className="flex flex-col gap-0.5 ps-5">
                     {added.queued.map((item) => (
                       <QueuedSourceRow
                         key={item.id}

@@ -41,7 +41,7 @@ export const RefinedSegmentRow: React.FC<RefinedSegmentRowProps> = ({
   };
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-2">
       <span className="w-12 shrink-0 pt-0.5 text-end font-mono text-xs tabular-nums text-muted">
         {segment.start_time !== null ? formatClock(segment.start_time) : ""}
       </span>

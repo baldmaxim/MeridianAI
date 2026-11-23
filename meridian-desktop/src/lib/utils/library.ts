@@ -354,6 +354,7 @@ export type EntryStatusKind =
   | "error"
   | "empty"
   | "onServer"
+  | "unfinished"
   | "protocolReady";
 
 /**
@@ -371,6 +372,7 @@ export const getEntryStatus = (
     if (local.sync_state === "error") return "error";
     if (local.sync_state === "empty") return "empty";
   }
+  if (server && !local && server.is_active) return "unfinished";
   if (server) return server.protocol_ready ? "protocolReady" : "onServer";
   return local && syncingId === local.id ? "sending" : "pending";
 };

@@ -624,6 +624,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::export_meeting_audio,
             commands::meetings::meeting_voices_list,
             commands::meetings::meeting_voice_set_side,
+            commands::meetings::meeting_set_max_speakers,
             commands::meetings::set_meeting_system_device,
             commands::account::account_browser_login,
             commands::account::account_browser_login_cancel,

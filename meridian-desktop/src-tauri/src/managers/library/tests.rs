@@ -373,6 +373,18 @@ fn view_cached_by_an_older_version_reads_without_the_context() {
 }
 
 #[test]
+fn item_reads_is_active_with_and_without_the_field() {
+    // An old server or cache: no field, the meeting counts as finished.
+    let view: super::types::MeetingView = serde_json::from_str(VIEW_JSON).unwrap();
+    assert!(!view.item.is_active);
+
+    let mut json: serde_json::Value = serde_json::from_str(VIEW_JSON).unwrap();
+    json["is_active"] = true.into();
+    let view: super::types::MeetingView = serde_json::from_value(json).unwrap();
+    assert!(view.item.is_active);
+}
+
+#[test]
 fn view_reads_the_refine_fields_with_and_without_them() {
     // An old server or cache: no fields, no status.
     let view: super::types::MeetingView = serde_json::from_str(VIEW_JSON).unwrap();

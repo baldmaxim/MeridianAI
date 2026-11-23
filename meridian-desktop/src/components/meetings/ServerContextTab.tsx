@@ -34,16 +34,16 @@ export const ServerContextTab: React.FC<ServerContextTabProps> = ({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
       <CollapsibleBlock title={t("meetings.context.paramsTitle")}>
-        <dl className="flex flex-col gap-3">
+        <dl className="flex flex-col gap-2">
           {fields.map(({ label, value }) => {
             const text = value?.trim();
             return (
-              <div key={label} className="flex flex-col gap-1">
+              <div key={label} className="flex flex-col gap-0.5">
                 <dt className="text-xs text-muted">{label}</dt>
                 <dd
-                  className={`whitespace-pre-wrap break-words text-sm ${text ? "text-text" : "text-muted"}`}
+                  className={`whitespace-pre-wrap break-words text-sm leading-5 ${text ? "text-text" : "text-muted"}`}
                 >
                   {text || t("meetings.context.notSet")}
                 </dd>

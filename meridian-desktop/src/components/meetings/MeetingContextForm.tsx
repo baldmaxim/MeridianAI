@@ -26,6 +26,8 @@ interface MeetingContextFormProps {
   value: MeetingContextValue;
   onChange: (value: MeetingContextValue) => void;
   disabled?: boolean;
+  /** Dense layout for the side panel: small labels, short text areas. */
+  compact?: boolean;
 }
 
 /** The three context fields of a meeting, as on the site (controlled). */
@@ -33,6 +35,7 @@ export const MeetingContextForm: React.FC<MeetingContextFormProps> = ({
   value,
   onChange,
   disabled = false,
+  compact = false,
 }) => {
   const { t } = useTranslation();
   const uid = useId();
@@ -45,12 +48,17 @@ export const MeetingContextForm: React.FC<MeetingContextFormProps> = ({
     t("meetings.context.typeClaim"),
     t("meetings.context.typeTerms"),
   ];
+  const fieldClass = compact
+    ? "flex flex-col gap-0.5 text-xs"
+    : "flex flex-col gap-1 text-sm";
+  const areaClass = compact ? "w-full min-h-0!" : "w-full";
+  const variant = compact ? "compact" : "default";
   const set = (patch: Partial<MeetingContextValue>) =>
     onChange({ ...value, ...patch });
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1 text-sm">
+    <div className={`flex flex-col ${compact ? "gap-2" : "gap-3"}`}>
+      <div className={fieldClass}>
         <label htmlFor={typeId} className="text-muted">
           {t("meetings.context.typeLabel")}
         </label>
@@ -58,6 +66,7 @@ export const MeetingContextForm: React.FC<MeetingContextFormProps> = ({
           id={typeId}
           type="text"
           list={listId}
+          variant={variant}
           className="w-full"
           maxLength={NEGOTIATION_TYPE_MAX}
           placeholder={t("meetings.context.typePlaceholder")}
@@ -74,14 +83,15 @@ export const MeetingContextForm: React.FC<MeetingContextFormProps> = ({
         </datalist>
       </div>
 
-      <div className="flex flex-col gap-1 text-sm">
+      <div className={fieldClass}>
         <label htmlFor={termsId} className="text-muted">
           {t("meetings.context.keyTermsLabel")}
         </label>
         <Textarea
           id={termsId}
-          rows={5}
-          className="w-full"
+          rows={compact ? 3 : 5}
+          variant={variant}
+          className={areaClass}
           maxLength={CONTEXT_TEXT_MAX}
           placeholder={t("meetings.context.keyTermsPlaceholder")}
           value={value.keyTerms}
@@ -92,14 +102,15 @@ export const MeetingContextForm: React.FC<MeetingContextFormProps> = ({
         />
       </div>
 
-      <div className="flex flex-col gap-1 text-sm">
+      <div className={fieldClass}>
         <label htmlFor={weakId} className="text-muted">
           {t("meetings.context.weaknessesLabel")}
         </label>
         <Textarea
           id={weakId}
-          rows={4}
-          className="w-full"
+          rows={compact ? 2 : 4}
+          variant={variant}
+          className={areaClass}
           maxLength={CONTEXT_TEXT_MAX}
           placeholder={t("meetings.context.weaknessesPlaceholder")}
           value={value.opponentWeaknesses}

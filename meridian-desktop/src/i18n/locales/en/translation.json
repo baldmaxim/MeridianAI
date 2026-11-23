@@ -424,7 +424,8 @@
       "cancel": "Cancel",
       "back": "Back to meetings",
       "retrySync": "Retry",
-      "openOnSite": "Open on site"
+      "openOnSite": "Open on site",
+      "continueOnSite": "Continue on site"
     },
     "delete": {
       "title": "Delete meeting?",
@@ -468,7 +469,10 @@
       "expandPanel": "Expand panel",
       "resizePanel": "Panel width",
       "resizePanelHint": "Drag to change the width; double-click to reset",
-      "panelLabel": "Meeting data"
+      "panelLabel": "Meeting data",
+      "mainSwitchLabel": "What to show in the main area",
+      "mainNotes": "Notes",
+      "mainChat": "Chat"
     },
     "levels": {
       "us": "Us",
@@ -481,6 +485,19 @@
       "mic": "Us",
       "system": "Opponent",
       "mixed": "Participant"
+    },
+    "speakers": {
+      "title": "Speakers",
+      "allAssigned": "All assigned",
+      "unassigned": "Not assigned: {{count}}",
+      "participants": "Participants",
+      "participantsNotSet": "—",
+      "applyHint": "Applies when recording stops: the voices are re-sorted",
+      "applyHintStopped": "Applies after «Resume» and the next stop of recording",
+      "empty": "Voices appear as they are recognized",
+      "collapse": "Collapse the speakers panel",
+      "expand": "Expand the speakers panel",
+      "sideLabel": "Whose voice: {{voice}}"
     },
     "voice": {
       "menuLabel": "Whose voice is this: {{voice}}",
@@ -520,6 +537,7 @@
       "systemSilent": "Computer sound has been silent for over a minute: check that Zoom/Teams outputs sound to the selected device",
       "systemSilentMac": "Check access: System Settings → Privacy & Security → Screen & System Audio Recording → Meridian",
       "voiceSideFailed": "Failed to save the voice side",
+      "maxSpeakersFailed": "Failed to change the number of participants",
       "recognition": "Could not recognize a phrase",
       "listFailed": "Could not load meetings",
       "loadFailed": "Could not open the meeting",
@@ -568,6 +586,7 @@
       "status": {
         "sending": "Uploading",
         "onServer": "On the server",
+        "unfinished": "Not finished",
         "protocolReady": "Protocol ready"
       }
     },

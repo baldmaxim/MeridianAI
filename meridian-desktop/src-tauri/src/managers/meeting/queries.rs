@@ -159,6 +159,25 @@ impl MeetingManager {
         Ok(self.with_web_url(meeting))
     }
 
+    /// Sets the number of participants (2..=10) in any state of the meeting.
+    /// Nothing reads it while recording: the re-clustering of the voices at the
+    /// stop takes the value then, so it applies from the next stop. The server
+    /// got the number with the first upload of the meeting and is not told again.
+    pub fn set_max_speakers(&self, id: &str, max_speakers: i64) -> Result<MeetingInfo, String> {
+        if !(2..=10).contains(&max_speakers) {
+            return Err("Участников должно быть от 2 до 10".to_string());
+        }
+        if !self.db.set_max_speakers(id, max_speakers).map_err(io_err)? {
+            return Err("Встреча не найдена".to_string());
+        }
+        let meeting = self
+            .db
+            .get_meeting(id)
+            .map_err(io_err)?
+            .ok_or_else(|| "Встреча не найдена".to_string())?;
+        Ok(self.with_web_url(meeting))
+    }
+
     /// Whether a meeting is being recorded, set up or wound up right now.
     fn is_busy_with(&self, id: &str) -> bool {
         match &*self.slot() {

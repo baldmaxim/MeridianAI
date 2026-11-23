@@ -57,25 +57,65 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
   const onSite = meeting.server_meeting_id !== null;
 
   return (
-    <div className="shrink-0 border-b border-border bg-background px-5 py-3">
+    <div className="shrink-0 border-b border-border bg-background px-4 py-2">
       <div className="flex items-center gap-2">
         <button
           type="button"
           aria-label={t("meetings.actions.back")}
           title={t("meetings.actions.back")}
           onClick={closeMeeting}
-          className="shrink-0 cursor-pointer rounded-lg p-1.5 text-muted transition-colors duration-200 hover:bg-elevated hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
+          className="shrink-0 cursor-pointer rounded-lg p-1 text-muted transition-colors duration-200 hover:bg-elevated hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none"
         >
           <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
         <TitleEditor meetingId={meeting.id} title={meeting.title} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isActive ? (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={stopping}
+              onClick={() => void handleStop()}
+              className="flex items-center gap-1.5"
+            >
+              <Square className="h-3.5 w-3.5" aria-hidden="true" />
+              {stopping ? t("meetings.view.stopping") : t("meetings.view.stop")}
+            </Button>
+          ) : (
+            <>
+              {isResumable(meeting) && meeting.status !== "interrupted" && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={resuming}
+                  onClick={() => onResume(meeting.id)}
+                  className="flex items-center gap-1.5"
+                >
+                  <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                  {resuming
+                    ? t("meetings.actions.resuming")
+                    : t("meetings.actions.resume")}
+                </Button>
+              )}
+              <Button
+                variant="danger-ghost"
+                size="sm"
+                onClick={onDelete}
+                className="flex items-center gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("meetings.actions.delete")}
+              </Button>
+            </>
+          )}
+        </div>
         <MeetingDuration
           meeting={meeting}
           className="ms-auto shrink-0 text-lg text-text"
         />
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <DateTimeChips
             date={formatDateChip(meeting.started_at, i18n.language)}
             time={formatTimeRange(
@@ -112,44 +152,11 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {isActive ? (
-            <Button
-              variant="danger"
-              disabled={stopping}
-              onClick={() => void handleStop()}
-              className="flex items-center gap-1.5"
-            >
-              <Square className="h-3.5 w-3.5" aria-hidden="true" />
-              {stopping ? t("meetings.view.stopping") : t("meetings.view.stop")}
-            </Button>
-          ) : (
-            <>
-              <MeetingSyncActions meeting={meeting} />
-              {isResumable(meeting) && meeting.status !== "interrupted" && (
-                <Button
-                  variant="primary"
-                  disabled={resuming}
-                  onClick={() => onResume(meeting.id)}
-                  className="flex items-center gap-1.5"
-                >
-                  <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                  {resuming
-                    ? t("meetings.actions.resuming")
-                    : t("meetings.actions.resume")}
-                </Button>
-              )}
-              <Button
-                variant="danger-ghost"
-                onClick={onDelete}
-                className="flex items-center gap-1.5"
-              >
-                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("meetings.actions.delete")}
-              </Button>
-            </>
-          )}
-        </div>
+        {!isActive && (
+          <div className="flex items-center gap-1.5">
+            <MeetingSyncActions meeting={meeting} />
+          </div>
+        )}
       </div>
       <ChangeProjectDialog
         meeting={meeting}

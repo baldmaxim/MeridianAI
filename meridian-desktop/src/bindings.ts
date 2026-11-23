@@ -412,6 +412,18 @@ async meetingVoiceSetSide(meetingId: string, label: string, side: string | null)
 }
 },
 /**
+ * Sets the number of participants (2..=10) of a meeting, in any state of it.
+ * The voices are re-clustered by it at the next stop.
+ */
+async meetingSetMaxSpeakers(meetingId: string, maxSpeakers: number) : Promise<Result<MeetingInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_set_max_speakers", { meetingId, maxSpeakers }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Remembers the device whose sound online meetings record (`None`: the
  * default one).
  */
@@ -957,7 +969,12 @@ client_uuid: string | null; source: LibrarySource;
  * Re-transcription on the server: `pending`, `running`, `done`, `failed`,
  * `skipped`; `None`: no such step (the web, an old server or cache).
  */
-refine_status?: string | null; refine_error?: string | null }
+refine_status?: string | null; refine_error?: string | null; 
+/**
+ * The meeting is not finished on the server (recording, abandoned or
+ * reopened). Absent from an old server or cache: `false`.
+ */
+is_active?: boolean }
 /**
  * What the library screen shows: the cache, refreshed from the server when asked.
  */
@@ -1106,7 +1123,12 @@ client_uuid: string | null; source: LibrarySource;
  * Re-transcription on the server: `pending`, `running`, `done`, `failed`,
  * `skipped`; `None`: no such step (the web, an old server or cache).
  */
-refine_status?: string | null; refine_error?: string | null }) & { protocol_markdown: string | null; 
+refine_status?: string | null; refine_error?: string | null; 
+/**
+ * The meeting is not finished on the server (recording, abandoned or
+ * reopened). Absent from an old server or cache: `false`.
+ */
+is_active?: boolean }) & { protocol_markdown: string | null; 
 /**
  * The meeting context and the notes from the app. Absent in views cached
  * by older versions.

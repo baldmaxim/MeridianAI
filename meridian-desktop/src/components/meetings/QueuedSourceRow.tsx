@@ -18,7 +18,7 @@ export const QueuedSourceRow: React.FC<QueuedSourceRowProps> = ({
   const failed = item.state === "error";
 
   return (
-    <li className="flex items-start gap-2.5 rounded-xl border border-dashed border-border bg-card px-2.5 py-2">
+    <li className="flex items-start gap-2 rounded-md px-1.5 py-1">
       {uploading ? (
         <Loader2
           className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-logo-primary motion-reduce:animate-none"

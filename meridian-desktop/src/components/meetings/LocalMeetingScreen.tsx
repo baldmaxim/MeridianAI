@@ -3,18 +3,21 @@ import { useTranslation } from "react-i18next";
 import { useAskChat } from "@/hooks/useAskChat";
 import { useMeetingSources } from "@/hooks/useMeetingSources";
 import { useRefineView } from "@/hooks/useRefineView";
+import { useStoredChoice } from "@/hooks/useStoredChoice";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { isResumable } from "@/lib/utils/meetingFormat";
-import { AskPane } from "./AskPane";
 import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
 import { DeviceErrorBanner } from "./DeviceErrorBanner";
 import { InterruptedBanner } from "./InterruptedBanner";
 import { LocalMeetingHeader } from "./LocalMeetingHeader";
 import { LocalContextTab } from "./LocalContextTab";
 import { LocalProtocolTab } from "./LocalProtocolTab";
+import { MainChatPane } from "./MainChatPane";
+import { MainViewSwitch, type MainViewOption } from "./MainViewSwitch";
 import { NotesPane } from "./NotesPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
 import { SourcesDropOverlay } from "./SourcesDropOverlay";
+import { SpeakersPanel } from "./SpeakersPanel";
 import { SystemSilentBanner } from "./SystemSilentBanner";
 import {
   TranscriptModeToggle,
@@ -22,14 +25,20 @@ import {
 } from "./TranscriptModeToggle";
 import { TranscriptPane } from "./TranscriptPane";
 
-type PanelTab = "transcript" | "context" | "protocol" | "ask";
+type PanelTab = "transcript" | "context" | "protocol";
+type MainView = "notes" | "chat";
+
+const MAIN_VIEWS: readonly MainView[] = ["notes", "chat"];
 
 interface LocalMeetingScreenProps {
   resuming: boolean;
   onResume: (id: string) => void;
 }
 
-/** A meeting recorded here: notes in the middle, transcript/protocol/ask aside. */
+/**
+ * A meeting recorded here: notes or chat in the middle, the speakers, then
+ * transcript/context/protocol aside.
+ */
 export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
   resuming,
   onResume,
@@ -42,6 +51,11 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
     (s) => s.details !== null && s.active?.id === s.details.meeting.id,
   );
   const [tab, setTab] = useState<PanelTab>("transcript");
+  const [mainView, setMainView] = useStoredChoice<MainView>(
+    "meridian.localMeetingMainView",
+    MAIN_VIEWS,
+    "notes",
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mode, setMode] = useState<TranscriptMode>("refined");
   const serverMeetingId = details?.meeting.server_meeting_id ?? null;
@@ -86,7 +100,10 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
     { id: "transcript", label: t("meetings.view.tabTranscript") },
     { id: "context", label: t("meetings.view.tabContext") },
     { id: "protocol", label: t("meetings.view.tabProtocol") },
-    { id: "ask", label: t("meetings.view.tabAsk") },
+  ];
+  const mainOptions: MainViewOption<MainView>[] = [
+    { id: "notes", label: t("meetings.view.mainNotes") },
+    { id: "chat", label: t("meetings.view.mainChat") },
   ];
 
   return (
@@ -109,9 +126,27 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
-          <NotesPane notes={notes} segments={segments} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+          <MainViewSwitch
+            options={mainOptions}
+            value={mainView}
+            onChange={setMainView}
+          />
+          {/* Both stay mounted: a note being typed and the chat survive a switch. */}
+          <div
+            hidden={mainView !== "notes"}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <NotesPane notes={notes} segments={segments} />
+          </div>
+          <div
+            hidden={mainView !== "chat"}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <MainChatPane serverMeetingId={serverMeetingId} chat={chat} />
+          </div>
         </div>
+        <SpeakersPanel meeting={meeting} />
         <SidePanel tabs={tabs} active={tab} onChange={setTab}>
           {tab === "transcript" && (
             <>
@@ -142,9 +177,6 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
           )}
           {tab === "protocol" && (
             <LocalProtocolTab serverMeetingId={serverMeetingId} />
-          )}
-          {tab === "ask" && (
-            <AskPane serverMeetingId={serverMeetingId} chat={chat} />
           )}
         </SidePanel>
       </div>

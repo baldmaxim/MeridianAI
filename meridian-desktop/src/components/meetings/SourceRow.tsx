@@ -62,7 +62,7 @@ export const SourceRow: React.FC<SourceRowProps> = ({ doc, onToggle }) => {
   ].filter((part): part is string => Boolean(part));
 
   return (
-    <li className="flex items-start gap-2.5 rounded-xl border border-border bg-card px-2.5 py-2">
+    <li className="flex items-start gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 hover:bg-elevated motion-reduce:transition-none">
       <Icon
         className="mt-0.5 h-4 w-4 shrink-0 text-logo-primary"
         aria-hidden="true"
@@ -71,7 +71,7 @@ export const SourceRow: React.FC<SourceRowProps> = ({ doc, onToggle }) => {
         <p className="truncate text-sm font-medium text-text" title={fullName}>
           {name}
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-1">
+        <div className="mt-0.5 flex flex-wrap items-center gap-1">
           {doc.status === "error" ? (
             <span className="text-xs text-error">
               {t("meetings.sources.processingFailed")}
@@ -98,7 +98,7 @@ export const SourceRow: React.FC<SourceRowProps> = ({ doc, onToggle }) => {
         </div>
         {meta.length > 0 && (
           <p
-            className="mt-1 truncate text-xs text-muted"
+            className="mt-0.5 truncate text-xs text-muted"
             title={meta.join(" · ")}
           >
             {meta.join(" · ")}

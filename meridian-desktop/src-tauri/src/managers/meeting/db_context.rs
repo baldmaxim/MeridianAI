@@ -24,6 +24,15 @@ impl MeetingDb {
         )? > 0)
     }
 
+    /// Stores the number of participants (the voices are re-clustered by it at
+    /// the stop). `false`: no such meeting. The context flag is not touched.
+    pub fn set_max_speakers(&self, id: &str, max_speakers: i64) -> Result<bool> {
+        Ok(self.conn().execute(
+            "UPDATE meetings SET max_speakers = ?2 WHERE id = ?1",
+            params![id, max_speakers],
+        )? > 0)
+    }
+
     /// Whether the server lacks the latest context of the meeting.
     pub fn context_dirty(&self, id: &str) -> Result<bool> {
         let dirty: Option<i64> = self
@@ -117,6 +126,16 @@ mod tests {
         // All later migrations are applied too.
         assert_eq!(version, MIGRATIONS.len() as i32);
         assert!(MIGRATIONS.len() >= 4);
+    }
+
+    #[test]
+    fn max_speakers_is_stored_without_touching_the_context_flag() {
+        let db = MeetingDb::open_in_memory().unwrap();
+        stopped(&db, "m", "synced", Some(5));
+        assert!(db.set_max_speakers("m", 4).unwrap());
+        assert_eq!(db.get_meeting("m").unwrap().unwrap().max_speakers, Some(4));
+        assert!(!db.context_dirty("m").unwrap());
+        assert!(!db.set_max_speakers("ghost", 3).unwrap());
     }
 
     #[test]

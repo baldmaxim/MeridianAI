@@ -37,6 +37,10 @@ pub struct LibraryItem {
     pub refine_status: Option<String>,
     #[serde(default)]
     pub refine_error: Option<String>,
+    /// The meeting is not finished on the server (recording, abandoned or
+    /// reopened). Absent from an old server or cache: `false`.
+    #[serde(default)]
+    pub is_active: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]

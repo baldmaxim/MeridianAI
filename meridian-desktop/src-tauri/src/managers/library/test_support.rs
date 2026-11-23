@@ -84,6 +84,7 @@ pub fn item(meeting_id: i64, title: &str, client_uuid: Option<&str>) -> LibraryI
         },
         refine_status: None,
         refine_error: None,
+        is_active: false,
     }
 }
 

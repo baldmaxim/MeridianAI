@@ -80,6 +80,7 @@ interface MeetingStore {
   ) => Promise<ActionError>;
   dismissDeviceError: (key: string) => void;
   setVoiceSide: (label: string, side: VoiceSide) => Promise<ActionError>;
+  setMaxSpeakers: (id: string, maxSpeakers: number) => Promise<ActionError>;
   dismissSystemSilent: () => void;
 
   // Backend event handlers
@@ -395,6 +396,20 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
         if (get().openId === meetingId) mark(previous);
         return result.error;
       }
+      return null;
+    },
+
+    setMaxSpeakers: async (id, maxSpeakers) => {
+      const result = await commands.meetingSetMaxSpeakers(id, maxSpeakers);
+      if (result.status === "error") return result.error;
+      const info = result.data;
+      set((s) => ({
+        meetings: upsertMeeting(s.meetings, info),
+        details:
+          s.details?.meeting.id === info.id
+            ? { ...s.details, meeting: info }
+            : s.details,
+      }));
       return null;
     },
 

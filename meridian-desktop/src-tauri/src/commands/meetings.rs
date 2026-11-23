@@ -223,6 +223,18 @@ pub fn meeting_voice_set_side(
     Ok(())
 }
 
+/// Sets the number of participants (2..=10) of a meeting, in any state of it.
+/// The voices are re-clustered by it at the next stop.
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_set_max_speakers(
+    app: AppHandle,
+    meeting_id: String,
+    max_speakers: i64,
+) -> Result<MeetingInfo, String> {
+    manager(&app).set_max_speakers(&meeting_id, max_speakers)
+}
+
 /// Remembers the device whose sound online meetings record (`None`: the
 /// default one).
 #[tauri::command]

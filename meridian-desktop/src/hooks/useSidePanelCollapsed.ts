@@ -2,19 +2,26 @@ import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "meridian.meetingSidePanelCollapsed";
 
-const readStored = (key: string): boolean => {
+const readStored = (key: string, fallback: boolean): boolean => {
   try {
-    return window.localStorage.getItem(key) === "1";
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : value === "1";
   } catch {
-    return false;
+    return fallback;
   }
 };
 
-/** Collapsed state of a meeting panel, remembered between launches. */
+/**
+ * Collapsed state of a meeting panel, remembered between launches. Until the
+ * user has chosen, `defaultCollapsed` decides.
+ */
 export const useSidePanelCollapsed = (
   storageKey: string = STORAGE_KEY,
+  defaultCollapsed = false,
 ): [boolean, () => void] => {
-  const [collapsed, setCollapsed] = useState(() => readStored(storageKey));
+  const [collapsed, setCollapsed] = useState(() =>
+    readStored(storageKey, defaultCollapsed),
+  );
 
   const toggle = useCallback(() => {
     setCollapsed((current) => {

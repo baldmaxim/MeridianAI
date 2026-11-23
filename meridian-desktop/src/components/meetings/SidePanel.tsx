@@ -74,7 +74,7 @@ export const SidePanel = <T extends string>({
 
   if (collapsed) {
     return (
-      <aside className="flex w-12 shrink-0 flex-col items-center border-s border-border bg-deep py-3">
+      <aside className="flex w-10 shrink-0 flex-col items-center border-s border-mid-gray/40 bg-deep py-2">
         <button
           type="button"
           onClick={toggle}
@@ -91,7 +91,7 @@ export const SidePanel = <T extends string>({
   return (
     <aside
       style={{ width }}
-      className="relative flex min-h-0 shrink-0 flex-col border-s border-border bg-deep"
+      className="relative flex min-h-0 shrink-0 flex-col bg-deep"
     >
       <div
         role="separator"
@@ -109,15 +109,21 @@ export const SidePanel = <T extends string>({
         onMouseDown={(e) => e.preventDefault()}
         onDoubleClick={reset}
         onKeyDown={handleKeyDown}
-        className={`absolute inset-y-0 -start-1 z-10 w-2 cursor-col-resize touch-none transition-colors duration-200 hover:bg-logo-primary/40 focus:outline-none focus-visible:bg-logo-primary/60 motion-reduce:transition-none ${
-          drag ? "bg-logo-primary/60" : ""
-        }`}
-      />
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
+        className="group absolute inset-y-0 -start-1 z-10 w-2 cursor-col-resize touch-none focus:outline-none"
+      >
+        {/* The visible edge of the panel: a thin line, the accent on hover/drag. */}
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-0 start-[3px] w-0.5 transition-colors duration-200 group-hover:bg-logo-primary group-focus-visible:bg-logo-primary motion-reduce:transition-none ${
+            drag ? "bg-logo-primary" : "bg-mid-gray/40"
+          }`}
+        />
+      </div>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-2.5 py-1.5">
         <div
           role="tablist"
           aria-label={t("meetings.view.panelLabel")}
-          className="shell-tabs flex min-w-0 flex-1 gap-1.5 overflow-x-auto"
+          className="shell-tabs flex min-w-0 flex-1 gap-1 overflow-x-auto"
         >
           {tabs.map((tab) => (
             <button
@@ -126,7 +132,7 @@ export const SidePanel = <T extends string>({
               role="tab"
               aria-selected={active === tab.id}
               onClick={() => onChange(tab.id)}
-              className={`shrink-0 cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none ${
+              className={`shrink-0 cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none ${
                 active === tab.id
                   ? "border-transparent bg-logo-primary text-on-accent"
                   : "border-border text-muted hover:bg-elevated hover:text-text"
