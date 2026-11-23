@@ -1,6 +1,7 @@
 .bar {
   position: fixed;
-  top: 16px;
+  /* Под шапкой и статус-баром: на iPhone top:16px уходил под «островок», кнопки не нажимались */
+  top: calc(env(safe-area-inset-top) + var(--header-h) + 8px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -74,4 +75,14 @@
   font-size: 10px;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.06em;
+}
+
+/* Тач: тап-цели ≥44px */
+@media (pointer: coarse) {
+  .update,
+  .dismiss {
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 12px;
+  }
 }
