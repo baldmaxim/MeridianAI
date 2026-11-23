@@ -21,6 +21,8 @@ jobs:
   # Проверки перед сборкой образов: упали тесты/линт/сборка — образы не публикуются.
   test:
     runs-on: ubuntu-latest
+    # Обычно ~5 мин; 19.11.2026 pytest завис и job висел 6 ч до отмены GitHub.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 

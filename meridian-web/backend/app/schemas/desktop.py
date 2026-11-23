@@ -10,15 +10,6 @@ CaptureMode = Literal["online", "in_person"]
 Channel = Literal["mic", "system", "mixed"]
 
 
-class DesktopLoginRequest(BaseModel):
-    # Без EmailStr: на сервере почта сравнивается как строка, неверный формат — тот же 401, что и неверный пароль.
-    email: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=1, max_length=1000)
-    device_name: str = Field(min_length=1, max_length=120)
-    platform: str | None = Field(default=None, max_length=20)
-    app_version: str | None = Field(default=None, max_length=40)
-
-
 class DesktopBrowserCodeRequest(BaseModel):
     # sha256(verifier) в нижнем hex — 64 символа.
     challenge: str = Field(pattern=r"^[0-9a-f]{64}$")

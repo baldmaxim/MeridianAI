@@ -112,59 +112,10 @@ def _seg(cid="s1", text="Добрый день", start=0.0, end=1.5, channel="mi
 
 # ---------- вход ----------
 
-async def test_login_ok_returns_token_stored_only_as_hash(sm, client):
-    user = await _user(sm)
-    r = await client.post("/api/desktop/login", json={
-        "email": " ENG@test.local ", "password": PASSWORD, "device_name": "Рабочий ПК",
-        "platform": "windows", "app_version": "0.1.0"})
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["user"] == {"id": user.id, "email": user.email, "display_name": "Инженер", "role": "user"}
-    token = body["device_token"]
-    async with sm() as db:
-        dev = await db.get(DesktopDevice, body["device_id"])
-        assert dev.name == "Рабочий ПК" and token not in dev.token_hash and len(dev.token_hash) == 64
-    assert ("desktop_login_success", ) == (client.audit_events[-1][0], )
-    assert "password" not in str(client.audit_events) and token not in str(client.audit_events)
-
-    me = await client.get("/api/desktop/me", headers=_bearer(token))
-    assert me.status_code == 200
-    assert me.json()["user"]["id"] == user.id and me.json()["device"]["id"] == body["device_id"]
-    assert "token" not in str(me.json())
-
-
-async def test_login_wrong_password_and_unknown_user(sm, client):
-    await _user(sm)
-    r = await client.post("/api/desktop/login", json={
-        "email": "eng@test.local", "password": "wrong", "device_name": "ПК"})
-    assert r.status_code == 401
-    r = await client.post("/api/desktop/login", json={
-        "email": "nobody@test.local", "password": PASSWORD, "device_name": "ПК"})
-    assert r.status_code == 401
-    reasons = [d["reason"] for e, d in client.audit_events if e == "desktop_login_failed"]
-    assert reasons == ["bad_password", "no_user"]
-    # почта в аудите — только HMAC
-    assert all("test.local" not in str(d) for _, d in client.audit_events)
-    async with sm() as db:
-        assert (await db.execute(select(func.count(DesktopDevice.id)))).scalar() == 0
-
-
-async def test_login_inactive_user_rejected(sm, client):
-    await _user(sm, active=False)
+async def test_password_login_endpoint_removed(sm, client):
     r = await client.post("/api/desktop/login", json={
         "email": "eng@test.local", "password": PASSWORD, "device_name": "ПК"})
-    assert r.status_code == 403
-    assert client.audit_events[-1][0] == "desktop_login_failed"
-    assert client.audit_events[-1][1]["reason"] == "inactive"
-
-
-async def test_login_rate_limited(sm, client):
-    codes = []
-    for _ in range(6):
-        r = await client.post("/api/desktop/login", json={
-            "email": "x@test.local", "password": "bad", "device_name": "ПК"})
-        codes.append(r.status_code)
-    assert codes[:5] == [401] * 5 and codes[5] == 429
+    assert r.status_code in (404, 405)
 
 
 # ---------- токен устройства ----------

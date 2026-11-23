@@ -5,7 +5,7 @@
 отправляет сюда. Любой запрос приложение может повторить после обрыва сети, поэтому все
 записи идемпотентны (см. services/desktop_sync).
 
-Вход — по паролю с выдачей токена устройства (в базе только его хэш, как у OCR-агентов); дальше
+Вход — через браузер (одноразовый код) с выдачей токена устройства (в базе только его хэш, как у OCR-агентов); дальше
 приложение ходит с `Authorization: Bearer <токен>`. Ручки списка и отзыва устройств — для сайта
 (обычный JWT пользователя).
 """
@@ -36,7 +36,6 @@ from ..schemas.desktop import (
     DesktopDocumentConfirmRequest,
     DesktopDocumentPatchRequest,
     DesktopDocumentUploadRequest,
-    DesktopLoginRequest,
     DesktopLoginResponse,
     DesktopMeResponse,
     DesktopMeetingItem,
@@ -70,11 +69,10 @@ from ..services import s3
 from ..services import speaker_roles as sr
 from ..services.meeting_ask import MeetingAskError, answer_question
 from ..services.meeting_room import room_registry
-from ..services.audit import audit, client_ip, hmac_email
+from ..services.audit import audit, client_ip
 from ..services.desktop_devices import (
     DesktopAuth,
     authenticate_device,
-    check_credentials,
     enroll_device,
     get_user_device,
     issue_login_code,
@@ -131,27 +129,6 @@ def _finalization_response(meeting: MeetingSession) -> FinalizationStatusRespons
 
 
 # ── вход и устройство ──────────────────────────────────────────────────────
-
-
-@router.post("/login", response_model=DesktopLoginResponse)
-@limiter.limit("5/minute")
-async def desktop_login(request: Request, data: DesktopLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Войти по паролю и получить токен устройства. Токен показывается один раз."""
-    ip = client_ip(request)
-    email_hmac = hmac_email(data.email)
-    user, reason = await check_credentials(db, data.email, data.password)
-    if reason is not None:
-        await audit("desktop_login_failed", actor_user_id=user.id if user else None,
-                    ip=ip, email_hmac=email_hmac, reason=reason)
-        if reason == "inactive":
-            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-
-    device, token = await enroll_device(db, user.id, data.device_name, data.platform, data.app_version)
-    await db.commit()
-    await audit("desktop_login_success", actor_user_id=user.id, ip=ip,
-                email_hmac=email_hmac, device_id=device.id)
-    return DesktopLoginResponse(device_token=token, device_id=device.id, user=_user_out(user))
 
 
 @router.post("/browser-code", response_model=DesktopBrowserCodeResponse)

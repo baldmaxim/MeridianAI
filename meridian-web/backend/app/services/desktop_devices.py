@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.service import verify_password
 from ..models.desktop import DesktopDevice, DesktopLoginCode
 from ..models.user import User
 from .ocr_queue import hash_token
@@ -37,23 +36,6 @@ class DesktopAuth:
 
 def _now() -> datetime:
     return datetime.utcnow()
-
-
-async def check_credentials(db: AsyncSession, email: str, password: str) -> tuple[User | None, str | None]:
-    """(пользователь, None) при успехе, иначе (user|None, причина): no_user | bad_password | inactive.
-
-    Пароль проверяет тот же verify_password, что и веб-вход.
-    """
-    user = (await db.execute(
-        select(User).where(User.email == (email or "").strip().lower())
-    )).scalar_one_or_none()
-    if user is None:
-        return None, "no_user"
-    if not verify_password(password, user.password_hash):
-        return user, "bad_password"
-    if not user.is_active:
-        return user, "inactive"
-    return user, None
 
 
 async def issue_login_code(db: AsyncSession, user_id: int, challenge: str) -> str:
