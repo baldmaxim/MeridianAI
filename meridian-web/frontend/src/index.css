@@ -64,6 +64,9 @@
   /* служебные */
   --overlay: var(--brand-dark-overlay);
   --shadow-color: var(--brand-dark-shadow);
+
+  /* фон полоски под системным статус-баром iOS (белый текст black-translucent) — тёмный в обеих темах */
+  --status-bar-bg: var(--brand-dark-bg-deep);
 }
 
 :root[data-theme="light"] {
@@ -115,6 +118,24 @@
 
   --overlay: var(--brand-light-overlay);
   --shadow-color: var(--brand-light-shadow);
+
+  --status-bar-bg: var(--brand-dark-bg-deep);
+}
+
+/* PWA на iPhone: статус-бар black-translucent рисует белый текст поверх страницы.
+   В светлой теме подкладываем тёмную полоску высотой в safe-area (z выше шапки 100, ниже модалок 1000). */
+@media (display-mode: standalone) {
+  :root[data-theme="light"] body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top);
+    background: var(--status-bar-bg);
+    z-index: 150;
+    pointer-events: none;
+  }
 }
 
 /* Цвета сторон в транскрипте (theme.speakerTextColors) — алиасы на акценты темы */
