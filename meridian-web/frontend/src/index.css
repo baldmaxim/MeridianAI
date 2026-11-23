@@ -241,13 +241,6 @@ button:disabled {
 
 /* iPad / Tablet */
 @media (max-width: 1024px) {
-  .meeting-layout {
-    flex-direction: column !important;
-  }
-  .meeting-right-panel {
-    min-width: unset !important;
-    max-height: 300px;
-  }
   .context-columns {
     grid-template-columns: 1fr !important;
   }
@@ -268,6 +261,36 @@ button:disabled {
   }
   .stats-grid {
     grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Полоса метрик встречи: телефон и планшет (на десктопе ≥1024 — в шапке) */
+@media (max-width: 1023px) {
+  .mobile-stats-strip {
+    display: flex !important;
+    gap: 8px;
+    padding: 0 0 8px;
+    flex-shrink: 0;
+  }
+  .mobile-stats-strip .stat-chip {
+    flex: 1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 12px;
+    text-align: center;
+  }
+  .mobile-stats-strip .stat-chip-val {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .mobile-stats-strip .stat-chip-lbl {
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.04em;
   }
 }
 
@@ -328,34 +351,6 @@ button:disabled {
     height: 4px;
     border-radius: 50%;
     background: var(--accent);
-  }
-
-  /* ── Mobile stats strip ── */
-  .mobile-stats-strip {
-    display: flex !important;
-    gap: 8px;
-    padding: 0 0 14px;
-    flex-shrink: 0;
-  }
-  .mobile-stats-strip .stat-chip {
-    flex: 1;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 12px;
-    text-align: center;
-  }
-  .mobile-stats-strip .stat-chip-val {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 20px;
-    line-height: 1;
-  }
-  .mobile-stats-strip .stat-chip-lbl {
-    font-size: 9px;
-    color: var(--muted);
-    margin-top: 4px;
-    letter-spacing: 0.04em;
   }
 
   /* ── Transcript bottom sheet ── */
@@ -693,6 +688,12 @@ button:disabled {
   }
 
   /* ── Mobile font size boost ── */
+  .mobile-stats-strip {
+    padding-bottom: 14px;
+  }
+  .mobile-stats-strip .stat-chip {
+    padding: 10px 12px;
+  }
   .mobile-stats-strip .stat-chip-val {
     font-size: 22px;
   }

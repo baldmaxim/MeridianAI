@@ -8,6 +8,7 @@ import {
 import type { MeetingContextSource, PreviousMeetingCandidate } from '../../types';
 import { ContextSourceCard } from './ContextSourceCard';
 import { Modal } from '../common/Modal';
+import { Collapse } from '../common/Collapse';
 import { TextInput } from '../common';
 import styles from './PreviousMeetingsContext.module.css';
 import {
@@ -22,9 +23,15 @@ interface Props {
   currentCustomerId?: number | null;
   currentObjectId?: number | null;
   onSummaryChange?: (summary: ContextSourceSectionSummary) => void;
+  /**
+   * card — отдельная карточка (по умолчанию); flat — содержимое папки дерева источников, без рамки и заголовка;
+   * row — компактная свёрнутая строка с кнопкой «+ Добавить».
+   */
+  variant?: 'card' | 'flat' | 'row';
 }
 
-export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId, currentObjectId, onSummaryChange }: Props) {
+export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId, currentObjectId, onSummaryChange, variant = 'card' }: Props) {
+  const [rowOpen, setRowOpen] = useState(false);
   const [sources, setSources] = useState<MeetingContextSource[]>([]);
   const [candidates, setCandidates] = useState<PreviousMeetingCandidate[]>([]);
   const [q, setQ] = useState('');
@@ -108,37 +115,74 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
     } catch (e) { setError(apiErrorMessage(e, 'Не удалось удалить')); }
   }
 
-  return (
-    <div className={styles.card}>
-      <div className={styles.header}>
-        <span className={styles.dot} />
-        <span className={styles.title}>Предыдущие встречи как контекст</span>
-        <span className={styles.spacer} />
-        {!readOnly && (
-          <button className={styles.addToggle} onClick={() => setShowAdd(true)}>
-            + Добавить
-          </button>
-        )}
-      </div>
+  const flat = variant === 'flat';
+  const addButton = !readOnly && (
+    <button className={styles.addToggle} onClick={() => setShowAdd(true)}>
+      + Добавить
+    </button>
+  );
 
+  const body = (
+    <>
       {error && <div className={styles.error}>{error}</div>}
 
       {/* выбранные источники */}
       {prevSources.length === 0 ? (
         <div className={styles.muted}>Прошлые встречи не выбраны. Итоги выбранных встреч попадут в подсказки.</div>
       ) : (
-        <div className={styles.list}>
+        <div className={`${styles.list} ${flat ? styles.listFlat : ''}`}>
           {prevSources.map((s) => (
             <ContextSourceCard
               key={s.id}
               source={previousMeetingSourceToContextSourceViewModel(s)}
               readOnly={readOnly}
+              flat={flat}
               onToggleIncluded={readOnly ? undefined : () => toggle(s)}
               onPriorityChange={readOnly ? undefined : (p) => setPriority(s, p)}
               onRemove={readOnly ? undefined : () => remove(s)}
             />
           ))}
         </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className={variant === 'card' ? styles.card : flat ? styles.flat : styles.rowRoot}>
+      {variant === 'card' && (
+        <div className={styles.header}>
+          <span className={styles.dot} />
+          <span className={styles.title}>Предыдущие встречи как контекст</span>
+          <span className={styles.spacer} />
+          {addButton}
+        </div>
+      )}
+      {variant === 'card' && body}
+
+      {flat && (
+        <>
+          {body}
+          {addButton && <div className={styles.flatActions}>{addButton}</div>}
+        </>
+      )}
+
+      {variant === 'row' && (
+        <>
+          <div className={styles.rowHead}>
+            <button
+              type="button"
+              className={styles.rowToggle}
+              onClick={() => setRowOpen((v) => !v)}
+              aria-expanded={rowOpen}
+            >
+              <span className={`${styles.chevron} ${rowOpen ? styles.chevronOpen : ''}`} aria-hidden>▶</span>
+              <span className={styles.title}>Предыдущие встречи как контекст</span>
+              <span className={styles.rowCount}>{prevSources.length}</span>
+            </button>
+            {addButton}
+          </div>
+          <Collapse open={rowOpen} className={styles.rowBody}>{body}</Collapse>
+        </>
       )}
 
       {/* модалка добавления — строго в рамках текущего объекта/заказчика */}

@@ -47,7 +47,7 @@ export function ProtocolSection({ meetingId }: { meetingId: number }) {
         )}
       </div>
       {protocol && (
-        <Collapse open={open}><ProtocolView p={protocol} /></Collapse>
+        <Collapse open={open} className={styles.body}><ProtocolView p={protocol} /></Collapse>
       )}
     </div>
   );

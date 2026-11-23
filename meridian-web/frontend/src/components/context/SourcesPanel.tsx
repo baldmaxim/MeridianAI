@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { DragEvent, FC } from 'react';
-import { CollapsibleSection } from '../common/CollapsibleSection';
+import { SourceTreeFolder } from './SourceTreeFolder';
 import { PreviousMeetingsContext } from './PreviousMeetingsContext';
 import { ContextSourceCard } from './ContextSourceCard';
 import { RagFolderPickerModal } from './RagFolderPickerModal';
@@ -120,46 +120,58 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
 
   const hasDocs = sources.docs.length > 0;
 
+  const groupState = (docs: MeetingDocument[]): 'all' | 'some' | 'none' => {
+    const on = docs.filter((d) => d.included).length;
+    return on === 0 ? 'none' : on === docs.length ? 'all' : 'some';
+  };
+  // Все включены → выключаем все; иначе включаем недостающие.
+  const toggleGroup = (docs: MeetingDocument[]) => {
+    const allOn = docs.every((d) => d.included);
+    docs.filter((d) => d.included === allOn).forEach((d) => { void sources.toggleIncluded(d); });
+  };
+
+  const ragItems = [...rag.attachedFolders, ...letters.attached];
+  const ragCounter = ragItems.length > 0
+    ? `${ragItems.filter((i) => i.included).length} из ${ragItems.length}`
+    : undefined;
+
   return (
     <section
-      className={`${styles.panel} ${dragOver ? styles.panelDrag : ''}`}
+      className={styles.panel}
       aria-label="Источники"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className={styles.scroll}>
-        <header className={styles.head}>
-          <div className={styles.titleRow}>
-            <span className={styles.dot} />
-            <h2 className={styles.title}>Источники</h2>
-            <span className={styles.counter}>
-              {sources.counter.included} из {sources.counter.total} в контексте
-            </span>
-            <button
-              type="button"
-              className={styles.previewBtn}
-              onClick={() => setPreviewOpen(true)}
-              aria-label="Предпросмотр контекста"
-              title="Предпросмотр контекста"
+      <header className={styles.head}>
+        <div className={styles.titleRow}>
+          <h2 className={styles.title}>Источники</h2>
+          <span className={styles.counter}>
+            {sources.counter.included} из {sources.counter.total} в контексте
+          </span>
+          <button
+            type="button"
+            className={styles.previewBtn}
+            onClick={() => setPreviewOpen(true)}
+            aria-label="Предпросмотр контекста"
+            title="Предпросмотр контекста"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
             >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-          </div>
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
           <input
             ref={fileRef}
             type="file"
@@ -173,37 +185,14 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
           />
           <button
             type="button"
-            className={`${styles.drop} ${hasDocs ? styles.dropCompact : ''} ${dragOver ? styles.dropActive : ''}`}
+            className={styles.addBtn}
             onClick={() => fileRef.current?.click()}
+            aria-label="Добавить файлы"
+            title="PDF, DOCX, XLSX, TXT, MD, CSV — можно перетащить в список"
           >
-            <svg
-              className={styles.dropIcon}
-              width={hasDocs ? 18 : 24}
-              height={hasDocs ? 18 : 24}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />
-            </svg>
-            <span className={styles.dropText}>
-              <span className={styles.dropTitle}>
-                {dragOver
-                  ? 'Отпустите — тип определится автоматически'
-                  : hasDocs ? 'Перетащите файлы или нажмите' : 'Перетащите файлы сюда'}
-              </span>
-              {!hasDocs && !dragOver && (
-                <span className={styles.dropHint}>
-                  или нажмите, чтобы выбрать · PDF, DOCX, XLSX, TXT, MD, CSV
-                </span>
-              )}
-            </span>
+            + Файлы
           </button>
-        </header>
+        </div>
 
         {sources.error && <div className={styles.error} role="alert">{sources.error}</div>}
 
@@ -246,15 +235,26 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
             ))}
           </div>
         )}
+      </header>
+
+      {/* Дерево источников: папки без карточек, файлы с отступом. Весь список — зона drop. */}
+      <div className={`${styles.tree} ${dragOver ? styles.treeDrag : ''}`}>
+        {!hasDocs && (
+          <div className={styles.emptyHint}>
+            {dragOver ? 'Отпустите — тип определится автоматически' : 'Перетащите файлы в список или нажмите «+ Файлы»'}
+          </div>
+        )}
 
         {docGroups.map((g) => {
           const { included, total } = countIncluded(g.docs);
           return (
-            <CollapsibleSection
+            <SourceTreeFolder
               key={g.id}
               title={g.title}
               defaultOpen={g.defaultOpen}
-              right={<span className={styles.groupCounter}>включено {included} из {total}</span>}
+              counter={`${included} из ${total}`}
+              checked={groupState(g.docs)}
+              onToggleAll={() => toggleGroup(g.docs)}
             >
               <ul className={styles.list}>
                 {g.docs.map((d) => (
@@ -267,13 +267,14 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
                   />
                 ))}
               </ul>
-            </CollapsibleSection>
+            </SourceTreeFolder>
           );
         })}
 
-        <CollapsibleSection title="Прошлые встречи">
+        <SourceTreeFolder title="Прошлые встречи">
           {meetingId != null ? (
             <PreviousMeetingsContext
+              variant="flat"
               meetingId={meetingId}
               currentCustomerId={customerId}
               currentObjectId={objectId}
@@ -283,17 +284,18 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
               Выберите заказчика или объект — встреча подготовится, и можно будет добавить прошлые встречи.
             </div>
           )}
-        </CollapsibleSection>
+        </SourceTreeFolder>
 
-        <CollapsibleSection title="Папки и письма">
+        <SourceTreeFolder title="Папки и письма" counter={ragCounter}>
           <div className={styles.ragSection}>
-            {rag.attachedFolders.length === 0 && letters.attached.length === 0 ? (
-              <ContextSourceCard source={ragPlaceholder} />
+            {ragItems.length === 0 ? (
+              <ContextSourceCard source={ragPlaceholder} flat />
             ) : (
               <>
                 {rag.attachedFolders.map((s) => (
                   <ContextSourceCard
                     key={s.sourceId}
+                    flat
                     source={ragAttachedFolderToContextSourceViewModel(s)}
                     onToggleIncluded={() => rag.toggleIncluded(s.sourceId, !s.included)}
                     onPriorityChange={(p) => rag.updatePriority(s.sourceId, p)}
@@ -303,6 +305,7 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
                 {letters.attached.map((m) => (
                   <ContextSourceCard
                     key={`letter-${m.sourceId}`}
+                    flat
                     source={attachedLetterToContextSourceViewModel(m)}
                     onToggleIncluded={() => letters.toggleIncluded(m.sourceId, !m.included)}
                     onPriorityChange={(p) => letters.updatePriority(m.sourceId, p)}
@@ -319,7 +322,7 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
               {!rag.enabled && <span className={styles.note}>Backend RAG ещё не подключён</span>}
             </div>
           </div>
-        </CollapsibleSection>
+        </SourceTreeFolder>
       </div>
 
       <ContextPreviewModal

@@ -1,49 +1,25 @@
-/* Панель «Источники». Mobile-first: в потоке страницы; от 1024px — липкая колонка со своей прокруткой. */
+/* Панель «Источники» — дерево без карточек. Mobile-first: в потоке страницы; от 1024px — колонка на всю высоту со своей прокруткой. */
 
 .panel {
-  position: relative;
   display: flex;
   flex-direction: column;
+  gap: 8px;
   min-width: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.scroll {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.panelDrag {
-  border-color: var(--accent-amber);
 }
 
 .head {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .titleRow {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0 8px;
-}
-
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-amber);
-  flex-shrink: 0;
+  gap: 8px;
+  min-width: 0;
 }
 
 .title {
@@ -59,28 +35,27 @@
 .counter {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
   color: var(--text-secondary);
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: 12px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .previewBtn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   justify-content: center;
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
-  margin-right: -8px;
   padding: 0;
   background: transparent;
   border: none;
   border-radius: 8px;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 13px;
-  font-family: 'Inter', sans-serif;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: color 150ms ease-out, background-color 150ms ease-out;
@@ -91,72 +66,29 @@
   background: var(--accent-amber-glow);
 }
 
-.drop {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 68px;
-  padding: 10px 14px;
+.addBtn,
+.ragPickBtn {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 14px;
   background: transparent;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: 10px;
-  color: var(--text-secondary);
+  border: 1px solid var(--border-amber);
+  border-radius: 8px;
+  color: var(--accent-amber);
   cursor: pointer;
+  font-size: 12px;
   font-family: 'Inter', sans-serif;
-  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
 }
 
-.drop:hover {
-  border-color: var(--border-amber);
-  color: var(--text);
-}
-
-.dropCompact {
-  min-height: 48px;
-  padding: 6px 12px;
-  gap: 8px;
-}
-
-.dropActive,
-.dropActive:hover {
-  border-style: solid;
-  border-color: var(--accent-amber);
+.addBtn:hover,
+.ragPickBtn:hover {
   background: var(--accent-amber-glow);
-  color: var(--text);
-}
-
-.dropIcon {
-  flex-shrink: 0;
-  color: var(--accent-amber);
-}
-
-.dropText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.dropTitle {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.dropCompact .dropTitle {
-  font-size: 13px;
-}
-
-.dropHint {
-  color: var(--text-secondary);
-  font-size: 13px;
-  overflow-wrap: anywhere;
+  border-color: var(--accent-amber);
 }
 
 .hidden {
@@ -193,11 +125,13 @@
   transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
 }
 
-/* Область нажатия 44px при визуальной высоте 26px */
-.filterChip::before {
-  content: '';
-  position: absolute;
-  inset: -9px -2px;
+/* Область нажатия 44px при визуальной высоте 26px — только на телефоне */
+@media (max-width: 768px) {
+  .filterChip::before {
+    content: '';
+    position: absolute;
+    inset: -9px -2px;
+  }
 }
 
 .filterChipOn {
@@ -208,17 +142,34 @@
 
 .filterChip:focus-visible,
 .previewBtn:focus-visible,
-.drop:focus-visible,
+.addBtn:focus-visible,
 .ragPickBtn:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
-.groupCounter {
+/* Дерево: на телефоне/планшете — в потоке страницы, на десктопе — своя прокрутка */
+.tree {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 8px;
+  outline: 1.5px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.treeDrag {
+  outline-color: var(--accent-amber);
+  background: var(--accent-amber-glow);
+}
+
+.emptyHint {
+  padding: 14px 0;
   color: var(--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
 }
 
 .list {
@@ -226,10 +177,6 @@
   flex-direction: column;
   margin: 0;
   padding: 0;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  overflow: hidden;
 }
 
 .note {
@@ -242,7 +189,8 @@
 .ragSection {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
+  padding-bottom: 6px;
 }
 
 .ragActions {
@@ -252,34 +200,43 @@
   gap: 12px;
 }
 
-.ragPickBtn {
-  min-height: 44px;
-  padding: 0 16px;
-  background: transparent;
-  border: 1px solid var(--border-amber);
-  border-radius: 8px;
-  color: var(--accent-amber);
-  cursor: pointer;
-  font-size: 12px;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  touch-action: manipulation;
+@media (min-width: 769px) {
+  .previewBtn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .addBtn,
+  .ragPickBtn {
+    min-height: 28px;
+    padding: 0 10px;
+  }
+
+  .filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
 }
 
 @media (min-width: 1024px) {
   .panel {
-    position: sticky;
-    top: 0;
-    max-height: calc(100dvh - 120px);
+    height: 100%;
   }
 
-  .scroll {
+  .tree {
     flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drop,
+  .tree,
+  .addBtn,
+  .ragPickBtn,
   .previewBtn,
   .filterChip {
     transition: none;

@@ -52,3 +52,10 @@
   color: var(--text);
   flex: 1;
 }
+
+@media (min-width: 769px) {
+  .row {
+    padding: 3px 12px;
+    gap: 6px;
+  }
+}

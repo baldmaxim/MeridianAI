@@ -1,54 +1,55 @@
-/* Вкладка «Контекст встречи». Mobile-first: колонка; от 1024px — шапка на всю ширину и две колонки. */
+/* Вкладка «Контекст встречи». Mobile-first: одна колонка (настройки, затем источники);
+   от 1024px — две колонки на всю высоту: слева дерево источников (1fr), справа краткие настройки (300–340px),
+   каждая прокручивается сама. */
 
 .contextPanel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .sourcesCol {
   min-width: 0;
 }
 
-.mainCol {
+.settingsCol {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  order: -1;
   min-width: 0;
 }
 
-.contextCard {
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  padding: 20px;
+.settingsScroll {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-
-.sectionHeader {
-  display: flex;
-  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-amber);
-  flex-shrink: 0;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.sectionTitle {
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
+.label {
+  margin-top: 8px;
+  color: var(--accent-amber);
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.fieldInput {
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
   color: var(--text);
-  flex: 1;
+  outline: none;
 }
 
 .roomBadge {
@@ -74,66 +75,15 @@
   background: var(--text-muted);
 }
 
-/* Шапка вкладки: крупное название, компактная тема, приглушённая строка статуса */
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.titleInput,
-.topicInput {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  transition: background-color 150ms ease-out, border-color 150ms ease-out;
-}
-
-.titleInput {
-  min-height: 52px;
-  padding: 8px;
-  border-bottom-color: var(--border-default);
-  font-family: 'Syne', 'Inter', sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.topicInput {
-  min-height: 44px;
-  padding: 8px;
-  color: var(--text-secondary);
-  font-size: 16px; /* ≥16px — иначе Safari зумит форму при фокусе */
-  cursor: default;
-  text-overflow: ellipsis;
-}
-
-.titleInput::placeholder,
-.topicInput::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
-}
-
-.titleInput:hover,
-.topicInput:hover {
-  background: var(--bg-hover);
-}
-
-.titleInput:focus {
-  background: var(--bg-input);
-  border-color: var(--border-focus);
-}
-
+/* Строка статуса: одна мелкая моно-строка в шапке колонки */
 .roomStatus {
   display: flex;
-  gap: 4px 8px;
+  gap: 2px 8px;
   flex-wrap: wrap;
   align-items: center;
-  padding: 0 8px;
   color: var(--text-muted);
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
 }
 
 .strong {
@@ -163,15 +113,15 @@
   box-sizing: border-box;
 }
 
-.saveRow {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+/* Кнопка «Сохранить встречу» — внизу колонки */
+.saveBar {
+  flex-shrink: 0;
 }
 
 .saveMeetingBtn {
+  width: 100%;
   min-height: 44px;
-  padding: 12px 28px;
+  padding: 12px 20px;
   background: var(--accent-amber);
   border: none;
   border-radius: 8px;
@@ -180,7 +130,6 @@
   font-size: 13px;
   font-weight: 600;
   font-family: 'Inter', sans-serif;
-  align-self: flex-start;
   letter-spacing: 0.02em;
 }
 
@@ -189,36 +138,49 @@
   cursor: wait;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
   .weakTextarea {
     font-size: 13px;
+    padding: 6px 10px;
   }
 
-  .titleInput {
-    font-size: 22px;
+  .fieldInput {
+    min-height: 34px;
+    padding: 6px 10px;
   }
 
-  .topicInput {
-    font-size: 15px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .titleInput,
-  .topicInput {
-    transition: none;
+  .saveMeetingBtn {
+    min-height: 36px;
+    padding: 8px 20px;
   }
 }
 
-/* Десктоп: слева панель «Источники» (свой скролл), справа форма встречи */
+/* Десктоп: страница не прокручивается — две колонки на всю высоту, у каждой своя прокрутка */
 @media (min-width: 1024px) {
   .contextPanel {
     display: grid;
-    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
-    align-items: start;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 24px;
+    height: 100%;
+    min-height: 0;
   }
 
-  .head {
-    grid-column: 1 / -1;
+  .sourcesCol {
+    min-height: 0;
+  }
+
+  .settingsCol {
+    order: 0;
+    min-height: 0;
+  }
+
+  .settingsScroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
   }
 }

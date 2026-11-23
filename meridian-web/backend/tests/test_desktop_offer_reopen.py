@@ -332,9 +332,11 @@ async def test_library_shows_meeting_while_refine_pending_or_running(sm, client)
     got = {i["meeting_id"]: i["refine_status"] for i in items}
     assert got == {mid: status for status, mid in ids.items()}  # видны другим устройствам/пользователям
 
-    # а переоткрытая (is_active=True) — скрыта до завершения
+    # переоткрытая (is_active=True) тоже видна, с пометкой is_active
     async with sm() as db:
         (await db.get(MeetingSession, ids["done"])).is_active = True
         await db.commit()
     items = (await client.get("/api/desktop/library", headers=h)).json()
-    assert ids["done"] not in {i["meeting_id"] for i in items}
+    flags = {i["meeting_id"]: i["is_active"] for i in items}
+    assert flags[ids["done"]] is True
+    assert [flags[ids[s]] for s in ("pending", "running", "failed")] == [False, False, False]

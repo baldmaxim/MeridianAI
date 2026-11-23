@@ -40,3 +40,9 @@
   font-size: 10px;
   color: var(--text-muted);
 }
+
+@media (min-width: 769px) {
+  .header {
+    padding: 8px 12px;
+  }
+}

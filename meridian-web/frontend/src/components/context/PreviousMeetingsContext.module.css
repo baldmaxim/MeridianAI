@@ -8,6 +8,93 @@
   gap: 10px;
 }
 
+/* flat: содержимое папки дерева источников — без рамки, фона и отступов */
+.flat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 6px;
+}
+
+.listFlat {
+  gap: 0;
+}
+
+.flatActions {
+  display: flex;
+}
+
+/* row: компактная свёрнутая строка (страница деталей встречи) */
+.rowRoot {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 0 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.rowToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chevron {
+  font-size: 9px;
+  color: var(--text-secondary);
+  transition: transform 180ms ease-out;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.rowCount {
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(16dvh, 160px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 8px;
+}
+
+@media (min-width: 769px) {
+  .rowHead,
+  .rowToggle {
+    min-height: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -126,4 +213,10 @@
 
 .spacer {
   flex: 1;
+}
+
+@media (max-width: 768px) {
+  .addToggle {
+    min-height: 44px;
+  }
 }

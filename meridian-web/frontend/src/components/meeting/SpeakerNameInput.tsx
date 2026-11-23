@@ -6,11 +6,13 @@ import styles from './SpeakerSideAssignmentPanel.module.css';
 interface ISpeakerNameInputProps {
   value: string;
   placeholder: string;
+  /** Доп. класс поля (плотная раскладка карточки спикера). */
+  inputClassName?: string;
   onCommit: (v: string) => void;
 }
 
 // Поле имени спикера: локальный draft, коммит по blur/Enter, синк при внешнем изменении.
-export const SpeakerNameInput: FC<ISpeakerNameInputProps> = ({ value, placeholder, onCommit }) => {
+export const SpeakerNameInput: FC<ISpeakerNameInputProps> = ({ value, placeholder, inputClassName, onCommit }) => {
   const [draft, setDraft] = useState(value);
   const [prevValue, setPrevValue] = useState(value);
   // Внешнее значение изменилось — подтягиваем в draft (без эффекта)
@@ -21,7 +23,7 @@ export const SpeakerNameInput: FC<ISpeakerNameInputProps> = ({ value, placeholde
   const commit = () => { if (draft.trim() !== value.trim()) onCommit(draft); };
   return (
     <TextInput
-      inputClassName={styles.nameInput}
+      inputClassName={inputClassName ?? styles.nameInput}
       value={draft}
       placeholder={placeholder}
       clearLabel="имя спикера"

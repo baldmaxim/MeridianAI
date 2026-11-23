@@ -8,6 +8,18 @@
   gap: 14px;
 }
 
+.flat {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  gap: 8px;
+}
+
+.flat .body {
+  gap: 12px;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -67,6 +79,12 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+@media (min-width: 769px) {
+  .flat .toggle {
+    min-height: 32px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

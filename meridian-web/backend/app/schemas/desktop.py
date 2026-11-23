@@ -188,6 +188,8 @@ class DesktopLibraryItem(BaseModel):
     # Уточнение транскрипта: null | pending | running | done | failed | skipped.
     refine_status: str | None = None
     refine_error: str | None = None
+    # Встреча не завершена (идёт запись, брошена или продолжена через reopen).
+    is_active: bool = False
 
 
 class DesktopSegmentOut(BaseModel):

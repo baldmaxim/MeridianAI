@@ -1,11 +1,11 @@
 .container {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 20px;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 20px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-default);
+  border-top: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
@@ -13,43 +13,12 @@
   flex: 1;
 }
 
-.btnListen {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 18px;
-  background: var(--accent-amber);
-  color: var(--on-accent);
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Inter', sans-serif;
-  letter-spacing: 0.02em;
-}
-
-.btnStop {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 18px;
-  background: var(--accent-red);
-  color: var(--on-danger);
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Inter', sans-serif;
-  letter-spacing: 0.02em;
-}
-
 .btnSuggestion {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 18px;
+  min-height: 36px;
+  padding: 6px 14px;
   background: var(--bg-elevated);
   color: var(--text-secondary);
   border: 1px solid var(--border-default);
@@ -59,13 +28,15 @@
   cursor: pointer;
   font-family: 'Inter', sans-serif;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .btnStrengthen {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 18px;
+  min-height: 36px;
+  padding: 6px 14px;
   background: transparent;
   color: var(--accent-green);
   border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
@@ -75,6 +46,7 @@
   cursor: pointer;
   font-family: 'Inter', sans-serif;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .hint {
@@ -82,6 +54,14 @@
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-muted);
   letter-spacing: 0.06em;
+  display: none;
+  white-space: nowrap;
+}
+
+@media (min-width: 1100px) {
+  .hint {
+    display: inline;
+  }
 }
 
 .kbd {
@@ -99,6 +79,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .statusText {
@@ -128,4 +109,29 @@
 
 .statusTextBad {
   color: var(--accent-red);
+}
+
+/* «В историю» — только планшет/десктоп (на телефоне сохранение — в «Контекст встречи») */
+.btnSave {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+@media (min-width: 769px) {
+  .btnSave {
+    display: flex;
+  }
 }

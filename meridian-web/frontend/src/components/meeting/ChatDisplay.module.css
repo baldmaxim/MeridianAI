@@ -3,45 +3,24 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-tertiary);
-  border-radius: 10px;
-  border: 1px solid var(--border-default);
 }
 
 .header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-default);
+  padding: 0 0 6px;
   flex-shrink: 0;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-amber);
-  flex-shrink: 0;
-}
-
-.title {
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text);
 }
 
 .messages {
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 14px;
+  padding: 6px 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .placeholder {
@@ -54,7 +33,7 @@
 
 .message {
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .speaker {
@@ -64,7 +43,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-family: 'JetBrains Mono', monospace;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .text {
@@ -135,7 +114,6 @@
 }
 
 .authBadge {
-  margin-left: 8px;
   font-size: 9px;
   padding: 1px 6px;
   border-radius: 6px;

@@ -7,6 +7,7 @@
   gap: 16px;
   overflow: hidden;
   flex: 1;
+  min-height: 0;
 }
 
 .loading {
@@ -121,8 +122,27 @@
   color: var(--text-secondary);
 }
 
+/* Строка названия: слева название + мета, кнопки — по центру свободного места строки */
 .titleRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   flex-shrink: 0;
+  min-width: 0;
+}
+
+.titleBlock {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+}
+
+.titleActions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
 
 .title {
@@ -173,6 +193,7 @@
 
 .knowledgeList {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 8px 12px;
@@ -237,6 +258,7 @@
 
 .transcriptList {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 8px 0;
@@ -260,6 +282,37 @@
 @media (min-width: 769px) {
   .mobileTabs {
     display: none;
+  }
+
+  /* Плотнее: один экран, прокручиваются только панели */
+  .container {
+    padding: 14px 20px;
+    gap: 10px;
+  }
+
+  .topBar {
+    padding-bottom: 8px;
+  }
+
+  .panels {
+    gap: 12px;
+  }
+
+  .rightPanel {
+    gap: 8px;
+  }
+
+  .knowledgeList {
+    padding: 5px 8px;
+  }
+
+  .transcriptList {
+    padding: 5px 0;
+  }
+
+  .suggestionList {
+    padding: 5px 8px;
+    gap: 5px;
   }
 
   /* Планшет: транскрипция слева, справа база знаний над контекстом */

@@ -1,0 +1,42 @@
+/* Кнопка «Начать/Стоп». На телефоне footer-экземпляр получает размеры из index.css (.control-btn-main). */
+
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px 16px;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.listen {
+  background: var(--accent-amber);
+  color: var(--on-accent);
+}
+
+.stop {
+  background: var(--accent-red);
+  color: var(--on-danger);
+}
+
+/* Верхний экземпляр — только на планшете/десктопе */
+.top {
+  display: none;
+}
+
+@media (min-width: 769px) {
+  .top {
+    display: flex;
+  }
+
+  .footer {
+    display: none;
+  }
+}

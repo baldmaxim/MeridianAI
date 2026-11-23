@@ -1,0 +1,346 @@
+/* Панель «Спикеры»: колонка справа от транскрипта, узкая полоса или вкладка. Цвета — токены темы. */
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--speakers-w, 320px);
+  min-height: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  animation: speakersIn 180ms ease-out;
+}
+
+.strip {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--speakers-strip-w, 44px);
+  min-height: 0;
+  border-left: 1px solid var(--border);
+}
+
+.stripBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.stripBtn:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.stripIcon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.stripBadge {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  background: var(--accent-amber);
+  color: var(--on-accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  animation: badgePulse 1.6s ease-in-out infinite;
+}
+
+.stripLabel {
+  writing-mode: vertical-rl;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 6px;
+}
+
+.panelTab {
+  padding: 6px 12px 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 36px;
+}
+
+.title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.counter {
+  flex: 1;
+  min-width: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.counterDone {
+  color: var(--accent-green);
+}
+
+.hideBtn {
+  min-height: 36px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.hideBtnReady {
+  border-color: var(--accent-amber);
+  background: var(--accent-amber-glow);
+  color: var(--accent-amber);
+}
+
+.countRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.countLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.countSelect {
+  min-height: 36px;
+  padding: 4px 10px;
+  min-width: 64px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+}
+
+.countHint {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Список — единственная прокручиваемая область панели (без вложенного «окошка») */
+.list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 4px;
+}
+
+.empty {
+  padding: 16px 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 7px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.cardPending {
+  border-color: var(--border-amber);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nameInput {
+  min-height: 36px;
+  padding: 4px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nameText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rawLabel {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.cardBottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.seg {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.segBtn {
+  min-height: 34px;
+  padding: 0 9px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.segBtn:last-child {
+  border-right: none;
+}
+
+.segSelf {
+  background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.segOpp {
+  background: color-mix(in srgb, var(--accent-red) 14%, transparent);
+  color: var(--accent-red);
+  font-weight: 600;
+}
+
+.segNone {
+  background: var(--bg-hover);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.roleWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.roleSelect {
+  min-height: 34px;
+  padding: 4px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Телефон / bottom sheet: тап-цели ≥44px */
+@media (max-width: 768px) {
+  .head,
+  .hideBtn,
+  .countSelect,
+  .nameInput,
+  .roleSelect {
+    min-height: 44px;
+  }
+
+  .segBtn {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .cardBottom {
+    flex-wrap: wrap;
+  }
+
+  .roleWrap {
+    flex-basis: 100%;
+  }
+}
+
+@keyframes speakersIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+/* Десктоп: плотные карточки (тап-цели 44px нужны только на телефоне). */
+@media (min-width: 769px) {
+  .card { gap: 4px; padding: 5px 6px; }
+  .nameInput { min-height: 28px; height: 28px; padding: 2px 6px; font-size: 13px; }
+  .segBtn { min-height: 26px; padding: 0 7px; }
+  .countSelect, .hideBtn, .roleSelect { min-height: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .column,
+  .stripBadge {
+    animation: none;
+  }
+}

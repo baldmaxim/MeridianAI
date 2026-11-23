@@ -1,0 +1,69 @@
+/* Левая панель встречи: переключатель «AI подсказки | Чат». Цвета — токены темы. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 8px;
+}
+
+.seg {
+  display: flex;
+  align-self: flex-start;
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.segBtn {
+  min-height: 44px;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.segActive {
+  background: var(--accent-amber-glow);
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* display:flex выше перебивает атрибут hidden */
+.pane[hidden] {
+  display: none;
+}
+
+/* Чат занимает всю левую панель и скроллится сам */
+.chatPane {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+
+@media (min-width: 769px) {
+  .segBtn {
+    min-height: 34px;
+  }
+}

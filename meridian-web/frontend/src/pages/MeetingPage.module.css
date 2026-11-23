@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -12,13 +13,14 @@
   gap: 0;
   align-items: center;
   border-bottom: 1px solid var(--border-default);
-  padding: 0 24px;
+  padding: 0 20px;
   background: var(--bg-secondary);
   flex-shrink: 0;
 }
 
 .tab {
-  padding: 10px 16px;
+  min-height: 36px;
+  padding: 6px 12px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -37,12 +39,30 @@
 
 .content {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 20px;
 }
 
+/* «Контекст встречи» на десктопе: страница не прокручивается, колонки скроллятся сами */
+@media (min-width: 1024px) {
+  .contentContext {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
 .contentNegotiations {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   padding: 16px 20px 0;
+}
+
+/* Один экран на планшете/десктопе: страница не скроллится, прокручиваются только панели */
+@media (min-width: 769px) {
+  .contentNegotiations {
+    padding: 10px 16px 10px;
+  }
 }

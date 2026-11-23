@@ -155,3 +155,15 @@
 .toneRed { --tone: var(--accent-red); }
 .toneAmber { --tone: var(--accent-amber); }
 .toneBlue { --tone: var(--accent-blue); }
+
+/* Плотнее на десктопе/планшете (на телефоне — прежние отступы и тап-цели) */
+@media (min-width: 769px) {
+  .list {
+    gap: 7px;
+  }
+
+  .card {
+    padding: 8px 10px;
+    gap: 5px;
+  }
+}

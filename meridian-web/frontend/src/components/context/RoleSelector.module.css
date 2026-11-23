@@ -22,3 +22,10 @@
   color: var(--text-muted);
   font-family: 'Inter', sans-serif;
 }
+
+@media (min-width: 769px) {
+  .select {
+    min-height: 34px;
+    padding: 6px 10px;
+  }
+}

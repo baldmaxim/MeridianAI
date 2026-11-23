@@ -30,3 +30,31 @@
   font-size: 11px;
   color: var(--accent-amber);
 }
+
+@media (min-width: 769px) {
+  /* Одна строка: подпись слева, селект справа; подсказка скрыта (смысл — в подписи) */
+  .wrap {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .wrap > :nth-child(2) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  .trigger {
+    min-height: 32px;
+    font-size: 13px;
+  }
+}

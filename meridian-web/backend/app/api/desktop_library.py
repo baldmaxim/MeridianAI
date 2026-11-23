@@ -69,6 +69,7 @@ def _item_fields(row) -> dict:
         protocol_ready=bool(m.protocol_markdown), micro_summary=m.micro_summary,
         client_uuid=row.client_uuid, source="desktop" if row.has_link else "web",
         refine_status=m.refine_status, refine_error=m.refine_error,
+        is_active=bool(m.is_active),
     )
 
 
@@ -81,10 +82,10 @@ async def library(
     limit: int = Query(200, ge=1, le=MAX_LIMIT),
     db: AsyncSession = Depends(get_db),
 ):
-    """Завершённые встречи сайта (как GET /api/meetings по умолчанию), новые сверху."""
+    """Все доступные встречи (в т.ч. незавершённые — is_active), новые сверху."""
     stmt = (
         _library_select(auth.user.id)
-        .where(accessible_meeting_filter(auth.user.id), MeetingSession.is_active == False)  # noqa: E712
+        .where(accessible_meeting_filter(auth.user.id))
         .order_by(MeetingSession.started_at.desc(), MeetingSession.id.desc())
         .limit(limit)
     )

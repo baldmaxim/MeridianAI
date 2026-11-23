@@ -8,13 +8,15 @@ interface ICollapsibleSectionProps {
   defaultOpen?: boolean;
   children: ReactNode;
   right?: ReactNode;
+  /** Без рамки, фона и отступов — секция внутри колонки, а не отдельная карточка. */
+  flat?: boolean;
 }
 
-export const CollapsibleSection: FC<ICollapsibleSectionProps> = ({ title, defaultOpen, children, right }) => {
+export const CollapsibleSection: FC<ICollapsibleSectionProps> = ({ title, defaultOpen, children, right, flat }) => {
   const [open, setOpen] = useState(defaultOpen ?? false);
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${flat ? styles.flat : ''}`}>
       <div className={styles.header}>
         <button
           type="button"

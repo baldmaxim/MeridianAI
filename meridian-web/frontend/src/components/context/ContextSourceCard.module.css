@@ -14,6 +14,17 @@
   background: var(--bg-input);
 }
 
+.cardFlat {
+  padding: 3px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.cardFlat + .cardFlat {
+  border-top: 1px solid var(--border-default);
+}
+
 .cardDisabled {
   opacity: 0.55;
 }

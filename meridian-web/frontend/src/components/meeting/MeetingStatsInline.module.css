@@ -1,0 +1,38 @@
+/* Метрики встречи в шапке: только ≥1024px (ниже — полоса .mobile-stats-strip). */
+
+.row {
+  display: none;
+  align-items: baseline;
+  gap: 14px;
+  flex-shrink: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.value {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+@media (min-width: 1024px) {
+  .row {
+    display: flex;
+  }
+}

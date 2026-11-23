@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ComponentProps, FC } from 'react';
+import type { ComponentProps, FC, ReactNode } from 'react';
 import { MeetingAudioSettings } from '../../components/meeting/MeetingAudioSettings';
 import { ModeSwitch } from '../../components/meeting/ModeSwitch';
 import { RecordingIndicator } from '../../components/meeting/RecordingIndicator';
@@ -18,6 +18,8 @@ interface IMeetingTopBarProps {
   meetingId: number | null;
   showToast: (message: string, type?: 'success' | 'error') => void;
   audioSettings: ComponentProps<typeof MeetingAudioSettings>;
+  /** Кнопка «Начать/Стоп» справа, перед «Ссылка» (только полный режим). */
+  startSlot?: ReactNode;
 }
 
 /**
@@ -25,7 +27,7 @@ interface IMeetingTopBarProps {
  * Общая для обоих режимов — переключатель доступен и в диктофоне, и в полном.
  */
 export const MeetingTopBar: FC<IMeetingTopBarProps> = ({
-  onBack, customerName, objectName, meetingDate, meetingId, showToast, audioSettings,
+  onBack, customerName, objectName, meetingDate, meetingId, showToast, audioSettings, startSlot,
 }) => {
   const [linkCopied, setLinkCopied] = useState(false);
   const linkCopiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -81,6 +83,7 @@ export const MeetingTopBar: FC<IMeetingTopBarProps> = ({
       <div className={styles.actions}>
         <RecordingIndicator />
         <ModeSwitch />
+        {startSlot}
         {meetingId != null && (
           <div className={styles.linkWrap}>
             <button onClick={copyMeetingLink} className={`t-btn ${styles.linkBtn}`} aria-label="Скопировать ссылку" title="Скопировать ссылку на встречу">

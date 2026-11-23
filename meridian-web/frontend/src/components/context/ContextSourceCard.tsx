@@ -5,6 +5,8 @@ interface ContextSourceCardProps {
   source: ContextSourceViewModel;
   readOnly?: boolean;
   compact?: boolean;
+  /** Без рамки и фона — строка внутри папки дерева источников. */
+  flat?: boolean;
   right?: React.ReactNode;
   onToggleIncluded?: () => void;
   onRemove?: () => void;
@@ -35,14 +37,14 @@ function statusClass(s: ContextSourceUiStatus): string {
 // Единая карточка источника контекста: документ, прошлая встреча, RAG-папка.
 // Вся карточка НЕ кликабельна — включение/выключение только через кнопку.
 export function ContextSourceCard({
-  source, readOnly, compact, right,
+  source, readOnly, compact, flat, right,
   onToggleIncluded, onRemove, onPriorityChange, onPrimaryAction, primaryActionLabel,
 }: ContextSourceCardProps) {
   const disabled = !!source.disabled;
   const showStatus = !!source.statusLabel && source.status !== 'ready';
 
   return (
-    <div className={`${styles.card} ${compact ? styles.cardCompact : ''} ${disabled ? styles.cardDisabled : ''}`}>
+    <div className={`${styles.card} ${compact ? styles.cardCompact : ''} ${flat ? styles.cardFlat : ''} ${disabled ? styles.cardDisabled : ''}`}>
       <span className={styles.icon} aria-hidden>{KIND_ICON[source.kind]}</span>
 
       <div className={styles.main}>

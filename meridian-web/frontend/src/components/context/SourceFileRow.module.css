@@ -128,11 +128,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Область нажатия 44px при визуальной высоте текста */
-.textBtn::before {
-  content: '';
-  position: absolute;
-  inset: -14px -6px;
+/* Область нажатия 44px при визуальной высоте текста — только на телефоне, в плотной строке перекрыла бы соседей */
+@media (max-width: 768px) {
+  .textBtn::before {
+    content: '';
+    position: absolute;
+    inset: -14px -6px;
+  }
 }
 
 .removeBtn {
@@ -175,6 +177,83 @@
 .removeBtn:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
+}
+
+/* Десктоп/планшет: плотная однострочная строка дерева (30px); заметка — второй строкой, если есть */
+@media (min-width: 769px) {
+  .row {
+    min-height: 30px;
+    gap: 4px;
+    padding: 0;
+  }
+
+  .includeLabel {
+    width: 28px;
+    height: 28px;
+  }
+
+  .checkbox {
+    width: 14px;
+    height: 14px;
+  }
+
+  .icon > div {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    font-size: 8px;
+  }
+
+  .icon > div[class*='iconType'] {
+    font-size: 11px;
+  }
+
+  .main {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 10px;
+    padding: 2px 0;
+  }
+
+  .name {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 60%;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .details {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    min-width: 0;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .details > span:not(.status) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status,
+  .textBtn {
+    flex-shrink: 0;
+  }
+
+  .note {
+    flex-basis: 100%;
+    font-size: 11px;
+  }
+
+  .removeBtn {
+    width: 28px;
+    height: 28px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,7 @@
 import { useMeetingStore } from '../../store/meetingStore';
 import { TextSwap } from '../common/TextSwap';
+import { StartStopButton } from './StartStopButton';
+import { SaveToHistoryButton } from './SaveToHistoryButton';
 import { SyncBadge } from './SyncBadge';
 import styles from './ControlButtons.module.css';
 
@@ -8,17 +10,23 @@ interface Props {
   onStopListening: () => void;
   onRequestSuggestion: () => void;
   onStrengthenPosition: () => void;
+  onSaveToHistory: () => void;
   modelName?: string;
 }
 
+/**
+ * Нижняя панель вкладки «Переговоры» (footer): «Подсказка»/«Усилить позицию» слева,
+ * хоткеи и статус подключения справа. На телефоне (<769px) между ними встаёт «Начать/Стоп»
+ * (на десктопе он в верхней строке встречи), хоткеи скрыты.
+ */
 export function ControlButtons({
   onStartListening,
   onStopListening,
   onRequestSuggestion,
   onStrengthenPosition,
+  onSaveToHistory,
   modelName,
 }: Props) {
-  const isListening = useMeetingStore((s) => s.isListening);
   const suggestionLoading = useMeetingStore((s) => s.suggestionLoading);
   const strengthenLoading = useMeetingStore((s) => s.strengthenLoading);
   const isConnected = useMeetingStore((s) => s.isConnected);
@@ -40,19 +48,7 @@ export function ControlButtons({
         <span className="btn-text">{suggestionLoading ? 'Загрузка...' : 'Подсказка'}</span>
       </button>
 
-      <button
-        className={`control-btn-main t-btn ${isListening ? 't-btn-red' : 't-btn-amber'} ${isListening ? styles.btnStop : styles.btnListen}`}
-        onClick={isListening ? onStopListening : onStartListening}
-        /* Старт — bootstrap встречи (создаёт встречу и подключается), поэтому НЕ гейтим
-           по isConnected: иначе на новой встрече кнопка заблокирована до соединения,
-           а соединение невозможно без созданной встречи (дедлок). Стоп тоже доступен. */
-      >
-        <span className="t-icon-swap" data-state={isListening ? 'b' : 'a'} aria-hidden="true">
-          <span className="t-icon" data-icon="a">{'▶'}</span>
-          <span className="t-icon" data-icon="b"><span className="mic-pulse" /></span>
-        </span>
-        <span>{isListening ? 'Слушаю · Стоп' : 'Начать'}</span>
-      </button>
+      <StartStopButton placement="footer" onStart={onStartListening} onStop={onStopListening} />
 
       <button
         className={`control-btn-strengthen t-btn t-btn-green ${styles.btnStrengthen}`}
@@ -62,6 +58,8 @@ export function ControlButtons({
         <span className="btn-ico">{'↑'}</span>
         <span className="btn-text">{strengthenLoading ? 'Анализ...' : 'Усилить позицию'}</span>
       </button>
+
+      <SaveToHistoryButton onSave={onSaveToHistory} />
 
       <div className={`control-spacer ${styles.spacer}`} />
 

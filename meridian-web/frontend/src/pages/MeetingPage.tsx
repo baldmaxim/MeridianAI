@@ -11,6 +11,7 @@ import { getConversationTree } from '../api/conversationTree';
 import { HelperPanel } from '../components/meeting/HelperPanel';
 import { ParticipantsBadge } from '../components/meeting/ParticipantsBadge';
 import { ControlButtons } from '../components/meeting/ControlButtons';
+import { StartStopButton } from '../components/meeting/StartStopButton';
 import { DictaphoneView } from '../components/meeting/DictaphoneView';
 import { OfflineBanner } from '../components/meeting/OfflineBanner';
 import { navigate, paths } from '../lib/navigation';
@@ -235,6 +236,9 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
       meetingDate={formatMeetingDate(store.meetingStartedAt)}
       meetingId={store.currentMeetingId}
       showToast={showToast}
+      startSlot={store.uiMode === 'simple' ? undefined : (
+        <StartStopButton placement="top" onStart={handleStartListening} onStop={handleStopListening} />
+      )}
       audioSettings={{
         onConfigChange: audio.onAudioCaptureConfig,
         enabled: audio.onlineAudio,
@@ -310,26 +314,14 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
         <ParticipantsBadge />
       </div>
 
-      {/* Панель управления: ≥769px — под вкладками; на мобиле CSS (order) уводит её вниз */}
-      {activeTab === 0 && (
-        <ControlButtons
-          onStartListening={handleStartListening}
-          onStopListening={handleStopListening}
-          onRequestSuggestion={() => sendJSON({ type: 'request_suggestion' })}
-          onStrengthenPosition={() => sendJSON({ type: 'strengthen_position' })}
-          modelName={settings?.llm_model}
-        />
-      )}
-
       {/* Tab content */}
-      <div className={activeTab === 0 ? styles.contentNegotiations : styles.content}>
+      <div className={activeTab === 0 ? styles.contentNegotiations : `${styles.content} ${styles.contentContext}`}>
         {activeTab === 0 && (
           <NegotiationsTab
             drawerOpen={drawerOpen}
             onCloseDrawer={() => setDrawerOpen(false)}
             speakers={speakers}
             canSetMaxSpeakers={diarizationAvailable}
-            onSaveToHistory={() => sendJSON({ type: 'save_to_history' })}
           />
         )}
         {activeTab === 1 && (
@@ -348,6 +340,18 @@ export const MeetingPage: FC<IMeetingPageProps> = ({ meetingId, onBack }) => {
       </div>
 
       {activeTab === 0 && sideCalibration(true)}
+
+      {/* Footer вкладки «Переговоры»: подсказки, хоткеи, статус. На телефоне уходит вниз (order в index.css) */}
+      {activeTab === 0 && (
+        <ControlButtons
+          onStartListening={handleStartListening}
+          onStopListening={handleStopListening}
+          onRequestSuggestion={() => sendJSON({ type: 'request_suggestion' })}
+          onStrengthenPosition={() => sendJSON({ type: 'strengthen_position' })}
+          onSaveToHistory={() => sendJSON({ type: 'save_to_history' })}
+          modelName={settings?.llm_model}
+        />
+      )}
 
       {/* Drawer toggle (mobile only) */}
       {activeTab === 0 && (

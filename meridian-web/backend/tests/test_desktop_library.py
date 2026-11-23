@@ -102,13 +102,17 @@ async def test_library_site_and_desktop_meetings(sm, client):
                                            micro_summary="кратко")
     alien_id, _ = await _site_meeting(sm, other, link_for=other, title="Чужая из приложения",
                                       started_at=datetime(2026, 10, 19, 9, 0))
-    await _site_meeting(sm, other, title="Идёт запись", is_active=True)
+    active_id, _ = await _site_meeting(sm, other, title="Идёт запись", is_active=True,
+                                       started_at=datetime(2026, 10, 18, 9, 0))
 
     r = await client.get("/api/desktop/library", headers=h)
     assert r.status_code == 200, r.text
     items = r.json()
-    assert [i["meeting_id"] for i in items] == [own_id, site_id, alien_id]  # started_at desc, без активной
-    own, site, alien = items
+    # started_at desc; незавершённая (is_active) тоже в списке
+    assert [i["meeting_id"] for i in items] == [own_id, site_id, alien_id, active_id]
+    own, site, alien, active = items
+    assert [i["is_active"] for i in items] == [False, False, False, True]
+    assert active["title"] == "Идёт запись"
     assert own["source"] == "desktop" and own["client_uuid"] == own_uuid
     assert own["protocol_ready"] is True and own["micro_summary"] == "кратко"
     assert own["finalization_status"] == "completed"

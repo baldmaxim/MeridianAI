@@ -7,6 +7,7 @@ import { PreviousMeetingsContext } from '../components/context/PreviousMeetingsC
 import {
   useMeetingDetail, useUpdateMeetingTitle, useDeleteMeeting, useContinueMeeting,
 } from '../hooks/queries/meetings';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { meetingDisplayName } from '../lib/meetingName';
 import { ContextBlock } from './meetingDetail/ContextBlock';
 import { formatDateTime, formatRecorded, formatTime } from './meetingDetail/meetingDetailFormat';
@@ -22,6 +23,8 @@ interface IMeetingDetailPageProps {
   onContinue: () => void;
   backLabel?: string;
 }
+
+const DESKTOP_QUERY = '(min-width: 769px)';
 
 type TMobileTab = 'transcript' | 'suggestions' | 'context' | 'knowledge';
 
@@ -44,6 +47,7 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
   const [titleDraft, setTitleDraft] = useState('');
   const [mobileTab, setMobileTab] = useState<TMobileTab>('transcript');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
 
   function startEditTitle() {
     setTitleDraft(meeting?.title || '');
@@ -81,24 +85,59 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
   const strengthens = meeting.suggestions.filter(s => s.source === 'strengthen');
   const recorded = formatRecorded(meeting.recorded_seconds);
 
+  // «Продолжить» и «Удалить»: на десктопе — в строке названия, на телефоне — в верхней панели
+  const actions = (
+    <>
+      <button onClick={handleContinue} className={`t-btn t-btn-amber ${styles.continueBtn}`}>
+        Продолжить
+      </button>
+      <button
+        onClick={() => setConfirmDelete(true)}
+        className={`t-btn t-btn-red ${styles.deleteBtn}`}
+      >
+        Удалить
+      </button>
+    </>
+  );
+
   return (
     <div className={`detail-container ${styles.container}`}>
       {/* Top bar */}
       <div className={styles.topBar}>
         <button onClick={onBack} className={`t-btn ${styles.backBtn}`}>&larr; {backLabel}</button>
         <span className={styles.topTitle}>ДЕТАЛИ ВСТРЕЧИ</span>
-        <button onClick={handleContinue} className={`t-btn t-btn-amber ${styles.continueBtn}`}>
-          Продолжить
-        </button>
-        <button
-          onClick={() => setConfirmDelete(true)}
-          className={`t-btn t-btn-red ${styles.deleteBtn}`}
-        >
-          Удалить
-        </button>
+        {!isDesktop && actions}
       </div>
 
-      {/* Delete confirm */}
+      {/* Title */}
+      <div className={styles.titleRow}>
+        <div className={styles.titleBlock}>
+          {editingTitle ? (
+            <TextInput
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onClear={() => setTitleDraft('')}
+              clearLabel="название встречи"
+              onBlur={saveTitle}
+              onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
+              autoFocus
+              className={styles.titleField}
+            />
+          ) : (
+            <h2 className={styles.title} onClick={startEditTitle}>
+              {meetingDisplayName(meeting)}
+            </h2>
+          )}
+          <div className={styles.titleMeta}>
+            {formatDateTime(meeting.started_at)}
+            {meeting.ended_at && ` — ${formatTime(meeting.ended_at)}`}
+            {recorded && ` · ${recorded}`}
+          </div>
+        </div>
+        {isDesktop && <div className={styles.titleActions}>{actions}</div>}
+      </div>
+
+      {/* Delete confirm — под строкой названия */}
       {confirmDelete && (
         <div className={styles.confirmBar}>
           <span className={styles.confirmText}>Удалить встречу и все данные?</span>
@@ -107,36 +146,12 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         </div>
       )}
 
-      {/* Title */}
-      <div className={styles.titleRow}>
-        {editingTitle ? (
-          <TextInput
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onClear={() => setTitleDraft('')}
-            clearLabel="название встречи"
-            onBlur={saveTitle}
-            onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
-            autoFocus
-            className={styles.titleField}
-          />
-        ) : (
-          <h2 className={styles.title} onClick={startEditTitle}>
-            {meetingDisplayName(meeting)}
-          </h2>
-        )}
-        <div className={styles.titleMeta}>
-          {formatDateTime(meeting.started_at)}
-          {meeting.ended_at && ` — ${formatTime(meeting.ended_at)}`}
-          {recorded && ` · ${recorded}`}
-        </div>
-      </div>
-
       {/* Этап 5: протокол встречи */}
       <ProtocolSection meetingId={meetingId} />
 
       {/* Этап 8: использованные как контекст прошлые встречи */}
       <PreviousMeetingsContext
+        variant="row"
         meetingId={meetingId}
         currentCustomerId={meeting.customer_id}
         currentObjectId={meeting.object_id}

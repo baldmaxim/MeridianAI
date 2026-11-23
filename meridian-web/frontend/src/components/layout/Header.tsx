@@ -11,6 +11,7 @@ import { Icon } from '../common/Icon';
 import { HeaderNav } from './HeaderNav';
 import { HeaderMobileMenu } from './HeaderMobileMenu';
 import { UserMenu } from './UserMenu';
+import { MeetingStatsInline } from '../meeting/MeetingStatsInline';
 import { CreditsRing } from './CreditsRing';
 import { OpenRouterBalance } from './OpenRouterBalance';
 import type { IHeaderNavModel } from './headerNav';
@@ -47,6 +48,8 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
   // странице встречи — вне неё «зависший» ярлык роли/имя встречи не нужен.
   const activeRoleName = useMeetingStore((s) => (inMeeting ? s.activeRoleName : null));
   const meetingName = useMeetingStore((s) => (inMeeting ? s.meetingName : ''));
+  // Метрики в шапке — только в полном режиме встречи (в диктофоне их нет)
+  const showMeetingStats = useMeetingStore((s) => inMeeting && s.uiMode !== 'simple');
   // Ярлык «Заказчик | Объект» — только на странице объекта.
   const objectHeader = useMeetingStore((s) => (inObjectDetail ? s.objectHeader : null));
   const showObjectTag = !!objectHeader && !!(objectHeader.customer || objectHeader.object);
@@ -103,6 +106,7 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
             <span className={`header-meeting-name ${styles.meetingName}`}>{meetingName}</span>
           </>
         )}
+        {showMeetingStats && <MeetingStatsInline />}
         {showObjectTag && (
           <>
             <span className={`header-object-sep ${styles.meetingSep}`} aria-hidden="true" />

@@ -1,8 +1,15 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Раскрытый протокол прокручивается внутри — не выдавливает панели страницы */
+.body {
+  max-height: min(24dvh, 260px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .bar {
@@ -35,4 +42,15 @@
   cursor: pointer;
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
+}
+
+
+@media (min-width: 769px) {
+  .bar {
+    flex-wrap: nowrap;
+  }
+
+  .toggle {
+    padding: 3px 12px;
+  }
 }

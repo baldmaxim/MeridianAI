@@ -82,15 +82,13 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
 
   return (
     <div className={`chat-display ${styles.container}`}>
-      <div className={styles.header}>
-        <span className={styles.dot} />
-        <span className={styles.title}>Транскрипция</span>
-        {authority?.current_source === 'multi_channel' && (
+      {authority?.current_source === 'multi_channel' && (
+        <div className={styles.header}>
           <span className={styles.authBadge} title="Авторитетный источник — multi-channel">
             multi-channel
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {authority?.current_source === 'multi_channel' && (
         <div className={styles.authBanner}>
           Авторитетный транскрипт ведётся по multi-channel. Single STT продолжает работать как резерв.

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { Combobox } from '../common';
 import styles from './MeetingContext.module.css';
@@ -5,13 +6,15 @@ import styles from './MeetingContext.module.css';
 interface Props {
   // Отправить актуальный контекст из стора (debounce + WS) — см. MeetingPage.pushContext.
   pushContext: () => void;
+  /** Дополнительное поле между «Типом переговоров» и «Ключевыми условиями» (например, роль). */
+  children?: ReactNode;
 }
 
 // Краткие смысловые поля контекста: тип переговоров (свободный ввод) и ключевые условия.
 // «Ваша роль» убрана — задаётся в «Роли переговоров». Тема — read-only в карточке «Встреча».
 const TYPE_SUGGESTIONS = ['Продажа / заключение сделки', 'Претензионная работа', 'Согласование условий'];
 
-export function MeetingContext({ pushContext }: Props) {
+export function MeetingContext({ pushContext, children }: Props) {
   const negotiationType = useMeetingStore((s) => s.negotiationType);
   const notes = useMeetingStore((s) => s.meetingNotes);
   const setNegotiationType = useMeetingStore((s) => s.setNegotiationType);
@@ -31,12 +34,14 @@ export function MeetingContext({ pushContext }: Props) {
         inputClassName={styles.input}
       />
 
+      {children}
+
       <label className={styles.label}>Ключевые условия / цели</label>
       <textarea
         placeholder={"Целевая сумма, дедлайн, ключевые требования, ограничения..."}
         value={notes}
         onChange={(e) => handleNotesChange(e.target.value)}
-        rows={6}
+        rows={3}
         className={styles.textarea}
       />
     </div>
