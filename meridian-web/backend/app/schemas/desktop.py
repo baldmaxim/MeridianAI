@@ -79,6 +79,32 @@ class MeetingUpsertResponse(BaseModel):
     created: bool
 
 
+class MeetingAdoptRequest(BaseModel):
+    client_uuid: UUID
+    capture_mode: CaptureMode
+
+
+class MeetingAdoptResponse(BaseModel):
+    # Фактический идентификатор: если встреча уже связана с пользователем — прежний, а не из запроса.
+    client_uuid: str
+    server_meeting_id: int
+    title: str | None
+    started_at: datetime
+    customer_id: int | None
+    object_id: int | None
+    customer_name: str | None
+    object_name: str | None
+    capture_mode: CaptureMode
+    max_speakers: int | None
+    # Контекст встречи (как принимает PATCH из приложения): приложение хранит его локально,
+    # иначе правка одного поля стёрла бы остальные на сервере.
+    negotiation_type: str | None = None
+    key_terms: str | None = None  # meeting_notes
+    opponent_weaknesses: str | None = None
+    # Ревизия аудио, под которой приложение пришлёт новую запись: имя не совпадёт с загруженным.
+    next_audio_revision: int
+
+
 class SegmentIn(BaseModel):
     client_segment_id: str = Field(min_length=1, max_length=64)
     text: str = Field(max_length=20000)

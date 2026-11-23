@@ -10,6 +10,7 @@
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -204,6 +205,69 @@ def reopen(meeting: MeetingSession) -> None:
     meeting.refine_status = None
 
 
+class DesktopClientUuidTakenError(ValueError):
+    """client_uuid уже занят другой встречей этого пользователя."""
+
+
+# Имя аудио на сервере: «{канал}_{файл приложения}»; файл — «mic.wav» или «mic_r{n}.wav».
+_AUDIO_NAME = re.compile(r"^(?:mic|system|mixed)_(?:mic|system|mixed)(?:_r(\d+))?\.wav$")
+
+
+async def next_audio_revision(db: AsyncSession, meeting_id: int) -> int:
+    """Ревизия для новой записи приложения: 1 + максимальная среди активных аудио встречи (нет файлов — 1)."""
+    names = (await db.execute(
+        select(FileRecord.original_name).where(
+            FileRecord.meeting_id == meeting_id, FileRecord.purpose == "meeting_audio",
+            FileRecord.status == "active",
+        )
+    )).scalars().all()
+    revisions = []
+    for name in names:
+        match = _AUDIO_NAME.match(name or "")
+        if match:
+            revisions.append(int(match.group(1)) if match.group(1) else 1)
+    return max(revisions) + 1 if revisions else 1
+
+
+async def is_adopted(db: AsyncSession, meeting_id: int) -> bool:
+    count = (await db.execute(
+        select(func.count()).select_from(DesktopMeetingLink).where(
+            DesktopMeetingLink.meeting_id == meeting_id, DesktopMeetingLink.adopted_at.is_not(None),
+        )
+    )).scalar_one()
+    return count > 0
+
+
+async def adopt(
+    db: AsyncSession, user_id: int, device_id: int, meeting: MeetingSession,
+    client_uuid: str, capture_mode: str,
+) -> DesktopMeetingLink:
+    """Принять встречу без локальной записи (с сайта или другого ПК) и вернуть её в работу.
+
+    Связь пользователя с встречей уже есть — второй не заводим, отдаём прежнюю (при нескольких —
+    с минимальным client_uuid, как в библиотеке). Иначе заводим связь с client_uuid приложения.
+    Дальше — как reopen; занятая сервером встреча — DesktopMeetingBusyError, ничего не меняя.
+    """
+    reopen(meeting)  # раньше связи: отказ не оставляет следов
+    link = (await db.execute(
+        select(DesktopMeetingLink).where(
+            DesktopMeetingLink.user_id == user_id, DesktopMeetingLink.meeting_id == meeting.id,
+        ).order_by(DesktopMeetingLink.client_uuid)
+    )).scalars().first()
+    if link is None:
+        if await get_link(db, user_id, client_uuid) is not None:
+            raise DesktopClientUuidTakenError("Идентификатор встречи уже занят другой встречей")
+        link = DesktopMeetingLink(
+            user_id=user_id, device_id=device_id, client_uuid=client_uuid,
+            meeting_id=meeting.id, capture_mode=capture_mode,
+        )
+        db.add(link)
+    if link.adopted_at is None:
+        link.adopted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return link
+
+
 async def list_meetings(db: AsyncSession, user_id: int, limit: int = 200) -> list[tuple[MeetingSession, DesktopMeetingLink]]:
     rows = (await db.execute(
         select(MeetingSession, DesktopMeetingLink)
@@ -348,7 +412,12 @@ async def finalize(db: AsyncSession, meeting: MeetingSession) -> None:
     if meeting.refine_status in ("pending", "running"):
         return  # уточнение уже в очереди и само запросит протокол
     if meeting.refine_status is None:
-        if get_settings().desktop_refine_enabled and await _has_meeting_audio(db, meeting.id):
+        # Принятая приложением встреча: у ПК нет прежнего аудио, уточнение стёрло бы прежние реплики.
+        if (
+            get_settings().desktop_refine_enabled
+            and await _has_meeting_audio(db, meeting.id)
+            and not await is_adopted(db, meeting.id)
+        ):
             meeting.is_active = False
             meeting.refine_status = "pending"
             await enqueue(db, "meeting_refine", {"meeting_id": meeting.id})

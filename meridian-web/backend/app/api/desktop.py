@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.dependencies import get_current_user
 from ..config import get_settings
 from ..database import get_db
+from ..models.directory import Customer, ProjectObject
 from ..models.document import DocumentRecord
 from ..models.file import FileRecord
 from ..models.meeting import MeetingSession
@@ -41,6 +42,8 @@ from ..schemas.desktop import (
     DesktopMeetingItem,
     DesktopTokenRequest,
     DesktopUserOut,
+    MeetingAdoptRequest,
+    MeetingAdoptResponse,
     MeetingPatchRequest,
     MeetingPatchResponse,
     MeetingUpsertRequest,
@@ -66,6 +69,7 @@ from ..services.meeting_documents import (
     set_document_inclusion,
 )
 from ..services import s3
+from ..services.access import user_can_access_meeting
 from ..services import speaker_roles as sr
 from ..services.meeting_ask import MeetingAskError, answer_question
 from ..services.meeting_room import room_registry
@@ -297,7 +301,8 @@ async def meetings_patch(
         meeting.title = data.title.strip()[:255]
     if data.ended_at is not None:
         meeting.ended_at = sync.to_naive_utc(data.ended_at)
-    if data.notes is not None:
+    # Принятая приложением встреча: заметки с сайта/прежнего ПК пустой список не стирает.
+    if data.notes is not None and (data.notes or not await sync.is_adopted(db, meeting.id)):
         meeting.app_notes = sync.format_notes([(n.at_seconds, n.text) for n in data.notes])
     context_changed = sync.apply_context(
         meeting, negotiation_type=data.negotiation_type, key_terms=data.key_terms,
@@ -349,6 +354,40 @@ async def meetings_reopen(meeting_id: int, auth: Device, db: AsyncSession = Depe
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(e))
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/meetings/{meeting_id}/adopt", response_model=MeetingAdoptResponse)
+async def meetings_adopt(
+    meeting_id: int, data: MeetingAdoptRequest, auth: Device, db: AsyncSession = Depends(get_db),
+):
+    """«Продолжить в приложении»: встреча сайта/другого ПК становится связанной с этим пользователем и открывается.
+
+    Связь уже есть — отдаём её client_uuid. Занятая сервером встреча или чужой client_uuid — 409.
+    """
+    meeting = await db.get(MeetingSession, meeting_id)
+    if meeting is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Встреча не найдена")
+    if not await user_can_access_meeting(db, auth.user.id, meeting_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Нет доступа к встрече")
+    try:
+        link = await sync.adopt(
+            db, auth.user.id, auth.device.id, meeting, str(data.client_uuid), data.capture_mode,
+        )
+    except (sync.DesktopMeetingBusyError, sync.DesktopClientUuidTakenError) as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(e))
+    customer = await db.get(Customer, meeting.customer_id) if meeting.customer_id else None
+    obj = await db.get(ProjectObject, meeting.object_id) if meeting.object_id else None
+    revision = await sync.next_audio_revision(db, meeting_id)
+    await db.commit()
+    return MeetingAdoptResponse(
+        client_uuid=link.client_uuid, server_meeting_id=meeting.id,
+        title=(meeting.title or "").strip() or None,  # пустое — null: приложение не выдумывает название
+        started_at=meeting.started_at, customer_id=meeting.customer_id, object_id=meeting.object_id,
+        customer_name=customer.name if customer else None, object_name=obj.name if obj else None,
+        capture_mode=link.capture_mode, max_speakers=meeting.diarization_max_speakers,
+        negotiation_type=meeting.negotiation_type, key_terms=meeting.meeting_notes,
+        opponent_weaknesses=meeting.opponent_weaknesses, next_audio_revision=revision,
+    )
 
 
 @router.post("/meetings/{meeting_id}/ask", response_model=MeetingAskResponse)

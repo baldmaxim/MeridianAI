@@ -59,6 +59,9 @@ class DesktopMeetingLink(Base):
     # online | in_person
     capture_mode: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Встреча принята приложением без локальной записи («Продолжить в приложении»): прежнего
+    # аудио у ПК нет, поэтому финализация без уточнения, а пустые заметки не стирают прежние.
+    adopted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         UniqueConstraint("user_id", "client_uuid", name="uq_desktop_meeting_link_client"),
