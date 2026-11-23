@@ -116,19 +116,65 @@
   gap: 6px;
 }
 
+/* Обёртка строки: рамка и фон — на ней, чтобы рядом с кнопкой-строкой мог стоять sibling «i» (кнопку в кнопку не вложить) */
+.rowWrap {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+
 .row {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 10px 14px;
   text-align: left;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
+  background: transparent;
+  border: 0;
   border-radius: 10px;
   color: var(--text);
   cursor: pointer;
   font-family: 'Inter', sans-serif;
+}
+
+/* «i» (информация об объекте) — только на мобильном */
+.infoBtn {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--accent-amber);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  font-style: italic;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+@media (max-width: 768px) {
+  .row {
+    min-height: 44px;
+  }
+
+  .rowAddr {
+    display: none;
+  }
+
+  .infoBtn {
+    display: flex;
+  }
 }
 
 .rowName {

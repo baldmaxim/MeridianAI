@@ -1,0 +1,10 @@
+/* Цвет состояния поверх .iconBtn из Header.module.css (удвоенный селектор — чтобы перебить его :hover) */
+.btn.held,
+.btn.held:hover {
+  color: var(--accent);
+}
+
+.btn.failed,
+.btn.failed:hover {
+  color: var(--danger);
+}

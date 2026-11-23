@@ -1,0 +1,83 @@
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  min-width: 0;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+}
+
+.value {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Адрес можно выделить и скопировать */
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.openBtn {
+  min-height: 44px;
+  padding: 10px 16px;
+  background: var(--accent-amber);
+  border: none;
+  border-radius: 8px;
+  color: var(--on-accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}

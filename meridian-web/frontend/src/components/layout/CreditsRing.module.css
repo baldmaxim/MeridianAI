@@ -1,0 +1,16 @@
+/* Кольцо + текст остатка в панели «Лимиты» */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.text {
+  min-width: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}

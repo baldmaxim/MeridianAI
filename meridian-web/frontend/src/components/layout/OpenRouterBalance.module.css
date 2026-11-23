@@ -38,6 +38,10 @@
   display: none;
 }
 
+.prefixAlways {
+  display: inline;
+}
+
 .tip {
   position: absolute;
   top: calc(100% + 10px);

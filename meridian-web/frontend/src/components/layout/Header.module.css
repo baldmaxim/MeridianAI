@@ -10,6 +10,12 @@
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
+  /* sticky у верхнего края: Safari 26+ тонирует статус-бар по фону такого элемента (иначе рисует свой «glass»).
+     Фон непрозрачный, без backdrop-filter. z-index выше контента страниц (≤60), ниже HeaderMobileMenu (200) и модалок (1000);
+     выпадающие меню шапки (z 200) живут внутри этого контекста и перекрывают контент. */
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .logo {

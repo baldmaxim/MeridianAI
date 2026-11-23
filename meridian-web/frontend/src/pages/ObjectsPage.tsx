@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { paths, navTo } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
 import { ObjectCreateModal } from '../components/directory/ObjectCreateModal';
+import { ObjectInfoModal } from '../components/directory/ObjectInfoModal';
 import { useObjects, directoryKeys } from '../hooks/queries/directory';
 import { useMeetingsList } from '../hooks/queries/meetings';
 import type { ProjectObject } from '../types';
@@ -29,6 +30,9 @@ export function ObjectsPage({ onOpenObject }: Props) {
   const objects = objectsQuery.data ?? [];
   const [q, setQ] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  // Карточка объекта (мобильная «i»): сам объект держим отдельно от флага — чтобы не пустела на exit-анимации
+  const [infoObject, setInfoObject] = useState<ProjectObject | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const loading = objectsQuery.isPending;
@@ -110,12 +114,24 @@ export function ObjectsPage({ onOpenObject }: Props) {
                   {items.map((o) => {
                     const count = counts[o.id] || 0;
                     return (
-                      <button key={o.id} className={styles.row} {...navTo(paths.objectDetail(o.id), () => onOpenObject(o.id))}>
-                        <span className={styles.rowName}>{o.name}</span>
-                        {o.address && <span className={styles.rowAddr}>📍 {o.address}</span>}
-                        <span className={cx(count > 0 ? styles.countActive : styles.count)}>{pluralMeetings(count)}</span>
-                        <span className={styles.chevron}>→</span>
-                      </button>
+                      <div key={o.id} className={styles.rowWrap}>
+                        <button className={styles.row} {...navTo(paths.objectDetail(o.id), () => onOpenObject(o.id))}>
+                          <span className={styles.rowName}>{o.name}</span>
+                          {o.address && <span className={styles.rowAddr}>📍 {o.address}</span>}
+                          <span className={cx(count > 0 ? styles.countActive : styles.count)}>{pluralMeetings(count)}</span>
+                          <span className={styles.chevron}>→</span>
+                        </button>
+                        {o.address && (
+                          <button
+                            type="button"
+                            className={cx('t-btn', styles.infoBtn)}
+                            aria-label="Информация об объекте"
+                            onClick={() => { setInfoObject(o); setInfoOpen(true); }}
+                          >
+                            i
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -124,6 +140,14 @@ export function ObjectsPage({ onOpenObject }: Props) {
           );
         })}
       </div>
+
+      <ObjectInfoModal
+        open={infoOpen}
+        object={infoObject}
+        meetingsCount={infoObject ? counts[infoObject.id] || 0 : 0}
+        onClose={() => setInfoOpen(false)}
+        onOpenObject={onOpenObject}
+      />
 
       <ObjectCreateModal
         open={showCreate}

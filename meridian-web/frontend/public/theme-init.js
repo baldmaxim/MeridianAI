@@ -3,7 +3,7 @@
    Логика синхронна с src/hooks/useTheme.ts (ключ localStorage, цвета theme-color). */
 (function () {
   var KEY = 'meridian-theme';
-  var COLORS = { dark: '#080A0F', light: '#F3F5F9' }; // = --bg в index.css
+  var COLORS = { dark: '#0D1018', light: '#FFFFFF' }; // = --bg-secondary (фон шапки) в index.css; CSS сюда ещё не загружен — литералы
   var mode = 'system';
   try {
     var saved = localStorage.getItem(KEY);

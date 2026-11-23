@@ -10,7 +10,8 @@ export type IconName =
   | 'logout'
   | 'user'
   | 'sun'
-  | 'moon';
+  | 'moon'
+  | 'gauge';
 
 interface IIconProps {
   name: IconName;
@@ -40,6 +41,13 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />,
+  gauge: (
+    <>
+      <path d="M4 17a8 8 0 0 1 16 0" />
+      <path d="M12 17l4-5" />
+      <circle cx="12" cy="17" r="1" />
+    </>
+  ),
   user: (
     <>
       <circle cx="12" cy="8" r="4" />

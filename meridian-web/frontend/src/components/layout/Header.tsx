@@ -11,9 +11,12 @@ import { Icon } from '../common/Icon';
 import { HeaderNav } from './HeaderNav';
 import { HeaderMobileMenu } from './HeaderMobileMenu';
 import { UserMenu } from './UserMenu';
+import { KeepAwakeToggle } from './KeepAwakeToggle';
 import { MeetingStatsInline } from '../meeting/MeetingStatsInline';
 import { CreditsRing } from './CreditsRing';
 import { OpenRouterBalance } from './OpenRouterBalance';
+import { HeaderLimits } from './HeaderLimits';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import type { IHeaderNavModel } from './headerNav';
 import styles from './Header.module.css';
 
@@ -54,6 +57,8 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
   const objectHeader = useMeetingStore((s) => (inObjectDetail ? s.objectHeader : null));
   const showObjectTag = !!objectHeader && !!(objectHeader.customer || objectHeader.object);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Мобильный брейкпоинт проекта (index.css): лимиты — одной кнопкой с панелью, без двойного монтирования колец
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Шестерёнка «Настройки»: хаб настроек, а если его нет — AI-профили
   const settingsAction = onShowSettings
@@ -138,9 +143,10 @@ export const Header: FC<IHeaderProps> = ({ userName, onLogout, onShowBatch, show
               {activeRoleName}
             </span>
           )}
-          {userName && <CreditsRing />}
           {/* canSwitchRole = реальная роль admin (App.tsx:273); остаток OpenRouter (пилюля) — только админам */}
-          {canSwitchRole && <OpenRouterBalance />}
+          {userName && (isMobile ? <HeaderLimits isAdmin={!!canSwitchRole} /> : <CreditsRing />)}
+          {!isMobile && canSwitchRole && <OpenRouterBalance />}
+          <KeepAwakeToggle />
           <ThemeToggle />
           {settingsAction && (
             <button

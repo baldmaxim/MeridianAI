@@ -4,8 +4,8 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 
 const STORAGE_KEY = 'meridian-theme';
-/** Должны совпадать с --bg в index.css и public/theme-init.js */
-const THEME_COLORS: Record<ResolvedTheme, string> = { dark: '#080A0F', light: '#F3F5F9' };
+/** Запасные значения = --bg-secondary (фон шапки) в index.css; должны совпадать с public/theme-init.js */
+const THEME_COLORS: Record<ResolvedTheme, string> = { dark: '#0D1018', light: '#FFFFFF' };
 
 const isMode = (v: unknown): v is ThemeMode => v === 'system' || v === 'light' || v === 'dark';
 
@@ -33,7 +33,9 @@ const resolve = (mode: ThemeMode): ResolvedTheme => {
 const applyTheme = (): void => {
   const resolved = resolve(currentMode);
   document.documentElement.setAttribute('data-theme', resolved);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[resolved]);
+  // Цвет берём из CSS уже после смены data-theme (фон шапки); константы — если токен не прочитался
+  const cssColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim();
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', cssColor || THEME_COLORS[resolved]);
 };
 
 const emit = (): void => listeners.forEach((l) => l());

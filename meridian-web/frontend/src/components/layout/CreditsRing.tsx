@@ -1,27 +1,29 @@
 import type { FC } from 'react';
 import { getElevenLabsUsage } from '../../api/usage';
-import type { IElevenLabsUsage } from '../../api/usage';
 import { usePolledUsage } from '../../hooks/usePolledUsage';
+import { buildCreditsLabel } from './creditsLabel';
 import { UsageRing } from './UsageRing';
+import styles from './CreditsRing.module.css';
 
-const fmt = (n: number): string => n.toLocaleString('ru-RU');
-
-/** «2026-12-05» → «05.12» */
-const fmtReset = (iso: string): string => {
-  const [, m, d] = iso.split('-');
-  return d && m ? `${d}.${m}` : iso;
-};
-
-const buildLabel = (u: IElevenLabsUsage): string => {
-  const base = `ElevenLabs: осталось ${fmt(u.remaining)} из ${fmt(u.limit)} кредитов`;
-  return u.next_reset ? `${base} · сброс ${fmtReset(u.next_reset)}` : base;
-};
+interface ICreditsRingProps {
+  /** Показать рядом с кольцом текст остатка (панель «Лимиты» на мобильном) */
+  showText?: boolean;
+}
 
 /** Кольцо расхода кредитов ElevenLabs в шапке. Загрузка/ошибка — ничего не рисуем. */
-export const CreditsRing: FC = () => {
+export const CreditsRing: FC<ICreditsRingProps> = ({ showText = false }) => {
   const usage = usePolledUsage(getElevenLabsUsage);
   if (!usage) return null;
 
   const percent = Math.min(100, Math.max(0, usage.percent_used));
-  return <UsageRing percent={percent} centerText={`${percent}%`} label={buildLabel(usage)} />;
+  const label = buildCreditsLabel(usage);
+  const ring = <UsageRing percent={percent} centerText={`${percent}%`} label={label} />;
+  if (!showText) return ring;
+
+  return (
+    <div className={styles.row}>
+      {ring}
+      <span className={styles.text}>{label}</span>
+    </div>
+  );
 };

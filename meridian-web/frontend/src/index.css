@@ -875,3 +875,27 @@ button:disabled {
   .dk-wrap { gap: 20px; }
 }
 
+
+/* ── Шапка на узких телефонах (≤400px: Galaxy A, iPhone SE/12 mini): пять кнопок по 44px
+   (лимиты, экран, тема, настройки, меню) + логотип иначе не помещаются. Сжимаем отступы и логотип,
+   тап-цели 44px остаются. ── */
+@media (max-width: 400px) {
+  .header-inner {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    gap: 6px !important;
+  }
+  .header-logo {
+    gap: 8px !important;
+  }
+  .header-logo-text {
+    font-size: 12px !important;
+    letter-spacing: 0.1em !important;
+  }
+  .header-center {
+    margin-right: 0 !important;
+  }
+  .header-right {
+    gap: 0 !important;
+  }
+}

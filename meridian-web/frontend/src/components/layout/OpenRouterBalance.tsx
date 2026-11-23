@@ -5,8 +5,13 @@ import { usePolledUsage } from '../../hooks/usePolledUsage';
 import { formatUsd } from '../../lib/formatUsd';
 import styles from './OpenRouterBalance.module.css';
 
+interface IOpenRouterBalanceProps {
+  /** Префикс («Ключ»/«Баланс») виден всегда, а не только от 768px (панель «Лимиты» на мобильном) */
+  alwaysShowPrefix?: boolean;
+}
+
 /** Пилюля остатка OpenRouter в шапке (только админ): по лимиту ключа или баланс аккаунта. Загрузка/ошибка/403/null — ничего не рисуем. */
-export const OpenRouterBalance: FC = () => {
+export const OpenRouterBalance: FC<IOpenRouterBalanceProps> = ({ alwaysShowPrefix = false }) => {
   const usage = usePolledUsage(getOpenRouterUsage);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -38,7 +43,7 @@ export const OpenRouterBalance: FC = () => {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <span className={styles.prefix}>{prefix}</span>
+        <span className={alwaysShowPrefix ? styles.prefixAlways : styles.prefix}>{prefix}</span>
         <span>{amount}</span>
       </button>
       {open && <div role="tooltip" className={styles.tip}>{label}</div>}
