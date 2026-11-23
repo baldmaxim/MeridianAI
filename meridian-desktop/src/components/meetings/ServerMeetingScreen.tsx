@@ -2,13 +2,14 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ChevronLeft, Database, Play } from "lucide-react";
+import { ChevronLeft, Database, ExternalLink, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAskChat } from "@/hooks/useAskChat";
 import { useMeetingSources } from "@/hooks/useMeetingSources";
 import { useRefineView } from "@/hooks/useRefineView";
 import { useStoredChoice } from "@/hooks/useStoredChoice";
 import { useLibraryStore } from "@/stores/libraryStore";
+import { useMeetingStore } from "@/stores/meetingStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { formatDateChip, formatTimeRange } from "@/lib/utils/meetingFormat";
 import { DateTimeChips } from "./DateTimeChips";
@@ -50,9 +51,23 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
   );
   const closeServer = useLibraryStore((s) => s.closeServer);
   const serverUrl = useSyncStore((s) => s.account?.server_url);
+  const [adopting, setAdopting] = useState(false);
 
-  // The site's meeting page (as `meeting_web_url` in the backend) has "Continue".
+  // "Continue in the app": the server hands the meeting over, the local copy
+  // opens (LocalMeetingScreen takes over from this screen).
   const handleContinue = async () => {
+    setAdopting(true);
+    const error = await useMeetingStore
+      .getState()
+      .adoptServerMeeting(serverMeetingId);
+    setAdopting(false);
+    if (error) {
+      toast.error(t("meetings.errors.resumeFailed"), { description: error });
+    }
+  };
+
+  // The site's meeting page (as `meeting_web_url` in the backend).
+  const handleOpenOnSite = async () => {
     if (!serverUrl) return;
     const url = `${serverUrl.replace(/\/+$/, "")}/meetings/${serverMeetingId}`;
     try {
@@ -121,15 +136,34 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
           </h1>
           {serverUrl && (
             <Button
-              variant="primary"
+              variant="secondary"
               size="sm"
-              onClick={() => void handleContinue()}
+              onClick={() => void handleOpenOnSite()}
               className="flex shrink-0 items-center gap-1.5"
             >
-              <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("meetings.actions.continueOnSite")}
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("meetings.actions.openOnSite")}
             </Button>
           )}
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={adopting}
+            onClick={() => void handleContinue()}
+            className="flex shrink-0 items-center gap-1.5"
+          >
+            {adopting ? (
+              <Loader2
+                className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : (
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {adopting
+              ? t("meetings.actions.resuming")
+              : t("meetings.actions.continueInApp")}
+          </Button>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 ps-9">
           <DateTimeChips

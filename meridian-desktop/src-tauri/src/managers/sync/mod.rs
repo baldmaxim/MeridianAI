@@ -4,6 +4,8 @@
 //! See `engine.rs` for the steps and `account.rs` for the stored account.
 
 pub mod account;
+#[cfg(test)]
+mod adopt_tests;
 pub mod browser_login;
 mod client;
 #[cfg(test)]
@@ -19,7 +21,7 @@ mod live;
 #[cfg(test)]
 mod project_tests;
 #[cfg(test)]
-mod reopen_tests;
+pub(super) mod reopen_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 mod transcriptions;

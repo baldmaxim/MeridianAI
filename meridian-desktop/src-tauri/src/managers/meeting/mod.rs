@@ -16,6 +16,7 @@
 //! WebSocket (`live_stream.rs`); the phrases come back into the same database.
 //! Without a link the meeting is recorded like a dictaphone.
 
+mod adopt;
 mod api;
 mod capture;
 mod channel;
@@ -67,6 +68,7 @@ use log::{info, warn};
 use tauri::AppHandle;
 use tauri_specta::Event;
 
+pub use adopt::AdoptedMeeting;
 pub use api::{
     ActiveMeetingState, AudioFile, CaptureDevices, MeetingDetails, MeetingLevels, MeetingSegment,
     MeetingSegmentRemoved, MeetingState, MeetingStateKind, MeetingSystemSilent, MeetingVoices,
@@ -442,6 +444,15 @@ impl MeetingManager {
             *self.slot() = Slot::Idle;
         }
         result
+    }
+
+    /// Whether a recording could start now (no meeting is running, the model is
+    /// there): checked before the server is asked to hand over a meeting.
+    pub fn check_can_record(&self) -> Result<(), String> {
+        if !matches!(*self.slot(), Slot::Idle) {
+            return Err("Встреча уже идёт: сначала остановите её".to_string());
+        }
+        self.require_model()
     }
 
     /// Whether `resume_*` would start now: checked before the server is asked

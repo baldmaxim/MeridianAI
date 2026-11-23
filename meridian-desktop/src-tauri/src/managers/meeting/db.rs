@@ -219,7 +219,7 @@ impl CaptureMode {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(super) fn parse(value: &str) -> Option<Self> {
         match value {
             "online" => Some(Self::Online),
             "in_person" => Some(Self::InPerson),
@@ -426,13 +426,24 @@ impl MeetingDb {
     }
 
     pub fn insert_meeting(&self, meeting: &MeetingInfo) -> Result<()> {
+        self.insert_meeting_with_revision(meeting, 1)
+    }
+
+    /// `audio_revision`: the revision of the first audio upload (1 unless the
+    /// server already holds audio of this meeting, see `adopt.rs`).
+    pub(super) fn insert_meeting_with_revision(
+        &self,
+        meeting: &MeetingInfo,
+        audio_revision: u32,
+    ) -> Result<()> {
         self.conn().execute(
             "INSERT INTO meetings (id, title, capture_mode, started_at, ended_at, status,
                 duration_seconds, server_meeting_id, sync_state, sync_error, synced_at,
                 customer_id, object_id, customer_name, object_name,
-                negotiation_type, key_terms, opponent_weaknesses, max_speakers)
+                negotiation_type, key_terms, opponent_weaknesses, max_speakers,
+                audio_revision)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                ?16, ?17, ?18, ?19)",
+                ?16, ?17, ?18, ?19, ?20)",
             params![
                 meeting.id,
                 meeting.title,
@@ -453,6 +464,7 @@ impl MeetingDb {
                 meeting.key_terms,
                 meeting.opponent_weaknesses,
                 meeting.max_speakers,
+                audio_revision.max(1),
             ],
         )?;
         Ok(())

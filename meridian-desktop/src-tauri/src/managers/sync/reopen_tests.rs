@@ -105,7 +105,7 @@ async fn offer_submission_goes_alone_with_an_explicit_null() {
 }
 
 /// A server with working audio storage that remembers the names it was given.
-fn server_with_storage(request: &super::tests::Req) -> Reply {
+pub(super) fn server_with_storage(request: &super::tests::Req) -> Reply {
     match (request.method.as_str(), request.path.as_str()) {
         ("POST", "/api/desktop/meetings/42/audio-upload") => {
             ok(r#"{"file_id":9,"upload_url":"{BASE}/storage/a?sig=abc","status":"pending"}"#)

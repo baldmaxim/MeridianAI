@@ -62,6 +62,7 @@ interface MeetingStore {
   closeMeeting: () => void;
   startMeeting: (request: StartMeetingRequest) => Promise<ActionError>;
   resumeMeeting: (id: string) => Promise<ActionError>;
+  adoptServerMeeting: (serverMeetingId: number) => Promise<ActionError>;
   stopMeeting: () => Promise<ActionError>;
   finishInterrupted: (id: string) => Promise<ActionError>;
   deleteMeeting: (id: string) => Promise<ActionError>;
@@ -248,6 +249,18 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
       await get().syncActive();
       void get().loadList();
       await get().openMeeting(id);
+      return null;
+    },
+
+    adoptServerMeeting: async (serverMeetingId) => {
+      const result = await commands.meetingAdoptAndResume(
+        serverMeetingId,
+        null,
+      );
+      if (result.status === "error") return result.error;
+      await get().syncActive();
+      void get().loadList();
+      await get().openMeeting(result.data.id);
       return null;
     },
 

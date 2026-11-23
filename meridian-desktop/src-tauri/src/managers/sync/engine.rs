@@ -369,7 +369,7 @@ impl Engine<'_> {
             .patch_meeting(
                 server_id,
                 &PatchBody {
-                    title: &title,
+                    title: (!title.trim().is_empty()).then_some(title.as_str()),
                     ended_at: current.ended_at.as_deref(),
                     notes,
                 },

@@ -291,6 +291,21 @@ async resumeMeeting(id: string) : Promise<Result<MeetingInfo, string>> {
 }
 },
 /**
+ * "Continue in the app" for a meeting of the server this device has no copy
+ * of (made on the site or on another PC). The server hands it over and takes
+ * it back into work; a local shell of it is made (the phrases are not
+ * imported) and recording starts, as for a meeting taken back after a send.
+ * A meeting the server is still processing is refused (409), the same way.
+ */
+async meetingAdoptAndResume(serverMeetingId: number, captureMode: CaptureMode | null) : Promise<Result<MeetingInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_adopt_and_resume", { serverMeetingId, captureMode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * "Finish" on an interrupted meeting: no more continuing, send it all.
  */
 async finishInterruptedMeeting(id: string) : Promise<Result<MeetingInfo, string>> {

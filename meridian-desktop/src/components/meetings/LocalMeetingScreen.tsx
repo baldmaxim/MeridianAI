@@ -184,7 +184,7 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
       <SourcesDropOverlay active={sources.dragActive} />
       <DeleteMeetingDialog
         meetingId={meeting.id}
-        title={meeting.title}
+        title={meeting.title || t("meetings.library.untitled")}
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
       />

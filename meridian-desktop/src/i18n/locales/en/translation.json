@@ -425,7 +425,7 @@
       "back": "Back to meetings",
       "retrySync": "Retry",
       "openOnSite": "Open on site",
-      "continueOnSite": "Continue on site"
+      "continueInApp": "Continue in the app"
     },
     "delete": {
       "title": "Delete meeting?",

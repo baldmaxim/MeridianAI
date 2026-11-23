@@ -611,6 +611,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::start_meeting,
             commands::meetings::stop_meeting,
             commands::meetings::resume_meeting,
+            commands::meetings::meeting_adopt_and_resume,
             commands::meetings::finish_interrupted_meeting,
             commands::meetings::get_active_meeting,
             commands::meetings::list_meetings,

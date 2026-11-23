@@ -67,7 +67,7 @@ export const TitleEditor: React.FC<TitleEditorProps> = ({
       }}
       className="min-w-0 cursor-pointer truncate rounded-md px-2 py-0.5 text-start text-lg font-semibold text-text hover:bg-mid-gray/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
     >
-      {title}
+      {title || t("meetings.library.untitled")}
     </button>
   );
 };

@@ -7,10 +7,10 @@ use tauri::{AppHandle, Manager};
 
 use super::library::{client, failure};
 use crate::managers::meeting::{
-    ActiveMeetingState, AudioFile, CaptureDevices, MeetingDetails, MeetingInfo, MeetingManager,
-    MeetingVoice, Note, NoteInput, StartMeetingRequest,
+    ActiveMeetingState, AdoptedMeeting, AudioFile, CaptureDevices, CaptureMode, MeetingDetails,
+    MeetingInfo, MeetingManager, MeetingVoice, Note, NoteInput, StartMeetingRequest,
 };
-use crate::managers::sync::SyncManager;
+use crate::managers::sync::{ApiError, SyncManager};
 use crate::settings::{get_settings, write_settings};
 
 fn manager(app: &AppHandle) -> Arc<MeetingManager> {
@@ -91,6 +91,77 @@ pub async fn resume_meeting(app: AppHandle, id: String) -> Result<MeetingInfo, S
         .reopen_meeting(server_id)
         .await
         .map_err(|e| failure(&app, e))?;
+
+    let resumed = id.clone();
+    match blocking(&app, move |m| m.resume_reopened_meeting(&resumed)).await {
+        Ok(meeting) => Ok(meeting),
+        Err(error) => {
+            // The server waits for the end of the meeting: send it again.
+            if let Err(e) = manager(&app)
+                .db()
+                .set_sync_state(&id, "pending", None, None)
+            {
+                log::warn!("Cannot put meeting {id} back in the sync queue: {e:#}");
+            }
+            app.state::<Arc<SyncManager>>().release_meeting(&id);
+            Err(error)
+        }
+    }
+}
+
+/// "Continue in the app" for a meeting of the server this device has no copy
+/// of (made on the site or on another PC). The server hands it over and takes
+/// it back into work; a local shell of it is made (the phrases are not
+/// imported) and recording starts, as for a meeting taken back after a send.
+/// A meeting the server is still processing is refused (409), the same way.
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_adopt_and_resume(
+    app: AppHandle,
+    server_meeting_id: i64,
+    capture_mode: Option<CaptureMode>,
+) -> Result<MeetingInfo, String> {
+    // Everything that can be checked here goes before the server is asked.
+    blocking(&app, |m| m.check_can_record()).await?;
+    let client = client(&app).ok_or_else(|| "Войдите в аккаунт Meridian".to_string())?;
+    // The app does not know how the site recorded it: unless told, a microphone
+    // only, which needs no extra device. The server keeps its own link (and its
+    // mode) if there is one; the mode in its answer is the one used.
+    let requested = match capture_mode.unwrap_or(CaptureMode::InPerson) {
+        CaptureMode::Online => "online",
+        CaptureMode::InPerson => "in_person",
+    };
+    let adopted = client
+        .adopt_meeting(
+            server_meeting_id,
+            &uuid::Uuid::new_v4().to_string(),
+            requested,
+        )
+        .await
+        .map_err(|e| match e {
+            ApiError::Rejected { status: 409, .. } => {
+                "Встреча сейчас обрабатывается на сервере, попробуйте позже".to_string()
+            }
+            other => failure(&app, other),
+        })?;
+
+    let id = adopted.client_uuid.clone();
+    let adopted = AdoptedMeeting {
+        client_uuid: adopted.client_uuid,
+        server_meeting_id: adopted.server_meeting_id,
+        title: adopted.title,
+        capture_mode: adopted.capture_mode,
+        customer_id: adopted.customer_id,
+        object_id: adopted.object_id,
+        customer_name: adopted.customer_name,
+        object_name: adopted.object_name,
+        max_speakers: adopted.max_speakers,
+        negotiation_type: adopted.negotiation_type,
+        key_terms: adopted.key_terms,
+        opponent_weaknesses: adopted.opponent_weaknesses,
+        next_audio_revision: adopted.next_audio_revision,
+    };
+    blocking(&app, move |m| m.register_adopted(&adopted)).await?;
 
     let resumed = id.clone();
     match blocking(&app, move |m| m.resume_reopened_meeting(&resumed)).await {

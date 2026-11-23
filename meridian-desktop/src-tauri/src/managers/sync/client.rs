@@ -148,7 +148,10 @@ pub struct NoteBody {
 
 #[derive(Serialize)]
 pub struct PatchBody<'a> {
-    pub title: &'a str,
+    /// Left out for a meeting without a title (one taken over from the site):
+    /// the app does not make a name up for the server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<&'a str>,
     pub ended_at: Option<&'a str>,
     pub notes: Vec<NoteBody>,
 }
@@ -173,6 +176,38 @@ pub struct AudioUploadResponse {
     pub file_id: i64,
     /// `None`: the file is on the server already.
     pub upload_url: Option<String>,
+}
+
+/// "Continue in the app" for a meeting this device has no copy of.
+#[derive(Serialize)]
+struct AdoptBody<'a> {
+    client_uuid: &'a str,
+    capture_mode: &'a str,
+}
+
+/// The server's answer to `adopt`: the meeting as the app opens it. `client_uuid`
+/// is the one the meeting is linked under (the server keeps an existing link).
+#[derive(Debug, Deserialize)]
+pub struct AdoptResponse {
+    pub client_uuid: String,
+    pub server_meeting_id: i64,
+    pub title: Option<String>,
+    pub customer_id: Option<i64>,
+    pub object_id: Option<i64>,
+    pub customer_name: Option<String>,
+    pub object_name: Option<String>,
+    pub capture_mode: String,
+    pub max_speakers: Option<i64>,
+    /// The meeting context as the server has it: the app keeps it locally, so
+    /// that a later edit of one field does not clear the others on the server.
+    #[serde(default)]
+    pub negotiation_type: Option<String>,
+    #[serde(default)]
+    pub key_terms: Option<String>,
+    #[serde(default)]
+    pub opponent_weaknesses: Option<String>,
+    /// The revision of the audio the app records now: its name is a new one.
+    pub next_audio_revision: u32,
 }
 
 pub struct ApiClient {
@@ -268,6 +303,20 @@ async fn error_from(response: Response) -> ApiError {
             status: status.as_u16(),
             message: with_detail("Сервер отклонил запрос"),
         }
+    }
+}
+
+/// 409 of `reopen` / `adopt`: the server's own words for the user.
+async fn conflict_error(response: Response) -> ApiError {
+    let body = response.text().await.unwrap_or_default();
+    let detail = error_detail(&body);
+    ApiError::Rejected {
+        status: 409,
+        message: if detail.is_empty() {
+            "Встреча ещё обрабатывается на сервере, попробуйте через минуту".to_string()
+        } else {
+            detail
+        },
     }
 }
 
@@ -460,16 +509,37 @@ impl ApiClient {
             return Ok(());
         }
         if response.status() == StatusCode::CONFLICT {
-            let body = response.text().await.unwrap_or_default();
-            let detail = error_detail(&body);
-            return Err(ApiError::Rejected {
-                status: 409,
-                message: if detail.is_empty() {
-                    "Встреча ещё обрабатывается на сервере, попробуйте через минуту".to_string()
-                } else {
-                    detail
-                },
+            return Err(conflict_error(response).await);
+        }
+        Err(error_from(response).await)
+    }
+
+    /// Takes a meeting the app has no copy of (made on the site or on another
+    /// PC) into work, like `reopen_meeting`. 409: the server is still processing it.
+    pub async fn adopt_meeting(
+        &self,
+        meeting_id: i64,
+        client_uuid: &str,
+        capture_mode: &str,
+    ) -> Result<AdoptResponse, ApiError> {
+        let url = self.url(&format!("meetings/{meeting_id}/adopt"));
+        let body = AdoptBody {
+            client_uuid,
+            capture_mode,
+        };
+        let response = self
+            .authorized(self.http.post(url).json(&body))
+            .send()
+            .await
+            .map_err(network_error)?;
+        if response.status().is_success() {
+            return response.json().await.map_err(|e| ApiError::Retry {
+                status: None,
+                message: format!("Непонятный ответ сервера: {}", e.without_url()),
             });
+        }
+        if response.status() == StatusCode::CONFLICT {
+            return Err(conflict_error(response).await);
         }
         Err(error_from(response).await)
     }
