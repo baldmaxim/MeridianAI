@@ -6,7 +6,7 @@ import { detachMeetingDocument, listMeetingDocuments, patchMeetingDocument } fro
 import { apiErrorMessage } from '../lib/apiError';
 import type { DocClassificationVocab, MeetingDocument } from '../types';
 import {
-  buildTypeChips, countIncluded, filterByType, getPollInterval, groupBySource,
+  buildTypeChips, countIncluded, filterByType, getPollInterval,
 } from '../components/context/sourcesModel';
 
 const EMPTY_VOCAB: DocClassificationVocab = { doc_types: [], doc_tags: [] };
@@ -115,11 +115,11 @@ export const useMeetingSources = (meetingId: number | null) => {
   const typeChips = useMemo(() => buildTypeChips(docs, vocab.doc_types), [docs, vocab.doc_types]);
   // Выбранный тип мог исчезнуть из списка (документ удалён) — тогда фильтр сбрасывается.
   const activeType = typeChips.some((c) => c.key === typeFilter) ? typeFilter : null;
-  const groups = useMemo(() => groupBySource(filterByType(docs, activeType)), [docs, activeType]);
+  const filteredDocs = useMemo(() => filterByType(docs, activeType), [docs, activeType]);
   const counter = useMemo(() => countIncluded(docs), [docs]);
 
   return {
-    docs, groups, typeChips, activeType, setTypeFilter, counter, error,
+    docs, filteredDocs, typeChips, activeType, setTypeFilter, counter, error,
     refresh, toggleIncluded, remove, reprocess, changeOfferSubmission,
   };
 };

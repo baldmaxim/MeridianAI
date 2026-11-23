@@ -83,6 +83,9 @@ def _chunk_clauses(metadata_json: str | None) -> list[str]:
     return [str(c) for c in clauses] if isinstance(clauses, list) else []
 
 
+# Буст bm25 для чанков документов подачи КП (общий контекст объекта идёт без буста).
+OFFER_SUBMISSION_BOOST = 1.35
+
 # Приоритет унаследованного документа (у него нет строки meeting_documents) — как у прикреплённого.
 DEFAULT_DOCUMENT_PRIORITY = 100
 
@@ -235,6 +238,7 @@ async def get_relevant_chunks_for_meeting(
                 DocumentChunk.section_title,
                 DocumentChunk.metadata_json,
                 DocumentRecord.original_name,
+                DocumentRecord.offer_submission,
                 func.coalesce(MeetingDocumentRecord.priority, DEFAULT_DOCUMENT_PRIORITY).label("priority"),
             )
             .join(DocumentRecord, DocumentRecord.id == DocumentChunk.document_id)
@@ -252,10 +256,10 @@ async def get_relevant_chunks_for_meeting(
     if not rows:
         return []
 
-    ranked = _rank_rows(rows, query_text)
+    ranked = _rank_rows(rows, query_text, meeting.offer_submission)
     if extra_query.strip() and _stems(query_text):
         merged, seen = [], set()
-        for pair in zip_longest(ranked, _rank_rows(rows, extra_query)):
+        for pair in zip_longest(ranked, _rank_rows(rows, extra_query, meeting.offer_submission)):
             for item in pair:
                 if item is not None and item[1].id not in seen:
                     seen.add(item[1].id)
@@ -277,7 +281,14 @@ async def get_relevant_chunks_for_meeting(
     return out
 
 
-def _rank_rows(rows, query_text: str) -> list[tuple[float, object]]:
+def _is_offer_chunk(row_submission: str | None, meeting_submission: str | None) -> bool:
+    """Чанк документа подачи КП? Подача встречи задана — только её документы; иначе — любая подача."""
+    if meeting_submission:
+        return row_submission == meeting_submission
+    return bool(row_submission)
+
+
+def _rank_rows(rows, query_text: str, meeting_submission: str | None = None) -> list[tuple[float, object]]:
     has_query = bool(_stems(query_text))
     bm25 = _bm25_scores(query_text, [r.text for r in rows]) if has_query else []
     scored: list[tuple[float, object]] = []
@@ -289,7 +300,11 @@ def _rank_rows(rows, query_text: str) -> list[tuple[float, object]]:
         else:
             if bm25[i] <= 0:
                 continue
-            score = bm25[i] + priority_boost
+            # Документы подачи КП поднимаем над общим контекстом (bm25 > 0 — нерелевантные не трогаем)
+            relevance = bm25[i]
+            if _is_offer_chunk(getattr(r, "offer_submission", None), meeting_submission):
+                relevance *= OFFER_SUBMISSION_BOOST
+            score = relevance + priority_boost
             # бонус за вхождение фразы (биграммы запроса)
             low = r.text.lower()
             ql = query_text.lower()

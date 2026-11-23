@@ -18,15 +18,19 @@ export const stripOfferPrefix = (name: string, submission: string): string => {
   return rest || name;
 };
 
-export interface IObjectDocumentsSplit {
-  bySubmission: Map<string, DocumentRecord[]>;
-  general: DocumentRecord[];
+interface IWithSubmission {
+  offer_submission?: string | null;
+}
+
+export interface IObjectDocumentsSplit<T extends IWithSubmission = DocumentRecord> {
+  bySubmission: Map<string, T[]>;
+  general: T[];
 }
 
 /** offer_submission == null → общий контекст; строка (в т.ч. "") → подача КП с этим ключом. */
-export const splitObjectDocuments = (docs: DocumentRecord[]): IObjectDocumentsSplit => {
-  const bySubmission = new Map<string, DocumentRecord[]>();
-  const general: DocumentRecord[] = [];
+export const splitObjectDocuments = <T extends IWithSubmission>(docs: readonly T[]): IObjectDocumentsSplit<T> => {
+  const bySubmission = new Map<string, T[]>();
+  const general: T[] = [];
   docs.forEach((d) => {
     if (d.offer_submission == null) {
       general.push(d);

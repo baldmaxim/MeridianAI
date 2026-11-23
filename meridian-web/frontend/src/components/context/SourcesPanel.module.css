@@ -214,20 +214,11 @@
   outline-offset: 2px;
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.groupTitle {
-  margin: 0;
+.groupCounter {
   color: var(--text-secondary);
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .list {

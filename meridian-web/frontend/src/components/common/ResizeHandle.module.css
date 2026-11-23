@@ -1,0 +1,63 @@
+/* Вертикальный хендл ресайза панели. Позиционируется относительно панели (position: relative у родителя). */
+
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.left {
+  left: -16px;
+}
+
+.right {
+  right: -16px;
+}
+
+/* Видимая «нить» по центру зоны захвата */
+.handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 150ms ease-out;
+}
+
+.handle:hover::after,
+.handle:focus-visible::after,
+.dragging::after {
+  background: var(--accent-amber);
+}
+
+/* Сенсорные экраны (iPad): тап-цель ≥44px, выступает за зазор */
+@media (pointer: coarse) {
+  .handle {
+    width: 44px;
+  }
+
+  .left {
+    left: -30px;
+  }
+
+  .right {
+    right: -30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .handle::after {
+    transition: none;
+  }
+}

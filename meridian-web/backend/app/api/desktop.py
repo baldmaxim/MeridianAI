@@ -83,7 +83,7 @@ from ..services.desktop_devices import (
 )
 from .batch import ALLOWED_EXTENSIONS, MAX_FILE_SIZE
 from .documents import confirm_s3_document_upload, create_s3_document_upload
-from .history import _resolve_customer_object
+from .history import _ensure_offer_submission, _resolve_customer_object
 
 logger = logging.getLogger("meridian.desktop")
 
@@ -222,20 +222,30 @@ async def meetings_upsert(data: MeetingUpsertRequest, auth: Device, db: AsyncSes
     client_uuid = str(data.client_uuid)
     customer_id, object_id = data.customer_id, data.object_id
     # Заказчика и объект проверяем только при создании: повтор их не меняет.
-    if await sync.get_link(db, auth.user.id, client_uuid) is None:
+    link = await sync.get_link(db, auth.user.id, client_uuid)
+    if link is None:
         customer_id, object_id = await _resolve_customer_object(
             db, auth.user, data.customer_id, data.object_id
         )
+    if data.offer_submission is not None:
+        # подача — из подач объекта встречи (у существующей встречи — её объект)
+        if link is not None:
+            existing = await db.get(MeetingSession, link.meeting_id)
+            object_id = existing.object_id if existing is not None else None
+        await _ensure_offer_submission(db, object_id, data.offer_submission)
     meeting, created = await sync.upsert_meeting(
         db, auth.user.id, auth.device.id, client_uuid,
         title=data.title, started_at=data.started_at, ended_at=data.ended_at,
         capture_mode=data.capture_mode, customer_id=customer_id, object_id=object_id,
         negotiation_type=data.negotiation_type, key_terms=data.key_terms,
         opponent_weaknesses=data.opponent_weaknesses, max_speakers=data.max_speakers,
+        offer_submission=data.offer_submission,
     )
     await db.commit()
     context_given = any(
-        v is not None for v in (data.negotiation_type, data.key_terms, data.opponent_weaknesses)
+        v is not None for v in (
+            data.negotiation_type, data.key_terms, data.opponent_weaknesses, data.offer_submission,
+        )
     )
     if context_given and not created:
         await _refresh_live_room(meeting)
@@ -293,6 +303,13 @@ async def meetings_patch(
         meeting, negotiation_type=data.negotiation_type, key_terms=data.key_terms,
         opponent_weaknesses=data.opponent_weaknesses,
     )
+    if "offer_submission" in data.model_fields_set:
+        # null — сбросить (все документы объекта); строка — подача должна быть у объекта встречи
+        if data.offer_submission is not None:
+            await _ensure_offer_submission(db, meeting.object_id, data.offer_submission)
+        if meeting.offer_submission != data.offer_submission:
+            meeting.offer_submission = data.offer_submission
+            context_changed = True
     await db.commit()
     if context_changed:
         await _refresh_live_room(meeting)
@@ -320,6 +337,18 @@ async def meetings_finalize(meeting_id: int, auth: Device, db: AsyncSession = De
     await sync.finalize(db, meeting)
     await db.commit()
     return _finalization_response(meeting)
+
+
+@router.post("/meetings/{meeting_id}/reopen")
+async def meetings_reopen(meeting_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Вернуть завершённую встречу в работу (дозапись). Пока сервер её обрабатывает — 409."""
+    meeting, _ = await _linked(db, auth, meeting_id)
+    try:
+        sync.reopen(meeting)
+    except sync.DesktopMeetingBusyError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(e))
+    await db.commit()
+    return {"ok": True}
 
 
 @router.post("/meetings/{meeting_id}/ask", response_model=MeetingAskResponse)

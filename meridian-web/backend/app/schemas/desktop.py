@@ -70,6 +70,8 @@ class MeetingUpsertRequest(BaseModel):
     opponent_weaknesses: str | None = Field(default=None, max_length=4000)
     # Число участников (голосов) для диаризации ElevenLabs при уточнении. None — не менять.
     max_speakers: int | None = Field(default=None, ge=2, le=10)
+    # Обсуждаемая подача КП объекта. None — не менять (все документы объекта — только если подачи ещё нет).
+    offer_submission: str | None = Field(default=None, max_length=300)
 
 
 class MeetingUpsertResponse(BaseModel):
@@ -110,6 +112,8 @@ class MeetingPatchRequest(BaseModel):
     negotiation_type: str | None = Field(default=None, max_length=50)
     key_terms: str | None = Field(default=None, max_length=4000)
     opponent_weaknesses: str | None = Field(default=None, max_length=4000)
+    # Подача КП: поле не передано — не менять; null — сбросить (все документы объекта); строка — выбрать подачу.
+    offer_submission: str | None = Field(default=None, max_length=300)
 
 
 class MeetingPatchResponse(BaseModel):
@@ -207,6 +211,9 @@ class DesktopMeetingView(DesktopLibraryItem):
     key_terms: str | None
     opponent_weaknesses: str | None
     app_notes: str | None
+    # Обсуждаемая подача КП; None — все документы объекта.
+    offer_submission: str | None = None
+    offer_submission_label: str | None = None
     segments: list[DesktopSegmentOut]
     documents: list[DesktopDocumentOut]
 
@@ -221,3 +228,10 @@ class DesktopCustomer(BaseModel):
     id: int
     name: str
     objects: list[DesktopObjectOut]
+
+
+class DesktopOfferSubmission(BaseModel):
+    """Подача КП объекта для выбора в приложении."""
+    value: str  # значение для offer_submission встречи
+    label: str
+    document_count: int

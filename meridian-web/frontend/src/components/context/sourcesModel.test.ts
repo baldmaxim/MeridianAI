@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { MeetingDocument } from '../../types';
+import type { IOfferSubmission, MeetingDocument } from '../../types';
 import {
-  buildTypeChips, countIncluded, filterByType, formatMetaLine, getDocTypeText,
+  buildDocGroups, buildTypeChips, countIncluded, filterByType, formatMetaLine, getDocTypeText,
   getPollInterval, getSourceStatus, groupBySource,
 } from './sourcesModel';
 
@@ -95,5 +95,52 @@ describe('formatMetaLine', () => {
       .toBe('№ 12 · от 01.02.2025 · ООО Ромашка');
     expect(formatMetaLine(null)).toBe('');
     expect(formatMetaLine({})).toBe('');
+  });
+});
+
+describe('buildDocGroups', () => {
+  const subs: IOfferSubmission[] = [
+    { key: 'b', label: 'Новая', date: null, document_count: 1 },
+    { key: 'a', label: 'Старая', date: null, document_count: 1 },
+  ];
+  const docs = [
+    makeDoc({ document_id: 1, source: 'object', offer_submission: 'a' }),
+    makeDoc({ document_id: 2, source: 'object', offer_submission: 'b' }),
+    makeDoc({ document_id: 3, source: 'object', offer_submission: null }),
+    makeDoc({ document_id: 4, source: 'customer' }),
+    makeDoc({ document_id: 5, source: 'meeting' }),
+  ];
+
+  it('все подачи: группа на каждую в порядке списка, затем Документация и Добавлены к встрече', () => {
+    const groups = buildDocGroups(docs, subs, null);
+    expect(groups.map((g) => g.title)).toEqual([
+      'Отправка: Новая', 'Отправка: Старая', 'Документация', 'Добавлены к встрече',
+    ]);
+    expect(groups.map((g) => g.docs.map((d) => d.document_id))).toEqual([[2], [1], [3, 4], [5]]);
+    expect(groups.map((g) => g.defaultOpen)).toEqual([true, true, false, true]);
+  });
+
+  it('выбранная подача идёт первой', () => {
+    const groups = buildDocGroups(docs, subs, 'a');
+    expect(groups[0].title).toBe('Отправка: Старая');
+  });
+
+  it('пустые группы скрыты; неизвестный ключ и "" получают подпись по умолчанию', () => {
+    const groups = buildDocGroups(
+      [makeDoc({ document_id: 1, source: 'object', offer_submission: '' }),
+        makeDoc({ document_id: 2, source: 'object', offer_submission: 'zzz' })],
+      subs,
+      null,
+    );
+    expect(groups.map((g) => g.title)).toEqual(['Отправка: Вне папок подач', 'Отправка: zzz']);
+  });
+
+  it('файл встречи с подачей остаётся в «Добавлены к встрече»', () => {
+    const groups = buildDocGroups([makeDoc({ document_id: 9, source: 'meeting', offer_submission: 'a' })], subs, 'a');
+    expect(groups.map((g) => g.kind)).toEqual(['meeting']);
+  });
+
+  it('без документов — пусто', () => {
+    expect(buildDocGroups([], subs, null)).toEqual([]);
   });
 });

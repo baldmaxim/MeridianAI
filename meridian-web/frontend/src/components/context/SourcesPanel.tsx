@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { DragEvent, FC } from 'react';
 import { CollapsibleSection } from '../common/CollapsibleSection';
 import { PreviousMeetingsContext } from './PreviousMeetingsContext';
@@ -13,11 +13,12 @@ import {
   ragAttachedFolderToContextSourceViewModel,
   attachedLetterToContextSourceViewModel,
 } from './contextSourceModel';
-import { isInherited } from './sourcesModel';
+import { buildDocGroups, countIncluded, isInherited } from './sourcesModel';
 import { useRagContextFolders } from '../../hooks/useRagContextFolders';
 import { useMeetingLetters } from '../../hooks/useMeetingLetters';
 import { useDocumentUploadQueue } from '../../hooks/useDocumentUploadQueue';
 import { useMeetingSources } from '../../hooks/useMeetingSources';
+import { useOfferSubmissions } from '../../hooks/useOfferSubmissions';
 import { useMeetingStore } from '../../store/meetingStore';
 import { extractDroppedFiles } from '../../lib/documentFiles';
 import type { MeetingDocument } from '../../types';
@@ -48,6 +49,11 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
 
   const sources = useMeetingSources(meetingId);
   const offerSubmission = useMeetingStore((s) => s.selectedOfferSubmission);
+  const submissions = useOfferSubmissions(objectId);
+  const docGroups = useMemo(
+    () => buildDocGroups(sources.filteredDocs, submissions, offerSubmission),
+    [sources.filteredDocs, submissions, offerSubmission],
+  );
   const { refresh } = sources;
 
   // Если ensureMeetingId не передан — fallback: вернуть текущий meetingId либо null.
@@ -210,7 +216,7 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
 
         {meetingId != null && objectId != null && (
           <OfferSubmissionSelect
-            objectId={objectId}
+            submissions={submissions}
             value={offerSubmission}
             onChange={(v) => { void sources.changeOfferSubmission(v); }}
           />
@@ -240,22 +246,29 @@ export const SourcesPanel: FC<ISourcesPanelProps> = ({
           </div>
         )}
 
-        {sources.groups.map((g) => (
-          <div key={g.source} className={styles.group}>
-            <h3 className={styles.groupTitle}>{g.title} · {g.docs.length}</h3>
-            <ul className={styles.list}>
-              {g.docs.map((d) => (
-                <SourceFileRow
-                  key={d.document_id}
-                  doc={d}
-                  onToggleIncluded={sources.toggleIncluded}
-                  onRemove={removeDoc}
-                  onReprocess={sources.reprocess}
-                />
-              ))}
-            </ul>
-          </div>
-        ))}
+        {docGroups.map((g) => {
+          const { included, total } = countIncluded(g.docs);
+          return (
+            <CollapsibleSection
+              key={g.id}
+              title={g.title}
+              defaultOpen={g.defaultOpen}
+              right={<span className={styles.groupCounter}>включено {included} из {total}</span>}
+            >
+              <ul className={styles.list}>
+                {g.docs.map((d) => (
+                  <SourceFileRow
+                    key={d.document_id}
+                    doc={d}
+                    onToggleIncluded={sources.toggleIncluded}
+                    onRemove={removeDoc}
+                    onReprocess={sources.reprocess}
+                  />
+                ))}
+              </ul>
+            </CollapsibleSection>
+          );
+        })}
 
         <CollapsibleSection title="Прошлые встречи">
           {meetingId != null ? (

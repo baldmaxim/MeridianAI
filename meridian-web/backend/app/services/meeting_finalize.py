@@ -6,6 +6,7 @@
 
 import json
 import logging
+import re
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +31,24 @@ from ..core.llm.finalization_prompt import SYSTEM_PROMPT, build_user_prompt, bui
 from datetime import datetime
 
 logger = logging.getLogger("meridian.finalize")
+
+# Меньше слов речи — протокол не составляем (тишина, шум, обрывки): LLM иначе выдумывает его
+# по документам и заметкам.
+MIN_PROTOCOL_WORDS = 20
+SILENCE_ERROR = "Речь не распознана — протокол не составлен"
+
+# «[00:12] Мы: » — служебный префикс строки транскрипта (таймкод и подпись спикера)
+_LINE_PREFIX_RE = re.compile(r"^\[\d{1,3}:\d{2}(?::\d{2})?\]\s*[^:\n]{0,80}:\s?", re.MULTILINE)
+# служебные метки распознавания: [шум], (музыка), [громкий шум]
+_MARKER_RE = re.compile(r"[\[(]\s*[^\W\d_]+(?:\s+[^\W\d_]+){0,2}\s*[\])]")
+_LETTER_WORD_RE = re.compile(r"[^\W\d_]{2,}")
+
+
+def count_speech_words(transcript_text: str) -> int:
+    """Слова речи в транскрипте: из букв, от 2 букв; таймкоды, подписи спикеров и метки [шум] не считаются."""
+    text = _LINE_PREFIX_RE.sub("", transcript_text or "")
+    text = _MARKER_RE.sub(" ", text)
+    return len(_LETTER_WORD_RE.findall(text))
 
 
 async def request_finalization(db: AsyncSession, meeting_id: int) -> bool:
@@ -316,19 +335,19 @@ async def handle_meeting_finalize(payload: dict) -> None:
             if resolved.get("conversation_tree_enabled", True):
                 conversation_tree_block = await build_conversation_tree_block(db, meeting_id)
 
-        # пустой транскрипт → минимальный partial (без LLM)
-        if not transcript_text.strip():
+        # пустой транскрипт или тишина (< MIN_PROTOCOL_WORDS слов) → минимальный partial (без LLM)
+        if count_speech_words(transcript_text) < MIN_PROTOCOL_WORDS:
             async with async_session() as db:
                 meeting = await db.get(MeetingSession, meeting_id)
                 meeting.finalization_status = "partial"
-                meeting.finalization_error = "Пустой транскрипт — протокол не сформирован"
+                meeting.finalization_error = SILENCE_ERROR
                 if not meeting.title:
                     meeting.title = (meeting.meeting_topic or "")[:90] or f"Встреча {meeting.started_at.strftime('%d.%m.%Y %H:%M')}"
                 meeting.micro_summary = meeting.micro_summary or "Нет транскрипта для протокола"
                 meeting.finalized_at = datetime.utcnow()
                 meeting.is_finalized = True
                 await db.commit()
-            logger.info("finalize: meeting %s partial (empty transcript)", meeting_id)
+            logger.info("finalize: meeting %s partial (речи меньше %d слов)", meeting_id, MIN_PROTOCOL_WORDS)
             return
 
         api_keys = await load_api_keys()

@@ -25,6 +25,10 @@ from app.schemas.finalization import ProtocolPatch
 from app.api.mobile import mobile_meeting_detail
 
 
+# Реплики короче mf.MIN_PROTOCOL_WORDS слов протокол не получают — добиваем до порога
+SPEECH = (" Мы подробно обсуждаем условия договора, сроки поставки, стоимость работ и порядок оплаты по этапам,"
+          " а также гарантии подрядчика и ответственность сторон за срыв графика производства.")
+
 FAKE_RESULT = {
     "title": "Переговоры по ЖК Рассвет",
     "micro_summary": "Обсудили цену и сроки, есть предварительная договорённость.",
@@ -128,7 +132,7 @@ async def test_job_saves_protocol(sqlite_sm, monkeypatch):
     async with sm() as db:
         owner = await _mk_user(db, "job1@test.local")
         meeting = await _mk_meeting(db, owner)
-        await _add_segment(db, meeting, "Здравствуйте, обсудим цену.", 0)
+        await _add_segment(db, meeting, "Здравствуйте, обсудим цену." + SPEECH, 0)
         await db.commit()
         mid = meeting.id
 
@@ -149,7 +153,7 @@ async def test_job_saves_structured_rows(sqlite_sm, monkeypatch):
     async with sm() as db:
         owner = await _mk_user(db, "job2@test.local")
         meeting = await _mk_meeting(db, owner)
-        await _add_segment(db, meeting, "Договорились о цене.", 0)
+        await _add_segment(db, meeting, "Договорились о цене." + SPEECH, 0)
         await db.commit()
         mid = meeting.id
 
@@ -174,7 +178,7 @@ async def test_job_invalid_json_error(sqlite_sm, monkeypatch):
     async with sm() as db:
         owner = await _mk_user(db, "job3@test.local")
         meeting = await _mk_meeting(db, owner)
-        await _add_segment(db, meeting, "Реплика.", 0)
+        await _add_segment(db, meeting, "Реплика." + SPEECH, 0)
         await db.commit()
         mid = meeting.id
 
@@ -278,7 +282,7 @@ async def test_job_with_docs_no_chunks(sqlite_sm, monkeypatch):
     async with sm() as db:
         owner = await _mk_user(db, "job5@test.local")
         meeting = await _mk_meeting(db, owner)
-        await _add_segment(db, meeting, "Обсудим документ.", 0)
+        await _add_segment(db, meeting, "Обсудим документ." + SPEECH, 0)
         doc = DocumentRecord(owner_user_id=owner.id, created_by_user_id=owner.id,
                              original_name="Смета.xlsx", file_ext=".xlsx", status="ready")
         db.add(doc); await db.flush()
@@ -308,7 +312,7 @@ async def test_job_empty_transcript_partial(sqlite_sm, monkeypatch):
     async with sm() as db:
         m = await db.get(MeetingSession, mid)
         assert m.finalization_status == "partial"
-        assert m.finalization_error and "ранскрипт" in m.finalization_error
+        assert m.finalization_error == mf.SILENCE_ERROR
         assert m.is_finalized is True
 
 
@@ -321,7 +325,7 @@ async def test_job_keeps_manual_topic(sqlite_sm, monkeypatch):
         owner = await _mk_user(db, "topic1@test.local")
         meeting = await _mk_meeting(db, owner)
         meeting.meeting_topic = "Моя тема встречи"
-        await _add_segment(db, meeting, "Здравствуйте, обсудим цену.", 0)
+        await _add_segment(db, meeting, "Здравствуйте, обсудим цену." + SPEECH, 0)
         await db.commit()
         mid = meeting.id
 
@@ -340,7 +344,7 @@ async def test_job_fills_empty_topic(sqlite_sm, monkeypatch):
     async with sm() as db:
         owner = await _mk_user(db, "topic2@test.local")
         meeting = await _mk_meeting(db, owner)
-        await _add_segment(db, meeting, "Здравствуйте, обсудим цену.", 0)
+        await _add_segment(db, meeting, "Здравствуйте, обсудим цену." + SPEECH, 0)
         await db.commit()
         mid = meeting.id
 

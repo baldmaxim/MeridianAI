@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { FC } from 'react';
-import { listObjectOfferSubmissions } from '../../api/objects';
 import type { IOfferSubmission } from '../../types';
+import { NO_FOLDER_LABEL } from './sourcesModel';
 import { Select } from '../common/Select';
 import type { SelectOption } from '../common/Select';
 import styles from './OfferSubmissionSelect.module.css';
 
 interface IOfferSubmissionSelectProps {
-  objectId: number;
+  /** Подачи КП объекта (от новой к старой). */
+  submissions: IOfferSubmission[];
   /** Текущая подача встречи: null — все документы объекта; "" — «Вне папок подач». */
   value: string | null;
   onChange: (value: string | null) => void;
@@ -16,24 +17,14 @@ interface IOfferSubmissionSelectProps {
 
 // Пустая строка — валидный ключ подачи, поэтому «все документы» кодируем отдельным значением.
 const ALL_VALUE = '__all__';
-const NO_FOLDER_LABEL = 'Вне папок подач';
+const LABEL = 'О какой отправке КП говорим';
 const toOptionValue = (key: string | null): string => (key == null ? ALL_VALUE : `s:${key}`);
 const fromOptionValue = (v: string): string | null => (v === ALL_VALUE ? null : v.slice(2));
 
 /** Селект «Подача КП»: какие документы объекта идут в подсказки — все или только одной подачи. */
 export const OfferSubmissionSelect: FC<IOfferSubmissionSelectProps> = ({
-  objectId, value, onChange, disabled = false,
+  submissions, value, onChange, disabled = false,
 }) => {
-  const [submissions, setSubmissions] = useState<IOfferSubmission[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    listObjectOfferSubmissions(objectId)
-      .then((list) => { if (!cancelled) setSubmissions(list); })
-      .catch(() => { if (!cancelled) setSubmissions([]); });
-    return () => { cancelled = true; };
-  }, [objectId]);
-
   const options = useMemo<SelectOption[]>(() => {
     const list: SelectOption[] = [{ value: ALL_VALUE, label: 'Все документы объекта' }];
     submissions.forEach((s, i) => {
@@ -50,14 +41,14 @@ export const OfferSubmissionSelect: FC<IOfferSubmissionSelectProps> = ({
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.label}>Подача КП</div>
+      <div className={styles.label}>{LABEL}</div>
       <Select
         value={toOptionValue(value)}
         onChange={(v) => onChange(fromOptionValue(v))}
         options={options}
         disabled={disabled}
         triggerClassName={styles.trigger}
-        ariaLabel="Подача КП"
+        ariaLabel={LABEL}
       />
       {value == null && (
         <div className={styles.hint}>Выберите подачу, которую обсуждаете</div>

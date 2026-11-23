@@ -21,9 +21,11 @@ from ..schemas.desktop import (
     DesktopLibraryItem,
     DesktopMeetingView,
     DesktopObjectOut,
+    DesktopOfferSubmission,
     DesktopSegmentOut,
 )
-from ..services.access import accessible_meeting_filter, user_can_access_meeting
+from ..services.access import accessible_meeting_filter, user_can_access_meeting, user_can_access_object
+from ..services.offer_submissions import list_object_offer_submissions, offer_submission_label
 from .desktop import Device
 
 router = APIRouter()
@@ -129,6 +131,11 @@ async def meeting_view(meeting_id: int, auth: Device, db: AsyncSession = Depends
         key_terms=row.MeetingSession.meeting_notes,
         opponent_weaknesses=row.MeetingSession.opponent_weaknesses,
         app_notes=row.MeetingSession.app_notes,
+        offer_submission=row.MeetingSession.offer_submission,
+        offer_submission_label=(
+            offer_submission_label(row.MeetingSession.offer_submission)
+            if row.MeetingSession.offer_submission is not None else None
+        ),
         segments=[
             DesktopSegmentOut(
                 text=s.text, speaker_label=s.speaker_label,
@@ -163,4 +170,18 @@ async def projects(auth: Device, db: AsyncSession = Depends(get_db)):
     return [
         DesktopCustomer(id=c.id, name=c.name, objects=by_customer.get(c.id, []))
         for c in customers
+    ]
+
+
+@router.get("/objects/{object_id}/offer-submissions", response_model=list[DesktopOfferSubmission])
+async def object_offer_submissions(object_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Подачи КП объекта (новые сверху, как на сайте). Только реальные подачи: без «вне папок» и общего контекста."""
+    if await db.get(ProjectObject, object_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Объект не найден")
+    if not await user_can_access_object(db, auth.user.id, object_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Нет доступа к объекту")
+    return [
+        DesktopOfferSubmission(value=g.key, label=g.label, document_count=g.document_count)
+        for g in await list_object_offer_submissions(db, object_id)
+        if g.key != ""
     ]

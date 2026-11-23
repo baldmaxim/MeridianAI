@@ -260,6 +260,13 @@ async def build_previous_context_block(
         prev = await db.get(MeetingSession, pid)
         proto = await _gather_protocol(db, pid)
         quotes, _refs = _quotes_and_refs(prev.summary_json if prev else None)
+        # встреча без протокола (тишина, пустой транскрипт): в контексте один заголовок — не подмешиваем
+        has_content = bool(
+            any(proto.values()) or quotes
+            or (prev is not None and (prev.protocol_markdown or "").strip())
+        )
+        if not has_content:
+            continue
         idx += 1
         block = _fmt_meeting_block(idx, card, proto, quotes, per_max)
         if total + len(block) > max_chars:

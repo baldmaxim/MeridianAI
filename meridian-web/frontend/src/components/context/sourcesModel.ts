@@ -1,6 +1,7 @@
 import type {
-  DocClassifierItem, DocMeta, MeetingDocument, MeetingDocumentSource,
+  DocClassifierItem, DocMeta, IOfferSubmission, MeetingDocument, MeetingDocumentSource,
 } from '../../types';
+import { splitObjectDocuments } from '../object/offerSubmissions';
 
 // Чистая модель панели «Источники»: группировка, фильтры, счётчики, подписи статусов.
 
@@ -48,6 +49,59 @@ export const groupBySource = (docs: readonly MeetingDocument[]): ISourceGroup[] 
       docs: docs.filter((d) => getDocSource(d) === source),
     }))
     .filter((g) => g.docs.length > 0);
+
+export type DocGroupKind = 'submission' | 'documentation' | 'meeting';
+
+export interface IDocGroup {
+  /** Стабильный ключ: для подачи — `submission:<key>`. */
+  id: string;
+  kind: DocGroupKind;
+  title: string;
+  docs: MeetingDocument[];
+  defaultOpen: boolean;
+}
+
+export const NO_FOLDER_LABEL = 'Вне папок подач';
+
+/**
+ * Группы списка документов: «Отправка: …» (по подаче КП), «Документация» (общий контекст объекта/контрагента),
+ * «Добавлены к встрече» (загружены к самой встрече). Пустые группы скрыты.
+ * Подачи — в порядке списка подач (новая первая), выбранная подача — первой; неизвестные ключи — в конце.
+ */
+export const buildDocGroups = (
+  docs: readonly MeetingDocument[],
+  submissions: readonly IOfferSubmission[],
+  selectedSubmission: string | null,
+): IDocGroup[] => {
+  const added = docs.filter((d) => !isInherited(d));
+  const { bySubmission, general } = splitObjectDocuments(docs.filter(isInherited));
+
+  const order = submissions.map((s) => s.key);
+  const rank = (key: string): number => {
+    if (key === selectedSubmission) return -1;
+    const i = order.indexOf(key);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const labelOf = (key: string): string =>
+    submissions.find((s) => s.key === key)?.label ?? (key || NO_FOLDER_LABEL);
+
+  const groups: IDocGroup[] = [...bySubmission.keys()]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((key) => ({
+      id: `submission:${key}`,
+      kind: 'submission' as const,
+      title: `Отправка: ${labelOf(key)}`,
+      docs: bySubmission.get(key) ?? [],
+      defaultOpen: true,
+    }));
+  if (general.length > 0) {
+    groups.push({ id: 'documentation', kind: 'documentation', title: 'Документация', docs: general, defaultOpen: false });
+  }
+  if (added.length > 0) {
+    groups.push({ id: 'meeting', kind: 'meeting', title: 'Добавлены к встрече', docs: added, defaultOpen: true });
+  }
+  return groups;
+};
 
 /** Чипы фильтра по типу: только типы, встречающиеся в списке; порядок — по словарю, затем по появлению. */
 export const buildTypeChips = (

@@ -430,10 +430,10 @@ async def test_large_postgres_corpus_keeps_direct_and_expanded_hits_bounded(db, 
     sizes = []
     rank = context._rank_rows
 
-    def bounded_rank(rows, query):
+    def bounded_rank(rows, query, *args):
         sizes.append(len(rows))
         assert len(rows) <= 2 * cap
-        return rank(rows, query)
+        return rank(rows, query, *args)
 
     monkeypatch.setattr(context, "_rank_rows", bounded_rank)
     hits = await get_relevant_chunks_for_meeting(db, meeting.id, "стоимость", limit=2,

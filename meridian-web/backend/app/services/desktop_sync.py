@@ -126,6 +126,7 @@ async def upsert_meeting(
     customer_id: int | None, object_id: int | None,
     negotiation_type: str | None = None, key_terms: str | None = None,
     opponent_weaknesses: str | None = None, max_speakers: int | None = None,
+    offer_submission: str | None = None,
 ) -> tuple[MeetingSession, bool]:
     """(встреча, created). Повтор с тем же client_uuid обновляет название, конец встречи и переданный контекст."""
     clean_title = ((title or "").strip() or DEFAULT_TITLE)[:255]
@@ -158,6 +159,8 @@ async def upsert_meeting(
                   opponent_weaknesses=opponent_weaknesses)
     if max_speakers is not None:
         meeting.diarization_max_speakers = max_speakers
+    if offer_submission is not None:  # проверка по объекту — в вызывающем (api/desktop.py)
+        meeting.offer_submission = offer_submission
     return meeting, created
 
 
@@ -180,6 +183,25 @@ def apply_context(
         setattr(meeting, attr, value.strip() or None)
         changed = True
     return changed
+
+
+class DesktopMeetingBusyError(ValueError):
+    """Встречу сейчас обрабатывает сервер (уточнение или протокол) — переоткрыть нельзя."""
+
+
+def reopen(meeting: MeetingSession) -> None:
+    """Вернуть завершённую встречу в «идущую»: приложение продолжит запись и финализирует её заново.
+
+    Протокол не стираем: его перезапишет новая финализация. Уточнение сбрасываем — повторный
+    finalize() снова поставит его в очередь (аудио приложение присылает целиком).
+    """
+    if meeting.refine_status == "running" or meeting.finalization_status in ("queued", "running"):
+        raise DesktopMeetingBusyError("Встреча ещё обрабатывается на сервере, попробуйте через минуту")
+    meeting.is_active = True
+    meeting.ended_at = None
+    meeting.status = "active"
+    meeting.finalization_status = "not_started"
+    meeting.refine_status = None
 
 
 async def list_meetings(db: AsyncSession, user_id: int, limit: int = 200) -> list[tuple[MeetingSession, DesktopMeetingLink]]:
