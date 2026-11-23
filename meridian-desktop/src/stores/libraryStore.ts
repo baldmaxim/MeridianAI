@@ -13,6 +13,11 @@ interface LibraryStore {
 
   /** `refresh`: ask the server; otherwise the cache answers at once. */
   load: (refresh: boolean) => Promise<void>;
+  /**
+   * The automatic refresh (window focus, a timer): no spinner, nothing is
+   * shown on failure, and nothing is asked while another request is in flight.
+   */
+  refreshQuietly: () => Promise<void>;
   setFilter: (filter: ProjectFilter) => void;
   openServer: (serverMeetingId: number) => void;
   closeServer: () => void;
@@ -20,8 +25,10 @@ interface LibraryStore {
 
 /** Only the newest request may write the result: slow answers are dropped. */
 let latestRequest = 0;
+/** A quiet refresh is under way: another one would only repeat it. */
+let quietInFlight = false;
 
-export const useLibraryStore = create<LibraryStore>()((set) => ({
+export const useLibraryStore = create<LibraryStore>()((set, get) => ({
   snapshot: null,
   loading: false,
   error: null,
@@ -37,6 +44,19 @@ export const useLibraryStore = create<LibraryStore>()((set) => ({
       set({ snapshot: result.data, loading: false, error: null });
     } else {
       set({ loading: false, error: result.error });
+    }
+  },
+
+  refreshQuietly: async () => {
+    if (get().loading || quietInFlight || document.hidden) return;
+    quietInFlight = true;
+    const request = ++latestRequest;
+    try {
+      const result = await commands.libraryGet(true);
+      if (request !== latestRequest || result.status !== "ok") return;
+      set({ snapshot: result.data, error: null });
+    } finally {
+      quietInFlight = false;
     }
   },
 

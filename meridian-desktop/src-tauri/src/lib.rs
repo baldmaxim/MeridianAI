@@ -635,6 +635,8 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_get,
             commands::library::meeting_view_get,
             commands::library::meeting_ask,
+            commands::library::object_offer_submissions,
+            commands::library::meeting_set_offer_submission,
             commands::library::search_meetings,
             commands::documents::meeting_documents_add,
             commands::documents::meeting_documents_list,

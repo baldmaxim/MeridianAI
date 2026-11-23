@@ -1,7 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useSidePanelCollapsed } from "@/hooks/useSidePanelCollapsed";
+import {
+  SIDE_PANEL_MIN_WIDTH,
+  useSidePanelWidth,
+} from "@/hooks/useSidePanelWidth";
 
 export interface SidePanelTab<T extends string> {
   id: T;
@@ -15,6 +19,9 @@ interface SidePanelProps<T extends string> {
   children: React.ReactNode;
 }
 
+/** A step of the arrow keys on the resize handle. */
+const KEY_STEP = 16;
+
 const ICON_BUTTON =
   "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-elevated hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary motion-reduce:transition-none";
 
@@ -27,6 +34,43 @@ export const SidePanel = <T extends string>({
 }: SidePanelProps<T>) => {
   const { t } = useTranslation();
   const [collapsed, toggle] = useSidePanelCollapsed();
+  const { width, maxWidth, setWidth, reset } = useSidePanelWidth();
+  const [drag, setDrag] = useState<{ x: number; width: number } | null>(null);
+
+  // The handle sits on the panel's start edge: going toward the start widens it.
+  const direction = () => (document.documentElement.dir === "rtl" ? -1 : 1);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ x: e.clientX, width });
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag) return;
+    setWidth(drag.width + (drag.x - e.clientX) * direction());
+  };
+
+  const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDrag(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const grow = e.key === "ArrowLeft" ? direction() : -direction();
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setWidth(width + grow * KEY_STEP);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setWidth(SIDE_PANEL_MIN_WIDTH);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setWidth(maxWidth);
+    }
+  };
 
   if (collapsed) {
     return (
@@ -45,7 +89,30 @@ export const SidePanel = <T extends string>({
   }
 
   return (
-    <aside className="flex min-h-0 w-[340px] shrink-0 flex-col border-s border-border bg-deep min-[1000px]:w-[400px]">
+    <aside
+      style={{ width }}
+      className="relative flex min-h-0 shrink-0 flex-col border-s border-border bg-deep"
+    >
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t("meetings.view.resizePanel")}
+        aria-valuenow={width}
+        aria-valuemin={SIDE_PANEL_MIN_WIDTH}
+        aria-valuemax={maxWidth}
+        tabIndex={0}
+        title={t("meetings.view.resizePanelHint")}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onMouseDown={(e) => e.preventDefault()}
+        onDoubleClick={reset}
+        onKeyDown={handleKeyDown}
+        className={`absolute inset-y-0 -start-1 z-10 w-2 cursor-col-resize touch-none transition-colors duration-200 hover:bg-logo-primary/40 focus:outline-none focus-visible:bg-logo-primary/60 motion-reduce:transition-none ${
+          drag ? "bg-logo-primary/60" : ""
+        }`}
+      />
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
         <div
           role="tablist"

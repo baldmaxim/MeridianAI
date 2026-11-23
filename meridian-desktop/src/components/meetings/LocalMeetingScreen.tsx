@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAskChat } from "@/hooks/useAskChat";
+import { useMeetingSources } from "@/hooks/useMeetingSources";
 import { useRefineView } from "@/hooks/useRefineView";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { isResumable } from "@/lib/utils/meetingFormat";
@@ -13,7 +14,7 @@ import { LocalContextTab } from "./LocalContextTab";
 import { LocalProtocolTab } from "./LocalProtocolTab";
 import { NotesPane } from "./NotesPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
-import { SourcesPanel } from "./SourcesPanel";
+import { SourcesDropOverlay } from "./SourcesDropOverlay";
 import { SystemSilentBanner } from "./SystemSilentBanner";
 import {
   TranscriptModeToggle,
@@ -45,10 +46,11 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
   const [mode, setMode] = useState<TranscriptMode>("refined");
   const serverMeetingId = details?.meeting.server_meeting_id ?? null;
   const meetingId = details?.meeting.id ?? null;
-  const { view } = useRefineView(
+  const { view, reload } = useRefineView(
     serverMeetingId,
     details?.meeting.sync_state ?? "",
   );
+  const sources = useMeetingSources({ meetingId, serverMeetingId });
   const chat = useAskChat(serverMeetingId);
 
   // Another meeting: back to the refined transcript.
@@ -88,7 +90,7 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
   ];
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <LocalMeetingHeader
         meeting={meeting}
         resuming={resuming}
@@ -107,10 +109,6 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
       )}
 
       <div className="flex min-h-0 flex-1">
-        <SourcesPanel
-          meetingId={meeting.id}
-          serverMeetingId={serverMeetingId}
-        />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
           <NotesPane notes={notes} segments={segments} />
         </div>
@@ -134,7 +132,13 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
             </>
           )}
           {tab === "context" && (
-            <LocalContextTab key={meeting.id} meeting={meeting} />
+            <LocalContextTab
+              key={meeting.id}
+              meeting={meeting}
+              sources={sources}
+              view={view}
+              onReloadView={reload}
+            />
           )}
           {tab === "protocol" && (
             <LocalProtocolTab serverMeetingId={serverMeetingId} />
@@ -145,6 +149,7 @@ export const LocalMeetingScreen: React.FC<LocalMeetingScreenProps> = ({
         </SidePanel>
       </div>
 
+      <SourcesDropOverlay active={sources.dragActive} />
       <DeleteMeetingDialog
         meetingId={meeting.id}
         title={meeting.title}

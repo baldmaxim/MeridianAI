@@ -49,9 +49,13 @@ export const toSyncKind = (syncState: string): SyncKind | null => {
   }
 };
 
+/**
+ * A stopped or interrupted meeting can be continued. One the server already
+ * has needs its server number: the app takes it back into work there first.
+ */
 export const isResumable = (meeting: MeetingInfo): boolean =>
   (meeting.status === "interrupted" || meeting.status === "stopped") &&
-  meeting.sync_state !== "synced";
+  (meeting.sync_state !== "synced" || meeting.server_meeting_id !== null);
 
 /** Newest first, by start time. */
 export const sortMeetings = (meetings: MeetingInfo[]): MeetingInfo[] =>

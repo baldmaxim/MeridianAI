@@ -446,6 +446,34 @@ impl ApiClient {
         }
     }
 
+    /// Takes a finalized meeting back into work, so it accepts new phrases and
+    /// another finalization. 409: the server is still processing it; the answer
+    /// then carries the server's own words for the user.
+    pub async fn reopen_meeting(&self, meeting_id: i64) -> Result<(), ApiError> {
+        let url = self.url(&format!("meetings/{meeting_id}/reopen"));
+        let response = self
+            .authorized(self.http.post(url))
+            .send()
+            .await
+            .map_err(network_error)?;
+        if response.status().is_success() {
+            return Ok(());
+        }
+        if response.status() == StatusCode::CONFLICT {
+            let body = response.text().await.unwrap_or_default();
+            let detail = error_detail(&body);
+            return Err(ApiError::Rejected {
+                status: 409,
+                message: if detail.is_empty() {
+                    "Встреча ещё обрабатывается на сервере, попробуйте через минуту".to_string()
+                } else {
+                    detail
+                },
+            });
+        }
+        Err(error_from(response).await)
+    }
+
     pub async fn finalize(&self, meeting_id: i64) -> Result<(), ApiError> {
         let url = self.url(&format!("meetings/{meeting_id}/finalize"));
         send(self.authorized(self.http.post(url))).await?;

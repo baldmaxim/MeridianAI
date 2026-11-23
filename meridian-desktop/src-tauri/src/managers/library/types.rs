@@ -72,6 +72,12 @@ pub struct MeetingView {
     pub opponent_weaknesses: Option<String>,
     #[serde(default)]
     pub app_notes: Option<String>,
+    /// The submission of offers the meeting talks about (`None`: all documents
+    /// of the object) and its name. Absent in views cached by older versions.
+    #[serde(default)]
+    pub offer_submission: Option<String>,
+    #[serde(default)]
+    pub offer_submission_label: Option<String>,
     pub segments: Vec<ViewSegment>,
     pub documents: Vec<ViewDocument>,
 }
@@ -81,6 +87,14 @@ pub struct ProjectObject {
     pub id: i64,
     pub name: String,
     pub address: Option<String>,
+}
+
+/// A submission of commercial offers of an object, to pick in the meeting.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct OfferSubmission {
+    pub value: String,
+    pub label: String,
+    pub document_count: i64,
 }
 
 /// A customer with its objects (the site's reference book).

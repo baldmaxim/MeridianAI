@@ -275,6 +275,13 @@ async stopMeeting() : Promise<Result<MeetingInfo, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Continues a stopped or interrupted meeting. One the server already has
+ * (`synced`) is first taken back into work on the server; a refusal (it is
+ * still being processed) is the error and the meeting stays as it was. Once the
+ * server has taken it back, a failure to start recording puts the meeting back
+ * in the sync queue, which finalizes it again with what it already sent.
+ */
 async resumeMeeting(id: string) : Promise<Result<MeetingInfo, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("resume_meeting", { id }) };
@@ -493,6 +500,29 @@ async meetingViewGet(serverMeetingId: number) : Promise<Result<MeetingViewResult
 async meetingAsk(serverMeetingId: number, question: string, mode: AskMode) : Promise<Result<AskAnswer, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("meeting_ask", { serverMeetingId, question, mode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The submissions of commercial offers of an object, to choose from in a meeting.
+ */
+async objectOfferSubmissions(objectId: number) : Promise<Result<OfferSubmission[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("object_offer_submissions", { objectId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Which submission of offers the meeting talks about; `None`: all documents of
+ * the object. The meeting is the site's (it has to be on the server).
+ */
+async meetingSetOfferSubmission(serverMeetingId: number, offerSubmission: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_set_offer_submission", { serverMeetingId, offerSubmission }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1081,7 +1111,12 @@ refine_status?: string | null; refine_error?: string | null }) & { protocol_mark
  * The meeting context and the notes from the app. Absent in views cached
  * by older versions.
  */
-negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses?: string | null; app_notes?: string | null; segments: ViewSegment[]; documents: ViewDocument[] }
+negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses?: string | null; app_notes?: string | null; 
+/**
+ * The submission of offers the meeting talks about (`None`: all documents
+ * of the object) and its name. Absent in views cached by older versions.
+ */
+offer_submission?: string | null; offer_submission_label?: string | null; segments: ViewSegment[]; documents: ViewDocument[] }
 /**
  * A meeting of the site; `from_cache`: the server was not reached.
  */
@@ -1139,6 +1174,10 @@ export type NoteInput = {
  * Set to edit an existing note.
  */
 id: string | null; meeting_id: string; at_seconds: number; text: string }
+/**
+ * A submission of commercial offers of an object, to pick in the meeting.
+ */
+export type OfferSubmission = { value: string; label: string; document_count: number }
 export type PermissionAccess = "allowed" | "denied" | "unknown"
 /**
  * A customer with its objects (the site's reference book).
@@ -1224,11 +1263,20 @@ server_id?: string | null }
  * A document of a meeting as the server describes it. Type and tags are
  * found by the server and only shown here.
  */
-export type ServerDocument = { document_id: number; name: string | null; status: string | null; doc_type: string | null; doc_type_label: string | null; doc_tags: DocumentTag[]; doc_meta: DocumentMeta | null; 
+export type ServerDocument = { document_id: number; name: string | null; 
+/**
+ * The name to show; `None` (an older server): show `name`.
+ */
+display_name: string | null; status: string | null; doc_type: string | null; doc_type_label: string | null; doc_tags: DocumentTag[]; doc_meta: DocumentMeta | null; 
 /**
  * `meeting`, `customer` or `object`.
  */
-source: string; included: boolean; page_count: number | null }
+source: string; included: boolean; page_count: number | null; 
+/**
+ * The submission of offers the document belongs to; `None`: general
+ * documentation (not tied to a submission).
+ */
+offer_submission: string | null }
 export type StartMeetingRequest = { title: string; capture_mode: CaptureMode; 
 /**
  * `None`: the microphone chosen in settings, else the system default.

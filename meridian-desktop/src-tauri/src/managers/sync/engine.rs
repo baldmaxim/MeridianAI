@@ -445,7 +445,8 @@ impl Engine<'_> {
             return Ok(ChannelResult::Skipped);
         }
 
-        let filename = format!("{channel}.wav");
+        let revision = self.db.audio_revision(&meeting.id).map_err(db_error)?;
+        let filename = audio_filename(channel, revision);
         let upload = match self
             .client
             .audio_upload(
@@ -473,6 +474,17 @@ impl Engine<'_> {
             .add_audio_done_channel(&meeting.id, channel)
             .map_err(db_error)?;
         Ok(ChannelResult::Sent)
+    }
+}
+
+/// The name the audio of `channel` goes under. The server keeps the first
+/// upload of a name (it is the key), so a meeting continued after it was sent
+/// uploads its whole recording under a new one: `mic.wav`, then `mic_r2.wav`...
+pub(super) fn audio_filename(channel: &str, revision: u32) -> String {
+    if revision <= 1 {
+        format!("{channel}.wav")
+    } else {
+        format!("{channel}_r{revision}.wav")
     }
 }
 

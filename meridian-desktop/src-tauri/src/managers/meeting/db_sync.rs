@@ -88,6 +88,38 @@ impl MeetingDb {
         )? > 0)
     }
 
+    /// Continues a meeting the server already has finalized (after `reopen` on the
+    /// server): recording again, back in the sync queue, and its audio goes
+    /// again as a whole under the next revision (the new name makes the server
+    /// take it). The revision only grows when a channel was confirmed before:
+    /// otherwise the server has nothing under the old name. One statement, so
+    /// the sync never sees a half-changed meeting.
+    pub fn mark_recording_reopened(&self, id: &str) -> Result<()> {
+        self.conn().execute(
+            "UPDATE meetings SET status = 'recording', ended_at = NULL,
+                 sync_state = 'pending', sync_error = NULL, synced_at = NULL,
+                 audio_state = 'pending',
+                 audio_revision = audio_revision + (audio_done != ''),
+                 audio_done = ''
+             WHERE id = ?1",
+            [id],
+        )?;
+        Ok(())
+    }
+
+    /// The revision of the meeting's audio upload (1 for the first one).
+    pub fn audio_revision(&self, id: &str) -> Result<u32> {
+        let revision: Option<i64> = self
+            .conn()
+            .query_row(
+                "SELECT audio_revision FROM meetings WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(revision.unwrap_or(1).max(1) as u32)
+    }
+
     /// An interrupted meeting becomes stopped (the user chose "Finish", or the
     /// hold ran out), so the sync may finalize it. `false`: it was not interrupted.
     pub fn finish_interrupted(&self, id: &str) -> Result<bool> {
@@ -202,6 +234,37 @@ mod tests {
         assert_eq!(db.audio_done_channels("m").unwrap(), ["mic", "system"]);
         db.set_audio_state("m", "done").unwrap();
         assert_eq!(db.get_meeting("m").unwrap().unwrap().audio_state, "done");
+    }
+
+    #[test]
+    fn a_continued_synced_meeting_goes_back_to_the_queue_with_a_new_audio_revision() {
+        let db = MeetingDb::open_in_memory().unwrap();
+        let mut meeting = sample_meeting("m", "2026-01-01T10:00:00.000Z");
+        meeting.status = MeetingStatus::Stopped;
+        meeting.ended_at = Some("2026-01-01T11:00:00.000Z".to_string());
+        db.insert_meeting(&meeting).unwrap();
+        db.set_sync_state("m", "synced", None, Some("2026-01-01T11:05:00.000Z"))
+            .unwrap();
+        db.add_audio_done_channel("m", "mic").unwrap();
+        db.set_audio_state("m", "done").unwrap();
+        assert_eq!(db.audio_revision("m").unwrap(), 1);
+        assert_eq!(db.count_meetings_for_sync().unwrap(), 0);
+
+        db.mark_recording_reopened("m").unwrap();
+        let again = db.get_meeting("m").unwrap().unwrap();
+        assert_eq!(again.status, MeetingStatus::Recording);
+        assert_eq!(again.ended_at, None);
+        assert_eq!(again.sync_state, "pending");
+        assert_eq!(again.synced_at, None);
+        assert_eq!(again.audio_state, "pending");
+        assert!(db.audio_done_channels("m").unwrap().is_empty());
+        assert_eq!(db.audio_revision("m").unwrap(), 2);
+
+        // Continued and stopped once more before anything was confirmed: the
+        // server has nothing under the second name, so the revision stays.
+        db.mark_recording_reopened("m").unwrap();
+        assert_eq!(db.audio_revision("m").unwrap(), 2);
+        assert_eq!(db.audio_revision("missing").unwrap(), 1);
     }
 
     #[test]

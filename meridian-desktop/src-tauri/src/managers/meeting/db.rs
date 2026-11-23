@@ -196,6 +196,10 @@ pub(super) static MIGRATIONS: &[M] = &[
     );
     CREATE INDEX idx_meeting_pauses_meeting ON meeting_pauses(meeting_id, at_seconds);",
     ),
+    // A synced meeting that is continued sends its whole audio again under a new
+    // name (the server keeps the first upload of a name): the revision of that
+    // upload, 1 for the first one (see `db_sync.rs`).
+    M::up("ALTER TABLE meetings ADD COLUMN audio_revision INTEGER NOT NULL DEFAULT 1;"),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one

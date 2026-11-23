@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import { commands, type CaptureDevices, type CaptureMode } from "@/bindings";
@@ -31,7 +31,10 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
   onOpenModelSettings,
 }) => {
   const { t } = useTranslation();
+  // The default title follows the chosen object until the user types their own.
   const [title, setTitle] = useState("");
+  const [titleEdited, setTitleEdited] = useState(false);
+  const [titleDate, setTitleDate] = useState("");
   const [mode, setMode] = useState<CaptureMode>("in_person");
   const [devices, setDevices] = useState<CaptureDevices | null>(null);
   const [micId, setMicId] = useState("");
@@ -50,11 +53,9 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setTitle(
-      t("meetings.newDialog.defaultTitle", {
-        date: formatTitleDate(new Date()),
-      }),
-    );
+    setTitle("");
+    setTitleEdited(false);
+    setTitleDate(formatTitleDate(new Date()));
     // The project filter of the library pre-fills the project.
     const filter = useLibraryStore.getState().filter;
     setCustomerId(
@@ -97,6 +98,18 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
 
   const systemSupported = devices?.system_supported ?? false;
   const projectList = customers ?? [];
+  const objectName = useMemo(
+    () => resolveProject(projectList, customerId, objectId).objectName,
+    [projectList, customerId, objectId],
+  );
+  const shownTitle = titleEdited
+    ? title
+    : objectName
+      ? t("meetings.newDialog.defaultTitleWithObject", {
+          date: titleDate,
+          object: objectName,
+        })
+      : t("meetings.newDialog.defaultTitle", { date: titleDate });
 
   const handleSystemChange = (id: string) => {
     setSystemId(id);
@@ -110,7 +123,7 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
     setError(null);
     const project = resolveProject(projectList, customerId, objectId);
     const failure = await useMeetingStore.getState().startMeeting({
-      title: title.trim(),
+      title: shownTitle.trim(),
       capture_mode: mode,
       mic_device_id: micId || null,
       system_device_id: mode === "online" && systemId ? systemId : null,
@@ -188,9 +201,12 @@ export const NewMeetingDialog: React.FC<NewMeetingDialogProps> = ({
           </span>
           <Input
             type="text"
-            value={title}
+            value={shownTitle}
             disabled={starting}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setTitleEdited(true);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing && devices) {
                 void handleStart();

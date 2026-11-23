@@ -38,6 +38,8 @@ export interface MeetingSources {
   pickFiles: () => Promise<void>;
   setIncluded: (doc: ServerDocument, included: boolean) => Promise<void>;
   removeQueued: (queueId: number) => Promise<void>;
+  /** Asks the server for the list again (the meeting's settings changed). */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -228,5 +230,15 @@ export const useMeetingSources = ({
     await refreshRef.current();
   }, []);
 
-  return { data, rejected, dragActive, pickFiles, setIncluded, removeQueued };
+  const reload = useCallback(() => refreshRef.current(), []);
+
+  return {
+    data,
+    rejected,
+    dragActive,
+    pickFiles,
+    setIncluded,
+    removeQueued,
+    refresh: reload,
+  };
 };

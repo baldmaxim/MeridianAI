@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 use crate::commands::account::clear_library_cache;
+use crate::managers::library::types::OfferSubmission;
 use crate::managers::library::{
     self, AskAnswer, AskMode, LibrarySnapshot, MeetingViewResult, SearchHit,
 };
@@ -86,6 +87,38 @@ pub async fn meeting_ask(
 ) -> Result<AskAnswer, String> {
     let client = client(&app);
     library::meeting_ask(client.as_ref(), server_meeting_id, &question, mode)
+        .await
+        .map_err(|e| failure(&app, e))
+}
+
+const MSG_NO_ACCOUNT: &str = "Войдите в аккаунт Meridian";
+
+/// The submissions of commercial offers of an object, to choose from in a meeting.
+#[tauri::command]
+#[specta::specta]
+pub async fn object_offer_submissions(
+    app: AppHandle,
+    object_id: i64,
+) -> Result<Vec<OfferSubmission>, String> {
+    let client = client(&app).ok_or_else(|| MSG_NO_ACCOUNT.to_string())?;
+    client
+        .get_offer_submissions(object_id)
+        .await
+        .map_err(|e| failure(&app, e))
+}
+
+/// Which submission of offers the meeting talks about; `None`: all documents of
+/// the object. The meeting is the site's (it has to be on the server).
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_set_offer_submission(
+    app: AppHandle,
+    server_meeting_id: i64,
+    offer_submission: Option<String>,
+) -> Result<(), String> {
+    let client = client(&app).ok_or_else(|| MSG_NO_ACCOUNT.to_string())?;
+    client
+        .set_offer_submission(server_meeting_id, offer_submission.as_deref())
         .await
         .map_err(|e| failure(&app, e))
 }

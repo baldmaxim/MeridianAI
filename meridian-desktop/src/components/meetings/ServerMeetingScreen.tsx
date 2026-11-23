@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, Database } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAskChat } from "@/hooks/useAskChat";
+import { useMeetingSources } from "@/hooks/useMeetingSources";
 import { useRefineView } from "@/hooks/useRefineView";
 import { useLibraryStore } from "@/stores/libraryStore";
 import { formatDateChip, formatTimeRange } from "@/lib/utils/meetingFormat";
@@ -14,7 +15,7 @@ import { ProtocolPane } from "./ProtocolPane";
 import { RefineStatusChip } from "./RefineStatusChip";
 import { ServerTranscriptPane } from "./ServerTranscriptPane";
 import { SidePanel, type SidePanelTab } from "./SidePanel";
-import { SourcesPanel } from "./SourcesPanel";
+import { SourcesDropOverlay } from "./SourcesDropOverlay";
 
 type PanelTab = "transcript" | "context" | "ask";
 
@@ -32,6 +33,7 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
     "",
   );
   const chat = useAskChat(serverMeetingId);
+  const sources = useMeetingSources({ meetingId: null, serverMeetingId });
   const [tab, setTab] = useState<PanelTab>("transcript");
   const closeServer = useLibraryStore((s) => s.closeServer);
 
@@ -80,7 +82,7 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
     t("meetings.library.untitled");
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <div className="shrink-0 border-b border-border bg-background px-5 py-3">
         <div className="flex items-center gap-2">
           {back}
@@ -121,7 +123,6 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <SourcesPanel meetingId={null} serverMeetingId={serverMeetingId} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
           <section
             aria-label={t("meetings.view.tabProtocol")}
@@ -144,12 +145,20 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
           {tab === "transcript" && (
             <ServerTranscriptPane segments={view.segments} />
           )}
-          {tab === "context" && <ServerContextTab view={view} />}
+          {tab === "context" && (
+            <ServerContextTab
+              view={view}
+              serverMeetingId={serverMeetingId}
+              sources={sources}
+              onReloadView={reload}
+            />
+          )}
           {tab === "ask" && (
             <AskPane serverMeetingId={serverMeetingId} chat={chat} />
           )}
         </SidePanel>
       </div>
+      <SourcesDropOverlay active={sources.dragActive} />
     </div>
   );
 };

@@ -447,6 +447,7 @@
       "starting": "Starting…",
       "openModelSettings": "Open model settings",
       "defaultTitle": "Meeting {{date}}",
+      "defaultTitleWithObject": "Meeting {{date}} · {{object}}",
       "participants": "Participants",
       "participantsUnknown": "Not sure",
       "participantsHint": "If you know how many people speak, voices are separated more accurately."
@@ -465,6 +466,8 @@
       "tabAsk": "Ask",
       "collapsePanel": "Collapse panel",
       "expandPanel": "Expand panel",
+      "resizePanel": "Panel width",
+      "resizePanelHint": "Drag to change the width; double-click to reset",
       "panelLabel": "Meeting data"
     },
     "levels": {
@@ -581,6 +584,7 @@
     },
     "context": {
       "sectionTitle": "Meeting context (optional)",
+      "paramsTitle": "Meeting settings",
       "typeLabel": "Negotiation type",
       "typePlaceholder": "For example: agreeing terms",
       "typeSale": "Sale / closing a deal",
@@ -629,6 +633,7 @@
         "excluded": "What is not included in the offer?"
       },
       "emptyAnticipate": "Enter a question the Customer may ask or pick one — you get a short answer ready to say aloud.",
+      "send": "Send question",
       "empty": "Ask a question — the answer comes from the protocol, the transcript and the documents.",
       "thinking": "Thinking…",
       "failed": "Could not get an answer",
@@ -650,6 +655,15 @@
     "sources": {
       "title": "Sources",
       "counter": "In context: {{included}} of {{total}}",
+      "groupCounter": "{{included}} of {{total}}",
+      "groupSubmission": "Submission: {{label}}",
+      "groupGeneral": "Documentation",
+      "groupAdded": "Added to the meeting",
+      "offerLabel": "Which offer submission are we discussing",
+      "offerAll": "All documents of the object",
+      "offerUnavailable": "Needs a project object and the meeting on the server",
+      "offerLoadFailed": "Could not load the list of submissions",
+      "offerFailed": "Could not choose the submission",
       "add": "Add files",
       "dialogFilter": "Documents",
       "dropHint": "Drop the files — the type is detected automatically",

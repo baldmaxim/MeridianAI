@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ServerDocument } from "@/bindings";
 import { isSettled } from "@/hooks/useMeetingSources";
+import { documentName } from "@/lib/utils/sourceGroups";
 
 const TYPE_ICONS: Record<string, LucideIcon> = {
   letter: Mail,
@@ -43,7 +44,9 @@ interface SourceRowProps {
 export const SourceRow: React.FC<SourceRowProps> = ({ doc, onToggle }) => {
   const { t, i18n } = useTranslation();
   const Icon = (doc.doc_type && TYPE_ICONS[doc.doc_type]) || FileText;
-  const name = doc.name || t("meetings.sources.unnamed");
+  const name = documentName(doc) || t("meetings.sources.unnamed");
+  // The full original name is in the tooltip.
+  const fullName = doc.name || name;
   const typeLabel = doc.doc_type_label || doc.doc_type;
   const meta = [
     doc.doc_meta?.number
@@ -65,7 +68,7 @@ export const SourceRow: React.FC<SourceRowProps> = ({ doc, onToggle }) => {
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-text" title={name}>
+        <p className="truncate text-sm font-medium text-text" title={fullName}>
           {name}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-1">

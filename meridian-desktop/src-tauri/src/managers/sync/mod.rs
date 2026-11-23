@@ -19,6 +19,8 @@ mod live;
 #[cfg(test)]
 mod project_tests;
 #[cfg(test)]
+mod reopen_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 mod transcriptions;
 #[cfg(test)]

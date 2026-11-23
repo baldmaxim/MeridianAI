@@ -45,6 +45,8 @@ pub struct DocumentMeta {
 pub struct ServerDocument {
     pub document_id: i64,
     pub name: Option<String>,
+    /// The name to show; `None` (an older server): show `name`.
+    pub display_name: Option<String>,
     pub status: Option<String>,
     pub doc_type: Option<String>,
     pub doc_type_label: Option<String>,
@@ -54,6 +56,9 @@ pub struct ServerDocument {
     pub source: String,
     pub included: bool,
     pub page_count: Option<i64>,
+    /// The submission of offers the document belongs to; `None`: general
+    /// documentation (not tied to a submission).
+    pub offer_submission: Option<String>,
 }
 
 /// The server's item, read loosely: the name may come as `original_name` or
@@ -68,6 +73,10 @@ struct RawDocument {
     original_name: Option<String>,
     #[serde(default)]
     filename: Option<String>,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    offer_submission: Option<String>,
     #[serde(default)]
     status: Option<String>,
     #[serde(default)]
@@ -111,6 +120,7 @@ impl RawDocument {
         Some(ServerDocument {
             document_id,
             name: self.original_name.or(self.filename),
+            display_name: self.display_name.filter(|name| !name.trim().is_empty()),
             status: self.status,
             doc_type: self.doc_type,
             doc_type_label: self.doc_type_label,
@@ -119,6 +129,7 @@ impl RawDocument {
             source: self.source.unwrap_or_else(|| "meeting".to_string()),
             included: self.included.unwrap_or(true),
             page_count: self.page_count,
+            offer_submission: self.offer_submission.filter(|value| !value.is_empty()),
         })
     }
 }
@@ -217,6 +228,24 @@ mod tests {
         assert_eq!(docs[1].source, "meeting");
         assert!(docs[1].included);
         assert!(docs[1].doc_tags.is_empty());
+    }
+
+    #[test]
+    fn reads_the_submission_and_the_display_name() {
+        let docs = parse_documents(serde_json::json!([
+            {"document_id": 1, "original_name": "a_1.pdf", "display_name": "КП №5.pdf",
+             "offer_submission": "2026-10-01"},
+            {"document_id": 2, "original_name": "b.pdf", "display_name": " ", "offer_submission": null},
+            {"document_id": 3, "original_name": "c.pdf"}
+        ]));
+        assert_eq!(docs[0].display_name.as_deref(), Some("КП №5.pdf"));
+        assert_eq!(docs[0].name.as_deref(), Some("a_1.pdf"));
+        assert_eq!(docs[0].offer_submission.as_deref(), Some("2026-10-01"));
+        // An empty display name or an older server: the original name is shown.
+        assert_eq!(docs[1].display_name, None);
+        assert_eq!(docs[1].offer_submission, None);
+        assert_eq!(docs[2].display_name, None);
+        assert_eq!(docs[2].offer_submission, None);
     }
 
     #[test]

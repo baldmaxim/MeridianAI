@@ -127,7 +127,7 @@ async fn a_continued_meeting_is_finalized_only_after_its_next_stop() {
         &server.lines(),
         "POST /api/desktop/meetings/42/finalize"
     ));
-    // A finalized meeting cannot be continued any more.
+    // A finalized meeting is continued only after the server took it back.
     assert!(blocker(&fx.meeting("m1")).is_some());
 }
 

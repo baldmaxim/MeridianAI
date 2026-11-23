@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, Manager};
 
+use super::library::{client, failure};
 use crate::managers::meeting::{
     ActiveMeetingState, AudioFile, CaptureDevices, MeetingDetails, MeetingInfo, MeetingManager,
     MeetingVoice, Note, NoteInput, StartMeetingRequest,
@@ -62,10 +63,50 @@ pub async fn finish_interrupted_meeting(app: AppHandle, id: String) -> Result<Me
     Ok(meeting)
 }
 
+/// Continues a stopped or interrupted meeting. One the server already has
+/// (`synced`) is first taken back into work on the server; a refusal (it is
+/// still being processed) is the error and the meeting stays as it was. Once the
+/// server has taken it back, a failure to start recording puts the meeting back
+/// in the sync queue, which finalizes it again with what it already sent.
 #[tauri::command]
 #[specta::specta]
 pub async fn resume_meeting(app: AppHandle, id: String) -> Result<MeetingInfo, String> {
-    blocking(&app, move |m| m.resume_meeting(&id)).await
+    let meeting = manager(&app)
+        .db()
+        .get_meeting(&id)
+        .map_err(|e| format!("Ошибка базы встреч: {e:#}"))?
+        .ok_or_else(|| "Встреча не найдена".to_string())?;
+    if meeting.sync_state != "synced" {
+        return blocking(&app, move |m| m.resume_meeting(&id)).await;
+    }
+
+    let server_id = meeting
+        .server_meeting_id
+        .ok_or_else(|| "Встреча отправлена на сервер без номера: начните новую".to_string())?;
+    // Everything that can be checked here goes before the server is asked.
+    let checked = id.clone();
+    blocking(&app, move |m| m.check_resumable(&checked, true)).await?;
+    let client = client(&app).ok_or_else(|| "Войдите в аккаунт Meridian".to_string())?;
+    client
+        .reopen_meeting(server_id)
+        .await
+        .map_err(|e| failure(&app, e))?;
+
+    let resumed = id.clone();
+    match blocking(&app, move |m| m.resume_reopened_meeting(&resumed)).await {
+        Ok(meeting) => Ok(meeting),
+        Err(error) => {
+            // The server waits for the end of the meeting: send it again.
+            if let Err(e) = manager(&app)
+                .db()
+                .set_sync_state(&id, "pending", None, None)
+            {
+                log::warn!("Cannot put meeting {id} back in the sync queue: {e:#}");
+            }
+            app.state::<Arc<SyncManager>>().release_meeting(&id);
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]

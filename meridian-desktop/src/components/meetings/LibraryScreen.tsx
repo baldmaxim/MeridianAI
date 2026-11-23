@@ -22,6 +22,9 @@ import { ProjectSelect } from "./ProjectSelect";
 import { ProjectsPanel } from "./ProjectsPanel";
 import { SearchResults } from "./SearchResults";
 
+/** Between two quiet refreshes of the library while its screen is open. */
+const LIBRARY_REFRESH_MS = 60_000;
+
 interface LibraryScreenProps {
   resumingId: string | null;
   onNew: () => void;
@@ -54,6 +57,23 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({
       await library.load(false);
       await library.load(true);
     })();
+  }, []);
+
+  // The site's meetings change without us: look again when the window comes
+  // back into focus, and once a minute while this screen is open.
+  useEffect(() => {
+    const refresh = () => void useLibraryStore.getState().refreshQuietly();
+    const onVisibility = () => {
+      if (!document.hidden) refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, LIBRARY_REFRESH_MS);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
   }, []);
 
   const all = useMemo(

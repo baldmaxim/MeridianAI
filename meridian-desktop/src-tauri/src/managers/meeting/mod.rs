@@ -219,7 +219,12 @@ pub fn recorded_channels(meetings_root: &Path, meeting_id: &str) -> Vec<(&'stati
 
 #[cfg(test)]
 pub(crate) fn resume_blocker_for_tests(meeting: &MeetingInfo) -> Option<&'static str> {
-    resume_blocker(meeting)
+    resume_blocker(meeting, false)
+}
+
+#[cfg(test)]
+pub(crate) fn resume_blocker_reopened_for_tests(meeting: &MeetingInfo) -> Option<&'static str> {
+    resume_blocker(meeting, true)
 }
 
 /// Writes `samples` as the meeting's audio for `channel` (a test fixture).
@@ -245,14 +250,20 @@ fn meeting_duration(meetings_root: &Path, meeting_id: &str) -> f64 {
 }
 
 /// Why a meeting cannot be continued, if it cannot. A stopped or interrupted
-/// meeting can, until the server has it finalized.
-pub(crate) fn resume_blocker(meeting: &MeetingInfo) -> Option<&'static str> {
+/// meeting can. One the server has finalized can only be continued after the
+/// server took it back (`reopened`, see `commands::meetings::resume_meeting`).
+pub(crate) fn resume_blocker(meeting: &MeetingInfo, reopened: bool) -> Option<&'static str> {
     if meeting.status == MeetingStatus::Recording {
         return Some("Встреча уже записывается");
     }
-    // На сервере она уже финализирована и новых фраз не примет.
-    (meeting.sync_state == "synced")
-        .then_some("Встреча уже отправлена на сервер — начните новую")
+    if meeting.sync_state != "synced" {
+        return None;
+    }
+    if meeting.server_meeting_id.is_none() {
+        return Some("Встреча отправлена на сервер без номера: начните новую");
+    }
+    // На сервере она финализирована: новых фраз он не примет, пока не вернёт её в работу.
+    (!reopened).then_some("Встреча уже отправлена на сервер: сначала её нужно вернуть в работу")
 }
 
 pub struct MeetingManager {
@@ -415,34 +426,83 @@ impl MeetingManager {
     /// is already recorded, and new audio goes into the next pieces.
     pub fn resume_meeting(&self, id: &str) -> Result<MeetingInfo, String> {
         self.claim_slot()?;
-        let result = self.resume_inner(id);
+        let result = self.resume_inner(id, false);
         if result.is_err() {
             *self.slot() = Slot::Idle;
         }
         result
     }
 
-    fn resume_inner(&self, id: &str) -> Result<MeetingInfo, String> {
+    /// Continues a meeting the server has just taken back (`reopen`): it goes
+    /// back to the sync queue in the same step as it starts recording.
+    pub fn resume_reopened_meeting(&self, id: &str) -> Result<MeetingInfo, String> {
+        self.claim_slot()?;
+        let result = self.resume_inner(id, true);
+        if result.is_err() {
+            *self.slot() = Slot::Idle;
+        }
+        result
+    }
+
+    /// Whether `resume_*` would start now: checked before the server is asked
+    /// to take the meeting back, so a refusal here leaves the server alone.
+    pub fn check_resumable(&self, id: &str, reopened: bool) -> Result<(), String> {
+        if !matches!(*self.slot(), Slot::Idle) {
+            return Err("Встреча уже идёт: сначала остановите её".to_string());
+        }
+        let meeting = self
+            .db
+            .get_meeting(id)
+            .map_err(io_err)?
+            .ok_or_else(|| "Встреча не найдена".to_string())?;
+        if let Some(reason) = resume_blocker(&meeting, reopened) {
+            return Err(reason.to_string());
+        }
+        self.require_model()
+    }
+
+    fn resume_inner(&self, id: &str, reopened: bool) -> Result<MeetingInfo, String> {
         let previous = self
             .db
             .get_meeting(id)
             .map_err(io_err)?
             .ok_or_else(|| "Встреча не найдена".to_string())?;
-        if let Some(reason) = resume_blocker(&previous) {
+        if let Some(reason) = resume_blocker(&previous, reopened) {
             return Err(reason.to_string());
         }
         self.require_model()?;
         let base_seconds = meeting_duration(&self.root, id);
         let devices = self.devices_for(None);
         let session = self.launch(&previous, base_seconds, &devices)?;
-        if let Err(e) = self.db.mark_recording(id) {
+        let marked = if reopened {
+            self.db.mark_recording_reopened(id)
+        } else {
+            self.db.mark_recording(id)
+        };
+        if let Err(e) = marked {
             self.discard_session(session);
             return Err(io_err(e));
         }
-        let meeting = MeetingInfo {
-            status: MeetingStatus::Recording,
-            ended_at: None,
-            ..previous
+        let meeting = if reopened {
+            // The sync fields changed with it: hand the new ones out.
+            match self.db.get_meeting(id) {
+                Ok(Some(meeting)) => meeting,
+                _ => MeetingInfo {
+                    status: MeetingStatus::Recording,
+                    ended_at: None,
+                    sync_state: "pending".to_string(),
+                    sync_error: None,
+                    synced_at: None,
+                    audio_state: "pending".to_string(),
+                    ..previous
+                },
+            }
+        } else {
+            MeetingInfo {
+                status: MeetingStatus::Recording,
+                ended_at: None,
+                ..previous
+            }
         };
         self.activate(session, &meeting);
         Ok(meeting)

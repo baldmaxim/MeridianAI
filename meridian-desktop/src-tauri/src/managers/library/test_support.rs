@@ -95,6 +95,8 @@ pub fn view(item: LibraryItem, protocol: &str, texts: &[&str]) -> MeetingView {
         key_terms: None,
         opponent_weaknesses: None,
         app_notes: None,
+        offer_submission: None,
+        offer_submission_label: None,
         segments: texts
             .iter()
             .map(|text| ViewSegment {
