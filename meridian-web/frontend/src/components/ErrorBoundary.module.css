@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100dvh;
+  height: calc(100dvh + var(--standalone-bottom-gap));
   background: var(--bg);
   color: var(--text);
   font-family: Inter, system-ui, sans-serif;

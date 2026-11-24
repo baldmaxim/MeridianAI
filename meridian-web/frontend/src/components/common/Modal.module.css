@@ -1,6 +1,8 @@
 .overlay {
   position: fixed;
   inset: 0;
+  /* standalone iOS: layout viewport короче экрана — тянем оверлей до реального низа */
+  bottom: calc(0px - var(--standalone-bottom-gap));
   z-index: 1000;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
   backdrop-filter: blur(4px);

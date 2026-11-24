@@ -148,6 +148,26 @@ html, body, #root {
   color: var(--text);
 }
 
+/* iOS 26+ (иконка «Домой»): layout viewport короче экрана на высоту статус-бара, снизу пустая
+   полоса. Разница 100vh - 100dvh — это и есть недостающая высота; вне standalone и когда iOS
+   исправит баг она равна 0. Корневые контейнеры и fixed-элементы у низа прибавляют/вычитают её. */
+:root {
+  --standalone-bottom-gap: 0px;
+}
+@media (display-mode: standalone) {
+  :root {
+    --standalone-bottom-gap: calc(100vh - 100dvh);
+  }
+  /* Корень не скроллится — прокручиваются внутренние контейнеры страниц.
+     #root оставляем с его overflow-x: hidden (y = auto): на нём скроллятся страницы входа. */
+  html, body {
+    overflow: hidden;
+  }
+  html, body, #root {
+    height: 100vh;
+  }
+}
+
 body {
   -webkit-tap-highlight-color: transparent;
 }
@@ -307,7 +327,7 @@ button:disabled {
   .mobile-nav {
     display: flex !important;
     position: fixed;
-    bottom: 0;
+    bottom: calc(0px - var(--standalone-bottom-gap));
     left: 0;
     right: 0;
     height: calc(72px + env(safe-area-inset-bottom));
@@ -361,7 +381,7 @@ button:disabled {
   }
   .meeting-right-panel {
     position: fixed !important;
-    bottom: 0 !important;
+    bottom: calc(0px - var(--standalone-bottom-gap)) !important;
     left: 0 !important;
     right: 0 !important;
     width: auto !important;
@@ -426,6 +446,7 @@ button:disabled {
     display: block !important;
     position: fixed;
     inset: 0;
+    bottom: calc(0px - var(--standalone-bottom-gap));
     background: var(--overlay);
     z-index: 50;
   }

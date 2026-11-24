@@ -7,7 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: calc(100dvh - var(--header-h) - env(safe-area-inset-top));
+  max-height: calc(100dvh + var(--standalone-bottom-gap) - var(--header-h) - env(safe-area-inset-top));
   padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;

@@ -1,7 +1,7 @@
 .root {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: calc(100dvh + var(--standalone-bottom-gap));
   background: var(--bg);
   color: var(--text);
   font-family: 'Inter', sans-serif;

@@ -1,6 +1,6 @@
 .toast {
   position: fixed;
-  bottom: 24px;
+  bottom: calc(24px - var(--standalone-bottom-gap));
   right: 24px;
   z-index: 9999;
   display: flex;

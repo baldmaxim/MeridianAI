@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   gap: 24px;
-  min-height: 100dvh;
+  min-height: calc(100dvh + var(--standalone-bottom-gap));
   width: 100%;
   overflow-x: hidden;
   padding-top: max(20px, env(safe-area-inset-top));

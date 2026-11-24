@@ -32,7 +32,7 @@
   right: 0;
   z-index: 60;
   width: min(380px, calc(100vw - 24px));
-  max-height: calc(100dvh - 96px);
+  max-height: calc(100dvh + var(--standalone-bottom-gap) - 96px);
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--bg-elevated);
