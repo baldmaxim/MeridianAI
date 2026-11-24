@@ -1,0 +1,84 @@
+/* Главное окно встречи: сегмент вкладок, полоса спикеров, страницы со слайдом. Цвета — токены. */
+
+.window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.switch {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  max-width: 360px;
+}
+
+.switchBtn {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.switchBtnActive {
+  background: var(--accent-amber-glow);
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+.meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Две страницы лежат друг на друге (t-page-slide), у каждой своя прокрутка */
+.pages {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 0;
+}
+
+/* Протокол прокручивается сам (ProtocolPane) */
+.pageProtocol {
+  overflow: hidden;
+}
+
+.empty {
+  padding: 20px 16px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}

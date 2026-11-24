@@ -179,93 +179,12 @@
   overflow: hidden;
 }
 
-/* База знаний — своя колонка со своей прокруткой */
-.knowledgePanel {
-  grid-area: knowledge;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
 .knowledgeList {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
   padding: 8px 12px;
 }
 
-/* Мобильные вкладки: показаны до 768px включительно (как .detail-mobile-tabs в index.css) */
-.mobileTabs {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.mobileTab {
-  flex: 1;
-  min-height: 44px;
-  padding: 8px 0;
-  background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 500;
-}
-
-.mobileTabActive {
-  background: var(--accent-amber-glow);
-  border-color: var(--accent-amber);
-  color: var(--accent-amber);
-  font-weight: 600;
-}
-
-.panels {
-  display: flex;
-  gap: 16px;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.leftPanel {
-  grid-area: transcript;
-  flex: 3;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.rightPanel {
-  grid-area: right;
-  flex: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: auto;
-  min-width: 280px;
-}
-
-.transcriptList {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 8px 0;
-}
-
 .emptyPanel {
-  padding: 20px 16px;
+  padding: 16px;
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
@@ -279,11 +198,83 @@
   gap: 8px;
 }
 
-@media (min-width: 769px) {
-  .mobileTabs {
-    display: none;
-  }
+/* Телефон/планшет: вкладки страницы в одну строку (при нехватке ширины — горизонтальная прокрутка внутри) */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
 
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex: 1 0 auto;
+  min-height: 44px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabActive {
+  background: var(--accent-amber-glow);
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+/* Область под шапкой: окно и боковые панели. Телефон — одна колонка с запасом по высоте */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 0 auto;
+  min-height: max(420px, 60dvh);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.mainSlot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mainSlotHidden {
+  display: none;
+}
+
+.side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 1023px) {
+  .container {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (min-width: 769px) {
   /* Плотнее: один экран, прокручиваются только панели */
   .container {
     padding: 14px 20px;
@@ -294,43 +285,31 @@
     padding-bottom: 8px;
   }
 
-  .panels {
-    gap: 12px;
-  }
-
-  .rightPanel {
-    gap: 8px;
-  }
-
-  .knowledgeList {
-    padding: 5px 8px;
-  }
-
-  .transcriptList {
-    padding: 5px 0;
-  }
-
-  .suggestionList {
-    padding: 5px 8px;
-    gap: 5px;
-  }
-
-  /* Планшет: транскрипция слева, справа база знаний над контекстом */
-  .panels {
-    display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      'transcript knowledge'
-      'transcript right';
+  .content {
+    padding-bottom: 0;
   }
 }
 
-/* Десктоп: три колонки, транскрипция в центре и шире всех */
+/* Десктоп: слева узкая колонка подсказок (~34%), справа главное окно (~66%) */
 @media (min-width: 1024px) {
-  .panels {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) minmax(280px, 2fr);
-    grid-template-rows: minmax(0, 1fr);
-    grid-template-areas: 'knowledge transcript right';
+  .content {
+    display: grid;
+    grid-template-columns: minmax(0, 34fr) minmax(0, 66fr);
+    grid-template-areas: 'side window';
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .side {
+    grid-area: side;
+    flex: none;
+    min-height: 0;
+  }
+
+  .mainSlot {
+    grid-area: window;
+    flex: none;
   }
 }

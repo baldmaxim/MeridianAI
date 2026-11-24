@@ -1,0 +1,50 @@
+/* Чипы спикеров в полосе над содержимым окна. Цвета — токены. */
+
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  max-width: 220px;
+  padding: 0 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border: 1px solid var(--tag);
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--tag);
+}
+
+.tagSelf { --tag: var(--accent-amber); }
+.tagOpp { --tag: var(--text-secondary); }
+.tagNone { --tag: var(--text-muted); }
+
+.count {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}

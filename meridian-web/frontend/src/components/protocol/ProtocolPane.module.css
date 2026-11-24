@@ -1,0 +1,88 @@
+/* Протокол встречи на всю высоту окна вкладки. Цвета — токены. */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 10px 12px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 3px 10px;
+  border: 1px solid var(--tone);
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--tone);
+}
+
+.toneGreen { --tone: var(--accent-green); }
+.toneRed { --tone: var(--accent-red); }
+.toneAmber { --tone: var(--accent-amber); }
+.toneBlue { --tone: var(--accent-blue); }
+
+.action {
+  min-height: 44px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid var(--border-amber);
+  border-radius: 7px;
+  color: var(--accent-amber);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.error {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--accent-red);
+}
+
+/* Своя прокрутка: протокол занимает всю высоту вкладки */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Рамка markdown — как у протокола в расшифровке записи (BatchJobDetail .protocol) */
+.doc {
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}

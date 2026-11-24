@@ -1,24 +1,21 @@
 import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { TextInput } from '../components/common';
-import { ProtocolSection } from '../components/protocol/ProtocolSection';
 import { LearningCandidates } from '../components/learning/LearningCandidates';
-import { PreviousMeetingsContext } from '../components/context/PreviousMeetingsContext';
 import {
   useMeetingDetail, useUpdateMeetingTitle, useDeleteMeeting, useContinueMeeting,
 } from '../hooks/queries/meetings';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { toPublicSpeakerSide } from '../lib/speakerSides';
 import type { SpeakerRoleOut } from '../types';
+import { cx } from '../utils/cx';
 import { meetingDisplayName } from '../lib/meetingName';
-import { ContextBlock } from './meetingDetail/ContextBlock';
+import { MeetingContextHeader } from './meetingDetail/MeetingContextHeader';
+import { MeetingMainWindow } from './meetingDetail/MeetingMainWindow';
+import type { TMainTab } from './meetingDetail/MeetingMainWindow';
 import { formatDateTime, formatRecorded, formatTime } from './meetingDetail/meetingDetailFormat';
 import { PanelHeader } from './meetingDetail/PanelHeader';
 import { StrengthenCard } from './meetingDetail/StrengthenCard';
-import { SpeakersEditor } from './meetingDetail/SpeakersEditor';
-import { segmentSpeakerKey } from './meetingDetail/speakerList';
 import { SuggestionCard } from './meetingDetail/SuggestionCard';
-import { TranscriptRow } from './meetingDetail/TranscriptRow';
 import styles from './MeetingDetailPage.module.css';
 
 interface IMeetingDetailPageProps {
@@ -29,13 +26,15 @@ interface IMeetingDetailPageProps {
 }
 
 const DESKTOP_QUERY = '(min-width: 769px)';
+const WIDE_QUERY = '(min-width: 1024px)';
 
-type TMobileTab = 'transcript' | 'suggestions' | 'context' | 'knowledge';
+type TPageTab = 'transcript' | 'protocol' | 'suggestions' | 'strengthen' | 'knowledge';
 
-const MOBILE_TABS: ReadonlyArray<{ key: TMobileTab; label: string }> = [
-  { key: 'transcript', label: 'Транскрипция' },
+const PAGE_TABS: ReadonlyArray<{ key: TPageTab; label: string }> = [
+  { key: 'transcript', label: 'Транскрипт' },
+  { key: 'protocol', label: 'Протокол' },
   { key: 'suggestions', label: 'Подсказки' },
-  { key: 'context', label: 'Контекст' },
+  { key: 'strengthen', label: 'Усиления' },
   { key: 'knowledge', label: 'Знания' },
 ];
 
@@ -49,9 +48,10 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
-  const [mobileTab, setMobileTab] = useState<TMobileTab>('transcript');
+  const [tab, setTab] = useState<TPageTab>('transcript');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const isWide = useMediaQuery(WIDE_QUERY);
   const [roles, setRoles] = useState<SpeakerRoleOut[]>([]);
   const [protocolRefresh, setProtocolRefresh] = useState(0);
   const rolesByLabel = useMemo(() => new Map(roles.map((r) => [r.speaker_label, r])), [roles]);
@@ -91,6 +91,8 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
   const suggestions = meeting.suggestions.filter(s => s.source === 'suggestion');
   const strengthens = meeting.suggestions.filter(s => s.source === 'strengthen');
   const recorded = formatRecorded(meeting.recorded_seconds);
+  const mainTab: TMainTab = tab === 'protocol' ? 'protocol' : 'transcript';
+  const mainVisible = tab === 'transcript' || tab === 'protocol';
 
   // «Продолжить» и «Удалить»: на десктопе — в строке названия, на телефоне — в верхней панели
   const actions = (
@@ -153,101 +155,83 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         </div>
       )}
 
-      {/* Этап 5: протокол встречи */}
-      <ProtocolSection meetingId={meetingId} refreshKey={protocolRefresh} />
+      {/* Контекст встречи: чипы, «Подробнее», прошлые встречи */}
+      <MeetingContextHeader meeting={meeting} />
 
-      {/* Имена и стороны спикеров + пересборка протокола */}
-      <SpeakersEditor
-        meetingId={meetingId}
-        segments={meeting.segments}
-        onRolesChange={setRoles}
-        onProtocolRebuild={() => setProtocolRefresh((k) => k + 1)}
-      />
+      {/* Телефон/планшет: вкладки страницы */}
+      {!isWide && (
+        <div className={styles.tabs} role="tablist" aria-label="Разделы встречи">
+          {PAGE_TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cx('t-btn', styles.tab, tab === key && styles.tabActive)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Этап 8: использованные как контекст прошлые встречи */}
-      <PreviousMeetingsContext
-        variant="row"
-        meetingId={meetingId}
-        currentCustomerId={meeting.customer_id}
-        currentObjectId={meeting.object_id}
-      />
-
-      {/* Mobile tabs */}
-      <div className={`detail-mobile-tabs ${styles.mobileTabs}`}>
-        {MOBILE_TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setMobileTab(key)}
-            className={`t-btn ${styles.mobileTab}${mobileTab === key ? ` ${styles.mobileTabActive}` : ''}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Три колонки: база знаний | транскрипция | контекст (планшет — две, телефон — вкладки) */}
-      <div className={`detail-panels ${styles.panels}`}>
-        {/* Этап 7: кандидаты в базу знаний по этой встрече */}
-        <div className={`${mobileTab !== 'knowledge' ? 'detail-hide-mobile ' : ''}${styles.knowledgePanel}`}>
-          <PanelHeader title="База знаний по встрече" />
-          <div className={styles.knowledgeList}>
-            <LearningCandidates meetingId={meetingId} compact />
-          </div>
+      <div className={styles.content}>
+        {/* Главное окно: транскрипт / протокол (остаётся смонтированным при смене вкладки страницы) */}
+        <div className={cx(styles.mainSlot, !isWide && !mainVisible && styles.mainSlotHidden)}>
+          <MeetingMainWindow
+            meetingId={meetingId}
+            segments={meeting.segments}
+            rolesByLabel={rolesByLabel}
+            tab={mainTab}
+            onTabChange={setTab}
+            showSwitch={isWide}
+            protocolRefresh={protocolRefresh}
+            onRolesChange={setRoles}
+            onProtocolRebuild={() => setProtocolRefresh((k) => k + 1)}
+          />
         </div>
 
-        {/* Left: Transcript */}
-        <div className={`detail-left ${mobileTab !== 'transcript' ? 'detail-hide-mobile' : ''} ${styles.leftPanel}`}>
-          <PanelHeader title="Транскрипция" meta={`${meeting.segments.length} сегментов`} />
-          <div className={styles.transcriptList}>
-            {meeting.segments.length === 0 && (
-              <div className={styles.emptyPanel}>Нет данных транскрипции</div>
+        {/* Подсказки, усиления, база знаний: на десктопе стопкой слева, на узких — по вкладке */}
+        {(isWide || !mainVisible) && (
+          <div className={styles.side}>
+            {(isWide || tab === 'suggestions') && (
+              <div className={styles.section}>
+                <PanelHeader title="Подсказки" meta={suggestions.length} />
+                {suggestions.length === 0 ? (
+                  <div className={styles.emptyPanel}>Подсказок нет</div>
+                ) : (
+                  <div className={styles.suggestionList}>
+                    {suggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} />)}
+                  </div>
+                )}
+              </div>
             )}
-            {meeting.segments.map((seg, i) => {
-              const role = rolesByLabel.get(segmentSpeakerKey(seg));
-              return (
-                <TranscriptRow
-                  key={seg.segment_id || i}
-                  segment={seg}
-                  speakerName={role?.display_name}
-                  side={toPublicSpeakerSide(role?.side) || null}
-                />
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Right: Suggestions + Context */}
-        <div className={`detail-right ${mobileTab === 'transcript' || mobileTab === 'knowledge' ? 'detail-hide-mobile' : ''} ${styles.rightPanel}`}>
-          {/* Context section */}
-          <div className={`${mobileTab === 'suggestions' ? 'detail-hide-mobile ' : ''}${styles.section}`}>
-            <PanelHeader title="Контекст" />
-            <ContextBlock meeting={meeting} />
-          </div>
-
-          {/* Suggestions */}
-          {suggestions.length > 0 && (
-            <div className={`${mobileTab === 'context' ? 'detail-hide-mobile ' : ''}${styles.section}`}>
-              <PanelHeader title="Подсказки" meta={suggestions.length} />
-              <div className={styles.suggestionList}>
-                {suggestions.map((s) => (
-                  <SuggestionCard key={s.id} suggestion={s} />
-                ))}
+            {(isWide || tab === 'strengthen') && (
+              <div className={styles.section}>
+                <PanelHeader title="Усиления позиции" meta={strengthens.length} accent="green" />
+                {strengthens.length === 0 ? (
+                  <div className={styles.emptyPanel}>Усилений нет</div>
+                ) : (
+                  <div className={styles.suggestionList}>
+                    {strengthens.map((s) => <StrengthenCard key={s.id} suggestion={s} />)}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Strengthen */}
-          {strengthens.length > 0 && (
-            <div className={`${mobileTab === 'context' ? 'detail-hide-mobile ' : ''}${styles.section}`}>
-              <PanelHeader title="Усиления позиции" meta={strengthens.length} accent="green" />
-              <div className={styles.suggestionList}>
-                {strengthens.map((s) => (
-                  <StrengthenCard key={s.id} suggestion={s} />
-                ))}
+            {/* Этап 7: кандидаты в базу знаний по этой встрече */}
+            {(isWide || tab === 'knowledge') && (
+              <div className={styles.section}>
+                <PanelHeader title="База знаний по встрече" />
+                <div className={styles.knowledgeList}>
+                  <LearningCandidates meetingId={meetingId} compact />
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

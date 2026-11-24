@@ -9,6 +9,7 @@ import { toPublicSpeakerSide } from '../../lib/speakerSides';
 import type { PublicSpeakerSide } from '../../lib/speakerSides';
 import type { SpeakerRoleOut, TranscriptSegmentRecord } from '../../types';
 import { buildSpeakerList, humanSpeakerLabel } from './speakerList';
+import { SpeakerChips } from './SpeakerChips';
 import styles from './SpeakersEditor.module.css';
 
 interface ISpeakersEditorProps {
@@ -30,7 +31,7 @@ const repliesWord = (n: number): string => {
   return 'реплик';
 };
 
-/** Блок «Спикеры» страницы прошедшей встречи: имя и сторона каждого спикера + пересборка протокола. */
+/** Полоса «Спикеры» страницы прошедшей встречи: чипы спикеров; по клику — редактор (имя, сторона) + пересборка протокола. */
 export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
   meetingId, segments, onRolesChange, onProtocolRebuild,
 }) => {
@@ -57,8 +58,6 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
   const roleByLabel = useMemo(() => new Map(roles.map((r) => [r.speaker_label, r])), [roles]);
 
   if (speakers.length === 0) return null;
-
-  const unassigned = speakers.filter((s) => !toPublicSpeakerSide(roleByLabel.get(s.label)?.side)).length;
 
   async function save(label: string, body: Parameters<typeof putSpeakerRole>[2]) {
     setErrors((prev) => ({ ...prev, [label]: '' }));
@@ -96,16 +95,21 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
 
   return (
     <section className={styles.wrap}>
-      <button
-        type="button"
-        className={styles.toggle}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ''}`}>▶</span>
-        <span className={styles.title}>Спикеры · {speakers.length}</span>
-        {unassigned > 0 && <span className={styles.pending}>без стороны: {unassigned}</span>}
-      </button>
+      <div className={styles.strip}>
+        <button
+          type="button"
+          className={styles.toggle}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ''}`}>▶</span>
+          <span className={styles.title}>Спикеры · {speakers.length}</span>
+          <span className={styles.action}>{open ? 'Свернуть' : 'Изменить'}</span>
+        </button>
+        <div className={styles.chips}>
+          <SpeakerChips speakers={speakers} roleByLabel={roleByLabel} onClick={() => setOpen((v) => !v)} />
+        </div>
+      </div>
       <Collapse open={open} className={styles.body}>
         {loadError && <div className={styles.error}>Не удалось загрузить имена и стороны</div>}
         <div className={styles.grid}>

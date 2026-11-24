@@ -6,23 +6,54 @@
   gap: 6px;
   flex-shrink: 0;
   min-width: 0;
+  padding: 0 10px 6px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* Свёрнутая полоса — одна строка: кнопка раскрытия + чипы с горизонтальной прокруткой внутри */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .toggle {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   min-height: 44px;
-  padding: 0 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
   color: var(--text);
   cursor: pointer;
   text-align: left;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+
+.chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.action {
+  display: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--accent-amber);
 }
 
 .chevron {
@@ -42,12 +73,6 @@
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.pending {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: var(--accent-amber);
 }
 
 .body {
@@ -118,6 +143,10 @@
 }
 
 @media (min-width: 768px) {
+  .action {
+    display: inline;
+  }
+
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

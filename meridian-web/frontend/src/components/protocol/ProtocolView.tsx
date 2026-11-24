@@ -11,11 +11,17 @@ const SEVERITY_TONES: Record<string, string> = {
   low: styles.sevLow, medium: styles.sevMedium, high: styles.sevHigh,
 };
 
+interface IProtocolViewProps {
+  p: MeetingProtocol;
+  /** Не показывать секцию markdown (её рисует вызывающий — например, через MarkdownView). */
+  hideMarkdown?: boolean;
+}
+
 /** Read-only просмотр протокола встречи (Этап 5). */
-export function ProtocolView({ p }: { p: MeetingProtocol }) {
+export function ProtocolView({ p, hideMarkdown = false }: IProtocolViewProps) {
   return (
     <div className={styles.root}>
-      {p.protocol_markdown && (
+      {p.protocol_markdown && !hideMarkdown && (
         <section className={styles.card}>
           <div className={styles.label}>ПРОТОКОЛ</div>
           <div className={styles.markdown}>{p.protocol_markdown}</div>

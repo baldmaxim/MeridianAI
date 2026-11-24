@@ -8,7 +8,7 @@ import { formatMoscowDateTime } from '../../lib/datetime';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { useMe } from '../../hooks/queries/auth';
 import { BatchStatusBadge } from './BatchStatusBadge';
-import { MarkdownView } from './MarkdownView';
+import { MarkdownView } from '../protocol/MarkdownView';
 import { BatchToMeetingModal } from './BatchToMeetingModal';
 import { BatchTranscript } from './BatchTranscript';
 import { BatchTabButton } from './BatchTabButton';
