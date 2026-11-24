@@ -58,6 +58,16 @@
   padding: 4px;
 }
 
+/* Меню SearchableSelect в портале (body): fixed, координаты — inline из JS; выше модалки (z-index 1000) */
+.menuPortal {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: 1100;
+  box-sizing: border-box;
+}
+
 .menuSelect {
   max-height: 280px;
 }

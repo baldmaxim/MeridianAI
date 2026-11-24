@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Dropdown } from './Dropdown';
 import { TextInput } from './TextInput';
 import styles from './SelectShared.module.css';
@@ -36,6 +37,20 @@ interface Props {
   ariaLabel?: string;
 }
 
+const MENU_MAX_HEIGHT = 320;
+const MENU_GAP = 4;
+const MENU_MARGIN = 8;
+
+/** Позиция портального меню (position: fixed, координаты вьюпорта). */
+type MenuPos = {
+  left: number;
+  width: number;
+  top?: number;
+  bottom?: number;
+  maxHeight: number;
+  up: boolean;
+};
+
 function optText(o: SearchableOption): string {
   if (o.search != null) return o.search;
   return typeof o.label === 'string' ? o.label : '';
@@ -50,6 +65,8 @@ export function SearchableSelect({
   const [query, setQuery] = useState('');
   const btnRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<MenuPos | null>(null);
 
   const selected = useMemo(() => options.find((o) => o.value === value), [options, value]);
 
@@ -58,6 +75,41 @@ export function SearchableSelect({
     if (!q) return options;
     return options.filter((o) => optText(o).toLowerCase().includes(q));
   }, [options, query]);
+
+  // Меню рендерится порталом в body (иначе его режет overflow/transform модалки) —
+  // координаты считаем от обёртки; вниз, а при нехватке места и большем просторе сверху — вверх.
+  const updatePos = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const below = vh - r.bottom - MENU_GAP;
+    const above = r.top - MENU_GAP;
+    const up = below < MENU_MAX_HEIGHT && above > below;
+    const next: MenuPos = up
+      ? { left: r.left, width: r.width, bottom: vh - r.top + MENU_GAP,
+          maxHeight: Math.max(0, Math.min(MENU_MAX_HEIGHT, above - MENU_MARGIN)), up }
+      : { left: r.left, width: r.width, top: r.bottom + MENU_GAP,
+          maxHeight: Math.max(0, Math.min(MENU_MAX_HEIGHT, below - MENU_MARGIN)), up };
+    setPos((p) => (p && p.left === next.left && p.width === next.width && p.top === next.top
+      && p.bottom === next.bottom && p.maxHeight === next.maxHeight && p.up === next.up ? p : next));
+  }, []);
+
+  // Пока меню открыто — следим за resize/scroll (capture: ловим и прокрутку модалки) и visualViewport.
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    vv?.addEventListener('resize', updatePos);
+    vv?.addEventListener('scroll', updatePos);
+    return () => {
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
+      vv?.removeEventListener('resize', updatePos);
+      vv?.removeEventListener('scroll', updatePos);
+    };
+  }, [open, updatePos]);
 
   // При открытии — фокус в поле поиска, активна выбранная (или первая) опция.
   useEffect(() => {
@@ -70,7 +122,7 @@ export function SearchableSelect({
   }, [open]);
 
   function close() { setOpen(false); setQuery(''); setActive(-1); btnRef.current?.focus(); }
-  function openMenu() { if (!disabled) setOpen(true); }
+  function openMenu() { if (disabled) return; updatePos(); setOpen(true); }
   function pick(opt: SearchableOption) {
     if (opt.disabled) return;
     onChange(opt.value);
@@ -95,7 +147,7 @@ export function SearchableSelect({
   }
 
   return (
-    <div className={`${styles.wrap} ${className}`.trim()} style={wrapperStyle}>
+    <div ref={wrapRef} className={`${styles.wrap} ${className}`.trim()} style={wrapperStyle}>
       <button
         ref={btnRef}
         type="button"
@@ -119,7 +171,14 @@ export function SearchableSelect({
         </span>
       </button>
 
-      <Dropdown open={open} onClose={close} origin="top-left" className={`${styles.menu} ${styles.menuSearchable}`}>
+      {createPortal(
+      <Dropdown
+        open={open}
+        onClose={close}
+        origin={pos?.up ? 'bottom-left' : 'top-left'}
+        className={`${styles.menu} ${styles.menuSearchable} ${styles.menuPortal}`}
+        style={pos ? { left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight } : undefined}
+      >
         <TextInput
           ref={searchRef}
           type="text"
@@ -153,7 +212,9 @@ export function SearchableSelect({
             );
           })}
         </div>
-      </Dropdown>
+      </Dropdown>,
+      document.body,
+      )}
     </div>
   );
 }
