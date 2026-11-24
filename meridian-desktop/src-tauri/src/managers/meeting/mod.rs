@@ -79,11 +79,11 @@ pub use db::{CaptureMode, MeetingDb, MeetingInfo, MeetingStatus, Note, Segment};
 pub use db_documents::{DocumentRow, QueuedDocument, DOC_ERROR, DOC_PENDING};
 pub use db_transcriptions::{
     StoredTranscript, TranscriptSegment, TranscriptionDetail, TranscriptionItem, TranscriptionRow,
-    TR_ERROR, TR_QUEUED,
+    TR_ERROR, TR_PROCESSING, TR_QUEUED,
 };
 pub use db_voices::MeetingVoice;
 pub use documents::AddDocumentsResult;
-pub use live_types::{MeetingLive, MeetingPartial};
+pub use live_types::{LiveParticipant, MeetingLive, MeetingParticipants, MeetingPartial};
 use session::{Session, Slot};
 pub use storage::export_channel_wav;
 pub use transcriptions::{audio_mime, delete_local_copy, TranscriptionsChanged};

@@ -60,9 +60,22 @@ pub(super) enum ServerEvent {
         segment_id: String,
         side: String,
     },
+    /// Who is connected to the room now (one entry per connection).
+    Participants(Vec<RoomParticipant>),
     Pong,
     /// Anything else the room sends.
     Other,
+}
+
+/// One connection (device) in the room.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct RoomParticipant {
+    pub(super) connection_id: String,
+    pub(super) user_id: Option<i64>,
+    pub(super) device_role: String,
+    pub(super) device_label: Option<String>,
+    pub(super) user_label: Option<String>,
+    pub(super) is_active_audio_source: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,6 +107,21 @@ fn seconds_of(value: &Value, key: &str) -> f64 {
         .and_then(Value::as_f64)
         .filter(|s| s.is_finite())
         .unwrap_or(0.0)
+}
+
+/// One entry of `room_participants`; `None` for a broken one (no connection id).
+fn participant_of(value: &Value) -> Option<RoomParticipant> {
+    Some(RoomParticipant {
+        connection_id: text_of(value, "connection_id")?,
+        user_id: value.get("user_id").and_then(Value::as_i64),
+        device_role: text_of(value, "device_role").unwrap_or_else(|| "participant".to_string()),
+        device_label: text_of(value, "device_label"),
+        user_label: text_of(value, "user_label"),
+        is_active_audio_source: value
+            .get("is_active_audio_source")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    })
 }
 
 /// Reads a text frame. `None`: not JSON or no `type` (ignored by the caller).
@@ -172,6 +200,12 @@ pub(super) fn parse_server_message(raw: &str) -> Option<ServerEvent> {
                 ServerEvent::SideHint { segment_id, side }
             }
             _ => ServerEvent::Other,
+        },
+        "room_participants" => match value.get("participants").and_then(Value::as_array) {
+            Some(items) => {
+                ServerEvent::Participants(items.iter().filter_map(participant_of).collect())
+            }
+            None => ServerEvent::Other,
         },
         "pong" => ServerEvent::Pong,
         _ => ServerEvent::Other,
@@ -389,10 +423,56 @@ mod tests {
         );
         assert_eq!(
             parse_server_message(r#"{"type":"room_participants","participants":[]}"#),
+            Some(ServerEvent::Participants(vec![]))
+        );
+        // Without the list there is nothing to show.
+        assert_eq!(
+            parse_server_message(r#"{"type":"room_participants"}"#),
             Some(ServerEvent::Other)
         );
         assert_eq!(parse_server_message("not json"), None);
         assert_eq!(parse_server_message(r#"{"no":"type"}"#), None);
+    }
+
+    #[test]
+    fn room_participants_are_read_and_broken_ones_skipped() {
+        let raw = r#"{"type":"room_participants","meeting_id":3,"active_audio_source":"c1",
+            "participants":[
+              {"connection_id":"c1","user_id":7,"device_role":"desktop","device_label":"Windows · App",
+               "user_label":"Иван","can_send_audio":true,"is_active_audio_source":true,"is_helper":false},
+              {"connection_id":"c2","user_id":null,"device_role":"phone","device_label":null,"user_label":null},
+              {"user_id":8,"device_role":"desktop"},
+              {"connection_id":"  ","device_role":"desktop"},
+              "junk",
+              42,
+              {"connection_id":"c3","user_id":"x","device_role":5}
+            ]}"#;
+        let Some(ServerEvent::Participants(list)) = parse_server_message(raw) else {
+            panic!("not a participants event");
+        };
+        assert_eq!(list.len(), 3);
+        assert_eq!(
+            list[0],
+            RoomParticipant {
+                connection_id: "c1".to_string(),
+                user_id: Some(7),
+                device_role: "desktop".to_string(),
+                device_label: Some("Windows · App".to_string()),
+                user_label: Some("Иван".to_string()),
+                is_active_audio_source: true,
+            }
+        );
+        assert_eq!(list[1].user_id, None);
+        assert_eq!(list[1].device_label, None);
+        assert!(!list[1].is_active_audio_source);
+        // Wrong types fall back to the defaults instead of dropping the entry.
+        assert_eq!(list[2].user_id, None);
+        assert_eq!(list[2].device_role, "participant");
+        // The list itself of the wrong type: nothing to show.
+        assert_eq!(
+            parse_server_message(r#"{"type":"room_participants","participants":"x"}"#),
+            Some(ServerEvent::Other)
+        );
     }
 
     #[test]

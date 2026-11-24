@@ -45,6 +45,28 @@ pub struct MeetingPartial {
     pub text: String,
 }
 
+/// One device in the meeting's room.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
+pub struct LiveParticipant {
+    pub connection_id: String,
+    pub user_id: Option<i64>,
+    /// `desktop`, `phone`, `secondary`, `observer`, `viewer`, ...
+    pub device_role: String,
+    pub device_label: Option<String>,
+    pub user_label: Option<String>,
+    /// This device sends the sound of the meeting.
+    pub is_active_audio_source: bool,
+    /// This very connection of the app.
+    pub is_self: bool,
+}
+
+/// Who is connected to the meeting's room now (the whole list, every time).
+#[derive(Clone, Debug, Serialize, Type, Event)]
+pub struct MeetingParticipants {
+    pub meeting_id: String,
+    pub participants: Vec<LiveParticipant>,
+}
+
 /// What happened to the link.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LinkEvent {

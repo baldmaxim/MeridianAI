@@ -829,6 +829,7 @@ accountChanged: AccountChanged,
 meetingLevels: MeetingLevels,
 meetingLive: MeetingLive,
 meetingPartial: MeetingPartial,
+meetingParticipants: MeetingParticipants,
 meetingSegment: MeetingSegment,
 meetingSegmentRemoved: MeetingSegmentRemoved,
 meetingState: MeetingState,
@@ -841,6 +842,7 @@ accountChanged: "account-changed",
 meetingLevels: "meeting-levels",
 meetingLive: "meeting-live",
 meetingPartial: "meeting-partial",
+meetingParticipants: "meeting-participants",
 meetingSegment: "meeting-segment",
 meetingSegmentRemoved: "meeting-segment-removed",
 meetingState: "meeting-state",
@@ -1003,6 +1005,22 @@ offline: boolean; signed_in: boolean }
  */
 export type LibrarySource = "desktop" | "web"
 /**
+ * One device in the meeting's room.
+ */
+export type LiveParticipant = { connection_id: string; user_id: number | null; 
+/**
+ * `desktop`, `phone`, `secondary`, `observer`, `viewer`, ...
+ */
+device_role: string; device_label: string | null; user_label: string | null; 
+/**
+ * This device sends the sound of the meeting.
+ */
+is_active_audio_source: boolean; 
+/**
+ * This very connection of the app.
+ */
+is_self: boolean }
+/**
  * How the live text of the meeting is doing.
  */
 export type LiveState = 
@@ -1089,6 +1107,10 @@ export type MeetingLive = { meeting_id: string; status: LiveStatus }
  * The phrase the server is hearing right now (not final; empty: gone).
  */
 export type MeetingPartial = { meeting_id: string; text: string }
+/**
+ * Who is connected to the meeting's room now (the whole list, every time).
+ */
+export type MeetingParticipants = { meeting_id: string; participants: LiveParticipant[] }
 /**
  * A recognized phrase, as it is stored.
  */

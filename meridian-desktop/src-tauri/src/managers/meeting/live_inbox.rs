@@ -8,9 +8,12 @@ use log::warn;
 use tauri_specta::Event;
 
 use super::db_live::ServerSegment;
-use super::live_proto::{channel_for_hint, channel_for_side, Committed, ServerEvent};
+use super::live_proto::{
+    channel_for_hint, channel_for_side, Committed, RoomParticipant, ServerEvent,
+};
 use super::live_stream::LiveContext;
-use super::{now_iso, MeetingPartial, MeetingSegment, Segment};
+use super::live_types::LiveParticipant;
+use super::{now_iso, MeetingPartial, MeetingParticipants, MeetingSegment, Segment};
 
 /// Side hints that came before their phrase are kept this many.
 const MAX_PENDING_SIDES: usize = 64;
@@ -37,6 +40,8 @@ pub(super) struct Inbox<'a> {
     offset: f64,
     /// The side of a phrase the server named before the phrase itself arrived.
     pending_sides: Mutex<HashMap<String, &'static str>>,
+    /// Our connection's id in the room (from `room_joined`).
+    self_id: Mutex<Option<String>>,
 }
 
 impl<'a> Inbox<'a> {
@@ -45,6 +50,7 @@ impl<'a> Inbox<'a> {
             ctx,
             offset,
             pending_sides: Mutex::new(HashMap::new()),
+            self_id: Mutex::new(None),
         }
     }
 
@@ -57,6 +63,32 @@ impl<'a> Inbox<'a> {
         let _ = MeetingPartial {
             meeting_id: self.ctx.meeting.id.clone(),
             text,
+        }
+        .emit(&self.ctx.app);
+    }
+
+    /// Who is in the room now; marks our own connection.
+    fn participants(&self, list: Vec<RoomParticipant>) {
+        let me = self
+            .self_id
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let participants = list
+            .into_iter()
+            .map(|p| LiveParticipant {
+                is_self: me.as_deref() == Some(p.connection_id.as_str()),
+                connection_id: p.connection_id,
+                user_id: p.user_id,
+                device_role: p.device_role,
+                device_label: p.device_label,
+                user_label: p.user_label,
+                is_active_audio_source: p.is_active_audio_source,
+            })
+            .collect();
+        let _ = MeetingParticipants {
+            meeting_id: self.ctx.meeting.id.clone(),
+            participants,
         }
         .emit(&self.ctx.app);
     }
@@ -154,7 +186,12 @@ impl<'a> Inbox<'a> {
                     source,
                 }
             }
-            ServerEvent::Joined { connection_id } => return Handled::Joined(connection_id),
+            ServerEvent::Joined { connection_id } => {
+                *self.self_id.lock().unwrap_or_else(|e| e.into_inner()) =
+                    Some(connection_id.clone());
+                return Handled::Joined(connection_id);
+            }
+            ServerEvent::Participants(list) => self.participants(list),
             ServerEvent::Error { message } => warn!("Live server error: {message}"),
             ServerEvent::Pong | ServerEvent::Other => {}
         }

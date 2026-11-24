@@ -15,6 +15,7 @@ import { ChangeProjectDialog } from "./ChangeProjectDialog";
 import { DateTimeChips } from "./DateTimeChips";
 import { LevelMeters } from "./LevelMeters";
 import { LiveStatusChip } from "./LiveStatusChip";
+import { LiveParticipantsBadge } from "./LiveParticipantsBadge";
 import { MeetingDuration } from "./MeetingDuration";
 import { MeetingStatusBadge } from "./MeetingStatusBadge";
 import { MeetingSyncActions } from "./MeetingSyncActions";
@@ -145,6 +146,7 @@ export const LocalMeetingHeader: React.FC<LocalMeetingHeaderProps> = ({
           )}
           <AudioStateNote audioState={meeting.audio_state} />
           {isActive && <LiveStatusChip />}
+          {isActive && <LiveParticipantsBadge />}
           {isActive && <LevelMeters captureMode={meeting.capture_mode} />}
           {isActive && queueLen > 0 && (
             <span className="text-xs text-muted">

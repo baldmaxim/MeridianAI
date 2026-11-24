@@ -68,6 +68,11 @@ export const useMeetingEvents = (
       ),
     );
     track(
+      events.meetingParticipants.listen((e) =>
+        store.applyParticipants(e.payload.meeting_id, e.payload.participants),
+      ),
+    );
+    track(
       events.meetingState.listen((e) => {
         store.applyState(e.payload);
         if (e.payload.kind === "recognition_error") {

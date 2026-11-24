@@ -3,6 +3,7 @@ import {
   commands,
   type MeetingDetails,
   type MeetingInfo,
+  type LiveParticipant,
   type LiveStatus,
   type MeetingLevels,
   type MeetingState,
@@ -55,6 +56,8 @@ interface MeetingStore {
   live: LiveStatus;
   /** The phrase the server is hearing now (not final); empty: none. */
   partial: string;
+  /** Devices in the room of the recording meeting (only while online). */
+  participants: LiveParticipant[];
 
   loadList: () => Promise<void>;
   syncActive: () => Promise<void>;
@@ -93,6 +96,10 @@ interface MeetingStore {
   applySystemSilent: (meetingId: string, silent: boolean) => void;
   applyLive: (meetingId: string, status: LiveStatus) => void;
   applyPartial: (meetingId: string, text: string) => void;
+  applyParticipants: (
+    meetingId: string,
+    participants: LiveParticipant[],
+  ) => void;
 }
 
 const upsertMeeting = (
@@ -125,6 +132,7 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
       silentMeetingId: null,
       live: NO_LIVE,
       partial: "",
+      participants: [],
     });
     void get().loadList();
     if (get().openId === id) void get().openMeeting(id);
@@ -154,6 +162,7 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
     silentMeetingId: null,
     live: NO_LIVE,
     partial: "",
+    participants: [],
 
     loadList: async () => {
       const result = await commands.listMeetings();
@@ -181,6 +190,7 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
           silentMeetingId: null,
           live: NO_LIVE,
           partial: "",
+          participants: [],
         });
         return;
       }
@@ -509,11 +519,21 @@ export const useMeetingStore = create<MeetingStore>()((set, get) => {
       ),
 
     applyLive: (meetingId, status) => {
-      if (get().active?.id === meetingId) set({ live: status });
+      if (get().active?.id !== meetingId) return;
+      // Without the link the list of devices is not known any more.
+      set(
+        status.state === "online"
+          ? { live: status }
+          : { live: status, participants: [] },
+      );
     },
 
     applyPartial: (meetingId, text) => {
       if (get().active?.id === meetingId) set({ partial: text });
+    },
+
+    applyParticipants: (meetingId, participants) => {
+      if (get().active?.id === meetingId) set({ participants });
     },
 
     applySystemSilent: (meetingId, silent) =>

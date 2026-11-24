@@ -679,6 +679,7 @@ pub(crate) fn specta_builder() -> Builder<tauri::Wry> {
             managers::meeting::MeetingLevels,
             managers::meeting::MeetingLive,
             managers::meeting::MeetingPartial,
+            managers::meeting::MeetingParticipants,
             managers::meeting::MeetingState,
             managers::sync::SyncState,
             managers::sync::AccountChanged,

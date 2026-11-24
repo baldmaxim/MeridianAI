@@ -520,6 +520,18 @@
       "recorder": "Dictaphone (no connection)",
       "recorderHint": "No connection: recording like a dictaphone, the text will appear after the stop"
     },
+    "participants": {
+      "badge": "In the room: {{count}}",
+      "title": "In the room",
+      "guest": "Guest",
+      "self": "this device",
+      "recording": "records the sound",
+      "device": {
+        "app": "PC app",
+        "phone": "Phone",
+        "browser": "Browser"
+      }
+    },
     "notes": {
       "title": "Notes",
       "placeholder": "Note…",
