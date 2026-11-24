@@ -2,8 +2,17 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ChevronLeft, Database, ExternalLink, Loader2, Play } from "lucide-react";
+import {
+  ChevronLeft,
+  Database,
+  ExternalLink,
+  Loader2,
+  Play,
+} from "lucide-react";
+import { commands } from "@/bindings";
 import { Button } from "@/components/ui/Button";
+import { AudioPlayerBar } from "@/components/shared/AudioPlayerBar";
+import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { useAskChat } from "@/hooks/useAskChat";
 import { useMeetingSources } from "@/hooks/useMeetingSources";
 import { useRefineView } from "@/hooks/useRefineView";
@@ -41,6 +50,10 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
     serverMeetingId,
     "",
   );
+  // One player for the protocol and the transcript; its link is asked for once
+  // per meeting (not on every reload of the view).
+  const player = useAudioPlayer(serverMeetingId, commands.meetingAudioUrl);
+  const onTimecode = player.url ? player.seek : undefined;
   const chat = useAskChat(serverMeetingId);
   const sources = useMeetingSources({ meetingId: null, serverMeetingId });
   const [tab, setTab] = useState<PanelTab>("transcript");
@@ -197,6 +210,8 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
         </div>
       </div>
 
+      <AudioPlayerBar player={player} />
+
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
           <MainViewSwitch
@@ -222,6 +237,8 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
                 error={null}
                 onReload={reload}
                 className="px-2"
+                structured={view}
+                onTimecode={onTimecode}
               />
             </section>
           </div>
@@ -234,7 +251,7 @@ export const ServerMeetingScreen: React.FC<ServerMeetingScreenProps> = ({
         </div>
         <SidePanel tabs={tabs} active={tab} onChange={setTab}>
           {tab === "transcript" && (
-            <ServerTranscriptPane segments={view.segments} />
+            <ServerTranscriptPane segments={view.segments} player={player} />
           )}
           {tab === "context" && (
             <ServerContextTab

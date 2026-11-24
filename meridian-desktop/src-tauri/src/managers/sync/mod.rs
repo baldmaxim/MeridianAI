@@ -270,7 +270,15 @@ impl SyncCore {
                 || self.db.has_active_transcriptions().unwrap_or_else(|e| {
                     warn!("Cannot read the queue of transcriptions: {e:#}");
                     false
-                }));
+                })
+                || self
+                    .db
+                    .transcriptions_without_protocol()
+                    .map(|rows| !rows.is_empty())
+                    .unwrap_or_else(|e| {
+                        warn!("Cannot read the files without a protocol: {e:#}");
+                        false
+                    }));
         let queue_due = meetings.iter().any(|m| self.due(&m.id));
         if !queue_due
             && !documents_waiting

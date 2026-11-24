@@ -151,6 +151,13 @@ impl Engine<'_> {
                     }
                 }
             }
+            if report.stopped_by.is_none() {
+                match self.backfill_protocols(changed).await {
+                    Ok(()) => {}
+                    Err(ApiError::Unauthorized) => return Err(ApiError::Unauthorized),
+                    Err(error) => report.stopped_by = Some(error),
+                }
+            }
             for row in self.db.transcriptions_processing().map_err(db_error)? {
                 match self.poll_transcription(&row).await {
                     Ok(()) => {
@@ -222,6 +229,33 @@ impl Engine<'_> {
                 .map_err(db_error)?;
         }
         if added {
+            changed();
+        }
+        Ok(())
+    }
+
+    /// Finished files of an older version have no protocol yet: asked for once.
+    /// An answer (even an empty one or a refusal) settles the row; a lost
+    /// connection leaves it for the next pass.
+    async fn backfill_protocols(&self, changed: &(dyn Fn() + Sync)) -> Result<(), ApiError> {
+        for (id, job_id) in self
+            .db
+            .transcriptions_without_protocol()
+            .map_err(db_error)?
+        {
+            let protocol = match self.client.get_transcription(job_id).await {
+                Ok(job) => job.protocol_markdown.unwrap_or_default(),
+                Err(error @ (ApiError::Unauthorized | ApiError::Retry { .. })) => {
+                    return Err(error)
+                }
+                Err(error) => {
+                    warn!("No protocol of the job {job_id}: {error}");
+                    String::new()
+                }
+            };
+            self.db
+                .set_transcription_protocol(&id, &protocol)
+                .map_err(db_error)?;
             changed();
         }
         Ok(())
@@ -300,7 +334,13 @@ impl Engine<'_> {
         match job.status.as_str() {
             "done" => self
                 .db
-                .finish_transcription(id, &job.status, &stored_transcript(job)),
+                .finish_transcription(id, &job.status, &stored_transcript(job))
+                .and_then(|()| {
+                    self.db.set_transcription_protocol(
+                        id,
+                        job.protocol_markdown.as_deref().unwrap_or_default(),
+                    )
+                }),
             "error" => {
                 let message = job
                     .error_message

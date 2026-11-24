@@ -22,7 +22,10 @@ fn db(app: &AppHandle) -> Arc<MeetingDb> {
 /// The client of the signed-in account; `None` when nobody is signed in.
 pub(super) fn client(app: &AppHandle) -> Option<ApiClient> {
     let account = app.state::<Arc<AccountStore>>().get()?;
-    Some(ApiClient::new(&account.server_url, Some(&account.device_token)))
+    Some(ApiClient::new(
+        &account.server_url,
+        Some(&account.device_token),
+    ))
 }
 
 /// The server does not accept this device any more: sign out, like the sync does.
@@ -121,6 +124,23 @@ pub async fn meeting_set_offer_submission(
         .set_offer_submission(server_meeting_id, offer_submission.as_deref())
         .await
         .map_err(|e| failure(&app, e))
+}
+
+/// The link to the recording of a site meeting. `None`: no audio (404, an old
+/// server, no account or no connection). The link is a secret: it is neither
+/// stored nor logged.
+#[tauri::command]
+#[specta::specta]
+pub async fn meeting_audio_url(app: AppHandle, meeting_id: i64) -> Result<Option<String>, String> {
+    let Some(client) = client(&app) else {
+        return Ok(None);
+    };
+    match client.get_meeting_audio_url(meeting_id).await {
+        Ok(url) => Ok(url),
+        Err(ApiError::Retry { .. }) => Ok(None),
+        Err(ApiError::Unauthorized) => Err(failure(&app, ApiError::Unauthorized)),
+        Err(_) => Ok(None),
+    }
 }
 
 /// Full-text search over local and server meetings; fewer than 2 characters

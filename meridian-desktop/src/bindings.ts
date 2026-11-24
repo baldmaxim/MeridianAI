@@ -524,6 +524,19 @@ async meetingViewGet(serverMeetingId: number) : Promise<Result<MeetingViewResult
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * The link to the recording of a site meeting. `None`: no audio (404, an old
+ * server, no account or no connection). The link is a secret: it is neither
+ * stored nor logged.
+ */
+async meetingAudioUrl(meetingId: number) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_audio_url", { meetingId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async meetingAsk(serverMeetingId: number, question: string, mode: AskMode) : Promise<Result<AskAnswer, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("meeting_ask", { serverMeetingId, question, mode }) };
@@ -637,6 +650,19 @@ async transcriptionsList() : Promise<Result<TranscriptionItem[], string>> {
 async transcriptionGet(id: string) : Promise<Result<TranscriptionDetail, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("transcription_get", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The link to the recording of a file (its job on the server). `None`: no
+ * audio (404, an old server, the file has no job yet, no account or no
+ * connection). The link is a secret: it is neither stored nor logged.
+ */
+async transcriptionAudioUrl(id: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("transcription_audio_url", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1175,7 +1201,12 @@ negotiation_type?: string | null; key_terms?: string | null; opponent_weaknesses
  * The submission of offers the meeting talks about (`None`: all documents
  * of the object) and its name. Absent in views cached by older versions.
  */
-offer_submission?: string | null; offer_submission_label?: string | null; segments: ViewSegment[]; documents: ViewDocument[] }
+offer_submission?: string | null; offer_submission_label?: string | null; segments: ViewSegment[]; documents: ViewDocument[]; 
+/**
+ * The structured protocol. Absent from an old server and from views cached
+ * by older versions: empty lists.
+ */
+decisions?: ProtocolDecision[]; action_items?: ProtocolActionItem[]; risks?: ProtocolRisk[]; open_questions?: ProtocolQuestion[] }
 /**
  * A meeting of the site; `from_cache`: the server was not reached.
  */
@@ -1243,6 +1274,26 @@ export type PermissionAccess = "allowed" | "denied" | "unknown"
  */
 export type ProjectCustomer = { id: number; name: string; objects: ProjectObject[] }
 export type ProjectObject = { id: number; name: string; address: string | null }
+export type ProtocolActionItem = { task: string; owner_text?: string | null; due_text?: string | null; status?: string | null; evidence?: ProtocolEvidence[] }
+export type ProtocolDecision = { text: string; 
+/**
+ * `accepted`, `preliminary`, `rejected`, `postponed`, `unclear`.
+ */
+status?: string | null; evidence?: ProtocolEvidence[] }
+/**
+ * A quote of the protocol's evidence: where in the meeting and who said what.
+ */
+export type ProtocolEvidence = { 
+/**
+ * `MM:SS` or `H:MM:SS`.
+ */
+timecode?: string | null; speaker?: string | null; quote?: string | null }
+export type ProtocolQuestion = { text: string; evidence?: ProtocolEvidence[] }
+export type ProtocolRisk = { text: string; 
+/**
+ * `low`, `medium`, `high`.
+ */
+severity?: string | null; evidence?: ProtocolEvidence[] }
 /**
  * A file that has not reached the server, as the UI shows it.
  */
@@ -1393,7 +1444,11 @@ export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
  * One phrase of the transcript.
  */
 export type TranscriptSegment = { speaker: string; start: number; end: number; text: string }
-export type TranscriptionDetail = { item: TranscriptionItem; text: string; segments: TranscriptSegment[] }
+export type TranscriptionDetail = { item: TranscriptionItem; text: string; segments: TranscriptSegment[]; 
+/**
+ * The protocol of the job; `None`: there is none (yet).
+ */
+protocol_markdown: string | null }
 /**
  * A file of the list, without the (big) transcript.
  */

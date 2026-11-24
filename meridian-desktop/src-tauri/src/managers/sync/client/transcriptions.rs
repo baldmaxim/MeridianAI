@@ -43,6 +43,9 @@ pub struct ServerTranscription {
     pub transcription_text: Option<String>,
     #[serde(default)]
     pub segments: Option<Vec<ServerSegment>>,
+    /// The protocol of the job (markdown), once it is made.
+    #[serde(default)]
+    pub protocol_markdown: Option<String>,
 }
 
 /// A job of the list of the user's files (any device, the site): no transcript.
@@ -87,5 +90,14 @@ impl ApiClient {
     pub async fn get_transcription(&self, job_id: i64) -> Result<ServerTranscription, ApiError> {
         let url = self.url(&format!("transcriptions/{job_id}"));
         send_json(self.authorized(self.http.get(url))).await
+    }
+
+    /// The link to the recording of a file's job.
+    pub async fn get_transcription_audio_url(
+        &self,
+        job_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        self.get_audio_url(&format!("transcriptions/{job_id}/audio"))
+            .await
     }
 }

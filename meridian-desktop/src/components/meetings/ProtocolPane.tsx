@@ -3,6 +3,11 @@ import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { MarkdownBody } from "./MarkdownBody";
+import {
+  hasStructuredProtocol,
+  ProtocolStructured,
+  type IProtocolStructuredData,
+} from "./ProtocolStructured";
 
 interface ProtocolPaneProps {
   markdown: string | null;
@@ -12,6 +17,10 @@ interface ProtocolPaneProps {
   error: string | null;
   onReload: () => void;
   className?: string;
+  /** Decisions, tasks, risks and questions: shown under the markdown. */
+  structured?: IProtocolStructuredData;
+  /** Given: the times in the protocol jump the recording. */
+  onTimecode?: (seconds: number) => void;
 }
 
 const STATUS_KEYS: Record<string, string> = {
@@ -32,15 +41,26 @@ export const ProtocolPane: React.FC<ProtocolPaneProps> = ({
   error,
   onReload,
   className = "",
+  structured,
+  onTimecode,
 }) => {
   const { t } = useTranslation();
 
-  if (markdown && markdown.trim()) {
+  const hasMarkdown = !!markdown && !!markdown.trim();
+  const hasStructured = hasStructuredProtocol(structured);
+  if (hasMarkdown || hasStructured) {
     return (
       <div
         className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 ${className}`}
       >
-        <MarkdownBody markdown={markdown} />
+        {hasMarkdown && markdown && (
+          <MarkdownBody markdown={markdown} onTimecode={onTimecode} />
+        )}
+        {hasStructured && structured && (
+          <div className={hasMarkdown ? "mt-4" : ""}>
+            <ProtocolStructured data={structured} onTimecode={onTimecode} />
+          </div>
+        )}
       </div>
     );
   }

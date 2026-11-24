@@ -244,16 +244,25 @@ async fn ask_sends_the_anticipate_mode() {
 
 #[tokio::test]
 async fn ask_needs_a_connection() {
-    let offline = meeting_ask(Some(&dead_client().await), 7, "Что решили?", AskMode::Answer)
-        .await
-        .unwrap_err();
+    let offline = meeting_ask(
+        Some(&dead_client().await),
+        7,
+        "Что решили?",
+        AskMode::Answer,
+    )
+    .await
+    .unwrap_err();
     assert_eq!(
         offline.to_string(),
         "Спросить можно только при подключении к сети"
     );
-    assert!(meeting_ask(None, 7, "Что решили?", AskMode::Answer).await.is_err());
+    assert!(meeting_ask(None, 7, "Что решили?", AskMode::Answer)
+        .await
+        .is_err());
     let mock = start_mock(server).await;
-    assert!(meeting_ask(Some(&client(&mock)), 7, "   ", AskMode::Answer).await.is_err());
+    assert!(meeting_ask(Some(&client(&mock)), 7, "   ", AskMode::Answer)
+        .await
+        .is_err());
     assert_eq!(mock.count(), 0);
 
     let refused = start_mock(|_| err(401, "x")).await;
@@ -328,7 +337,7 @@ fn old_database_is_upgraded_in_place() {
         .conn()
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 13);
+    assert_eq!(version, 14);
 
     // The old meeting enters the index once.
     assert!(db.search_meetings("фундамент", None).unwrap().is_empty());
@@ -407,4 +416,44 @@ fn view_reads_the_refine_fields_with_and_without_them() {
     let view: super::types::MeetingView = serde_json::from_value(json).unwrap();
     assert_eq!(view.item.refine_status.as_deref(), Some("done"));
     assert!(view.item.refine_error.is_none());
+}
+
+#[test]
+fn the_structured_protocol_is_read_and_may_be_missing() {
+    use super::types::MeetingView;
+    let base = serde_json::to_value(super::test_support::view(
+        item(1, "Встреча", None),
+        "# П",
+        &[],
+    ))
+    .unwrap();
+
+    // An old server or cache: no lists, or `null`.
+    let mut old = base.clone();
+    for key in ["decisions", "action_items", "risks", "open_questions"] {
+        old.as_object_mut().unwrap().remove(key);
+    }
+    let view: MeetingView = serde_json::from_value(old.clone()).unwrap();
+    assert!(view.decisions.is_empty() && view.risks.is_empty());
+    old["decisions"] = serde_json::Value::Null;
+    assert!(serde_json::from_value::<MeetingView>(old)
+        .unwrap()
+        .decisions
+        .is_empty());
+
+    let mut full = base;
+    full["decisions"] = serde_json::json!([{
+        "id": 1, "created_at": "2026-11-24T10:00:00", "text": "Берём", "status": "accepted",
+        "evidence": [{"timecode": "01:02:03", "speaker": "Спикер 1", "quote": "берём"}]
+    }]);
+    full["action_items"] = serde_json::json!([{
+        "id": 2, "task": "Прислать КП", "owner_text": "Иван", "due_text": null, "status": "open"
+    }]);
+    let view: MeetingView = serde_json::from_value(full).unwrap();
+    assert_eq!(
+        view.decisions[0].evidence[0].timecode.as_deref(),
+        Some("01:02:03")
+    );
+    assert_eq!(view.action_items[0].owner_text.as_deref(), Some("Иван"));
+    assert!(view.action_items[0].evidence.is_empty());
 }

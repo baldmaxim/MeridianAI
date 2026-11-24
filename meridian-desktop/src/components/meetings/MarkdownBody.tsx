@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { TimecodeText } from "./TimecodeText";
 
 const isWebUrl = (href: string | undefined): href is string =>
   !!href && /^https?:\/\//i.test(href);
@@ -90,19 +91,65 @@ const COMPONENTS: Components = {
   ),
 };
 
+/** The elements whose text may hold a time (not code, not links). */
+const TIMECODE_TAGS = [
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "p",
+  "li",
+  "strong",
+  "em",
+  "td",
+  "th",
+] as const;
+
+/** `COMPONENTS` where the times in the text of the elements are buttons. */
+const withTimecodes = (onTimecode: (seconds: number) => void): Components => {
+  const result: Record<string, React.ElementType> = { ...COMPONENTS };
+  for (const tag of TIMECODE_TAGS) {
+    const Base: React.ElementType = COMPONENTS[tag] ?? tag;
+    const Wrapped: React.FC<{ children?: React.ReactNode }> = ({
+      children,
+    }) => (
+      <Base>
+        {React.Children.map(children, (child) =>
+          typeof child === "string" ? (
+            <TimecodeText text={child} onTimecode={onTimecode} />
+          ) : (
+            child
+          ),
+        )}
+      </Base>
+    );
+    result[tag] = Wrapped;
+  }
+  return result as Components;
+};
+
 interface MarkdownBodyProps {
   markdown: string;
   className?: string;
+  /** Given: the times in the text ("[12:34]", "00:12:34") jump the recording. */
+  onTimecode?: (seconds: number) => void;
 }
 
 /** Markdown from the server (protocol, assistant answers), safely rendered. */
 export const MarkdownBody: React.FC<MarkdownBodyProps> = ({
   markdown,
   className = "",
-}) => (
-  <div className={`select-text ${className}`}>
-    <Markdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
-      {markdown}
-    </Markdown>
-  </div>
-);
+  onTimecode,
+}) => {
+  const components = useMemo(
+    () => (onTimecode ? withTimecodes(onTimecode) : COMPONENTS),
+    [onTimecode],
+  );
+  return (
+    <div className={`select-text ${className}`}>
+      <Markdown remarkPlugins={[remarkGfm]} components={components}>
+        {markdown}
+      </Markdown>
+    </div>
+  );
+};

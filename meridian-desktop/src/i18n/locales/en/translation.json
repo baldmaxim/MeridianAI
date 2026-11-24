@@ -649,12 +649,32 @@
         "error": "Could not prepare the protocol",
         "disabled": "The protocol is turned off for this meeting",
         "empty": "The protocol is empty"
+      },
+      "structured": {
+        "decisions": "Decisions",
+        "tasks": "Tasks",
+        "risks": "Risks",
+        "questions": "Open questions",
+        "owner": "Owner",
+        "due": "Due",
+        "notSet": "not set",
+        "decisionStatus": {
+          "accepted": "accepted",
+          "preliminary": "preliminary",
+          "rejected": "rejected",
+          "postponed": "postponed",
+          "unclear": "unclear"
+        },
+        "severity": {
+          "low": "low",
+          "medium": "medium",
+          "high": "high"
+        }
       }
     },
     "ask": {
       "needSync": "Available after the meeting is sent",
       "placeholder": "Ask about the meeting…",
-      "send": "Send question",
       "placeholderAnticipate": "A question the Customer may ask…",
       "modeLabel": "Question mode",
       "mode": {
@@ -670,6 +690,7 @@
         "excluded": "What is not included in the offer?"
       },
       "emptyAnticipate": "Enter a question the Customer may ask or pick one — you get a short answer ready to say aloud.",
+      "send": "Send question",
       "empty": "Ask a question — the answer comes from the protocol, the transcript and the documents.",
       "thinking": "Thinking…",
       "failed": "Could not get an answer",
@@ -746,6 +767,10 @@
       }
     }
   },
+  "audioPlayer": {
+    "label": "Recording",
+    "seekTo": "Jump to {{time}}"
+  },
   "transcriptions": {
     "title": "Transcription",
     "pick": "Choose files",
@@ -764,6 +789,10 @@
     "copied": "Text copied",
     "copyFailed": "Could not copy the text",
     "emptyTranscript": "No speech found in the recording",
+    "tabsLabel": "What to show",
+    "tabProtocol": "Protocol",
+    "tabTranscript": "Transcript",
+    "protocolEmpty": "The protocol is not ready yet",
     "status": {
       "queued": "Queued",
       "uploading": "Uploading",

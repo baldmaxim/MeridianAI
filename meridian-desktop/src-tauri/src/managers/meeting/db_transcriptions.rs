@@ -87,6 +87,8 @@ pub struct TranscriptionDetail {
     pub item: TranscriptionItem,
     pub text: String,
     pub segments: Vec<TranscriptSegment>,
+    /// The protocol of the job; `None`: there is none (yet).
+    pub protocol_markdown: Option<String>,
 }
 
 const ITEM_COLUMNS: &str =
@@ -167,10 +169,10 @@ impl MeetingDb {
         let Some(item) = self.get_transcription_item(id)? else {
             return Ok(None);
         };
-        let json: Option<String> = self.conn().query_row(
-            "SELECT transcript_json FROM transcription_queue WHERE id = ?1",
+        let (json, protocol): (Option<String>, Option<String>) = self.conn().query_row(
+            "SELECT transcript_json, protocol_markdown FROM transcription_queue WHERE id = ?1",
             [id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         let stored: StoredTranscript = match json {
             Some(json) => serde_json::from_str(&json).context("Broken stored transcript")?,
@@ -180,7 +182,45 @@ impl MeetingDb {
             item,
             text: stored.text,
             segments: stored.segments,
+            protocol_markdown: protocol.filter(|p| !p.trim().is_empty()),
         }))
+    }
+
+    /// The server's job of a row (for the audio of the file); `None`: no such
+    /// row, or the file has no job yet.
+    pub fn transcription_server_job_id(&self, id: &str) -> Result<Option<i64>> {
+        Ok(self
+            .conn()
+            .query_row(
+                "SELECT server_job_id FROM transcription_queue WHERE id = ?1 AND hidden = 0",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten())
+    }
+
+    /// Keeps the protocol the server gave for the job (an empty string: none).
+    pub fn set_transcription_protocol(&self, id: &str, protocol: &str) -> Result<()> {
+        self.conn().execute(
+            "UPDATE transcription_queue SET protocol_markdown = ?2 WHERE id = ?1",
+            params![id, protocol],
+        )?;
+        Ok(())
+    }
+
+    /// Finished rows whose protocol was never asked for (made before the column
+    /// came): the row's id and its job, oldest first.
+    pub fn transcriptions_without_protocol(&self) -> Result<Vec<(String, i64)>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, server_job_id FROM transcription_queue
+             WHERE status = 'done' AND protocol_markdown IS NULL
+               AND server_job_id IS NOT NULL AND hidden = 0
+             ORDER BY created_at, rowid",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     /// Rows waiting for an upload, oldest first.
@@ -385,7 +425,8 @@ impl MeetingDb {
         if server_job_id.is_some() {
             conn.execute(
                 "UPDATE transcription_queue
-                 SET hidden = 1, transcript_json = NULL, local_path = '', updated_at = ?2
+                 SET hidden = 1, transcript_json = NULL, protocol_markdown = NULL,
+                     local_path = '', updated_at = ?2
                  WHERE id = ?1",
                 params![id, now()],
             )?;

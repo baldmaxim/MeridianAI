@@ -203,6 +203,10 @@ pub(super) static MIGRATIONS: &[M] = &[
     // A file of the server's list removed here (see `db_transcriptions.rs`): the row
     // stays hidden, without the transcript, so the next pull does not bring it back.
     M::up("ALTER TABLE transcription_queue ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;"),
+    // The protocol of a file's job (markdown) as the server gave it. `NULL`: not
+    // asked for yet (a finished row of an older version is asked once); an empty
+    // string: the server has none.
+    M::up("ALTER TABLE transcription_queue ADD COLUMN protocol_markdown TEXT;"),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one

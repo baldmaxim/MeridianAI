@@ -2,8 +2,17 @@
 //! `/meetings/{id}/view`, `/meetings/{id}/ask`). They are read from the
 //! server's JSON, stored as JSON in the offline cache and handed to the UI.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
+
+/// A list the server may leave out or send as `null`: an empty one then.
+fn list_or_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Option::<Vec<T>>::deserialize(deserializer)?.unwrap_or_default())
+}
 
 /// Where the meeting came from: any link with this app, or the site itself.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -60,6 +69,58 @@ pub struct ViewDocument {
     pub page_count: Option<i64>,
 }
 
+/// A quote of the protocol's evidence: where in the meeting and who said what.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct ProtocolEvidence {
+    /// `MM:SS` or `H:MM:SS`.
+    #[serde(default)]
+    pub timecode: Option<String>,
+    #[serde(default)]
+    pub speaker: Option<String>,
+    #[serde(default)]
+    pub quote: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct ProtocolDecision {
+    pub text: String,
+    /// `accepted`, `preliminary`, `rejected`, `postponed`, `unclear`.
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub evidence: Vec<ProtocolEvidence>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct ProtocolActionItem {
+    pub task: String,
+    #[serde(default)]
+    pub owner_text: Option<String>,
+    #[serde(default)]
+    pub due_text: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub evidence: Vec<ProtocolEvidence>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct ProtocolRisk {
+    pub text: String,
+    /// `low`, `medium`, `high`.
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub evidence: Vec<ProtocolEvidence>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+pub struct ProtocolQuestion {
+    pub text: String,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub evidence: Vec<ProtocolEvidence>,
+}
+
 /// A meeting of the site as a whole: the item, the protocol, the phrases, the documents.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
 pub struct MeetingView {
@@ -84,6 +145,16 @@ pub struct MeetingView {
     pub offer_submission_label: Option<String>,
     pub segments: Vec<ViewSegment>,
     pub documents: Vec<ViewDocument>,
+    /// The structured protocol. Absent from an old server and from views cached
+    /// by older versions: empty lists.
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub decisions: Vec<ProtocolDecision>,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub action_items: Vec<ProtocolActionItem>,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub risks: Vec<ProtocolRisk>,
+    #[serde(default, deserialize_with = "list_or_empty")]
+    pub open_questions: Vec<ProtocolQuestion>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]

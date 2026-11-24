@@ -109,5 +109,9 @@ pub fn view(item: LibraryItem, protocol: &str, texts: &[&str]) -> MeetingView {
             })
             .collect(),
         documents: Vec::new(),
+        decisions: Vec::new(),
+        action_items: Vec::new(),
+        risks: Vec::new(),
+        open_questions: Vec::new(),
     }
 }

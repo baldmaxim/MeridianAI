@@ -334,3 +334,143 @@ async fn files_of_the_site_and_other_pcs_are_pulled_into_the_list() {
         .lines()
         .contains(&"GET /api/desktop/transcriptions/81".to_string()));
 }
+
+/// A finished row as an older version left it: no protocol asked for.
+fn old_done_row(fx: &Fixture, id: &str, job_id: i64) {
+    fx.db
+        .insert_transcription(id, "a.mp3", "", 11, TR_QUEUED, None)
+        .unwrap();
+    fx.db.claim_transcription(id).unwrap();
+    fx.db
+        .mark_transcription_confirmed(id, job_id, "uploaded")
+        .unwrap();
+    fx.db
+        .finish_transcription(
+            id,
+            "done",
+            &crate::managers::meeting::StoredTranscript::default(),
+        )
+        .unwrap();
+}
+
+#[tokio::test]
+async fn the_protocol_of_a_done_job_reaches_the_detail() {
+    let server = start_mock(
+        |r: &Req| match format!("{} {}", r.method, r.path).as_str() {
+            GET => ok(r##"{"id":77,"status":"done","transcription_text":"Привет",
+                    "protocol_markdown":"# Протокол\n- [00:12] решили"}"##),
+            _ => err(404, "нет"),
+        },
+    )
+    .await;
+    let fx = fixture(&server.url);
+    let (_dir, _path, id) = queue_file(&fx);
+    fx.db.claim_transcription(&id).unwrap();
+    fx.db
+        .mark_transcription_confirmed(&id, 77, "uploaded")
+        .unwrap();
+
+    fx.core.run_pass(false).await;
+
+    let detail = fx.db.get_transcription_detail(&id).unwrap().unwrap();
+    assert_eq!(detail.item.status, TR_DONE);
+    assert_eq!(
+        detail.protocol_markdown.as_deref(),
+        Some("# Протокол\n- [00:12] решили")
+    );
+    // The protocol came with the job: nothing is asked again.
+    assert!(fx.db.transcriptions_without_protocol().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_done_row_without_a_protocol_is_asked_once() {
+    let server = start_mock(
+        |r: &Req| match format!("{} {}", r.method, r.path).as_str() {
+            LIST => ok("[]"),
+            GET => ok(r##"{"id":77,"status":"done","protocol_markdown":"# П"}"##),
+            _ => err(404, "нет"),
+        },
+    )
+    .await;
+    let fx = fixture(&server.url);
+    old_done_row(&fx, "old", 77);
+    assert_eq!(fx.db.transcriptions_without_protocol().unwrap().len(), 1);
+
+    fx.core.run_pass(false).await;
+    assert_eq!(server.lines(), [LIST, GET]);
+    let detail = fx.db.get_transcription_detail("old").unwrap().unwrap();
+    assert_eq!(detail.protocol_markdown.as_deref(), Some("# П"));
+    // The transcript and the status stay as they were.
+    assert_eq!(detail.item.status, TR_DONE);
+
+    // Once: the next pass with the list due again asks for the list only.
+    fx.core.inner().last_pull = None;
+    fx.core.run_pass(false).await;
+    assert_eq!(server.lines(), [LIST, GET, LIST]);
+}
+
+#[tokio::test]
+async fn a_null_protocol_is_kept_as_empty_and_not_asked_again() {
+    let server = start_mock(
+        |r: &Req| match format!("{} {}", r.method, r.path).as_str() {
+            LIST => ok("[]"),
+            GET => ok(r#"{"id":77,"status":"done","protocol_markdown":null}"#),
+            _ => err(404, "нет"),
+        },
+    )
+    .await;
+    let fx = fixture(&server.url);
+    old_done_row(&fx, "old", 77);
+
+    fx.core.run_pass(false).await;
+    assert_eq!(server.lines(), [LIST, GET]);
+    let detail = fx.db.get_transcription_detail("old").unwrap().unwrap();
+    assert_eq!(detail.protocol_markdown, None);
+    assert!(fx.db.transcriptions_without_protocol().unwrap().is_empty());
+
+    fx.core.inner().last_pull = None;
+    fx.core.run_pass(false).await;
+    assert_eq!(server.lines(), [LIST, GET, LIST]);
+}
+
+#[tokio::test]
+async fn a_refused_backfill_is_not_repeated() {
+    let server = start_mock(
+        |r: &Req| match format!("{} {}", r.method, r.path).as_str() {
+            LIST => ok("[]"),
+            _ => err(404, "нет"),
+        },
+    )
+    .await;
+    let fx = fixture(&server.url);
+    old_done_row(&fx, "old", 77);
+
+    fx.core.run_pass(false).await;
+    assert!(fx.db.transcriptions_without_protocol().unwrap().is_empty());
+    assert_eq!(server.lines(), [LIST, GET]);
+}
+
+#[tokio::test]
+async fn hidden_rows_are_not_backfilled() {
+    let server = start_mock(|_: &Req| err(404, "нет")).await;
+    let fx = fixture(&server.url);
+    old_done_row(&fx, "old", 77);
+    fx.db.remove_transcription("old").unwrap();
+    assert!(fx.db.transcriptions_without_protocol().unwrap().is_empty());
+
+    fx.core.run_pass(false).await;
+    assert!(!server.lines().contains(&GET.to_string()));
+}
+
+#[tokio::test]
+async fn without_a_connection_the_backfill_stays_for_later() {
+    // A port nobody listens on.
+    let fx = fixture("http://127.0.0.1:9");
+    old_done_row(&fx, "old", 77);
+
+    fx.core.run_pass(false).await;
+
+    assert_eq!(fx.db.transcriptions_without_protocol().unwrap().len(), 1);
+    let detail = fx.db.get_transcription_detail("old").unwrap().unwrap();
+    assert_eq!(detail.protocol_markdown, None);
+}

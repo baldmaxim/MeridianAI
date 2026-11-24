@@ -1,7 +1,7 @@
 //! The library calls of `/api/desktop`: all meetings of the user, the projects,
 //! one meeting for viewing, and "ask about a meeting".
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{send, send_json, ApiClient, ApiError};
 use crate::managers::library::types::{
@@ -14,7 +14,30 @@ struct AskBody<'a> {
     mode: AskMode,
 }
 
+/// The answer of an audio request. The URL is a secret (a signed link): it is
+/// never logged or stored, so the type has no `Debug`.
+#[derive(Deserialize)]
+struct AudioLink {
+    url: String,
+}
+
 impl ApiClient {
+    /// The link to the recording behind `path` (`meetings/{id}/audio`, ...);
+    /// `None`: the server has no audio (404, or an old server without the call).
+    pub(super) async fn get_audio_url(&self, path: &str) -> Result<Option<String>, ApiError> {
+        match send_json::<AudioLink>(self.authorized(self.http.get(self.url(path)))).await {
+            Ok(link) => Ok(Some(link.url).filter(|url| !url.trim().is_empty())),
+            Err(ApiError::Rejected { status: 404, .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The link to the recording of a meeting.
+    pub async fn get_meeting_audio_url(&self, meeting_id: i64) -> Result<Option<String>, ApiError> {
+        self.get_audio_url(&format!("meetings/{meeting_id}/audio"))
+            .await
+    }
+
     /// The newest `limit` meetings of the site.
     pub async fn get_library(&self, limit: u32) -> Result<Vec<LibraryItem>, ApiError> {
         let request = self
