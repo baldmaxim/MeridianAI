@@ -172,6 +172,16 @@
   margin-top: 4px;
 }
 
+.topic {
+  margin: 0;
+  flex-shrink: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .section {
   background: var(--bg-card);
   border: 1px solid var(--border-default);

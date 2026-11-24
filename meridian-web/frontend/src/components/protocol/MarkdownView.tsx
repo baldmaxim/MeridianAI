@@ -2,6 +2,7 @@ import styles from './MarkdownView.module.css';
 import { cx } from '../../utils/cx';
 import { parseInline, parseMarkdown, splitTimecodes } from '../../lib/protocolMarkdown';
 import type { MdInline } from '../../lib/protocolMarkdown';
+import { parseHighlighted } from './protocolHighlight';
 
 interface IRenderCtx {
   onTimecode?: (seconds: number) => void;
@@ -48,14 +49,28 @@ function renderNodes(nodes: MdInline[], ctx: IRenderCtx): React.ReactNode {
   });
 }
 
+interface IMarkdownViewProps {
+  md: string;
+  onTimecode?: (seconds: number) => void;
+  /** Выделять числа, суммы, %, сроки и даты во всём тексте, а не только в «Кратком резюме» (протокол встречи). */
+  highlight?: boolean;
+}
+
 /**
  * Лёгкий рендер Markdown протокола: заголовки, списки, таблицы, жирный, абзацы.
  * onTimecode — если задан, таймкоды во всём протоколе кликабельны (перемотка плеера).
  */
-export function MarkdownView({ md, onTimecode }: { md: string; onTimecode?: (seconds: number) => void }) {
-  /** Инлайн-разметка: **жирный** и `код`; в «Кратком резюме» (summary) — ещё маркер чисел и чип таймкода. */
-  const inline = (text: string, summary = false): React.ReactNode =>
-    renderNodes(parseInline(text, { highlight: summary, timecodes: !!onTimecode }), { onTimecode, summary });
+export function MarkdownView({ md, onTimecode, highlight = false }: IMarkdownViewProps) {
+  /**
+   * Инлайн-разметка: **жирный** и `код`; в «Кратком резюме» (summary) — ещё маркер чисел и чип таймкода.
+   * accent при highlight — то же выделение вне резюме (абзацы, списки, ячейки таблиц; заголовки таблиц и разделов — без).
+   */
+  const inline = (text: string, summary = false, accent = false): React.ReactNode => {
+    const nodes = highlight && accent
+      ? parseHighlighted(text, { timecodes: !!onTimecode })
+      : parseInline(text, { highlight: summary, timecodes: !!onTimecode });
+    return renderNodes(nodes, { onTimecode, summary });
+  };
 
   const blocks = parseMarkdown(md).map((b, key) => {
     switch (b.type) {
@@ -68,7 +83,7 @@ export function MarkdownView({ md, onTimecode }: { md: string; onTimecode?: (sec
               </thead>
               <tbody>
                 {b.rows.map((r, ri) => (
-                  <tr key={ri}>{r.map((c, ci) => <td key={ci} className={styles.td}>{inline(c)}</td>)}</tr>
+                  <tr key={ri}>{r.map((c, ci) => <td key={ci} className={styles.td}>{inline(c, false, true)}</td>)}</tr>
                 ))}
               </tbody>
             </table>
@@ -79,17 +94,17 @@ export function MarkdownView({ md, onTimecode }: { md: string; onTimecode?: (sec
       case 'ul':
         return (
           <ul key={key} className={styles.ul}>
-            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it, b.summary)}</li>)}
+            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it, b.summary, true)}</li>)}
           </ul>
         );
       case 'ol':
         return (
           <ol key={key} start={b.start} className={styles.ul}>
-            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it, b.summary)}</li>)}
+            {b.items.map((it, ii) => <li key={ii} className={styles.li}>{inline(it, b.summary, true)}</li>)}
           </ol>
         );
       case 'p':
-        return <p key={key} className={styles.p}>{inline(b.text, b.summary)}</p>;
+        return <p key={key} className={styles.p}>{inline(b.text, b.summary, true)}</p>;
     }
   });
 

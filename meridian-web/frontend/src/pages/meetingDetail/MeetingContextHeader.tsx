@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { FC } from 'react';
 import { Collapse } from '../../components/common';
-import { PreviousMeetingsContext } from '../../components/context/PreviousMeetingsContext';
 import type { MeetingDetail } from '../../types';
 import { ClampedText } from './ClampedText';
 import { ContextBlock } from './ContextBlock';
@@ -17,7 +16,7 @@ interface IChip {
   value: string;
 }
 
-/** Контекст встречи в шапке: чипы, длинные заметки в две строки, «Подробнее» (полный контекст с документами), прошлые встречи. */
+/** Контекст встречи в шапке: чипы, длинные заметки в две строки, «Подробнее» (полный контекст с документами). Тема — в шапке страницы, прошлые встречи — в левой колонке. */
 export const MeetingContextHeader: FC<IMeetingContextHeaderProps> = ({ meeting }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -25,7 +24,6 @@ export const MeetingContextHeader: FC<IMeetingContextHeaderProps> = ({ meeting }
   const chips: IChip[] = [
     { label: 'Заказчик', value: meeting.customer_name ?? '' },
     { label: 'Объект', value: meeting.object_name ?? '' },
-    { label: 'Тема', value: meeting.meeting_topic ?? '' },
     {
       label: 'Тип',
       value: meeting.negotiation_type ? (NEGOTIATION_TYPE_LABELS[meeting.negotiation_type] || meeting.negotiation_type) : '',
@@ -35,7 +33,7 @@ export const MeetingContextHeader: FC<IMeetingContextHeaderProps> = ({ meeting }
   ].filter((c) => c.value);
 
   const hasDetails = !!(
-    meeting.meeting_topic || meeting.negotiation_type || meeting.meeting_role
+    meeting.negotiation_type || meeting.meeting_role
     || meeting.meeting_notes || meeting.opponent_weaknesses || docsCount > 0
   );
 
@@ -66,12 +64,6 @@ export const MeetingContextHeader: FC<IMeetingContextHeaderProps> = ({ meeting }
       <Collapse open={detailsOpen} className={styles.details}>
         <ContextBlock meeting={meeting} />
       </Collapse>
-      <PreviousMeetingsContext
-        variant="row"
-        meetingId={meeting.id}
-        currentCustomerId={meeting.customer_id}
-        currentObjectId={meeting.object_id}
-      />
     </div>
   );
 };

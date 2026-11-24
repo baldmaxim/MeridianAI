@@ -71,6 +71,44 @@ describe('MeetingMainWindow', () => {
     expect(pages(container).dataset.page).toBe('1');
   });
 
+  it('тумблер: подложка и клик по второй половине открывают протокол', () => {
+    const { container } = render(<Harness segments={[seg('1', 'Speaker_speaker_0', 'Добрый день')]} />);
+    const sw = screen.getByRole('tablist', { name: 'Содержимое встречи' });
+    expect(sw.dataset.tab).toBe('transcript');
+    expect(screen.getByRole('tab', { name: 'Транскрипт' }).getAttribute('tabindex')).toBe('0');
+    fireEvent.click(screen.getByRole('tab', { name: 'Протокол' }));
+    expect(sw.dataset.tab).toBe('protocol');
+    expect(pages(container).dataset.page).toBe('2');
+    fireEvent.keyDown(sw, { key: 'ArrowLeft' });
+    expect(pages(container).dataset.page).toBe('1');
+  });
+
+  it('свайп пальцем: влево — протокол, вправо — транскрипт; мышь и вертикаль игнорируются', () => {
+    const { container } = render(<Harness segments={[seg('1', 'Speaker_speaker_0', 'Добрый день')]} />);
+    const area = pages(container);
+    const swipe = (type: string, from: [number, number], to: [number, number]) => {
+      fireEvent.pointerDown(area, { pointerId: 1, pointerType: type, clientX: from[0], clientY: from[1] });
+      fireEvent.pointerUp(area, { pointerId: 1, pointerType: type, clientX: to[0], clientY: to[1] });
+    };
+
+    swipe('mouse', [200, 100], [50, 100]);
+    expect(area.dataset.page).toBe('1');
+    swipe('touch', [200, 100], [180, 100]);
+    expect(area.dataset.page).toBe('1');
+    swipe('touch', [200, 100], [120, 220]);
+    expect(area.dataset.page).toBe('1');
+
+    swipe('touch', [200, 100], [120, 110]);
+    expect(area.dataset.page).toBe('2');
+    swipe('touch', [100, 100], [200, 105]);
+    expect(area.dataset.page).toBe('1');
+
+    fireEvent.pointerDown(area, { pointerId: 1, pointerType: 'touch', clientX: 200, clientY: 100 });
+    fireEvent.pointerCancel(area, { pointerId: 1, pointerType: 'touch' });
+    fireEvent.pointerUp(area, { pointerId: 1, pointerType: 'touch', clientX: 50, clientY: 100 });
+    expect(area.dataset.page).toBe('1');
+  });
+
   it('без транскрипта: «Нет данных транскрипции», полоса спикеров скрыта', async () => {
     render(<Harness segments={[]} />);
     expect(screen.getByText('Нет данных транскрипции')).toBeTruthy();

@@ -1,4 +1,4 @@
-/* Главное окно встречи: сегмент вкладок, полоса спикеров, страницы со слайдом. Цвета — токены. */
+/* Главное окно встречи: тумблер вкладок (MainTabSwitch), полоса спикеров, страницы со слайдом. Цвета — токены. */
 
 .window {
   flex: 1;
@@ -21,36 +21,6 @@
   border-bottom: 1px solid var(--border-default);
 }
 
-.switch {
-  display: flex;
-  gap: 4px;
-  flex: 1;
-  max-width: 360px;
-}
-
-.switchBtn {
-  flex: 1;
-  min-height: 44px;
-  padding: 0 12px;
-  background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 500;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.switchBtnActive {
-  background: var(--accent-amber-glow);
-  border-color: var(--accent-amber);
-  color: var(--accent-amber);
-  font-weight: 600;
-}
-
 .meta {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
@@ -62,6 +32,8 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  /* вертикаль — браузеру, горизонтальный свайп переключает вкладки (useHorizontalSwipe) */
+  touch-action: pan-y;
 }
 
 .page {

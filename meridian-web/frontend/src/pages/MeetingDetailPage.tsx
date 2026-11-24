@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { TextInput } from '../components/common';
+import { PreviousMeetingsContext } from '../components/context/PreviousMeetingsContext';
 import { LearningCandidates } from '../components/learning/LearningCandidates';
 import {
   useMeetingDetail, useUpdateMeetingTitle, useDeleteMeeting, useContinueMeeting,
@@ -146,6 +147,9 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         {isDesktop && <div className={styles.titleActions}>{actions}</div>}
       </div>
 
+      {/* Тема встречи — целиком, отдельной строкой под названием */}
+      {meeting.meeting_topic && <p className={styles.topic}>{meeting.meeting_topic}</p>}
+
       {/* Delete confirm — под строкой названия */}
       {confirmDelete && (
         <div className={styles.confirmBar}>
@@ -155,7 +159,7 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         </div>
       )}
 
-      {/* Контекст встречи: чипы, «Подробнее», прошлые встречи */}
+      {/* Контекст встречи: чипы, заметки, «Подробнее» */}
       <MeetingContextHeader meeting={meeting} />
 
       {/* Телефон/планшет: вкладки страницы */}
@@ -195,6 +199,16 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         {/* Подсказки, усиления, база знаний: на десктопе стопкой слева, на узких — по вкладке */}
         {(isWide || !mainVisible) && (
           <div className={styles.side}>
+            {/* Прошлые встречи как контекст — вверху левой колонки, окно справа не сдвигается */}
+            {(isWide || tab === 'suggestions') && (
+              <PreviousMeetingsContext
+                variant="row"
+                meetingId={meeting.id}
+                currentCustomerId={meeting.customer_id}
+                currentObjectId={meeting.object_id}
+              />
+            )}
+
             {(isWide || tab === 'suggestions') && (
               <div className={styles.section}>
                 <PanelHeader title="Подсказки" meta={suggestions.length} />

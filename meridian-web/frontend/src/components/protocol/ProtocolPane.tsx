@@ -70,7 +70,7 @@ export const ProtocolPane: FC<IProtocolPaneProps> = ({ meetingId, refreshKey = 0
         {hasContent && protocol ? (
           <>
             {protocol.protocol_markdown && (
-              <div className={styles.doc}><MarkdownView md={protocol.protocol_markdown} /></div>
+              <div className={styles.doc}><MarkdownView md={protocol.protocol_markdown} highlight /></div>
             )}
             <ProtocolView p={protocol} hideMarkdown />
           </>
