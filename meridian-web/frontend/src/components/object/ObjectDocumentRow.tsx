@@ -6,6 +6,7 @@ import { formatFileSize } from '../../lib/documentFiles';
 import { getDocumentDisplayName } from '../../lib/documentName';
 import type { DocumentRecord } from '../../types';
 import { cx } from '../../utils/cx';
+import { DocumentPreviewButton } from '../documentPreview/DocumentPreviewButton';
 import styles from './ObjectDocuments.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,6 +61,13 @@ export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayNam
         </div>
         {error && <div className={styles.rowError}>{error}</div>}
       </div>
+      <DocumentPreviewButton
+        documentId={doc.id}
+        name={displayName ?? getDocumentDisplayName(doc)}
+        fileExt={doc.file_ext}
+        fileSize={doc.file_size}
+        status={doc.status}
+      />
       <button
         type="button"
         className={cx('t-btn', styles.downloadBtn)}

@@ -66,6 +66,15 @@ export const pwaOptions: Partial<VitePWAOptions> = {
   },
   workbox: {
     globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
+    // Ассеты pdf.js (cmaps/шрифты/wasm) — сотни файлов, грузятся по требованию; в precache не нужны
+    // Тяжёлые чанки предпросмотра документов (~2.4 МБ) грузятся только при открытии файла
+    globIgnores: [
+      'pdfjs/**',
+      'assets/pdf-*.js',
+      'assets/pdf.worker.min-*.js',
+      'assets/xlsx-*.js',
+      'assets/docx-preview-*.js',
+    ],
     cleanupOutdatedCaches: true,
     navigateFallback: '/index.html',
     navigateFallbackDenylist: [

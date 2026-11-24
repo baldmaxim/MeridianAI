@@ -1,0 +1,22 @@
+.host {
+  /* серая подложка под «листами» Word; сами листы docx-preview рисует белыми */
+  background: var(--bg-secondary);
+  min-height: 100%;
+}
+
+.zoomBox {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* docx-preview: обёртка с отступами по умолчанию 30px — уплотняем под телефон */
+.zoomBox :global(.docx-wrapper) {
+  padding: 8px 0;
+  background: transparent;
+}
+
+@media (min-width: 768px) {
+  .zoomBox :global(.docx-wrapper) {
+    padding: 16px 0;
+  }
+}

@@ -1,5 +1,6 @@
 import { useState, type FC } from 'react';
 import { patchMeetingDocument } from '../../api/meetingDocuments';
+import { DocumentPreviewButton } from '../../components/documentPreview/DocumentPreviewButton';
 import { formatMetaLine, getDocTypeText, groupBySource, isDocPending } from '../../components/context/sourcesModel';
 import { apiErrorMessage } from '../../lib/apiError';
 import { getDocumentDisplayName } from '../../lib/documentName';
@@ -46,23 +47,32 @@ export const MobileDocumentsCard: FC<IMobileDocumentsCardProps> = ({ meetingId, 
               .filter(Boolean)
               .join(' · ');
             return (
-              <label key={d.document_id} className={styles.row}>
-                <input
-                  type="checkbox"
-                  className={styles.checkbox}
-                  checked={d.included}
-                  onChange={() => { void toggle(d); }}
-                  aria-label={`В контексте: ${getDocumentDisplayName(d)}`}
+              <div key={d.document_id} className={styles.rowWrap}>
+                <label className={styles.row}>
+                  <input
+                    type="checkbox"
+                    className={styles.checkbox}
+                    checked={d.included}
+                    onChange={() => { void toggle(d); }}
+                    aria-label={`В контексте: ${getDocumentDisplayName(d)}`}
+                  />
+                  <span className={styles.main}>
+                    <span className={styles.name} title={d.original_name}>{getDocumentDisplayName(d)}</span>
+                    {details && <span className={styles.details}>{details}</span>}
+                    {tags && <span className={styles.tags}>{tags}</span>}
+                  </span>
+                  <span className={styles.state}>
+                    {d.status === 'ready' ? `${d.chunks_count} фр.` : d.status}
+                  </span>
+                </label>
+                {/* кнопка — рядом с label, а не внутри: тап по ней не должен переключать галочку */}
+                <DocumentPreviewButton
+                  documentId={d.document_id}
+                  name={getDocumentDisplayName(d)}
+                  fileExt={d.file_ext}
+                  status={d.status}
                 />
-                <span className={styles.main}>
-                  <span className={styles.name} title={d.original_name}>{getDocumentDisplayName(d)}</span>
-                  {details && <span className={styles.details}>{details}</span>}
-                  {tags && <span className={styles.tags}>{tags}</span>}
-                </span>
-                <span className={styles.state}>
-                  {d.status === 'ready' ? `${d.chunks_count} фр.` : d.status}
-                </span>
-              </label>
+              </div>
             );
           })}
         </div>

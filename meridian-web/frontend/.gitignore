@@ -1,0 +1,2 @@
+# Ассеты pdf.js копируются скриптом scripts/copy-pdfjs-assets.mjs (predev/prebuild)
+public/pdfjs/

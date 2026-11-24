@@ -27,3 +27,33 @@
   flex-direction: column;
   gap: 14px;
 }
+
+/* Широкий режим (предпросмотр документов): мобильный — весь экран */
+.overlayWide {
+  padding: 0;
+  align-items: stretch;
+}
+
+.modalWide {
+  max-height: none;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden; /* скроллится тело внутри, а не диалог */
+}
+
+@media (min-width: 768px) {
+  .overlayWide {
+    padding: 2dvh 2vw;
+    align-items: center;
+  }
+
+  .modalWide {
+    width: min(1100px, 96vw);
+    height: 90dvh;
+    border: 1px solid var(--border-default);
+    border-radius: 14px;
+  }
+}

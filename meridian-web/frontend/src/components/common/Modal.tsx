@@ -21,9 +21,14 @@ interface Props {
   maxWidth?: number;
   /** Закрытие по клику на backdrop (по умолчанию включено). */
   closeOnBackdrop?: boolean;
+  /**
+   * Широкий режим для просмотра документов: <768px — на весь экран (100dvh, safe-area),
+   * ≥768px — min(1100px, 96vw) × 90dvh. Без внутренних отступов: содержимое задаёт шапку и тело само.
+   */
+  wide?: boolean;
 }
 
-export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop = true }: Props) {
+export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop = true, wide = false }: Props) {
   const m = useOpenClose(open, { closeVar: '--modal-close-dur', fallbackMs: 150 });
 
   useEffect(() => {
@@ -36,12 +41,15 @@ export function Modal({ open, onClose, children, maxWidth = 460, closeOnBackdrop
   if (!m.mounted) return null;
 
   return createPortal(
-    <div className={styles.overlay} onClick={closeOnBackdrop ? onClose : undefined}>
+    <div
+      className={`${styles.overlay} ${wide ? styles.overlayWide : ''}`.trim()}
+      onClick={closeOnBackdrop ? onClose : undefined}
+    >
       <div
-        className={`t-modal ${m.cls} ${styles.modal}`.trim()}
+        className={`t-modal ${m.cls} ${styles.modal} ${wide ? styles.modalWide : ''}`.trim()}
         role="dialog"
         aria-modal="true"
-        style={{ maxWidth }}
+        style={wide ? undefined : { maxWidth }}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 import type { MeetingDocument } from '../../types';
 import { Icon } from '../common/Icon';
+import { DocumentPreviewButton } from '../documentPreview/DocumentPreviewButton';
 import { DocumentIcon } from './DocumentIcon';
 import { getDocumentDisplayName } from '../../lib/documentName';
 import {
@@ -79,6 +80,12 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
         )}
         {note && <div className={`${styles.note} ${status?.kind === 'error' ? styles.noteError : ''}`}>{note}</div>}
       </div>
+      <DocumentPreviewButton
+        documentId={doc.document_id}
+        name={name}
+        fileExt={doc.file_ext}
+        status={doc.status}
+      />
       <button
         type="button"
         className={styles.removeBtn}
