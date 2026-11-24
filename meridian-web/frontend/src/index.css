@@ -777,11 +777,15 @@ button:disabled {
 
   /* ── Meeting detail ── */
   .detail-container {
-    padding: 12px 12px calc(80px + env(safe-area-inset-bottom)) !important;
+    padding: 12px 12px 0 !important;
   }
+  /* Скроллится сам список панелей: отступ внутри скролла, чтобы панель
+     доходила до низа экрана, а последняя строка не уходила под полоску «Домой» */
   .detail-panels {
     flex-direction: column !important;
     overflow: auto !important;
+    overscroll-behavior: contain;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
   .detail-left {
     max-height: none !important;
