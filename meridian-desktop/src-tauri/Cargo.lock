@@ -3453,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "meridian-desktop"
-version = "0.6.9"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "chrono",
