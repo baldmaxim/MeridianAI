@@ -28,16 +28,18 @@ export const TranscriptionRow: React.FC<TranscriptionRowProps> = ({
   const done = item.status === "done";
   const created = new Date(item.created_at);
   const meta = [
-    formatFileSize(
-      item.size,
-      {
-        b: t("transcriptions.units.b"),
-        kb: t("transcriptions.units.kb"),
-        mb: t("transcriptions.units.mb"),
-        gb: t("transcriptions.units.gb"),
-      },
-      i18n.language,
-    ),
+    item.size > 0
+      ? formatFileSize(
+          item.size,
+          {
+            b: t("transcriptions.units.b"),
+            kb: t("transcriptions.units.kb"),
+            mb: t("transcriptions.units.mb"),
+            gb: t("transcriptions.units.gb"),
+          },
+          i18n.language,
+        )
+      : "",
     Number.isNaN(created.getTime())
       ? ""
       : new Intl.DateTimeFormat(i18n.language, {

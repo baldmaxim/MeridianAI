@@ -204,6 +204,9 @@ pub(super) fn fixture(server_url: &str) -> Fixture {
         Arc::clone(&accounts),
         Box::new(move |notice| sink.lock().unwrap().push(notice)),
     );
+    // The list of the server's files was read just now: the tests of the other
+    // steps count the requests (`transcriptions_tests` makes it due again).
+    core.inner().last_pull = Some(std::time::Instant::now());
     Fixture {
         core,
         db,
@@ -531,10 +534,17 @@ async fn conflict_is_an_error_that_is_not_retried_by_itself() {
     );
     assert_eq!(fx.core.status().pending_count, 0);
 
-    let before = server.count();
+    // `sync_now` also reads the list of the server's files: that request is not a retry.
+    let not_list = |lines: Vec<String>| {
+        lines
+            .into_iter()
+            .filter(|l| l != "GET /api/desktop/transcriptions")
+            .count()
+    };
+    let before = not_list(server.lines());
     fx.core.reset_backoff();
     fx.core.run_pass(true).await;
-    assert_eq!(server.count(), before, "no automatic retry");
+    assert_eq!(not_list(server.lines()), before, "no automatic retry");
 
     // The "retry" button puts it back in the queue.
     fx.core.retry_meeting("m1").unwrap();

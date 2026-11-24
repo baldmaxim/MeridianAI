@@ -12,7 +12,7 @@ use super::documents::{classify, DocFailure};
 use super::engine::{db_error, Engine};
 use crate::managers::meeting::{
     audio_mime, delete_local_copy, StoredTranscript, TranscriptSegment, TranscriptionRow, TR_ERROR,
-    TR_QUEUED,
+    TR_PROCESSING, TR_QUEUED,
 };
 
 const MSG_JOB_FAILED: &str = "Не удалось распознать файл";
@@ -26,6 +26,9 @@ pub(super) struct TranscriptionsReport {
     pub stopped_by: Option<ApiError>,
     /// The server answered at least once.
     pub reached: bool,
+    /// The server answered the list of its files (an old server's refusal
+    /// counts): it is not asked again until it is due.
+    pub pulled: bool,
 }
 
 /// What a queue row becomes after a failed upload step.
@@ -86,12 +89,14 @@ fn stored_transcript(job: &ServerTranscription) -> StoredTranscript {
 }
 
 impl Engine<'_> {
-    /// Uploads the queued files and asks for the jobs in progress. `changed`
+    /// Uploads the queued files, reads the list of the server's files when `pull`
+    /// is set and asks for the jobs in progress. `changed`
     /// is called after each write to the queue. Failures are written to the
     /// rows; only a refused token comes back as an error.
     pub(super) async fn send_transcriptions(
         &self,
         changed: &(dyn Fn() + Sync),
+        pull: bool,
     ) -> Result<TranscriptionsReport, ApiError> {
         let mut report = TranscriptionsReport::default();
         for row in self.db.transcriptions_to_send().map_err(db_error)? {
@@ -127,6 +132,25 @@ impl Engine<'_> {
             Some(ApiError::Retry { status: None, .. })
         );
         if !offline {
+            if pull {
+                match self.pull_server_transcriptions(changed).await {
+                    Ok(()) => {
+                        report.reached = true;
+                        report.pulled = true;
+                    }
+                    Err(ApiError::Unauthorized) => return Err(ApiError::Unauthorized),
+                    Err(error @ ApiError::Retry { .. }) => {
+                        if report.stopped_by.is_none() {
+                            report.stopped_by = Some(error);
+                        }
+                    }
+                    // An old server without the list, or a refusal: not worth a stop.
+                    Err(error) => {
+                        report.pulled = true;
+                        warn!("Cannot read the list of the server's files: {error}");
+                    }
+                }
+            }
             for row in self.db.transcriptions_processing().map_err(db_error)? {
                 match self.poll_transcription(&row).await {
                     Ok(()) => {
@@ -155,6 +179,52 @@ impl Engine<'_> {
             }
         }
         Ok(report)
+    }
+
+    /// Adds a row for every job of the user that this PC has no row for (the
+    /// site, another PC). A finished or running job waits as `processing`, so
+    /// the poll that follows brings its transcript; a failed one is an error row.
+    async fn pull_server_transcriptions(
+        &self,
+        changed: &(dyn Fn() + Sync),
+    ) -> Result<(), ApiError> {
+        let jobs = self.client.list_transcriptions().await?;
+        let known = self.db.known_server_job_ids().map_err(db_error)?;
+        let mut added = false;
+        // Oldest first: equal times keep the server's order in the list.
+        for job in jobs.iter().rev().filter(|job| !known.contains(&job.id)) {
+            let (status, error) = if job.status == "error" {
+                let message = job
+                    .error_message
+                    .as_deref()
+                    .filter(|m| !m.trim().is_empty())
+                    .unwrap_or(MSG_JOB_FAILED);
+                (TR_ERROR, Some(message))
+            } else {
+                (TR_PROCESSING, None)
+            };
+            let name = if job.original_filename.trim().is_empty() {
+                "—"
+            } else {
+                job.original_filename.as_str()
+            };
+            added |= self
+                .db
+                .insert_server_transcription(
+                    job.id,
+                    name,
+                    job.original_size,
+                    status,
+                    &job.status,
+                    error,
+                    &job.created_at,
+                )
+                .map_err(db_error)?;
+        }
+        if added {
+            changed();
+        }
+        Ok(())
     }
 
     /// The error comes with whether it was a confirm of an earlier upload.

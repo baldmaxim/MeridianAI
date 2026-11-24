@@ -55,6 +55,8 @@ const POLL_INTERVAL: Duration = Duration::from_secs(30);
 /// First wait after a failed attempt; doubles up to `MAX_RETRY_DELAY`.
 const BASE_RETRY_DELAY: Duration = Duration::from_secs(30);
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(15 * 60);
+/// How often the list of the server's files is read when nothing else asks.
+const PULL_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// What the sync is doing now, for the status bar of the UI.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
@@ -102,6 +104,10 @@ struct Inner {
     current: Option<String>,
     /// Per meeting: failed attempts in a row and when the next one is due.
     backoff: HashMap<String, (u32, Instant)>,
+    /// When the server last answered the list of files; `None`: not yet.
+    last_pull: Option<Instant>,
+    /// `sync_now` asks for the list at once.
+    pull_forced: bool,
 }
 
 /// The queue logic, without Tauri: events go out through `notify`.
@@ -170,9 +176,22 @@ impl SyncCore {
         }));
     }
 
-    /// Forget the waiting times: try everything now (`sync_now`).
+    /// Forget the waiting times: try everything now (`sync_now`), the list of
+    /// the server's files included.
     pub fn reset_backoff(&self) {
-        self.inner().backoff.clear();
+        let mut inner = self.inner();
+        inner.backoff.clear();
+        inner.pull_forced = true;
+    }
+
+    /// The list of the server's files is to be read: at the start, after a
+    /// sign-in or `sync_now`, and every `PULL_INTERVAL`.
+    fn pull_due(&self) -> bool {
+        let inner = self.inner();
+        inner.pull_forced
+            || inner
+                .last_pull
+                .map_or(true, |at| at.elapsed() >= PULL_INTERVAL)
     }
 
     /// Puts a failed meeting back in the queue.
@@ -245,11 +264,13 @@ impl SyncCore {
         if let Err(e) = self.db.reset_uploading_transcriptions() {
             warn!("Cannot reset the interrupted uploads of transcriptions: {e:#}");
         }
+        let pull = self.pull_due();
         let transcriptions_waiting = self.due(TRANSCRIPTIONS_KEY)
-            && self.db.has_active_transcriptions().unwrap_or_else(|e| {
-                warn!("Cannot read the queue of transcriptions: {e:#}");
-                false
-            });
+            && (pull
+                || self.db.has_active_transcriptions().unwrap_or_else(|e| {
+                    warn!("Cannot read the queue of transcriptions: {e:#}");
+                    false
+                }));
         let queue_due = meetings.iter().any(|m| self.due(&m.id));
         if !queue_due
             && !documents_waiting
@@ -326,32 +347,40 @@ impl SyncCore {
             Err(_) => self.sign_out(),
         }
         if transcriptions_waiting {
-            self.run_transcriptions(&engine).await;
+            self.run_transcriptions(&engine, pull).await;
         }
         self.finish_pass();
     }
 
     /// The «Расшифровка файлов» step of a pass.
-    async fn run_transcriptions(&self, engine: &Engine<'_>) {
+    async fn run_transcriptions(&self, engine: &Engine<'_>, pull: bool) {
         let announce = || (self.notify)(Notice::Transcriptions(TranscriptionsChanged { id: None }));
-        match engine.send_transcriptions(&announce).await {
-            Ok(report) => match report.stopped_by {
-                Some(ApiError::Retry { status, .. }) => {
-                    self.inner().online = status.is_some();
+        match engine.send_transcriptions(&announce, pull).await {
+            Ok(report) => {
+                if report.pulled {
                     let mut inner = self.inner();
-                    let attempts = inner.backoff.get(TRANSCRIPTIONS_KEY).map_or(0, |(n, _)| *n) + 1;
-                    inner.backoff.insert(
-                        TRANSCRIPTIONS_KEY.to_string(),
-                        (attempts, Instant::now() + retry_delay(attempts)),
-                    );
+                    inner.last_pull = Some(Instant::now());
+                    inner.pull_forced = false;
                 }
-                _ => {
-                    self.inner().backoff.remove(TRANSCRIPTIONS_KEY);
-                    if report.reached {
-                        self.inner().online = true;
+                match report.stopped_by {
+                    Some(ApiError::Retry { status, .. }) => {
+                        self.inner().online = status.is_some();
+                        let mut inner = self.inner();
+                        let attempts =
+                            inner.backoff.get(TRANSCRIPTIONS_KEY).map_or(0, |(n, _)| *n) + 1;
+                        inner.backoff.insert(
+                            TRANSCRIPTIONS_KEY.to_string(),
+                            (attempts, Instant::now() + retry_delay(attempts)),
+                        );
+                    }
+                    _ => {
+                        self.inner().backoff.remove(TRANSCRIPTIONS_KEY);
+                        if report.reached {
+                            self.inner().online = true;
+                        }
                     }
                 }
-            },
+            }
             Err(_) => self.sign_out(),
         }
         announce();
@@ -426,6 +455,7 @@ impl SyncCore {
             let mut inner = self.inner();
             inner.online = true;
             inner.last_error = Some(ApiError::Unauthorized.to_string());
+            inner.last_pull = None;
         }
         (self.notify)(Notice::Account(AccountChanged {
             account: None,
@@ -501,5 +531,4 @@ impl SyncManager {
         self.wake();
         Ok(())
     }
-
 }

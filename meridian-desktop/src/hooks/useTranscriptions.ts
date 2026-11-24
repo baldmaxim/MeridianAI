@@ -42,6 +42,8 @@ export const useTranscriptions = (): Transcriptions => {
 
   useEffect(() => {
     void refresh();
+    // Opening the screen reads the server's list of files again.
+    void commands.syncNow();
   }, [refresh]);
 
   useEffect(() => {

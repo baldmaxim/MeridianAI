@@ -8,7 +8,7 @@ presigned URL, подтверждение, опрос результата. Зд
 Роутер подключается в конце api/desktop.py (поздний импорт: `Device` берётся оттуда же).
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
@@ -25,7 +25,7 @@ from ..schemas.batch import (
     UploadSessionRequest,
     UploadSessionResponse,
 )
-from .batch import confirm_upload, create_upload_session, get_batch_job
+from .batch import confirm_upload, create_upload_session, get_batch_job, list_batch_jobs
 from .desktop import Device
 
 router = APIRouter()
@@ -81,6 +81,19 @@ async def transcriptions_confirm(
         file_id, ConfirmUploadRequest(max_speakers=data.max_speakers if data else None),
         user=auth.user, db=db,
     )
+
+
+@router.get("/transcriptions", response_model=List[BatchJobResponse])
+async def transcriptions_list(auth: Device, db: AsyncSession = Depends(get_db)):
+    """Все записи пользователя (сайт, другие ПК), новые первыми — без текста; текст отдаёт GET по id.
+
+    Без `gap_fill`: это внутренняя офлайн-дозапись встречи, а не загруженный файл.
+    """
+    jobs = await list_batch_jobs(scope="mine", user=auth.user, db=db)
+    gap_ids = set((await db.execute(
+        select(BatchJob.id).where(BatchJob.user_id == auth.user.id, BatchJob.kind == "gap_fill")
+    )).scalars().all())
+    return [j for j in jobs if j.id not in gap_ids]
 
 
 @router.get("/transcriptions/{job_id}", response_model=BatchJobDetailResponse)

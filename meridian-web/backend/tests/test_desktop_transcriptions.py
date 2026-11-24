@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Десктоп: распознавание аудиофайла на сервере — upload-session, идемпотентный confirm, опрос."""
 
+from datetime import datetime
+
 from sqlalchemy import func, select
 
 from app.config import get_settings
@@ -125,7 +127,54 @@ async def test_get_foreign_job_is_404(sm, client, monkeypatch):
     assert (await client.get(f"{BASE}/{job_id}", headers=_bearer(token_b))).status_code == 404
 
 
+async def test_list_returns_only_own_jobs_newest_first(sm, client, monkeypatch):
+    _enable_s3(monkeypatch)
+    user_a, user_b = await _user(sm, "a@t.local"), await _user(sm, "b@t.local")
+    token_a = await _device(sm, user_a)
+    async with sm() as db:
+        db.add_all([
+            BatchJob(user_id=user_a.id, status="done", original_filename="old.mp3", original_size=10,
+                     file_path="k/old", created_at=datetime(2026, 1, 1)),
+            BatchJob(user_id=user_a.id, status="uploaded", original_filename="new.mp3", original_size=20,
+                     file_path="k/new", created_at=datetime(2026, 2, 1)),
+            BatchJob(user_id=user_b.id, status="done", original_filename="foreign.mp3", original_size=30,
+                     file_path="k/foreign", created_at=datetime(2026, 3, 1)),
+        ])
+        await db.commit()
+
+    r = await client.get(BASE, headers=_bearer(token_a))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert [j["original_filename"] for j in body] == ["new.mp3", "old.mp3"]
+    assert body[0]["status"] == "uploaded" and body[0]["original_size"] == 20
+    assert "transcription_text" not in body[0]
+
+
+async def test_list_skips_gap_fill_jobs(sm, client):
+    user = await _user(sm)
+    token = await _device(sm, user)
+    async with sm() as db:
+        db.add_all([
+            BatchJob(user_id=user.id, status="done", original_filename="file.mp3", original_size=10,
+                     file_path="k/file", created_at=datetime(2026, 1, 1)),
+            BatchJob(user_id=user.id, status="done", original_filename="gap.mp3", original_size=10,
+                     file_path="k/gap", kind="gap_fill", created_at=datetime(2026, 2, 1)),
+        ])
+        await db.commit()
+
+    r = await client.get(BASE, headers=_bearer(token))
+    assert r.status_code == 200, r.text
+    assert [j["original_filename"] for j in r.json()] == ["file.mp3"]
+
+
+async def test_list_empty_for_new_user(sm, client):
+    token = await _device(sm, await _user(sm))
+    r = await client.get(BASE, headers=_bearer(token))
+    assert r.status_code == 200 and r.json() == []
+
+
 async def test_no_token_is_401(sm, client):
     assert (await client.post(f"{BASE}/upload-session", json={"filename": "a.mp3", "size": 1})).status_code == 401
     assert (await client.post(f"{BASE}/1/confirm")).status_code == 401
     assert (await client.get(f"{BASE}/1")).status_code == 401
+    assert (await client.get(BASE)).status_code == 401

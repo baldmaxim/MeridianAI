@@ -200,6 +200,9 @@ pub(super) static MIGRATIONS: &[M] = &[
     // name (the server keeps the first upload of a name): the revision of that
     // upload, 1 for the first one (see `db_sync.rs`).
     M::up("ALTER TABLE meetings ADD COLUMN audio_revision INTEGER NOT NULL DEFAULT 1;"),
+    // A file of the server's list removed here (see `db_transcriptions.rs`): the row
+    // stays hidden, without the transcript, so the next pull does not bring it back.
+    M::up("ALTER TABLE transcription_queue ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;"),
 ];
 
 /// `online`: microphone plus system sound (two channels); `in_person`: one
