@@ -113,40 +113,74 @@
   border-top: 1px solid var(--border-default);
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
+.rowWrap {
   border-bottom: 1px solid var(--border-default);
 }
 
-.row:last-child {
+.rowWrap:last-child {
   border-bottom: none;
+}
+
+/* Одна строка: имя (с многоточием) · метаданные · «Скачать» */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 0;
 }
 
 .rowMain {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow: hidden;
+}
+
+.rowMainBtn {
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 150ms ease-out;
+}
+
+.rowMainBtn:hover {
+  background: var(--bg-hover);
+}
+
+.rowMainBtn:hover .rowName {
+  color: var(--accent-amber);
+}
+
+.rowMainBtn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: -2px;
 }
 
 .rowName {
+  min-width: 0;
   font-family: 'Inter', sans-serif;
   font-size: 13px;
   color: var(--text);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 150ms ease-out;
 }
 
 .rowMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
+  flex-shrink: 0;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .status {
@@ -158,6 +192,7 @@
 }
 
 .rowError {
+  padding: 0 14px 8px;
   font-size: 12px;
   color: var(--accent-red);
   overflow-wrap: anywhere;
@@ -166,7 +201,7 @@
 .downloadBtn {
   flex-shrink: 0;
   min-width: 44px;
-  min-height: 44px;
+  min-height: 36px;
   padding: 0 12px;
   background: transparent;
   border: 1px solid var(--accent-amber);
@@ -178,6 +213,12 @@
   font-weight: 500;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+
+@media (pointer: coarse) {
+  .downloadBtn {
+    min-height: 44px;
+  }
 }
 
 .downloadBtn:disabled {

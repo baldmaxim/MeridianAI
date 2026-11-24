@@ -6,7 +6,7 @@ import { formatFileSize } from '../../lib/documentFiles';
 import { getDocumentDisplayName } from '../../lib/documentName';
 import type { DocumentRecord } from '../../types';
 import { cx } from '../../utils/cx';
-import { DocumentPreviewButton } from '../documentPreview/DocumentPreviewButton';
+import { useDocumentPreview } from '../documentPreview/useDocumentPreview';
 import styles from './ObjectDocuments.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -26,6 +26,10 @@ interface IObjectDocumentRowProps {
 export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayName }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const name = displayName ?? getDocumentDisplayName(doc);
+  const preview = useDocumentPreview({
+    documentId: doc.id, name, fileExt: doc.file_ext, fileSize: doc.file_size, status: doc.status,
+  });
 
   const download = async () => {
     setBusy(true);
@@ -47,36 +51,46 @@ export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayNam
   if (doc.page_count) meta.push(`${doc.page_count} стр.`);
   if (doc.sheet_count) meta.push(`${doc.sheet_count} л.`);
 
+  const info = (
+    <>
+      <span className={styles.rowName} title={doc.original_name}>{name}</span>
+      {meta.length > 0 && <span className={styles.rowMeta}>{meta.join(' · ')}</span>}
+      {doc.status !== 'ready' && (
+        <span className={cx(styles.rowMeta, styles.status, doc.status === 'error' && styles.statusError)}>
+          {STATUS_LABELS[doc.status] ?? doc.status}
+        </span>
+      )}
+    </>
+  );
+
   return (
-    <div className={styles.row}>
-      <div className={styles.rowMain}>
-        <div className={styles.rowName} title={doc.original_name}>{displayName ?? getDocumentDisplayName(doc)}</div>
-        <div className={styles.rowMeta}>
-          {meta.length > 0 && <span>{meta.join(' · ')}</span>}
-          {doc.status !== 'ready' && (
-            <span className={cx(styles.status, doc.status === 'error' && styles.statusError)}>
-              {STATUS_LABELS[doc.status] ?? doc.status}
-            </span>
-          )}
-        </div>
-        {error && <div className={styles.rowError}>{error}</div>}
+    <div className={styles.rowWrap}>
+      <div className={styles.row}>
+        {/* Нажатие по строке открывает предпросмотр; без поддерживаемого формата — просто текст */}
+        {preview.canPreview ? (
+          <button
+            type="button"
+            className={cx(styles.rowMain, styles.rowMainBtn)}
+            onClick={preview.openPreview}
+            aria-label={`Открыть ${name}`}
+          >
+            {info}
+          </button>
+        ) : (
+          <div className={styles.rowMain}>{info}</div>
+        )}
+        <button
+          type="button"
+          className={cx('t-btn', styles.downloadBtn)}
+          onClick={download}
+          disabled={busy}
+          aria-label={`Скачать ${name}`}
+        >
+          {busy ? '…' : 'Скачать'}
+        </button>
       </div>
-      <DocumentPreviewButton
-        documentId={doc.id}
-        name={displayName ?? getDocumentDisplayName(doc)}
-        fileExt={doc.file_ext}
-        fileSize={doc.file_size}
-        status={doc.status}
-      />
-      <button
-        type="button"
-        className={cx('t-btn', styles.downloadBtn)}
-        onClick={download}
-        disabled={busy}
-        aria-label={`Скачать ${displayName ?? getDocumentDisplayName(doc)}`}
-      >
-        {busy ? '…' : 'Скачать'}
-      </button>
+      {error && <div className={styles.rowError}>{error}</div>}
+      {preview.modal}
     </div>
   );
 };
