@@ -59,6 +59,44 @@
   padding: 6px 0;
 }
 
+/* Имя + описание: у кнопки предпросмотра и у обычного блока (формат не поддержан) вид одинаков */
+.info {
+  align-self: stretch;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.infoBtn {
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease-out;
+}
+
+.infoBtn:hover {
+  background: var(--bg-hover);
+}
+
+.infoBtn:hover .name {
+  color: var(--accent-amber);
+}
+
+.infoBtn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: -2px;
+}
+
 .name {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -84,6 +122,7 @@
 
 .details {
   display: flex;
+  min-width: 0;
   align-items: center;
   flex-wrap: wrap;
   gap: 0 8px;
@@ -116,7 +155,8 @@
 
 .textBtn {
   position: relative;
-  padding: 0;
+  align-self: flex-start;
+  padding: 0 8px;
   background: transparent;
   border: none;
   color: var(--accent-amber);
@@ -216,6 +256,17 @@
     padding: 2px 0;
   }
 
+  .info {
+    flex: 1 1 0;
+    flex-direction: row;
+    align-items: center;
+    align-self: auto;
+    justify-content: flex-start;
+    gap: 0 10px;
+    min-height: 0;
+    padding: 2px 6px;
+  }
+
   .name {
     display: block;
     flex: 0 1 auto;
@@ -245,6 +296,11 @@
     flex-shrink: 0;
   }
 
+  .textBtn {
+    align-self: auto;
+    padding: 0;
+  }
+
   .note {
     flex-basis: 100%;
     font-size: 11px;
@@ -259,6 +315,7 @@
 @media (prefers-reduced-motion: reduce) {
   .icon,
   .name,
+  .infoBtn,
   .removeBtn {
     transition: none;
   }

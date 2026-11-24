@@ -1,6 +1,6 @@
 import { useState, type FC } from 'react';
 import { patchMeetingDocument } from '../../api/meetingDocuments';
-import { DocumentPreviewButton } from '../../components/documentPreview/DocumentPreviewButton';
+import { useDocumentPreview } from '../../components/documentPreview/useDocumentPreview';
 import { formatMetaLine, getDocTypeText, groupBySource, isDocPending } from '../../components/context/sourcesModel';
 import { apiErrorMessage } from '../../lib/apiError';
 import { getDocumentDisplayName } from '../../lib/documentName';
@@ -12,6 +12,61 @@ interface IMobileDocumentsCardProps {
   documents: MeetingDocument[];
   onChange: (update: (docs: MeetingDocument[]) => MeetingDocument[]) => void;
 }
+
+interface IMobileDocumentRowProps {
+  doc: MeetingDocument;
+  details: string;
+  tags: string;
+  onToggle: (doc: MeetingDocument) => Promise<void>;
+}
+
+const MobileDocumentRow: FC<IMobileDocumentRowProps> = ({ doc, details, tags, onToggle }) => {
+  const name = getDocumentDisplayName(doc);
+  const preview = useDocumentPreview({
+    documentId: doc.document_id, name, fileExt: doc.file_ext, status: doc.status,
+  });
+
+  const info = (
+    <>
+      <span className={styles.main}>
+        <span className={styles.name} title={doc.original_name}>{name}</span>
+        {details && <span className={styles.details}>{details}</span>}
+        {tags && <span className={styles.tags}>{tags}</span>}
+      </span>
+      <span className={styles.state}>
+        {doc.status === 'ready' ? `${doc.chunks_count} фр.` : doc.status}
+      </span>
+    </>
+  );
+
+  return (
+    <div className={styles.rowWrap}>
+      {/* чекбокс — своя тап-цель вне кнопки предпросмотра: тап по нему только переключает */}
+      <label className={styles.check}>
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={doc.included}
+          onChange={() => { void onToggle(doc); }}
+          aria-label={`В контексте: ${name}`}
+        />
+      </label>
+      {preview.canPreview ? (
+        <button
+          type="button"
+          className={`${styles.row} ${styles.rowBtn}`}
+          onClick={preview.openPreview}
+          aria-label={`Открыть ${name}`}
+        >
+          {info}
+        </button>
+      ) : (
+        <div className={styles.row}>{info}</div>
+      )}
+      {preview.modal}
+    </div>
+  );
+};
 
 export const MobileDocumentsCard: FC<IMobileDocumentsCardProps> = ({ meetingId, documents, onChange }) => {
   const [error, setError] = useState('');
@@ -47,32 +102,7 @@ export const MobileDocumentsCard: FC<IMobileDocumentsCardProps> = ({ meetingId, 
               .filter(Boolean)
               .join(' · ');
             return (
-              <div key={d.document_id} className={styles.rowWrap}>
-                <label className={styles.row}>
-                  <input
-                    type="checkbox"
-                    className={styles.checkbox}
-                    checked={d.included}
-                    onChange={() => { void toggle(d); }}
-                    aria-label={`В контексте: ${getDocumentDisplayName(d)}`}
-                  />
-                  <span className={styles.main}>
-                    <span className={styles.name} title={d.original_name}>{getDocumentDisplayName(d)}</span>
-                    {details && <span className={styles.details}>{details}</span>}
-                    {tags && <span className={styles.tags}>{tags}</span>}
-                  </span>
-                  <span className={styles.state}>
-                    {d.status === 'ready' ? `${d.chunks_count} фр.` : d.status}
-                  </span>
-                </label>
-                {/* кнопка — рядом с label, а не внутри: тап по ней не должен переключать галочку */}
-                <DocumentPreviewButton
-                  documentId={d.document_id}
-                  name={getDocumentDisplayName(d)}
-                  fileExt={d.file_ext}
-                  status={d.status}
-                />
-              </div>
+              <MobileDocumentRow key={d.document_id} doc={d} details={details} tags={tags} onToggle={toggle} />
             );
           })}
         </div>

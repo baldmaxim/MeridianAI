@@ -1,7 +1,7 @@
 import type { FC } from 'react';
 import type { MeetingDocument } from '../../types';
 import { Icon } from '../common/Icon';
-import { DocumentPreviewButton } from '../documentPreview/DocumentPreviewButton';
+import { useDocumentPreview } from '../documentPreview/useDocumentPreview';
 import { DocumentIcon } from './DocumentIcon';
 import { getDocumentDisplayName } from '../../lib/documentName';
 import {
@@ -41,9 +41,27 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
       ? { label: 'Дораспознать', missing: true }
       : null;
 
+  const preview = useDocumentPreview({
+    documentId: doc.document_id, name, fileExt: doc.file_ext, status: doc.status,
+  });
+
   const details = [typeShown ? typeText : '', tags.map((t) => t.label).join(', '), metaLine]
     .filter(Boolean)
     .join(' · ');
+
+  const info = (
+    <>
+      <span className={styles.name} title={doc.original_name}>{name}</span>
+      {(details || status) && (
+        <span className={styles.details}>
+          {details && <span>{details}</span>}
+          {status && (
+            <span className={`${styles.status} ${STATUS_CLASS[status.kind]}`}>● {status.label}</span>
+          )}
+        </span>
+      )}
+    </>
+  );
 
   return (
     <li className={`${styles.row} ${doc.included ? '' : styles.rowOff}`}>
@@ -60,32 +78,30 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
         <DocumentIcon ext={doc.file_ext ?? ''} docType={doc.doc_type} />
       </span>
       <div className={styles.main}>
-        <div className={styles.name} title={doc.original_name}>{name}</div>
-        {(details || status || reprocessAction) && (
-          <div className={styles.details}>
-            {details && <span>{details}</span>}
-            {status && (
-              <span className={`${styles.status} ${STATUS_CLASS[status.kind]}`}>● {status.label}</span>
-            )}
-            {reprocessAction && (
-              <button
-                type="button"
-                className={styles.textBtn}
-                onClick={() => onReprocess(doc, reprocessAction.missing)}
-              >
-                {reprocessAction.label}
-              </button>
-            )}
-          </div>
+        {/* Нажатие по имени и описанию открывает предпросмотр; без поддерживаемого формата — просто текст */}
+        {preview.canPreview ? (
+          <button
+            type="button"
+            className={`${styles.info} ${styles.infoBtn}`}
+            onClick={preview.openPreview}
+            aria-label={`Открыть ${name}`}
+          >
+            {info}
+          </button>
+        ) : (
+          <div className={styles.info}>{info}</div>
+        )}
+        {reprocessAction && (
+          <button
+            type="button"
+            className={styles.textBtn}
+            onClick={() => onReprocess(doc, reprocessAction.missing)}
+          >
+            {reprocessAction.label}
+          </button>
         )}
         {note && <div className={`${styles.note} ${status?.kind === 'error' ? styles.noteError : ''}`}>{note}</div>}
       </div>
-      <DocumentPreviewButton
-        documentId={doc.document_id}
-        name={name}
-        fileExt={doc.file_ext}
-        status={doc.status}
-      />
       <button
         type="button"
         className={styles.removeBtn}
@@ -95,6 +111,7 @@ export const SourceFileRow: FC<ISourceFileRowProps> = ({ doc, onToggleIncluded, 
       >
         <Icon name="close" size={16} />
       </button>
+      {preview.modal}
     </li>
   );
 };

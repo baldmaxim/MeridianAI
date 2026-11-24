@@ -46,6 +46,32 @@
   border-radius: 6px;
 }
 
+/* Строка-кнопка предпросмотра: тот же вид, что у обычной строки */
+.docBtn {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.docBtn:hover {
+  background: var(--bg-hover);
+}
+
+.docBtn:hover .docName {
+  color: var(--accent-amber);
+}
+
+.docBtn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: -2px;
+}
+
 .docExt {
   font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
@@ -74,6 +100,7 @@
   font-size: var(--fs-secondary);
   font-family: 'Inter', sans-serif;
   color: var(--text);
+  transition: color 150ms ease-out;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -85,4 +112,11 @@
   font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docBtn,
+  .docName {
+    transition: none;
+  }
 }

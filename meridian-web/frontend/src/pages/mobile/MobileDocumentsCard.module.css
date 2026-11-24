@@ -37,6 +37,25 @@
   gap: 6px;
 }
 
+.check {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent-amber);
+}
+
 .row {
   flex: 1;
   min-width: 0;
@@ -44,17 +63,33 @@
   align-items: center;
   gap: 4px;
   min-height: 44px;
+  padding: 0 8px;
+  border-radius: 6px;
+}
+
+.rowBtn {
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease-out;
 }
 
-.checkbox {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  margin: 0 12px 0 4px;
-  accent-color: var(--accent-amber);
+.rowBtn:hover {
+  background: var(--bg-hover);
+}
+
+.rowBtn:hover .name {
+  color: var(--accent-amber);
+}
+
+.rowBtn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: -2px;
 }
 
 .main {
@@ -70,6 +105,7 @@
   font-size: 13px;
   color: var(--text);
   overflow-wrap: anywhere;
+  transition: color 150ms ease-out;
 }
 
 .details,
@@ -97,4 +133,11 @@
   color: var(--accent-red);
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowBtn,
+  .name {
+    transition: none;
+  }
 }

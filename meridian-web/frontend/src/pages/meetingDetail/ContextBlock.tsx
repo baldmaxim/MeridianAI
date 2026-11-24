@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FC } from 'react';
 import { listMeetingDocuments } from '../../api/meetingDocuments';
-import { DocumentPreviewButton } from '../../components/documentPreview/DocumentPreviewButton';
+import { useDocumentPreview } from '../../components/documentPreview/useDocumentPreview';
 import type { MeetingDetail, MeetingDocument } from '../../types';
 import { NEGOTIATION_TYPE_LABELS, getDocTone } from './meetingDetailFormat';
 import styles from './ContextBlock.module.css';
@@ -10,6 +10,48 @@ interface IContextBlockProps {
   meeting: MeetingDetail;
 }
 
+interface IContextDocRowProps {
+  filename: string;
+  ext: string;
+  meta: string;
+  /** Документ встречи с id — без него предпросмотр недоступен. */
+  source?: MeetingDocument;
+}
+
+const ContextDocRow: FC<IContextDocRowProps> = ({ filename, ext, meta, source }) => {
+  const preview = useDocumentPreview({
+    documentId: source?.document_id ?? 0,
+    name: filename,
+    fileExt: source?.file_ext,
+    status: source?.status ?? 'pending',
+  });
+  const canOpen = source != null && preview.canPreview;
+
+  const content = (
+    <>
+      <span className={`${styles.docExt} ${styles[getDocTone(ext)]}`}>{ext.toUpperCase()}</span>
+      <span className={styles.docName}>{filename}</span>
+      <span className={styles.docMeta}>{meta}</span>
+    </>
+  );
+
+  return canOpen ? (
+    <>
+      <button
+        type="button"
+        className={`${styles.doc} ${styles.docBtn}`}
+        onClick={preview.openPreview}
+        aria-label={`Открыть ${filename}`}
+      >
+        {content}
+      </button>
+      {preview.modal}
+    </>
+  ) : (
+    <div className={styles.doc}>{content}</div>
+  );
+};
+
 export const ContextBlock: FC<IContextBlockProps> = ({ meeting }) => {
   // В деталях встречи документы без id — для предпросмотра сопоставляем по имени со списком документов встречи.
   const [attached, setAttached] = useState<MeetingDocument[]>([]);
@@ -17,7 +59,7 @@ export const ContextBlock: FC<IContextBlockProps> = ({ meeting }) => {
     let cancelled = false;
     listMeetingDocuments(meeting.id)
       .then((list) => { if (!cancelled) setAttached(list); })
-      .catch(() => { /* список недоступен — просто без кнопки «Открыть» */ });
+      .catch(() => { /* список недоступен — просто без предпросмотра */ });
     return () => { cancelled = true; };
   }, [meeting.id]);
 
@@ -55,23 +97,13 @@ export const ContextBlock: FC<IContextBlockProps> = ({ meeting }) => {
                 : ['txt', 'md'].includes(extLower) ? '' : `${doc.page_count} стр.`;
               const source = attached.find((a) => a.original_name === doc.filename);
               return (
-                <div key={doc.filename} className={styles.doc}>
-                  <span className={`${styles.docExt} ${styles[getDocTone(ext)]}`}>
-                    {ext.toUpperCase()}
-                  </span>
-                  <span className={styles.docName}>{doc.filename}</span>
-                  <span className={styles.docMeta}>
-                    {doc.doc_type_label}{countLabel ? ` · ${countLabel}` : ''}
-                  </span>
-                  {source && (
-                    <DocumentPreviewButton
-                      documentId={source.document_id}
-                      name={doc.filename}
-                      fileExt={source.file_ext}
-                      status={source.status}
-                    />
-                  )}
-                </div>
+                <ContextDocRow
+                  key={doc.filename}
+                  filename={doc.filename}
+                  ext={ext}
+                  meta={`${doc.doc_type_label}${countLabel ? ` · ${countLabel}` : ''}`}
+                  source={source}
+                />
               );
             })}
           </div>
