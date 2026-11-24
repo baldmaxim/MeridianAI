@@ -31,7 +31,7 @@ interface Props {
 
 export function AppLayout({ children, userName, onLogout, onShowBatch, showBatch, onShowKnowledge, showKnowledge, onShowLetters, showLetters, onShowFiles, showFiles, onShowDesktop, showDesktop, onShowAISettings, showAISettings, onShowObjects, showObjects, onShowSettings, showSettings, canSwitchRole, viewAsUser, onToggleViewAs, inMeeting, inObjectDetail }: Props) {
   return (
-    <div className={styles.container} data-diag="app-container">
+    <div className={styles.container}>
       <Header userName={userName} onLogout={onLogout} onShowBatch={onShowBatch} showBatch={showBatch} onShowKnowledge={onShowKnowledge} showKnowledge={showKnowledge} onShowLetters={onShowLetters} showLetters={showLetters} onShowFiles={onShowFiles} showFiles={showFiles} onShowDesktop={onShowDesktop} showDesktop={showDesktop} onShowAISettings={onShowAISettings} showAISettings={showAISettings} onShowObjects={onShowObjects} showObjects={showObjects} onShowSettings={onShowSettings} showSettings={showSettings} canSwitchRole={canSwitchRole} viewAsUser={viewAsUser} onToggleViewAs={onToggleViewAs} inMeeting={inMeeting} inObjectDetail={inObjectDetail} />
       <main className={styles.main}>{children}</main>
     </div>

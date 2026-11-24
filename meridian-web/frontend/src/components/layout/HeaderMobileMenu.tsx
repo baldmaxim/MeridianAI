@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import type { FC } from 'react';
 import { navTo } from '../../lib/navigation';
 import { useOpenClose } from '../../hooks/useOpenClose';
 import { Icon } from '../common/Icon';
 import { RoleSwitch } from './RoleSwitch';
 import { ThemeSegment } from './ThemeSegment';
-import { ViewportDiagModal } from './ViewportDiagModal';
 import type { IHeaderAction, IHeaderNavModel } from './headerNav';
 import styles from './HeaderMobileMenu.module.css';
 
@@ -24,7 +22,7 @@ interface IHeaderMobileMenuProps {
 /** Сгруппированное бургер-меню шапки (<1024px и на странице встречи). */
 export const HeaderMobileMenu: FC<IHeaderMobileMenuProps> = ({ open, onClose, nav, userName, onLogout, onLogoutAll, canSwitchRole, viewAsUser, onToggleViewAs }) => {
   const menu = useOpenClose(open, { closeVar: '--dropdown-close-dur', fallbackMs: 150 });
-  const [diagOpen, setDiagOpen] = useState(false);
+  if (!menu.mounted) return null;
 
   const run = (fn: () => void) => () => { onClose(); fn(); };
 
@@ -46,12 +44,7 @@ export const HeaderMobileMenu: FC<IHeaderMobileMenuProps> = ({ open, onClose, na
     nav.files && ['Обмен файлами', nav.files],
   ].filter(Boolean)) as [string, IHeaderAction][];
 
-  // Модалка живёт вне меню: закрытие меню размонтирует его разметку, но не состояние.
-  const diag = <ViewportDiagModal open={diagOpen} onClose={() => setDiagOpen(false)} />;
-  if (!menu.mounted) return diag;
-
   return (
-    <>
     <div className={`t-dropdown ${menu.cls} ${styles.menu}`.trim()} data-origin="top-right" role="menu">
       {nav.desktop && (
         <button
@@ -116,13 +109,7 @@ export const HeaderMobileMenu: FC<IHeaderMobileMenuProps> = ({ open, onClose, na
         <button type="button" className={`t-btn ${styles.item} ${styles.danger}`} onClick={run(onLogoutAll)}>
           Выйти на всех устройствах
         </button>
-        {/* ВРЕМЕННО: диагностика вьюпорта для iPhone */}
-        <button type="button" className={`t-btn ${styles.item}`} onClick={run(() => setDiagOpen(true))}>
-          Диагностика экрана
-        </button>
       </div>
     </div>
-    {diag}
-    </>
   );
 };
