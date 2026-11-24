@@ -2,9 +2,10 @@
 
 .switch {
   position: relative;
-  display: flex;
-  flex: 1;
-  max-width: 360px;
+  /* Две равные колонки по ширине длинной подписи — подложка ровно в половину */
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 0 0 auto;
   padding: 3px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
@@ -32,16 +33,14 @@
 
 .btn {
   position: relative;
-  flex: 1;
   min-height: 44px;
-  padding: 0 12px;
+  padding: 0 14px;
   background: transparent;
   border: none;
   border-radius: 7px;
   color: var(--text-secondary);
   cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: var(--fs-secondary);
+  font-size: var(--fs-control);
   font-weight: 500;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -51,6 +50,13 @@
 .btnActive {
   color: var(--accent-amber);
   font-weight: 600;
+}
+
+/* Мышь: компактная высота; на тач-экранах остаётся 44px */
+@media (hover: hover) and (pointer: fine) {
+  .btn {
+    min-height: 28px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
