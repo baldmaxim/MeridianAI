@@ -30,6 +30,7 @@
       "models": "Models",
       "advanced": "Advanced",
       "debug": "Debug",
+      "changelog": "What's new",
       "about": "About"
     },
     "record": {
@@ -150,6 +151,11 @@
     }
   },
   "settings": {
+    "changelog": {
+      "title": "Changes by version",
+      "installed": "installed",
+      "empty": "No changes listed"
+    },
     "modelSettings": {
       "title": "{{model}} Settings"
     },
@@ -664,7 +670,6 @@
         "excluded": "What is not included in the offer?"
       },
       "emptyAnticipate": "Enter a question the Customer may ask or pick one — you get a short answer ready to say aloud.",
-      "send": "Send question",
       "empty": "Ask a question — the answer comes from the protocol, the transcript and the documents.",
       "thinking": "Thinking…",
       "failed": "Could not get an answer",
@@ -807,12 +812,19 @@
       "signedOut": "Not signed in"
     }
   },
+  "whatsNew": {
+    "title": "Meridian updated to version {{version}}",
+    "ok": "Got it",
+    "all": "All changes"
+  },
   "update": {
+    "notesFor": "What's new in version {{version}}",
     "versions": "{{current}} → {{next}}",
     "notes": "What's new",
     "installFailed": "Could not install the update: {{error}}",
     "recordingHint": "Stop the recording — the app will restart",
     "notification": {
+      "bodyWithNote": "Version {{version}} is ready to install: {{note}}",
       "title": "Meridian update available",
       "body": "Version {{version}} is ready to install. Open the app to update."
     },

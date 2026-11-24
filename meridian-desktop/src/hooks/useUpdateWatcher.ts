@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { commands } from "@/bindings";
+import { parseNotesBody } from "@/lib/changelog";
 import { notifyUpdateIfHidden } from "@/lib/utils/updateNotification";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { useUpdateStore } from "@/stores/updateStore";
@@ -13,6 +14,12 @@ const STARTUP_DELAY_MS = 5000;
 const CHECK_PERIOD_MS = 4 * 60 * 60 * 1000;
 /** Проверки (кроме стартовой) не чаще, чем раз в это время. */
 const MIN_CHECK_GAP_MS = 30 * 60 * 1000;
+/** Длина пункта «что нового» в тексте системного уведомления. */
+const NOTE_MAX_CHARS = 120;
+
+const truncate = (text: string, max: number): string =>
+  text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
+
 /** Трей просит показать диалог обновления (см. `UPDATE_OPEN_EVENT` в lib.rs). */
 const UPDATE_OPEN_EVENT = "update-open-requested";
 
@@ -36,10 +43,17 @@ export const useUpdateWatcher = (enabled: boolean) => {
       await store.checkForUpdates(true);
       const { status, update } = useUpdateStore.getState();
       if (status !== "available" || !update) return;
+      const [firstNote] = update.body ? parseNotesBody(update.body) : [];
+      const body = firstNote
+        ? tRef.current("update.notification.bodyWithNote", {
+            version: update.version,
+            note: truncate(firstNote, NOTE_MAX_CHARS),
+          })
+        : tRef.current("update.notification.body", { version: update.version });
       await notifyUpdateIfHidden(
         update.version,
         tRef.current("update.notification.title"),
-        tRef.current("update.notification.body", { version: update.version }),
+        body,
       );
     };
 

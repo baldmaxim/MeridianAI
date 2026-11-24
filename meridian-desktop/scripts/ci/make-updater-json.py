@@ -3,6 +3,8 @@
 
 Использование:
   make-updater-json.py <папка-с-артефактами> <tag> <owner/repo> <tauri.conf.json>
+  make-updater-json.py --check <версия>     # только проверка: в CHANGELOG.md есть секция версии
+  make-updater-json.py --notes <версия>     # печатает пункты секции CHANGELOG.md
 
 В папке ожидаются:
   *-setup.exe + *-setup.exe.sig   -> windows-x86_64 (NSIS)
@@ -10,10 +12,48 @@
 Результат — <папка>/latest.json. Содержимое .sig подписывает приватный ключ из CI.
 """
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
+
+
+CHANGELOG = Path(__file__).resolve().parents[2] / "CHANGELOG.md"
+HEADING_RE = re.compile(r"^##\s+(\d+\.\d+\.\d+)\s+\u2014\s+\S+\s*$")
+
+
+def changelog_notes(version: str) -> list[str]:
+    """Пункты секции `## <version> — дата` из CHANGELOG.md; нет секции или пунктов — выход с ошибкой."""
+    if not CHANGELOG.is_file():
+        sys.exit(f"Нет файла {CHANGELOG}")
+    items: list[str] = []
+    found = False
+    in_comment = False
+    for raw in CHANGELOG.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if in_comment:
+            in_comment = "-->" not in line
+            continue
+        if line.startswith("<!--"):
+            in_comment = "-->" not in line
+            continue
+        heading = HEADING_RE.match(line)
+        if heading:
+            if found:
+                break
+            found = heading.group(1) == version
+            continue
+        if found and line.startswith("#"):
+            break
+        if found and re.match(r"^[-*]\s+\S", line):
+            items.append("- " + re.sub(r"^[-*]\s+", "", line))
+    if not found or not items:
+        sys.exit(
+            f"В {CHANGELOG.name} нет секции или пунктов для версии {version}: "
+            f"добавьте «## {version} — ДД.ММ.ГГГГ» и список «- ...» — релиз без описания не собирается"
+        )
+    return items
 
 
 def find_one(folder: Path, pattern: str) -> Path | None:
@@ -24,10 +64,16 @@ def find_one(folder: Path, pattern: str) -> Path | None:
 
 
 def main() -> None:
+    if len(sys.argv) == 3 and sys.argv[1] in ("--check", "--notes"):
+        notes = changelog_notes(sys.argv[2])
+        print("\n".join(notes) if sys.argv[1] == "--notes" else f"CHANGELOG: версия {sys.argv[2]}, пунктов {len(notes)}")
+        return
     folder, tag, repo, conf_path = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
     version = json.loads(conf_path.read_text(encoding="utf-8"))["version"]
     if tag != f"desktop-v{version}":
         sys.exit(f"Тег {tag} не совпадает с версией {version} в tauri.conf.json (ожидается desktop-v{version})")
+
+    notes = changelog_notes(version)
 
     targets = {
         "windows-x86_64": "*-setup.exe",
@@ -48,7 +94,7 @@ def main() -> None:
 
     latest = {
         "version": version,
-        "notes": f"Meridian Desktop {version}",
+        "notes": "\n".join(notes),
         "pub_date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "platforms": platforms,
     }

@@ -6,6 +6,7 @@ import {
   AccountSettings,
   DebugSettings,
   AboutSettings,
+  ChangelogSettings,
   ModelsSettings,
 } from "../settings";
 
@@ -41,6 +42,11 @@ export const SECTIONS_CONFIG = {
     labelKey: "shell.tabs.debug",
     component: DebugSettings,
     enabled: (settings) => settings?.debug_mode ?? false,
+  },
+  changelog: {
+    labelKey: "shell.tabs.changelog",
+    component: ChangelogSettings,
+    enabled: () => true,
   },
   about: {
     labelKey: "shell.tabs.about",

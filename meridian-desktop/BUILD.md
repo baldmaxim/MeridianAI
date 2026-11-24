@@ -49,6 +49,8 @@ bun run tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 Поднять `version` в `tauri.conf.json`, `Cargo.toml` (и `Cargo.lock`), `package.json`, затем:
 
+Перед тегом добавить в `CHANGELOG.md` секцию `## X.Y.Z — ДД.ММ.ГГГГ` со списком `- ...` (формат — в комментарии файла): без неё сборка релиза падает.
+
 ```bash
 git tag desktop-vX.Y.Z && git push origin desktop-vX.Y.Z
 ```

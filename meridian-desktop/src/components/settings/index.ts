@@ -5,6 +5,7 @@ export { DebugSettings } from "./debug/DebugSettings";
 export type { OnboardingPreviewStep } from "./debug/OnboardingPreview";
 export { AccountSettings } from "./account/AccountSettings";
 export { AboutSettings } from "./about/AboutSettings";
+export { ChangelogSettings } from "./changelog/ChangelogSettings";
 export { ModelsSettings } from "./models/ModelsSettings";
 
 // Individual setting components

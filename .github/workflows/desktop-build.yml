@@ -23,7 +23,32 @@ defaults:
     working-directory: meridian-desktop
 
 jobs:
+  # Дёшево и до долгих сборок: без секции версии в CHANGELOG.md релиз не нужен.
+  # На теге — версия из тега, при ручном запуске — из tauri.conf.json.
+  changelog:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Check CHANGELOG section
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/desktop-v') }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_TAG" = "true" ]; then
+            version="${REF_NAME#desktop-v}"
+          else
+            version="$(python3 -c "import json; print(json.load(open('meridian-desktop/src-tauri/tauri.conf.json', encoding='utf-8'))['version'])")"
+          fi
+          python3 meridian-desktop/scripts/ci/make-updater-json.py --check "$version"
+
   build:
+    needs: changelog
     strategy:
       fail-fast: false
       matrix:
@@ -292,9 +317,18 @@ jobs:
           # latest.json и .app.tar.gz нужны автообновлению (подписи — внутри latest.json).
           mapfile -t files < <(find release-assets -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' -o -name '*.app.tar.gz' -o -name 'latest.json' \))
           printf '%s\n' "${files[@]}"
+          version="${TAG#desktop-v}"
+          {
+            echo "## Что нового в $version"
+            echo
+            python3 meridian-desktop/scripts/ci/make-updater-json.py --notes "$version"
+            echo
+            echo "Неподписанные установщики: Windows x64 (.msi, .exe) и macOS Apple Silicon (.dmg). Черновик: для работы автообновления опубликуйте релиз (latest.json берётся из /releases/latest/download/)."
+          } > release-notes.md
+          cat release-notes.md
           gh release create "$TAG" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --draft \
             --title "Meridian Desktop $TAG" \
-            --notes "Неподписанные установщики: Windows x64 (.msi, .exe) и macOS Apple Silicon (.dmg). Черновик: для работы автообновления опубликуйте релиз (latest.json берётся из /releases/latest/download/)."
+            --notes-file release-notes.md

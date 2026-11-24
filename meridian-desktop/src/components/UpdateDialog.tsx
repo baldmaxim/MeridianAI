@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { parseNotesBody } from "@/lib/changelog";
 import { useMeetingStore } from "@/stores/meetingStore";
 import { useUpdateStore } from "@/stores/updateStore";
 
@@ -17,6 +18,8 @@ export const UpdateDialog: React.FC = () => {
   const recording = useMeetingStore((s) => s.active !== null);
 
   if (!update) return null;
+
+  const notes = update.body ? parseNotesBody(update.body) : [];
 
   return (
     <Dialog
@@ -54,14 +57,16 @@ export const UpdateDialog: React.FC = () => {
         {error && (
           <p className="text-error">{t("update.installFailed", { error })}</p>
         )}
-        {update.body && (
+        {notes.length > 0 && (
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted">
-              {t("update.notes")}
+              {t("update.notesFor", { version: update.version })}
             </p>
-            <p className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-deep p-3 text-mid-gray">
-              {update.body}
-            </p>
+            <ul className="max-h-48 list-disc space-y-1 overflow-y-auto overscroll-contain rounded-lg bg-deep p-3 pl-7 text-mid-gray">
+              {notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

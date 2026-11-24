@@ -23,6 +23,7 @@ import { useUpdateWatcher } from "./hooks/useUpdateWatcher";
 import { useMeetingStore } from "./stores/meetingStore";
 import { useSettings } from "./hooks/useSettings";
 import { UpdateDialog } from "./components/UpdateDialog";
+import { WhatsNewDialog } from "./components/WhatsNewDialog";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useSyncStore } from "./stores/syncStore";
 import { commands } from "@/bindings";
@@ -379,6 +380,10 @@ function App() {
       {toaster}
       {content}
       <UpdateDialog />
+      <WhatsNewDialog
+        enabled={onboardingStep === "done"}
+        onShowAll={() => openSettingsTab("changelog")}
+      />
     </>
   );
 }
