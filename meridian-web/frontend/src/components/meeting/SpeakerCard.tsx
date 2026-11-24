@@ -22,6 +22,8 @@ interface ISpeakerCardProps {
   side: PublicSpeakerSide | '';
   role: FunctionalRole;
   canEdit: boolean;
+  /** Подсказка пустого поля имени (по умолчанию — сама метка). */
+  placeholder?: string;
   /** Роль сохраняется только для машинных меток и только при назначенной стороне. */
   roleEnabled: boolean;
   onSetName: (label: string, name: string) => void;
@@ -31,14 +33,14 @@ interface ISpeakerCardProps {
 
 /** Строка-карточка спикера: имя + метка, сторона, роль — без вложенных раскрывающихся блоков. */
 export const SpeakerCard: FC<ISpeakerCardProps> = ({
-  label, name, side, role, canEdit, roleEnabled, onSetName, onSetSide, onSetRole,
+  label, name, side, role, canEdit, placeholder, roleEnabled, onSetName, onSetSide, onSetRole,
 }) => (
   <div className={`${styles.card} ${side === '' ? styles.cardPending : ''}`}>
     <div className={styles.cardTop}>
       {canEdit ? (
         <SpeakerNameInput
           value={name}
-          placeholder={label}
+          placeholder={placeholder ?? label}
           inputClassName={styles.nameInput}
           onCommit={(v) => onSetName(label, v)}
         />

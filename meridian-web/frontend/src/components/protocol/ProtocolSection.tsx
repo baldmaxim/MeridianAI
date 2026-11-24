@@ -6,23 +6,45 @@ import type { FinalizationStatus, MeetingProtocol } from '../../types';
 import styles from './ProtocolSection.module.css';
 import { cx } from '../../utils/cx';
 
-/** Read-only секция протокола для страницы деталей встречи (история). */
-export function ProtocolSection({ meetingId }: { meetingId: number }) {
+const POLL_INTERVAL_MS = 3000;
+
+interface IProtocolSectionProps {
+  meetingId: number;
+  /** Смена значения — перезапросить статус (например, после пересборки протокола). */
+  refreshKey?: number;
+}
+
+/** Секция протокола для страницы деталей встречи (история): статус, опрос пока идёт сборка, просмотр. */
+export function ProtocolSection({ meetingId, refreshKey = 0 }: IProtocolSectionProps) {
   const [status, setStatus] = useState<FinalizationStatus>('not_started');
   const [protocol, setProtocol] = useState<MeetingProtocol | null>(null);
   const [open, setOpen] = useState(false);
+  const [pollTick, setPollTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    getFinalizationStatus(meetingId).then(async (s) => {
-      if (!alive) return;
-      setStatus(s.status);
-      if ((s.status === 'completed' || s.status === 'partial') && s.has_protocol) {
-        try { setProtocol(await getMeetingProtocol(meetingId)); } catch { /* ignore */ }
-      }
-    }).catch(() => { /* статус недоступен — секция протокола не показывается */ });
-    return () => { alive = false; };
-  }, [meetingId]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      try {
+        const s = await getFinalizationStatus(meetingId);
+        if (!alive) return;
+        setStatus(s.status);
+        if (s.status === 'queued' || s.status === 'running') {
+          timer = setTimeout(load, POLL_INTERVAL_MS);
+        } else if ((s.status === 'completed' || s.status === 'partial') && s.has_protocol) {
+          try {
+            const p = await getMeetingProtocol(meetingId);
+            if (alive) setProtocol(p);
+          } catch { /* ignore */ }
+        }
+      } catch { /* статус недоступен — секция протокола не показывается */ }
+    };
+    load();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [meetingId, refreshKey, pollTick]);
 
   if (status === 'not_started') return null;
 
@@ -41,7 +63,7 @@ export function ProtocolSection({ meetingId }: { meetingId: number }) {
           </button>
         )}
         {status === 'error' && (
-          <button className={styles.toggle} onClick={() => retryFinalization(meetingId).then((s) => setStatus(s.status))}>
+          <button className={styles.toggle} onClick={() => retryFinalization(meetingId).then((s) => { setStatus(s.status); setPollTick((t) => t + 1); })}>
             Повторить
           </button>
         )}

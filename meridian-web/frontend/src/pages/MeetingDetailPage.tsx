@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { TextInput } from '../components/common';
 import { ProtocolSection } from '../components/protocol/ProtocolSection';
@@ -8,11 +8,15 @@ import {
   useMeetingDetail, useUpdateMeetingTitle, useDeleteMeeting, useContinueMeeting,
 } from '../hooks/queries/meetings';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { toPublicSpeakerSide } from '../lib/speakerSides';
+import type { SpeakerRoleOut } from '../types';
 import { meetingDisplayName } from '../lib/meetingName';
 import { ContextBlock } from './meetingDetail/ContextBlock';
 import { formatDateTime, formatRecorded, formatTime } from './meetingDetail/meetingDetailFormat';
 import { PanelHeader } from './meetingDetail/PanelHeader';
 import { StrengthenCard } from './meetingDetail/StrengthenCard';
+import { SpeakersEditor } from './meetingDetail/SpeakersEditor';
+import { segmentSpeakerKey } from './meetingDetail/speakerList';
 import { SuggestionCard } from './meetingDetail/SuggestionCard';
 import { TranscriptRow } from './meetingDetail/TranscriptRow';
 import styles from './MeetingDetailPage.module.css';
@@ -48,6 +52,9 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
   const [mobileTab, setMobileTab] = useState<TMobileTab>('transcript');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const [roles, setRoles] = useState<SpeakerRoleOut[]>([]);
+  const [protocolRefresh, setProtocolRefresh] = useState(0);
+  const rolesByLabel = useMemo(() => new Map(roles.map((r) => [r.speaker_label, r])), [roles]);
 
   function startEditTitle() {
     setTitleDraft(meeting?.title || '');
@@ -147,7 +154,15 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
       )}
 
       {/* Этап 5: протокол встречи */}
-      <ProtocolSection meetingId={meetingId} />
+      <ProtocolSection meetingId={meetingId} refreshKey={protocolRefresh} />
+
+      {/* Имена и стороны спикеров + пересборка протокола */}
+      <SpeakersEditor
+        meetingId={meetingId}
+        segments={meeting.segments}
+        onRolesChange={setRoles}
+        onProtocolRebuild={() => setProtocolRefresh((k) => k + 1)}
+      />
 
       {/* Этап 8: использованные как контекст прошлые встречи */}
       <PreviousMeetingsContext
@@ -187,9 +202,17 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
             {meeting.segments.length === 0 && (
               <div className={styles.emptyPanel}>Нет данных транскрипции</div>
             )}
-            {meeting.segments.map((seg, i) => (
-              <TranscriptRow key={seg.segment_id || i} segment={seg} />
-            ))}
+            {meeting.segments.map((seg, i) => {
+              const role = rolesByLabel.get(segmentSpeakerKey(seg));
+              return (
+                <TranscriptRow
+                  key={seg.segment_id || i}
+                  segment={seg}
+                  speakerName={role?.display_name}
+                  side={toPublicSpeakerSide(role?.side) || null}
+                />
+              );
+            })}
           </div>
         </div>
 

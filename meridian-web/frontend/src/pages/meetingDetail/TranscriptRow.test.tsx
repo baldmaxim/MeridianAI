@@ -16,7 +16,7 @@ describe('TranscriptRow (история встречи)', () => {
       ...base, language: 'tr', translation: 'Здравствуйте', diarized_speaker: 's1_speaker_0',
     }} />);
     expect(screen.getByText('TR · оригинал')).toBeTruthy();
-    expect(screen.getByText('Спикер 1')).toBeTruthy();
+    expect(screen.getByTitle('Говорящий по распознаванию голоса').textContent).toBe('Спикер 1');
     // перевод — главный (первый), оригинал — под ним
     const translation = screen.getByText('Здравствуйте');
     const original = screen.getByText('Merhaba');
@@ -36,5 +36,17 @@ describe('TranscriptRow (история встречи)', () => {
     expect(screen.queryByTitle('Язык реплики')).toBeNull();
     expect(screen.queryByTitle('Перевод на русский')).toBeNull();
     expect(screen.queryByTitle('Говорящий по распознаванию голоса')).toBeNull();
+  });
+
+  it('показывает заданное имя и тег стороны', () => {
+    render(<TranscriptRow segment={base} speakerName="Иван" side="opponent" />);
+    expect(screen.getByText('Иван')).toBeTruthy();
+    expect(screen.getByText('Оппонент')).toBeTruthy();
+  });
+
+  it('без имени метка человекочитаемая, без стороны — без тега', () => {
+    render(<TranscriptRow segment={{ ...base, speaker_label: 'Speaker_speaker_1' }} />);
+    expect(screen.getByText('Спикер 2')).toBeTruthy();
+    expect(screen.queryByText('Мы')).toBeNull();
   });
 });
