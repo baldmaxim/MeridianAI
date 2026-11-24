@@ -11,7 +11,7 @@ export function finBadgeStyle(s: FinalizationStatus): React.CSSProperties {
     : s === 'partial' ? 'var(--accent-amber)' : 'var(--accent-blue)';
   return {
     padding: '2px 8px', background: 'transparent', border: `1px solid ${color}`,
-    borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+    borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 'var(--fs-meta)',
     color, letterSpacing: '0.04em',
   };
 }

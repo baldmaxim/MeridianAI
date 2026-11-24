@@ -3,13 +3,13 @@
   gap: 8px;
   padding: 4px 16px;
   align-items: baseline;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--fs-body);
+  line-height: 1.6;
 }
 
 .time {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   flex-shrink: 0;
   width: 60px;
@@ -27,7 +27,7 @@
 
 .speaker {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   max-width: 100%;
   overflow: hidden;
@@ -41,7 +41,7 @@
   border: 1px solid var(--tag);
   border-radius: 8px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   line-height: 1.5;
   color: var(--tag);
 }

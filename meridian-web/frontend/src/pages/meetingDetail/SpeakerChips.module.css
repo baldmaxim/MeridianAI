@@ -23,7 +23,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
+  font-size: var(--fs-control);
   font-weight: 600;
 }
 
@@ -33,7 +33,7 @@
   border: 1px solid var(--tag);
   border-radius: 8px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   color: var(--tag);
 }
@@ -45,6 +45,6 @@
 .count {
   flex-shrink: 0;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }

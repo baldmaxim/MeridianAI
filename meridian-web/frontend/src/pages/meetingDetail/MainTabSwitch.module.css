@@ -41,7 +41,7 @@
   color: var(--text-secondary);
   cursor: pointer;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;

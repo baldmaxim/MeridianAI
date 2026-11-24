@@ -52,13 +52,13 @@
 .action {
   display: none;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-control);
   color: var(--accent-amber);
 }
 
 .chevron {
   display: inline-block;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--text-secondary);
   transition: transform 180ms ease-out;
 }
@@ -70,7 +70,7 @@
 .title {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-control);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -105,13 +105,13 @@
   gap: 2px;
   padding: 0 4px;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-secondary);
 }
 
 .count {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
 }
 
 .sample {
@@ -121,7 +121,7 @@
 
 .error {
   padding: 0 4px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--accent-red);
 }
 
@@ -138,7 +138,7 @@
 }
 
 .hint {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-secondary);
 }
 

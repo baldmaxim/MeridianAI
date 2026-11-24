@@ -150,7 +150,7 @@
 
 .roleBadge {
   padding: 3px 10px;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -199,7 +199,7 @@
   padding: 4px 14px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
-  font-size: 10px;
+  font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
   color: var(--accent-amber);

@@ -18,7 +18,7 @@
 .title {
   font-family: 'Syne', sans-serif;
   font-weight: 800;
-  font-size: 18px;
+  font-size: var(--fs-heading);
   letter-spacing: 0.06em;
   color: var(--text);
 }
@@ -38,7 +38,7 @@
   border-radius: 8px;
   color: var(--on-accent);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 700;
   white-space: nowrap;
@@ -70,10 +70,13 @@
 
 .groupChevron {
   color: var(--accent-amber);
-  font-size: 12px;
-  display: inline-block;
-  width: 12px;
-  transition: transform 0.18s ease;
+  flex-shrink: 0;
+  transition: transform 150ms ease-out;
+}
+
+.groupIcon {
+  color: var(--muted);
+  flex-shrink: 0;
 }
 
 .groupChevronCollapsed {
@@ -87,10 +90,9 @@
 }
 
 .groupName {
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.04em;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: var(--fs-body);
   color: var(--text);
   flex: 1;
   min-width: 0;
@@ -101,7 +103,7 @@
 
 .groupCount {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
@@ -155,7 +157,7 @@
   border-radius: 10px;
   color: var(--accent-amber);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 15px;
+  font-size: var(--fs-heading);
   font-weight: 700;
   font-style: italic;
   cursor: pointer;
@@ -168,7 +170,7 @@
     min-height: 44px;
   }
 
-  .rowAddr {
+  .row .rowAddr {
     display: none;
   }
 
@@ -180,8 +182,8 @@
 .rowName {
   font-family: 'Inter', sans-serif;
   font-weight: 600;
-  font-size: 14px;
-  flex: 1;
+  font-size: var(--fs-body);
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,50 +191,63 @@
 }
 
 .rowAddr {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: var(--fs-control);
   color: var(--text-secondary);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.addrIcon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.addrText {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 220px;
-  flex-shrink: 1;
 }
 
 .count {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: var(--fs-control);
+  color: var(--muted);
   flex-shrink: 0;
+  margin-left: auto;
   white-space: nowrap;
 }
 
 .countActive {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-control);
   color: var(--accent-green);
   font-weight: 600;
   flex-shrink: 0;
+  margin-left: auto;
   white-space: nowrap;
 }
 
 .chevron {
   color: var(--accent-amber);
-  font-size: 16px;
   flex-shrink: 0;
 }
 
 .muted {
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
   padding: 12px 0;
 }
 
 .error {
   color: var(--accent-red);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
   padding: 8px 0;
 }
 
@@ -247,5 +262,5 @@
 .emptyText {
   color: var(--text-secondary);
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }

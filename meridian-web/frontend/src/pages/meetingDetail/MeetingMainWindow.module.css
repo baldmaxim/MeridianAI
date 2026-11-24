@@ -23,7 +23,7 @@
 
 .meta {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -51,6 +51,6 @@
   padding: 20px 16px;
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }

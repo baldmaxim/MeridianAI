@@ -5,6 +5,7 @@ import { listObjectOfferSubmissions } from '../../api/objects';
 import { apiErrorMessage } from '../../lib/apiError';
 import type { DocumentRecord, IOfferSubmission } from '../../types';
 import { Collapse } from '../common/Collapse';
+import { Icon } from '../common/Icon';
 import { TextInput } from '../common/TextInput';
 import { cx } from '../../utils/cx';
 import { ObjectDocumentRow } from './ObjectDocumentRow';
@@ -152,7 +153,7 @@ export const ObjectDocuments: FC<IObjectDocumentsProps> = ({ objectId }) => {
                     onClick={() => toggle(typeKey(g.label))}
                     aria-expanded={open}
                   >
-                    <span className={cx(styles.chevron, open && styles.chevronOpen)}>▶</span>
+                    <Icon name="chevron-right" size={16} className={cx(styles.chevron, open && styles.chevronOpen)} />
                     <span className={styles.groupTitle}>{g.label}</span>
                     <span className={styles.groupCount}>{g.docs.length}</span>
                   </button>

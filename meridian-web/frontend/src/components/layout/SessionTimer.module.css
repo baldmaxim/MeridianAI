@@ -12,7 +12,7 @@
   background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
   border-radius: 20px;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -44,7 +44,7 @@
   border: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
   border-radius: 20px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--accent-green);
   letter-spacing: 0.06em;
   font-weight: 600;

@@ -7,8 +7,8 @@
 
 .sectionTitle {
   font-family: 'Syne', sans-serif;
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: var(--fs-control);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-secondary);
@@ -22,9 +22,10 @@
 }
 
 .subTitle {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  letter-spacing: 0.06em;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: var(--fs-control);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-secondary);
   margin-top: 6px;
@@ -33,14 +34,14 @@
 .muted {
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
   padding: 12px 0;
 }
 
 .error {
   color: var(--accent-red);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
   padding: 8px 0;
 }
 
@@ -70,17 +71,16 @@
   cursor: pointer;
   text-align: left;
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
 .chevron {
-  font-size: 9px;
   color: var(--text-secondary);
   flex-shrink: 0;
-  transition: transform 180ms ease-out;
+  transition: transform 150ms ease-out;
 }
 
 .chevronOpen {
@@ -95,15 +95,16 @@
 
 .groupDate {
   flex-shrink: 0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: var(--fs-control);
+  font-weight: 400;
   color: var(--text-secondary);
 }
 
 .groupCount {
   flex-shrink: 0;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--fs-control);
   color: var(--text-muted);
 }
 
@@ -167,7 +168,7 @@
 .rowName {
   min-width: 0;
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -178,7 +179,7 @@
 .rowMeta {
   flex-shrink: 0;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -193,32 +194,26 @@
 
 .rowError {
   padding: 0 14px 8px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--accent-red);
   overflow-wrap: anywhere;
 }
 
 .downloadBtn {
   flex-shrink: 0;
-  min-width: 44px;
-  min-height: 36px;
-  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--accent-amber);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--accent-amber);
   cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  font-weight: 500;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-}
-
-@media (pointer: coarse) {
-  .downloadBtn {
-    min-height: 44px;
-  }
 }
 
 .downloadBtn:disabled {

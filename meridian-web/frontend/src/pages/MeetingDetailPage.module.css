@@ -17,7 +17,7 @@
   flex: 1;
   color: var(--text-secondary);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
 }
 
 .loadingError {
@@ -43,7 +43,7 @@
   border-radius: 6px;
   color: var(--accent-amber);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -52,7 +52,7 @@
 
 .topTitle {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 500;
   letter-spacing: 0.16em;
   color: var(--text-secondary);
@@ -61,10 +61,10 @@
 
 .continueBtn,
 .deleteBtn {
-  padding: 4px 12px;
-  border-radius: 5px;
+  padding: 6px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.06em;
 }
@@ -97,15 +97,15 @@
 .confirmText {
   color: var(--accent-red);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--fs-control);
 }
 
 .confirmYes,
 .confirmNo {
-  padding: 4px 14px;
-  border-radius: 4px;
+  padding: 6px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -120,6 +120,15 @@
   background: transparent;
   border: 1px solid var(--border-default);
   color: var(--text-secondary);
+}
+
+@media (max-width: 767px) {
+  .continueBtn,
+  .deleteBtn,
+  .confirmYes,
+  .confirmNo {
+    min-height: 44px;
+  }
 }
 
 /* Строка названия: слева название + мета, кнопки — по центру свободного места строки */
@@ -147,7 +156,7 @@
 
 .title {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--fs-title);
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   color: var(--text);
@@ -157,7 +166,7 @@
 
 /* Поле названия: крупный шрифт (специфичнее .input из TextInput) */
 .titleField input {
-  font-size: 22px;
+  font-size: var(--fs-title);
   font-weight: 700;
   border-color: var(--border-focus);
   border-radius: 6px;
@@ -167,7 +176,7 @@
 
 .titleMeta {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   margin-top: 4px;
 }
@@ -176,7 +185,7 @@
   margin: 0;
   flex-shrink: 0;
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.45;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -197,7 +206,7 @@
   padding: 16px;
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -231,7 +240,7 @@
   border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
   touch-action: manipulation;

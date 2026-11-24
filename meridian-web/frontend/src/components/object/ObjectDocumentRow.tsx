@@ -6,6 +6,7 @@ import { formatFileSize } from '../../lib/documentFiles';
 import { getDocumentDisplayName } from '../../lib/documentName';
 import type { DocumentRecord } from '../../types';
 import { cx } from '../../utils/cx';
+import { Icon } from '../common/Icon';
 import { useDocumentPreview } from '../documentPreview/useDocumentPreview';
 import styles from './ObjectDocuments.module.css';
 
@@ -85,8 +86,9 @@ export const ObjectDocumentRow: FC<IObjectDocumentRowProps> = ({ doc, displayNam
           onClick={download}
           disabled={busy}
           aria-label={`Скачать ${name}`}
+          title="Скачать"
         >
-          {busy ? '…' : 'Скачать'}
+          <Icon name="download" size={18} />
         </button>
       </div>
       {error && <div className={styles.rowError}>{error}</div>}

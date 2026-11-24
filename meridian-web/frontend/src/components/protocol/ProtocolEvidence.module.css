@@ -7,6 +7,6 @@
 
 .evItem {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }

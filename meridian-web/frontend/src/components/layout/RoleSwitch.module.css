@@ -10,7 +10,7 @@
 
 .label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   letter-spacing: 0.04em;
   transition: color 200ms ease-out;

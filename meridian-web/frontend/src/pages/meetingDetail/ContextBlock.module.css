@@ -2,7 +2,7 @@
   padding: 20px 16px;
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -15,7 +15,7 @@
 
 .contextLabel {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -25,7 +25,7 @@
 
 .contextValue {
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
   color: var(--text);
   white-space: pre-wrap;
 }
@@ -47,7 +47,7 @@
 }
 
 .docExt {
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 700;
   min-width: 30px;
@@ -71,7 +71,7 @@
 }
 
 .docName {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-family: 'Inter', sans-serif;
   color: var(--text);
   flex: 1;
@@ -82,7 +82,7 @@
 }
 
 .docMeta {
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-muted);
 }

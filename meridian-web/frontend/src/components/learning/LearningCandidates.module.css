@@ -26,31 +26,31 @@
   color: var(--tone);
   border-radius: 10px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .conf {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
 .title {
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text);
 }
 
 .summary {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
 .source {
-  font-size: 11px;
+  font-size: var(--fs-secondary);
   color: var(--text-muted);
   font-style: italic;
   border-left: 2px solid var(--border-amber);
@@ -71,7 +71,7 @@
   border-radius: 6px;
   color: var(--on-accent);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-control);
   font-weight: 600;
   font-family: 'Inter', sans-serif;
 }
@@ -83,7 +83,7 @@
   border-radius: 6px;
   color: var(--accent-red);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -94,8 +94,27 @@
   border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
+}
+
+/* Второстепенные действия: на устройствах с наведением видны при hover/focus карточки (Tab доходит) */
+@media (hover: hover) and (pointer: fine) {
+  .secondaryAction {
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+  }
+
+  .card:hover .secondaryAction,
+  .card:focus-within .secondaryAction {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secondaryAction {
+    transition: none;
+  }
 }
 
 .editBox {
@@ -105,7 +124,7 @@
 }
 
 .lbl {
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-family: 'JetBrains Mono', monospace;
   color: var(--accent-amber);
   letter-spacing: 0.08em;
@@ -127,7 +146,7 @@
   border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-control);
   font-family: 'Inter', sans-serif;
   outline: none;
   resize: vertical;
@@ -138,13 +157,13 @@
 .muted {
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--fs-control);
 }
 
 .error {
   color: var(--accent-red);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-control);
 }
 
 .spacer {

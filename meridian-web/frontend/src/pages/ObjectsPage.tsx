@@ -10,6 +10,7 @@ import type { ProjectObject } from '../types';
 import styles from './ObjectsPage.module.css';
 import { cx } from '../utils/cx';
 import { TextInput } from '../components/common';
+import { Icon } from '../components/common/Icon';
 
 interface Props {
   onOpenObject: (id: number) => void;
@@ -105,8 +106,9 @@ export function ObjectsPage({ onOpenObject }: Props) {
                 onClick={() => setCollapsed((c) => ({ ...c, [customer]: !c[customer] }))}
                 aria-expanded={!isCollapsed}
               >
-                <span className={cx(styles.groupChevron, isCollapsed && styles.groupChevronCollapsed)}>▾</span>
-                <span className={styles.groupName}>🏢 {customer}</span>
+                <Icon name="chevron-down" size={16} className={cx(styles.groupChevron, isCollapsed && styles.groupChevronCollapsed)} />
+                <Icon name="building" size={16} className={styles.groupIcon} />
+                <span className={styles.groupName}>{customer}</span>
                 <span className={styles.groupCount}>{items.length}</span>
               </button>
               {!isCollapsed && (
@@ -117,9 +119,14 @@ export function ObjectsPage({ onOpenObject }: Props) {
                       <div key={o.id} className={styles.rowWrap}>
                         <button className={styles.row} {...navTo(paths.objectDetail(o.id), () => onOpenObject(o.id))}>
                           <span className={styles.rowName}>{o.name}</span>
-                          {o.address && <span className={styles.rowAddr}>📍 {o.address}</span>}
+                          {o.address && (
+                            <span className={styles.rowAddr}>
+                              <Icon name="pin" size={14} className={styles.addrIcon} />
+                              <span className={styles.addrText}>{o.address}</span>
+                            </span>
+                          )}
                           <span className={cx(count > 0 ? styles.countActive : styles.count)}>{pluralMeetings(count)}</span>
-                          <span className={styles.chevron}>→</span>
+                          <Icon name="arrow-right" size={16} className={styles.chevron} />
                         </button>
                         {o.address && (
                           <button

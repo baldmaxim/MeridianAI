@@ -71,7 +71,7 @@
 }
 
 .chevron {
-  font-size: 9px;
+  font-size: var(--fs-meta);
   color: var(--text-secondary);
   transition: transform 180ms ease-out;
 }
@@ -83,7 +83,7 @@
 .rowCount {
   color: var(--text-secondary);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
 }
 
 .rowBody {
@@ -116,8 +116,8 @@
 }
 
 .dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--accent-amber);
   flex-shrink: 0;
@@ -126,7 +126,7 @@
 .title {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-control);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text);
@@ -139,7 +139,7 @@
   border-radius: 6px;
   color: var(--accent-amber);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-control);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -160,7 +160,7 @@
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 22px;
+  font-size: var(--fs-title);
   line-height: 1;
   padding: 0;
   width: 28px;
@@ -180,7 +180,7 @@
 
 .scopeLabel {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -189,7 +189,7 @@
 
 .scopeName {
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: var(--fs-secondary);
   font-weight: 600;
   color: var(--text);
 }
@@ -208,7 +208,7 @@
   border: 1px solid var(--accent-green);
   border-radius: 10px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   color: var(--accent-green);
   flex-shrink: 0;
 }
@@ -216,13 +216,13 @@
 .muted {
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--fs-control);
 }
 
 .error {
   color: var(--accent-red);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: var(--fs-control);
 }
 
 .spacer {

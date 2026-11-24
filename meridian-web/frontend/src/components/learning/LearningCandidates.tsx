@@ -137,8 +137,8 @@ export function LearningCandidates({ meetingId, onChange, compact }: Props) {
           {editId !== c.id && (
             <div className={styles.actions}>
               <button className={styles.approve} disabled={busyId === c.id} onClick={() => act(c.id, (id) => approveMut.mutateAsync(id))}>В базу знаний</button>
-              <button className={styles.reject} disabled={busyId === c.id} onClick={() => act(c.id, (id) => rejectMut.mutateAsync(id))}>Отклонить</button>
-              <button className={styles.ghost} disabled={busyId === c.id} onClick={() => startEdit(c)}>Изменить</button>
+              <button className={cx(styles.reject, styles.secondaryAction)} disabled={busyId === c.id} onClick={() => act(c.id, (id) => rejectMut.mutateAsync(id))}>Отклонить</button>
+              <button className={cx(styles.ghost, styles.secondaryAction)} disabled={busyId === c.id} onClick={() => startEdit(c)}>Изменить</button>
             </div>
           )}
         </div>

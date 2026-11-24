@@ -19,7 +19,7 @@
 .kicker {
   padding: 10px 4px 2px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);

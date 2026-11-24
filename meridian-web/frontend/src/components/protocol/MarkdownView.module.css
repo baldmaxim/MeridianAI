@@ -8,26 +8,33 @@
 
 .h2 {
   font-family: 'Syne', sans-serif;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--fs-heading);
+  font-weight: 700;
   color: var(--accent-amber);
   letter-spacing: 0.02em;
-  margin-top: 12px;
+  margin-top: 16px;
+  margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border-amber);
 }
 
 .h3 {
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text);
-  margin-top: 8px;
+  margin-top: 16px;
+  margin-bottom: 6px;
+}
+
+/* Первый заголовок документа — без верхнего отступа */
+.doc > :first-child {
+  margin-top: 0;
 }
 
 .p {
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: var(--fs-body);
+  line-height: 1.6;
   color: var(--text-secondary);
   margin: 0;
 }
@@ -41,8 +48,8 @@
 }
 
 .li {
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--fs-body);
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 
@@ -54,7 +61,7 @@
 .table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12.5px;
+  font-size: var(--fs-secondary);
 }
 
 .th {
@@ -76,7 +83,7 @@
 
 .code {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--fs-control);
   background: var(--bg-tertiary);
   padding: 1px 5px;
   border-radius: 4px;
@@ -102,7 +109,7 @@
 .timecode {
   display: inline-block;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   line-height: 1.5;
   color: var(--text-muted);
   background: var(--bg-elevated);
