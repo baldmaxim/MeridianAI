@@ -156,6 +156,25 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
               {...navTo(href, openRow)}
               onKeyDown={(e) => { if (e.key === 'Enter') openRow(); }}
             >
+              <div className={styles.menuWrap}>
+                <button
+                  className={cx('t-btn', styles.menuBtn)}
+                  onClick={(e) => { e.stopPropagation(); setMenuFor((v) => (v === m.id ? null : m.id)); }}
+                  onAuxClick={(e) => e.stopPropagation()}
+                  aria-label="Действия со встречей"
+                >⋮</button>
+                <Dropdown
+                  open={menuFor === m.id}
+                  onClose={() => setMenuFor(null)}
+                  origin="top-right"
+                  className={styles.menu}
+                >
+                  <button
+                    className={cx('t-btn t-btn-red', styles.menuItemDanger)}
+                    onClick={(e) => { e.stopPropagation(); setMenuFor(null); setConfirmDelete(m); }}
+                  >Удалить встречу</button>
+                </Dropdown>
+              </div>
               <div className={styles.cardTop}>
                 <div className={styles.cardTitle}>{meetingDisplayName(m)}</div>
                 <div className={styles.cardDate}>{formatMoscowDateTime(m.started_at)}</div>
@@ -185,8 +204,8 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                     <span key={t} className={styles.tagBadge}>#{t}</span>
                   ))}
                 </div>
-                <div className={styles.actions}>
-                  {isActive && (
+                {isActive && (
+                  <div className={styles.actions}>
                     <button
                       className={cx('t-btn', styles.linkBtn)}
                       onClick={(e) => { e.stopPropagation(); copyLink(m.id); }}
@@ -195,27 +214,8 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                     >
                       {copiedId === m.id ? '✓ скопировано' : '🔗 ссылка'}
                     </button>
-                  )}
-                  <div className={styles.menuWrap}>
-                    <button
-                      className={cx('t-btn', styles.menuBtn)}
-                      onClick={(e) => { e.stopPropagation(); setMenuFor((v) => (v === m.id ? null : m.id)); }}
-                      onAuxClick={(e) => e.stopPropagation()}
-                      aria-label="Действия со встречей"
-                    >⋮</button>
-                    <Dropdown
-                      open={menuFor === m.id}
-                      onClose={() => setMenuFor(null)}
-                      origin="top-right"
-                      className={styles.menu}
-                    >
-                      <button
-                        className={cx('t-btn t-btn-red', styles.menuItemDanger)}
-                        onClick={(e) => { e.stopPropagation(); setMenuFor(null); setConfirmDelete(m); }}
-                      >Удалить встречу</button>
-                    </Dropdown>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           );

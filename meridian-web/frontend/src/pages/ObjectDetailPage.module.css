@@ -145,6 +145,7 @@
 .card {
   display: flex;
   flex-direction: column;
+  position: relative;
   gap: 6px;
   padding: 14px;
   text-align: left;
@@ -161,6 +162,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 10px;
+  padding-right: 36px;
 }
 
 .cardTitle {
@@ -297,28 +299,40 @@
 }
 
 .menuWrap {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
 }
 
 .menuBtn {
-  width: 28px;
-  height: 28px;
+  position: relative;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border: none;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
 }
 
+/* Видимая рамка кнопки 28×28 внутри тап-цели 44×44 */
+.menuBtn::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 .menu {
   position: absolute;
-  top: 32px;
+  top: 100%;
   right: 0;
   z-index: 60;
   min-width: 180px;
