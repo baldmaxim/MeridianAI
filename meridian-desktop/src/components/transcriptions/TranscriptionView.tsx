@@ -221,6 +221,7 @@ export const TranscriptionView: React.FC<TranscriptionViewProps> = ({
               <MarkdownBody
                 markdown={protocol}
                 onTimecode={player.url ? player.seek : undefined}
+                highlight
               />
             ) : (
               <p className="text-sm text-muted">

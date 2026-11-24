@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { AccentText } from "./AccentText";
 import { TimecodeText } from "./TimecodeText";
 
 const isWebUrl = (href: string | undefined): href is string =>
@@ -91,8 +92,8 @@ const COMPONENTS: Components = {
   ),
 };
 
-/** The elements whose text may hold a time (not code, not links). */
-const TIMECODE_TAGS = [
+/** The elements whose text may hold a time or an accent (not code, not links). */
+const TEXT_TAGS = [
   "h1",
   "h2",
   "h3",
@@ -105,20 +106,32 @@ const TIMECODE_TAGS = [
   "th",
 ] as const;
 
-/** `COMPONENTS` where the times in the text of the elements are buttons. */
-const withTimecodes = (onTimecode: (seconds: number) => void): Components => {
+/**
+ * `COMPONENTS` where the times in the text of the elements are buttons
+ * (`onTimecode`) and the key numbers are accents (`highlight`); the times first.
+ */
+const withText = (
+  onTimecode: ((seconds: number) => void) | undefined,
+  highlight: boolean,
+): Components => {
   const result: Record<string, React.ElementType> = { ...COMPONENTS };
-  for (const tag of TIMECODE_TAGS) {
+  for (const tag of TEXT_TAGS) {
     const Base: React.ElementType = COMPONENTS[tag] ?? tag;
     const Wrapped: React.FC<{ children?: React.ReactNode }> = ({
       children,
     }) => (
       <Base>
         {React.Children.map(children, (child) =>
-          typeof child === "string" ? (
-            <TimecodeText text={child} onTimecode={onTimecode} />
-          ) : (
+          typeof child !== "string" ? (
             child
+          ) : onTimecode ? (
+            <TimecodeText
+              text={child}
+              onTimecode={onTimecode}
+              highlight={highlight}
+            />
+          ) : (
+            <AccentText text={child} />
           ),
         )}
       </Base>
@@ -133,6 +146,8 @@ interface MarkdownBodyProps {
   className?: string;
   /** Given: the times in the text ("[12:34]", "00:12:34") jump the recording. */
   onTimecode?: (seconds: number) => void;
+  /** The sums, percents, terms, dates and numbers of the text are accents. */
+  highlight?: boolean;
 }
 
 /** Markdown from the server (protocol, assistant answers), safely rendered. */
@@ -140,10 +155,11 @@ export const MarkdownBody: React.FC<MarkdownBodyProps> = ({
   markdown,
   className = "",
   onTimecode,
+  highlight = false,
 }) => {
   const components = useMemo(
-    () => (onTimecode ? withTimecodes(onTimecode) : COMPONENTS),
-    [onTimecode],
+    () => (onTimecode || highlight ? withText(onTimecode, highlight) : COMPONENTS),
+    [onTimecode, highlight],
   );
   return (
     <div className={`select-text ${className}`}>

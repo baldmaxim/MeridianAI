@@ -7,6 +7,7 @@ import type {
   ProtocolQuestion,
   ProtocolRisk,
 } from "@/bindings";
+import { AccentText } from "./AccentText";
 import { TimecodeText } from "./TimecodeText";
 
 /** The structured part of a protocol (any list may be missing). */
@@ -131,7 +132,9 @@ export const ProtocolStructured: React.FC<ProtocolStructuredProps> = ({
                 ) : null
               }
             >
-              <p className="break-words text-sm text-text">{d.text}</p>
+              <p className="break-words text-sm text-text">
+                <AccentText text={d.text} />
+              </p>
               <Evidence items={d.evidence} onTimecode={onTimecode} />
             </Row>
           ))}
@@ -141,7 +144,9 @@ export const ProtocolStructured: React.FC<ProtocolStructuredProps> = ({
         <Section title={t("meetings.protocol.structured.tasks")}>
           {tasks.map((a, index) => (
             <Row key={index} lead={null}>
-              <p className="break-words text-sm text-text">{a.task}</p>
+              <p className="break-words text-sm text-text">
+                <AccentText text={a.task} />
+              </p>
               <p className="mt-0.5 text-xs text-muted">
                 {t("meetings.protocol.structured.owner")}:{" "}
                 {a.owner_text?.trim() || notSet} ·{" "}
@@ -168,7 +173,9 @@ export const ProtocolStructured: React.FC<ProtocolStructuredProps> = ({
                 ) : null
               }
             >
-              <p className="break-words text-sm text-text">{r.text}</p>
+              <p className="break-words text-sm text-text">
+                <AccentText text={r.text} />
+              </p>
               <Evidence items={r.evidence} onTimecode={onTimecode} />
             </Row>
           ))}
@@ -185,7 +192,9 @@ export const ProtocolStructured: React.FC<ProtocolStructuredProps> = ({
                 </span>
               }
             >
-              <p className="break-words text-sm text-text">{q.text}</p>
+              <p className="break-words text-sm text-text">
+                <AccentText text={q.text} />
+              </p>
               <Evidence items={q.evidence} onTimecode={onTimecode} />
             </Row>
           ))}

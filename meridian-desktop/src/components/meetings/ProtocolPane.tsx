@@ -54,7 +54,11 @@ export const ProtocolPane: React.FC<ProtocolPaneProps> = ({
         className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 ${className}`}
       >
         {hasMarkdown && markdown && (
-          <MarkdownBody markdown={markdown} onTimecode={onTimecode} />
+          <MarkdownBody
+            markdown={markdown}
+            onTimecode={onTimecode}
+            highlight
+          />
         )}
         {hasStructured && structured && (
           <div className={hasMarkdown ? "mt-4" : ""}>
