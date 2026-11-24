@@ -56,9 +56,62 @@ export const useAudioPlayer = <K extends string | number>(
       ? loaded.url
       : null;
 
+  // The link expires (hours): on an error ask for a new one once and go on
+  // from the same second. A second error in a row hides the player.
+  const retryingRef = useRef(false);
+  const resumeRef = useRef<{ time: number; play: boolean } | null>(null);
+
   const handleError = useCallback(() => {
-    setFailedUrl(loaded?.url ?? null);
+    const current = loaded;
+    if (!current || retryingRef.current) {
+      retryingRef.current = false;
+      setFailedUrl(current?.url ?? null);
+      return;
+    }
+    retryingRef.current = true;
+    const audio = audioRef.current;
+    resumeRef.current = audio
+      ? { time: audio.currentTime, play: !audio.paused }
+      : null;
+    loadRef
+      .current(current.key)
+      .then((result) => {
+        if (
+          result.status === "ok" &&
+          result.data &&
+          result.data !== current.url
+        ) {
+          const fresh = result.data;
+          setLoaded((prev) =>
+            prev && prev.key === current.key
+              ? { key: prev.key, url: fresh }
+              : prev,
+          );
+        } else {
+          retryingRef.current = false;
+          setFailedUrl(current.url);
+        }
+      })
+      .catch(() => {
+        retryingRef.current = false;
+        setFailedUrl(current.url);
+      });
   }, [loaded]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !url) return;
+    const onReady = () => {
+      retryingRef.current = false;
+      const resume = resumeRef.current;
+      resumeRef.current = null;
+      if (!resume) return;
+      audio.currentTime = resume.time;
+      if (resume.play) void audio.play().catch(() => undefined);
+    };
+    audio.addEventListener("loadedmetadata", onReady);
+    return () => audio.removeEventListener("loadedmetadata", onReady);
+  }, [url]);
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current;
