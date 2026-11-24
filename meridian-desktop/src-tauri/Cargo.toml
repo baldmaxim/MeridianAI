@@ -1,6 +1,6 @@
 [package]
 name = "meridian-desktop"
-version = "0.6.6"
+version = "0.6.7"
 description = "Meridian Desktop: запись и распознавание встреч"
 authors = ["Meridian"]
 edition = "2021"
