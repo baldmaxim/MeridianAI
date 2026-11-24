@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { isAxiosError } from 'axios';
 import { Collapse } from '../../components/common';
+import { Icon } from '../../components/common/Icon';
 import { SpeakerCard } from '../../components/meeting/SpeakerCard';
 import { retryFinalization } from '../../api/finalization';
 import { getSpeakerRoles, putSpeakerRole } from '../../api/speakerRoles';
@@ -102,7 +103,7 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          <span className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ''}`}>▶</span>
+          <span className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ''}`} aria-hidden><Icon name="chevron-right" size={16} aria-hidden /></span>
           <span className={styles.title}>Спикеры · {speakers.length}</span>
           <span className={styles.action}>{open ? 'Свернуть' : 'Изменить'}</span>
         </button>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { TextInput } from '../components/common';
+import { Icon } from '../components/common/Icon';
 import { PreviousMeetingsContext } from '../components/context/PreviousMeetingsContext';
 import { LearningCandidates } from '../components/learning/LearningCandidates';
 import {
@@ -114,7 +115,10 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
     <div className={`detail-container ${styles.container}`}>
       {/* Top bar */}
       <div className={styles.topBar}>
-        <button onClick={onBack} className={`t-btn ${styles.backBtn}`}>&larr; {backLabel}</button>
+        <button onClick={onBack} className={`t-btn ${styles.backBtn}`}>
+          <Icon name="arrow-left" size={14} aria-hidden />
+          {backLabel}
+        </button>
         <span className={styles.topTitle}>ДЕТАЛИ ВСТРЕЧИ</span>
         {!isDesktop && actions}
       </div>

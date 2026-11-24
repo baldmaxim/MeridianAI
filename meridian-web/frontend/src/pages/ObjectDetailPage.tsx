@@ -9,6 +9,7 @@ import { FIN_LABELS, finBadgeStyle, formatDuration } from '../lib/meetingMeta';
 import { useMeetingStore } from '../store/meetingStore';
 import { Dropdown } from '../components/common/Dropdown';
 import { Modal } from '../components/common/Modal';
+import { Icon } from '../components/common/Icon';
 import { ObjectDocuments } from '../components/object/ObjectDocuments';
 import type { ProjectObject, MeetingListItem } from '../types';
 import styles from './ObjectDetailPage.module.css';
@@ -90,7 +91,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
     <div className={styles.container}>
       <div className={styles.topBar}>
         <button onClick={onBack} className={cx('t-btn', styles.backBtn)} aria-label="К объектам" title="К объектам">
-          <span>&larr;</span><span className={styles.btnLabel}> К объектам</span>
+          <Icon name="arrow-left" size={14} aria-hidden /><span className={styles.btnLabel}>К объектам</span>
         </button>
         <div className={styles.titleWrap}>
           <span className={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
@@ -102,7 +103,10 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                 onClick={() => setInfoOpen((v) => !v)}
                 aria-label="Информация об объекте"
                 title="Информация об объекте"
-              >ⓘ инфо</button>
+              >
+                <Icon name="info" size={14} aria-hidden />
+                инфо
+              </button>
               <Dropdown open={infoOpen} onClose={() => setInfoOpen(false)} origin="top-left" className={styles.infoMenu}>
                 {object.customer_name && (
                   <div className={styles.infoRow}><span className={styles.infoLabel}>Заказчик</span><span className={styles.infoVal}>{object.customer_name}</span></div>
@@ -125,7 +129,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
         </div>
         {object && (
           <button className={cx('t-btn t-btn-amber', styles.newBtn)} onClick={() => onNewMeeting(object)} aria-label="Новая встреча" title="Новая встреча">
-            <span>+</span><span className={styles.btnLabel}> Новая встреча</span>
+            <Icon name="plus" size={14} aria-hidden /><span className={styles.btnLabel}>Новая встреча</span>
           </button>
         )}
       </div>
@@ -162,7 +166,9 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                   onClick={(e) => { e.stopPropagation(); setMenuFor((v) => (v === m.id ? null : m.id)); }}
                   onAuxClick={(e) => e.stopPropagation()}
                   aria-label="Действия со встречей"
-                >⋮</button>
+                >
+                  <Icon name="more-vertical" size={16} aria-hidden />
+                </button>
                 <Dropdown
                   open={menuFor === m.id}
                   onClose={() => setMenuFor(null)}
@@ -212,7 +218,9 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                       onAuxClick={(e) => e.stopPropagation()}
                       title="Скопировать ссылку на встречу"
                     >
-                      {copiedId === m.id ? '✓ скопировано' : '🔗 ссылка'}
+                      {copiedId === m.id
+                        ? <><Icon name="check" size={14} aria-hidden />скопировано</>
+                        : <><Icon name="link" size={14} aria-hidden />ссылка</>}
                     </button>
                   </div>
                 )}

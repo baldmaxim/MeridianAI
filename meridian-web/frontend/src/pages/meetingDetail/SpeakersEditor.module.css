@@ -57,14 +57,19 @@
 }
 
 .chevron {
-  display: inline-block;
-  font-size: var(--fs-meta);
+  display: inline-flex;
   color: var(--text-secondary);
-  transition: transform 180ms ease-out;
+  transition: transform 150ms ease-out;
 }
 
 .chevronOpen {
   transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
 }
 
 .title {

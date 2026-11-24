@@ -61,6 +61,9 @@
 }
 
 .infoBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   background: transparent;
   border: 1px solid var(--border-default);
@@ -91,6 +94,10 @@
 }
 
 .newBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 8px 14px;
   background: var(--accent-amber);
   border: none;
@@ -286,6 +293,9 @@
 }
 
 .linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   background: transparent;
   border: 1px solid var(--border-amber);
@@ -417,6 +427,16 @@
 /* Подписи кнопок скрыты на мобильных (остаются только иконки) */
 .btnLabel {
   display: none;
+}
+
+/* На мобильном «К объектам» и «Новая встреча» — только иконка: тап-цель ≥44px */
+@media (max-width: 767px) {
+  .backBtn,
+  .newBtn {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
 }
 
 @media (min-width: 768px) {

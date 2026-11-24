@@ -15,7 +15,13 @@ export type IconName =
   | 'building'
   | 'pin'
   | 'arrow-right'
-  | 'chevron-right';
+  | 'chevron-right'
+  | 'arrow-left'
+  | 'info'
+  | 'link'
+  | 'more-vertical'
+  | 'check'
+  | 'plus';
 
 interface IIconProps {
   name: IconName;
@@ -37,6 +43,23 @@ const PATHS: Record<IconName, ReactNode> = {
   'chevron-down': <path d="M6 9l6 6 6-6" />,
   'chevron-right': <path d="M9 6l6 6-6 6" />,
   'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,
+  'arrow-left': <path d="M19 12H5M11 6l-6 6 6 6" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 7.5v.01" />
+    </>
+  ),
+  link: <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" />,
+  'more-vertical': (
+    <>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </>
+  ),
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  plus: <path d="M12 5v14M5 12h14" />,
   building: (
     <>
       <path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 10h2a2 2 0 0 1 2 2v9M2 21h20" />

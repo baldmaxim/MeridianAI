@@ -32,6 +32,9 @@
 }
 
 .addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 9px 16px;
   background: var(--accent-amber);
   border: none;

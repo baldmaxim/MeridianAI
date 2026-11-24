@@ -9,6 +9,7 @@ import type { MeetingContextSource, PreviousMeetingCandidate } from '../../types
 import { ContextSourceCard } from './ContextSourceCard';
 import { Modal } from '../common/Modal';
 import { Collapse } from '../common/Collapse';
+import { Icon } from '../common/Icon';
 import { TextInput } from '../common';
 import styles from './PreviousMeetingsContext.module.css';
 import {
@@ -118,7 +119,8 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
   const flat = variant === 'flat';
   const addButton = !readOnly && (
     <button className={styles.addToggle} onClick={() => setShowAdd(true)}>
-      + Добавить
+      <Icon name="plus" size={14} aria-hidden />
+      Добавить
     </button>
   );
 
@@ -175,7 +177,7 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
               onClick={() => setRowOpen((v) => !v)}
               aria-expanded={rowOpen}
             >
-              <span className={`${styles.chevron} ${rowOpen ? styles.chevronOpen : ''}`} aria-hidden>▶</span>
+              <span className={`${styles.chevron} ${rowOpen ? styles.chevronOpen : ''}`} aria-hidden><Icon name="chevron-right" size={16} aria-hidden /></span>
               <span className={styles.title}>Предыдущие встречи как контекст</span>
               <span className={styles.rowCount}>{prevSources.length}</span>
             </button>
@@ -190,7 +192,9 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
         <div className={styles.modalHead}>
           <span className={styles.title}>Добавить прошлую встречу</span>
           <span className={styles.spacer} />
-          <button className={styles.modalClose} onClick={() => setShowAdd(false)} aria-label="Закрыть">×</button>
+          <button className={styles.modalClose} onClick={() => setShowAdd(false)} aria-label="Закрыть">
+            <Icon name="close" size={18} aria-hidden />
+          </button>
         </div>
 
         {scope ? (

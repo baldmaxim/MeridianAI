@@ -70,7 +70,10 @@ export function ObjectsPage({ onOpenObject }: Props) {
     <div className={cx('objects-page', styles.container)}>
       <div className={styles.topBar}>
         <span className={styles.title}>ОБЪЕКТЫ</span>
-        <button className={cx('t-btn t-btn-amber', styles.addBtn)} onClick={() => setShowCreate(true)}>+ Объект</button>
+        <button className={cx('t-btn t-btn-amber', styles.addBtn)} onClick={() => setShowCreate(true)}>
+          <Icon name="plus" size={14} aria-hidden />
+          Объект
+        </button>
       </div>
 
       {objects.length > 0 && (
@@ -135,7 +138,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
                             aria-label="Информация об объекте"
                             onClick={() => { setInfoObject(o); setInfoOpen(true); }}
                           >
-                            i
+                            <Icon name="info" size={18} aria-hidden />
                           </button>
                         )}
                       </div>

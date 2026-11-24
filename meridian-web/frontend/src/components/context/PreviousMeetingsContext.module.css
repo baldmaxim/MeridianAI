@@ -71,9 +71,9 @@
 }
 
 .chevron {
-  font-size: var(--fs-meta);
+  display: inline-flex;
   color: var(--text-secondary);
-  transition: transform 180ms ease-out;
+  transition: transform 150ms ease-out;
 }
 
 .chevronOpen {
@@ -133,6 +133,9 @@
 }
 
 .addToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 12px;
   background: var(--accent-amber-glow);
   border: 1px solid var(--accent-amber);
@@ -156,6 +159,9 @@
 }
 
 .modalClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -232,5 +238,10 @@
 @media (max-width: 768px) {
   .addToggle {
     min-height: 44px;
+  }
+
+  .modalClose {
+    width: 44px;
+    height: 44px;
   }
 }
