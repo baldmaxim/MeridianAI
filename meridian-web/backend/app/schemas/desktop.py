@@ -6,6 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from .finalization import (
+    ProtocolActionItemOut,
+    ProtocolDecisionOut,
+    ProtocolOpenQuestionOut,
+    ProtocolRiskOut,
+)
+
 CaptureMode = Literal["online", "in_person"]
 Channel = Literal["mic", "system", "mixed"]
 
@@ -244,6 +251,18 @@ class DesktopMeetingView(DesktopLibraryItem):
     offer_submission_label: str | None = None
     segments: list[DesktopSegmentOut]
     documents: list[DesktopDocumentOut]
+    # Структурный протокол — те же схемы, что у сайта (GET /api/meetings/{id}/protocol).
+    decisions: list[ProtocolDecisionOut] = Field(default_factory=list)
+    action_items: list[ProtocolActionItemOut] = Field(default_factory=list)
+    risks: list[ProtocolRiskOut] = Field(default_factory=list)
+    open_questions: list[ProtocolOpenQuestionOut] = Field(default_factory=list)
+
+
+class DesktopAudioUrl(BaseModel):
+    """Presigned GET на аудио. url — секрет: не логировать."""
+    url: str
+    source: Literal["batch", "mixed", "system", "mic"]
+    expires_in: int
 
 
 class DesktopObjectOut(BaseModel):

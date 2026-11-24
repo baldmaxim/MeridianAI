@@ -37,6 +37,7 @@ from ..schemas.batch import (
 )
 from ..services.jobs import enqueue
 from ..services import s3
+from ..services.audio_links import presign_audio
 from ..services.upload_stream import save_upload_limited, UploadTooLargeError
 from ..core.batch.utils import (
     format_transcription_txt, group_words_by_speaker, parse_translation_map,
@@ -407,13 +408,12 @@ async def get_job_audio_url(
     job = result.scalar_one_or_none()
     if not job or not job.file_path:
         raise HTTPException(404, "Аудио недоступно")
-    meta = await s3.head_object(job.file_path)
-    if not meta:
-        raise HTTPException(404, "Аудио недоступно")
     name = safe_download_name(job.original_filename or "audio")
     # presigned URL — секрет, НЕ логировать. Длинный TTL — чтобы перемотка не отваливалась.
-    url = s3.presign_get(job.file_path, ttl=settings.batch_audio_presign_ttl, download_name=name)
-    return {"url": url, "content_type": meta.get("content_type"), "size": meta.get("size")}
+    link = await presign_audio(job.file_path, download_name=name)
+    if link is None:
+        raise HTTPException(404, "Аудио недоступно")
+    return {"url": link.url, "content_type": link.content_type, "size": link.size}
 
 
 @router.post("/jobs/{job_id}/clip")

@@ -13,9 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.context.document_loader import DOC_TYPE_LABELS
 from ..database import get_db
 from ..models.desktop import DesktopMeetingLink
+from ..models.batch_job import BatchJob
 from ..models.directory import Customer, ProjectObject
+from ..models.file import FileRecord
 from ..models.meeting import MeetingDocumentRecord, MeetingSession, TranscriptSegmentRecord
 from ..schemas.desktop import (
+    DesktopAudioUrl,
     DesktopCustomer,
     DesktopDocumentOut,
     DesktopLibraryItem,
@@ -25,6 +28,9 @@ from ..schemas.desktop import (
     DesktopSegmentOut,
 )
 from ..services.access import accessible_meeting_filter, user_can_access_meeting, user_can_access_object
+from ..core.http_files import safe_download_name
+from ..services.audio_links import presign_audio
+from ..services.protocol_lists import load_protocol_lists
 from ..services.offer_submissions import list_object_offer_submissions, offer_submission_label
 from .desktop import Device
 
@@ -125,8 +131,14 @@ async def meeting_view(meeting_id: int, auth: Device, db: AsyncSession = Depends
         .order_by(MeetingDocumentRecord.created_at.asc())
     )).scalars().all()
 
+    protocol = await load_protocol_lists(db, meeting_id)
+
     return DesktopMeetingView(
         **_item_fields(row),
+        decisions=protocol.decisions,
+        action_items=protocol.action_items,
+        risks=protocol.risks,
+        open_questions=protocol.open_questions,
         protocol_markdown=row.MeetingSession.protocol_markdown,
         negotiation_type=row.MeetingSession.negotiation_type,
         key_terms=row.MeetingSession.meeting_notes,
@@ -153,6 +165,48 @@ async def meeting_view(meeting_id: int, auth: Device, db: AsyncSession = Depends
             for d in docs
         ],
     )
+
+
+AUDIO_CHANNEL_PRIORITY = ("mixed", "system", "mic")
+
+
+@router.get("/meetings/{meeting_id}/audio", response_model=DesktopAudioUrl)
+async def meeting_audio(meeting_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Presigned GET на аудио встречи.
+
+    Источник: распознанная запись (batch, без дозаписей gap_fill) → архив ПК mixed → system → mic.
+    Нет аудио, S3 выключен или объекта нет в хранилище — 404 audio_not_found.
+    """
+    if await db.get(MeetingSession, meeting_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Встреча не найдена")
+    if not await user_can_access_meeting(db, auth.user.id, meeting_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Нет доступа к встрече")
+
+    job = (await db.execute(
+        select(BatchJob).where(
+            BatchJob.meeting_id == meeting_id, BatchJob.file_path != "",
+            BatchJob.kind.is_(None) | (BatchJob.kind != "gap_fill"),
+        ).order_by(BatchJob.id.desc())
+    )).scalars().first()
+    if job is not None:
+        link = await presign_audio(job.file_path, download_name=safe_download_name(job.original_filename or "audio"))
+        if link is not None:
+            return DesktopAudioUrl(url=link.url, source="batch", expires_in=link.expires_in)
+
+    records = (await db.execute(
+        select(FileRecord).where(
+            FileRecord.meeting_id == meeting_id, FileRecord.purpose == "meeting_audio",
+            FileRecord.status == "active",
+        ).order_by(FileRecord.id.desc())
+    )).scalars().all()
+    for channel in AUDIO_CHANNEL_PRIORITY:
+        for rec in records:
+            if not rec.original_name.startswith(f"{channel}_"):
+                continue
+            link = await presign_audio(rec.object_key, download_name=safe_download_name(rec.original_name))
+            if link is not None:
+                return DesktopAudioUrl(url=link.url, source=channel, expires_in=link.expires_in)
+    raise HTTPException(status.HTTP_404_NOT_FOUND, detail="audio_not_found")
 
 
 @router.get("/projects", response_model=list[DesktopCustomer])

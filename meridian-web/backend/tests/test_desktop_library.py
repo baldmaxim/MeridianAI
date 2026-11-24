@@ -6,6 +6,12 @@ from datetime import datetime
 
 import httpx
 import pytest_asyncio
+import app.api.desktop_library as library_mod
+from app.config import get_settings
+from app.models.batch_job import BatchJob
+from app.models.file import FileRecord
+from app.models.protocol import MeetingActionItem, MeetingDecision, MeetingOpenQuestion, MeetingRisk
+from app.services import s3 as s3mod
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -208,3 +214,129 @@ async def test_projects_nested_active_objects(sm, client):
     assert body[0]["objects"][1]["address"] == "ул. Ленина, 1"
     assert [o["name"] for o in body[1]["objects"]] == ["Склад"]
     assert body[2]["objects"] == []
+
+
+async def test_meeting_view_has_structured_protocol(sm, client):
+    me = await _user(sm)
+    h = await _device(sm, me)
+    mid, _ = await _site_meeting(sm, me)
+    empty_id, _ = await _site_meeting(sm, me)
+    async with sm() as db:
+        db.add_all([
+            MeetingDecision(meeting_id=mid, text="Аванс 30%", status="accepted",
+                            evidence_json='[{"timecode":"00:01","speaker":"Мы","quote":"ок"}]'),
+            MeetingActionItem(meeting_id=mid, task="Выслать КП", owner_text="Иванов", due_text="до пятницы"),
+            MeetingRisk(meeting_id=mid, text="Срыв сроков", severity="high"),
+            MeetingOpenQuestion(meeting_id=mid, text="Кто платит за кран?"),
+        ])
+        await db.commit()
+
+    body = (await client.get(f"/api/desktop/meetings/{mid}/view", headers=h)).json()
+    assert body["decisions"][0]["text"] == "Аванс 30%" and body["decisions"][0]["status"] == "accepted"
+    assert body["decisions"][0]["evidence"][0]["quote"] == "ок"
+    assert body["action_items"][0]["task"] == "Выслать КП" and body["action_items"][0]["owner_text"] == "Иванов"
+    assert body["risks"][0]["severity"] == "high"
+    assert body["open_questions"][0]["text"] == "Кто платит за кран?"
+
+    empty = (await client.get(f"/api/desktop/meetings/{empty_id}/view", headers=h)).json()
+    assert (empty["decisions"], empty["action_items"], empty["risks"], empty["open_questions"]) == ([], [], [], [])
+
+
+def _s3_on(monkeypatch, missing: set[str] | None = None):
+    """S3 включён, presign подменён; missing — ключи, которых «нет в хранилище»."""
+    monkeypatch.setattr(type(get_settings()), "s3_enabled", property(lambda self: True))
+
+    async def _head(key):
+        return None if missing and key in missing else {"size": 10, "content_type": "audio/mpeg"}
+
+    monkeypatch.setattr(s3mod, "head_object", _head)
+    monkeypatch.setattr(s3mod, "presign_get", lambda key, ttl=None, download_name=None, public=True:
+                        f"https://s3.example/get/{key}?sig=x")
+
+
+async def _add_audio(sm, user, mid, *, batch=None, files=(), batch_kind=None):
+    async with sm() as db:
+        if batch:
+            db.add(BatchJob(user_id=user.id, meeting_id=mid, original_filename="rec.mp3",
+                            file_path=batch, kind=batch_kind))
+        for channel, key, status in files:
+            db.add(FileRecord(user_id=user.id, object_key=key, original_name=f"{channel}_rec.webm",
+                              purpose="meeting_audio", status=status, meeting_id=mid))
+        await db.commit()
+
+
+async def test_meeting_audio_batch_has_priority(sm, client, monkeypatch):
+    _s3_on(monkeypatch)
+    me = await _user(sm)
+    h = await _device(sm, me)
+    mid, _ = await _site_meeting(sm, me)
+    await _add_audio(sm, me, mid, batch="k/batch.mp3", files=[("mixed", "k/mixed.webm", "active")])
+    r = await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"] == "batch" and body["url"].startswith("https://s3.example/get/k/batch.mp3")
+    assert body["expires_in"] == get_settings().batch_audio_presign_ttl
+
+
+async def test_meeting_audio_channel_order_and_skips(sm, client, monkeypatch):
+    _s3_on(monkeypatch, missing={"k/mixed.webm"})
+    me = await _user(sm)
+    h = await _device(sm, me)
+    mid, _ = await _site_meeting(sm, me)
+    await _add_audio(sm, me, mid, files=[
+        ("mic", "k/mic.webm", "active"), ("system", "k/system.webm", "active"),
+        ("mixed", "k/mixed.webm", "active"),  # нет в S3 — берём следующий
+    ])
+    body = (await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)).json()
+    assert body["source"] == "system" and body["url"].startswith("https://s3.example/get/k/system.webm")
+
+    mid2, _ = await _site_meeting(sm, me)
+    await _add_audio(sm, me, mid2, files=[("mic", "k/mic2.webm", "active"), ("mixed", "k/m2.webm", "pending")])
+    assert (await client.get(f"/api/desktop/meetings/{mid2}/audio", headers=h)).json()["source"] == "mic"
+
+
+async def test_meeting_audio_ignores_gap_fill_batch(sm, client, monkeypatch):
+    _s3_on(monkeypatch)
+    me = await _user(sm)
+    h = await _device(sm, me)
+    mid, _ = await _site_meeting(sm, me)
+    await _add_audio(sm, me, mid, batch="k/gap.mp3", batch_kind="gap_fill")
+    r = await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)
+    assert r.status_code == 404 and r.json() == {"detail": "audio_not_found"}
+
+
+async def test_meeting_audio_404_without_audio_or_s3(sm, client, monkeypatch):
+    me = await _user(sm)
+    h = await _device(sm, me)
+    mid, _ = await _site_meeting(sm, me)
+    _s3_on(monkeypatch)
+    r = await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)
+    assert r.status_code == 404 and r.json() == {"detail": "audio_not_found"}
+
+    await _add_audio(sm, me, mid, batch="k/batch.mp3")
+    monkeypatch.setattr(type(get_settings()), "s3_enabled", property(lambda self: False))
+    r = await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)
+    assert r.status_code == 404 and r.json() == {"detail": "audio_not_found"}
+
+    _s3_on(monkeypatch, missing={"k/batch.mp3"})
+    r = await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)
+    assert r.status_code == 404 and r.json() == {"detail": "audio_not_found"}
+
+
+async def test_meeting_audio_unknown_or_forbidden_meeting(sm, client, monkeypatch):
+    _s3_on(monkeypatch)
+    me = await _user(sm)
+    h = await _device(sm, me)
+    assert (await client.get("/api/desktop/meetings/9999/audio", headers=h)).status_code == 404
+    assert (await client.get("/api/desktop/meetings/1/audio")).status_code == 401
+
+    mid, _ = await _site_meeting(sm, me)
+    await _add_audio(sm, me, mid, batch="k/batch.mp3")
+
+    async def _deny(db, user_id, meeting_id):
+        return False
+
+    monkeypatch.setattr(library_mod, "user_can_access_meeting", _deny)
+    # тот же код, что у /view для встречи без доступа
+    assert (await client.get(f"/api/desktop/meetings/{mid}/view", headers=h)).status_code == 403
+    assert (await client.get(f"/api/desktop/meetings/{mid}/audio", headers=h)).status_code == 403

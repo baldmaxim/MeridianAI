@@ -18,6 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models.batch_job import BatchJob
 from ..models.file import FileRecord
+from ..core.http_files import safe_download_name
+from ..schemas.desktop import DesktopAudioUrl
+from ..services.audio_links import presign_audio
 from ..schemas.batch import (
     BatchJobDetailResponse,
     BatchJobResponse,
@@ -25,7 +28,7 @@ from ..schemas.batch import (
     UploadSessionRequest,
     UploadSessionResponse,
 )
-from .batch import confirm_upload, create_upload_session, get_batch_job, list_batch_jobs
+from .batch import _job_access, confirm_upload, create_upload_session, get_batch_job, list_batch_jobs
 from .desktop import Device
 
 router = APIRouter()
@@ -100,3 +103,17 @@ async def transcriptions_list(auth: Device, db: AsyncSession = Depends(get_db)):
 async def transcriptions_get(job_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
     """Статус и результат распознавания (текст, реплики по говорящим). Чужая задача — 404."""
     return await get_batch_job(job_id, user=auth.user, db=db)
+
+
+@router.get("/transcriptions/{job_id}/audio", response_model=DesktopAudioUrl)
+async def transcriptions_audio(job_id: int, auth: Device, db: AsyncSession = Depends(get_db)):
+    """Presigned GET на исходное аудио записи. Чужая задача — 404; нет аудио — 404 audio_not_found."""
+    job = (await db.execute(
+        select(BatchJob).where(BatchJob.id == job_id, _job_access(auth.user))
+    )).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+    link = await presign_audio(job.file_path, download_name=safe_download_name(job.original_filename or "audio"))
+    if link is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="audio_not_found")
+    return DesktopAudioUrl(url=link.url, source="batch", expires_in=link.expires_in)

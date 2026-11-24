@@ -13,7 +13,6 @@ from ..models.meeting import MeetingSession, TranscriptSegmentRecord, MeetingSug
 from ..schemas.suggestion import SuggestionCard
 from ..models.directory import Customer, ProjectObject, MeetingParticipant
 from ..models.document import DocumentRecord
-from ..models.protocol import MeetingDecision, MeetingActionItem, MeetingRisk, MeetingOpenQuestion
 from ..core.context.document_loader import DOC_TYPE_LABELS
 from ..schemas.meeting import (
     MeetingListItem,
@@ -38,6 +37,7 @@ from ..services.access import (
 )
 from ..api.objects import resolve_or_create_customer
 from ..services.meeting_room import compute_live_state
+from ..services.protocol_lists import load_protocol_lists
 from ..services.meeting_finalize import close_and_request_finalization, request_finalization
 from ..schemas.document import MeetingDocumentItem, MeetingDocumentPatch
 from ..services.meeting_documents import (
@@ -51,10 +51,6 @@ from ..schemas.finalization import (
     FinalizationStatusResponse,
     MeetingProtocolResponse,
     ProtocolPatch,
-    ProtocolDecisionOut,
-    ProtocolActionItemOut,
-    ProtocolRiskOut,
-    ProtocolOpenQuestionOut,
 )
 import json as _json
 
@@ -580,16 +576,6 @@ async def list_meeting_suggestions(
 # --- Этап 5: финализация встречи ---
 
 
-def _ev(s: str | None) -> list:
-    if not s:
-        return []
-    try:
-        v = _json.loads(s)
-        return v if isinstance(v, list) else []
-    except (ValueError, TypeError):
-        return []
-
-
 @router.post("/{meeting_id}/finalize", response_model=FinalizationStatusResponse)
 async def finalize_meeting_endpoint(
     meeting_id: int,
@@ -663,10 +649,7 @@ async def get_meeting_protocol(
     if not await user_can_access_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Нет доступа к встрече")
 
-    decisions = (await db.execute(select(MeetingDecision).where(MeetingDecision.meeting_id == meeting_id).order_by(MeetingDecision.id))).scalars().all()
-    actions = (await db.execute(select(MeetingActionItem).where(MeetingActionItem.meeting_id == meeting_id).order_by(MeetingActionItem.id))).scalars().all()
-    risks = (await db.execute(select(MeetingRisk).where(MeetingRisk.meeting_id == meeting_id).order_by(MeetingRisk.id))).scalars().all()
-    questions = (await db.execute(select(MeetingOpenQuestion).where(MeetingOpenQuestion.meeting_id == meeting_id).order_by(MeetingOpenQuestion.id))).scalars().all()
+    lists = await load_protocol_lists(db, meeting_id)
 
     return MeetingProtocolResponse(
         meeting_id=meeting.id,
@@ -676,10 +659,10 @@ async def get_meeting_protocol(
         tags=_json.loads(meeting.tags_json) if meeting.tags_json else [],
         protocol_markdown=meeting.protocol_markdown,
         protocol_json=_json.loads(meeting.protocol_json) if meeting.protocol_json else None,
-        decisions=[ProtocolDecisionOut(id=d.id, text=d.text, status=d.status, evidence=_ev(d.evidence_json), created_at=d.created_at) for d in decisions],
-        action_items=[ProtocolActionItemOut(id=a.id, task=a.task, owner_text=a.owner_text, due_text=a.due_text, status=a.status, evidence=_ev(a.evidence_json), created_at=a.created_at) for a in actions],
-        risks=[ProtocolRiskOut(id=r.id, text=r.text, severity=r.severity, evidence=_ev(r.evidence_json), created_at=r.created_at) for r in risks],
-        open_questions=[ProtocolOpenQuestionOut(id=q.id, text=q.text, evidence=_ev(q.evidence_json), created_at=q.created_at) for q in questions],
+        decisions=lists.decisions,
+        action_items=lists.action_items,
+        risks=lists.risks,
+        open_questions=lists.open_questions,
     )
 
 

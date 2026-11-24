@@ -178,3 +178,47 @@ async def test_no_token_is_401(sm, client):
     assert (await client.post(f"{BASE}/1/confirm")).status_code == 401
     assert (await client.get(f"{BASE}/1")).status_code == 401
     assert (await client.get(BASE)).status_code == 401
+
+
+async def _confirmed_job(sm, client, token):
+    file_id = (await _session(client, token)).json()["file_id"]
+    return (await client.post(f"{BASE}/{file_id}/confirm", headers=_bearer(token))).json()["id"]
+
+
+async def test_audio_url_ok(sm, client, monkeypatch):
+    _enable_s3(monkeypatch)
+    monkeypatch.setattr(s3mod, "presign_get", lambda key, ttl=None, download_name=None, public=True:
+                        "https://s3.example/get?sig=x")
+    token = await _device(sm, await _user(sm))
+    job_id = await _confirmed_job(sm, client, token)
+    r = await client.get(f"{BASE}/{job_id}/audio", headers=_bearer(token))
+    assert r.status_code == 200, r.text
+    assert r.json() == {"url": "https://s3.example/get?sig=x", "source": "batch",
+                        "expires_in": get_settings().batch_audio_presign_ttl}
+
+
+async def test_audio_url_missing_object_or_s3_is_404(sm, client, monkeypatch):
+    _enable_s3(monkeypatch)
+    token = await _device(sm, await _user(sm))
+    job_id = await _confirmed_job(sm, client, token)
+
+    async def _no_head(key):
+        return None
+
+    monkeypatch.setattr(s3mod, "head_object", _no_head)
+    r = await client.get(f"{BASE}/{job_id}/audio", headers=_bearer(token))
+    assert r.status_code == 404 and r.json() == {"detail": "audio_not_found"}
+
+    monkeypatch.setattr(type(get_settings()), "s3_enabled", property(lambda self: False))
+    r = await client.get(f"{BASE}/{job_id}/audio", headers=_bearer(token))
+    assert r.status_code == 404 and r.json() == {"detail": "audio_not_found"}
+
+
+async def test_audio_url_foreign_or_unknown_job_is_404(sm, client, monkeypatch):
+    _enable_s3(monkeypatch)
+    token_a = await _device(sm, await _user(sm, "a@t.local"))
+    token_b = await _device(sm, await _user(sm, "b@t.local"))
+    job_id = await _confirmed_job(sm, client, token_a)
+    assert (await client.get(f"{BASE}/{job_id}/audio", headers=_bearer(token_b))).status_code == 404
+    assert (await client.get(f"{BASE}/9999/audio", headers=_bearer(token_a))).status_code == 404
+    assert (await client.get(f"{BASE}/{job_id}/audio")).status_code == 401
