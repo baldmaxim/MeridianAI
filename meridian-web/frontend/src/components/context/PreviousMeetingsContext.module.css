@@ -24,6 +24,20 @@
   display: flex;
 }
 
+/* Телефон: «Добавить» — отдельный ряд под списком встреч, с отбивкой, а не продолжение последней строки */
+@media (max-width: 768px) {
+  .flatActions {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-default);
+  }
+
+  .flatActions .addToggle {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
 /* row: компактная свёрнутая строка (страница деталей встречи) */
 .rowRoot {
   display: flex;

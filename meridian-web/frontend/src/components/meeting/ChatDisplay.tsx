@@ -46,7 +46,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
   }, [reconciliation, dismissedRecon]);
   // Этап 9.8: авторитетный источник транскрипта (баннер при multi-channel)
   const authority = useMeetingStore((s) => s.transcriptionAuthority);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
 
   // Известные speaker labels (для «исправить speaker label»)
@@ -77,7 +77,10 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Прокручиваем только сам список. scrollIntoView крутил и предков (шторку на телефоне) —
+    // заголовок уезжал, а низ транскрипции прятался.
+    const el = messagesRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, turns, partialMessage]);
 
   return (
@@ -94,7 +97,7 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
           Авторитетный транскрипт ведётся по multi-channel. Single STT продолжает работать как резерв.
         </div>
       )}
-      <div className={styles.messages}>
+      <div ref={messagesRef} className={styles.messages}>
         {!hasTurns && messages.length === 0 && (
           <div className={styles.placeholder}>
             Транскрипция появится здесь...
@@ -241,7 +244,6 @@ export function ChatDisplay({ onSetSpeakerRole, onCorrectSegment, onSetSegmentCo
             <span className={styles.text}>{partialMessage.text}</span>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );

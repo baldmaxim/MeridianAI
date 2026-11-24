@@ -23,6 +23,18 @@
   gap: 5px;
 }
 
+/* Телефон (шторка транскрипции): листается только список реплик, не шторка и не страница */
+@media (max-width: 768px) {
+  .container {
+    min-height: 0;
+  }
+
+  .messages {
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .placeholder {
   color: var(--text-muted);
   text-align: center;
