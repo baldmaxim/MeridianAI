@@ -1,0 +1,15 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  background: var(--accent-green-dim);
+  border: 1px solid var(--accent-green);
+  border-radius: 10px;
+  color: var(--accent-green);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}

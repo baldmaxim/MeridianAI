@@ -267,3 +267,40 @@
   font-family: 'Inter', sans-serif;
   font-size: var(--fs-body);
 }
+
+/* Фильтр «Все / В тендере / Выигранные» */
+.tenderFilter {
+  display: flex;
+  gap: 6px;
+}
+
+.tenderFilterBtn {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--fs-control);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tenderFilterBtnActive {
+  background: var(--bg-elevated);
+  border-color: var(--border-amber);
+  color: var(--accent-amber);
+}
+
+@media (min-width: 768px) {
+  .tenderFilter {
+    max-width: 420px;
+  }
+}

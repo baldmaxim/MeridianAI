@@ -41,6 +41,11 @@ class RegistryRow(BaseModel):
     updated_at: str | None = None
 
     @property
+    def is_tender_won(self) -> bool:
+        # Сырой статус реестра: effective_status для «Выиграл» уже «archive».
+        return bool(self.status) and "выиграл" in self.status.name.casefold()
+
+    @property
     def effective_status(self) -> str:
         if self.is_archived:
             return "archive"
@@ -154,6 +159,10 @@ async def import_registry(
                 db.add(obj)
                 await db.flush()
                 object_id = item["object_id"] = obj.id
+            if action in {"link", "refresh"} and row.is_tender_won:
+                linked = objects.get(object_id)
+                if linked is not None:
+                    linked.tender_won = True  # только True, обратно не сбрасываем
             if action == "refresh":
                 stored[registry_id].registry_data = data
             else:

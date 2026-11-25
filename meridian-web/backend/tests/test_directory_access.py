@@ -10,10 +10,10 @@ from app.models.user import User
 from app.models.meeting import MeetingSession
 from app.models.directory import Customer, ProjectObject
 from app.models.document import DocumentRecord
-from app.schemas.directory import CustomerCreate, ProjectObjectCreate
+from app.schemas.directory import CustomerCreate, ProjectObjectCreate, ProjectObjectUpdate
 from app.schemas.meeting import MeetingCreate
 from app.api.customers import create_customer
-from app.api.objects import create_object
+from app.api.objects import create_object, update_object
 from app.api.history import create_meeting
 from app.services.access import user_can_access_object, user_can_access_meeting
 
@@ -100,3 +100,31 @@ async def test_meeting_and_document_survive_user_deletion(db):
     assert doc2 is not None and doc2.owner_user_id is None and doc2.created_by_user_id is None
     assert c2 is not None and c2.owner_user_id is None
     assert o2 is not None and o2.owner_user_id is None
+
+
+async def test_object_tender_won_default_set_and_null_ignored(db):
+    owner = await _mk_user(db, "owner-won@test.local")
+    o = await create_object(
+        ProjectObjectCreate(customer_name="Cust-Won", name="Obj-Won"), user=owner, db=db
+    )
+    assert o.tender_won is False
+
+    o = await update_object(o.id, ProjectObjectUpdate(tender_won=True), user=owner, db=db)
+    assert o.tender_won is True
+
+    # явный null не должен ронять NOT NULL и не меняет значение
+    o = await update_object(
+        o.id, ProjectObjectUpdate.model_validate({"tender_won": None, "notes": "x"}),
+        user=owner, db=db,
+    )
+    assert o.tender_won is True
+    assert o.notes == "x"
+
+    o = await update_object(o.id, ProjectObjectUpdate(tender_won=False), user=owner, db=db)
+    assert o.tender_won is False
+
+    created = await create_object(
+        ProjectObjectCreate(customer_name="Cust-Won", name="Obj-Won-2", tender_won=True),
+        user=owner, db=db,
+    )
+    assert created.tender_won is True

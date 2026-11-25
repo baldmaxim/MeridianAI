@@ -62,3 +62,22 @@ def test_create_list_defers_unreviewed_rows_and_keeps_match_checks():
     assert list(plan_import([approved], {}, {}, {}, set())) == [
         (approved, "review_create", None, []),
     ]
+
+
+def test_won_status_marks_tender_won_even_though_effective_status_is_archive():
+    won = row(1, status={"name": "Выиграл тендер"})
+    lost = row(2, status={"name": "Проиграл"})
+    work = row(3, status={"name": "В работе"})
+    assert won.effective_status == "archive"
+    assert won.is_tender_won is True
+    assert lost.is_tender_won is False
+    assert work.is_tender_won is False
+    assert row(4).is_tender_won is False
+
+
+def test_linked_won_row_is_planned_as_refresh():
+    won = row(1, status={"name": "выиграл"})
+    objects = {12: SimpleNamespace(id=12, name="Объект 1")}
+    plan = list(plan_import([won], {str(won.id): 12}, objects, {}))
+    assert [(action, object_id) for _, action, object_id, _ in plan] == [("refresh", 12)]
+    assert plan[0][0].is_tender_won

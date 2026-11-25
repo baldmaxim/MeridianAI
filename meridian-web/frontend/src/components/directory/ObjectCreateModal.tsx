@@ -39,6 +39,7 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
   const [payhubProjectId, setPayhubProjectId] = useState('');
+  const [tenderWon, setTenderWon] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
@@ -68,6 +69,7 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         address: address.trim() || null,
         description: description.trim() || null,
         payhub_project_id: payhubRaw ? Number(payhubRaw) : null,
+        tender_won: tenderWon,
       });
       onCreated();
     } catch (e) {
@@ -101,6 +103,10 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         <TextInput inputClassName={styles.input} value={description} onChange={(e) => setDescription(e.target.value)} onClear={() => setDescription('')} clearLabel="описание" placeholder="необязательно" />
         <label className={styles.label}>PayHub project_id</label>
         <TextInput inputClassName={styles.input} value={payhubProjectId} onChange={(e) => setPayhubProjectId(e.target.value)} onClear={() => setPayhubProjectId('')} clearLabel="PayHub project_id" placeholder="ID проекта в PayHub — для поиска писем (необязательно)" inputMode="numeric" />
+        <label className={styles.checkRow}>
+          <input type="checkbox" checked={tenderWon} onChange={(e) => setTenderWon(e.target.checked)} />
+          <span className={styles.checkLabel}>Тендер выигран</span>
+        </label>
         <div className={styles.formRow}>
           <button className={cx('t-btn t-btn-amber', styles.btn)} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
           <button className={cx('t-btn', styles.btnGhost)} onClick={onClose}>Отмена</button>

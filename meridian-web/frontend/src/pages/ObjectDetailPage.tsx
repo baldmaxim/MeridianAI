@@ -11,6 +11,8 @@ import { Dropdown } from '../components/common/Dropdown';
 import { Modal } from '../components/common/Modal';
 import { Icon } from '../components/common/Icon';
 import { ObjectDocuments } from '../components/object/ObjectDocuments';
+import { TenderWonBadge } from '../components/directory/TenderWonBadge';
+import { useUpdateObject } from '../hooks/queries/directory';
 import type { ProjectObject, MeetingListItem } from '../types';
 import styles from './ObjectDetailPage.module.css';
 import { cx } from '../utils/cx';
@@ -34,6 +36,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
   const [confirmDelete, setConfirmDelete] = useState<MeetingListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const updateObjectMut = useUpdateObject();
 
   const load = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(''); }
@@ -73,6 +76,17 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
     setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
   };
 
+  const toggleTenderWon = (obj: ProjectObject) => {
+    setError('');
+    updateObjectMut.mutate(
+      { id: obj.id, input: { tender_won: !obj.tender_won } },
+      {
+        onSuccess: (updated) => setObject(updated),
+        onError: (e) => setError(apiErrorMessage(e, 'Не удалось изменить признак тендера')),
+      },
+    );
+  };
+
   const doDelete = useCallback(async () => {
     if (!confirmDelete) return;
     setDeleting(true);
@@ -95,6 +109,7 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
         </button>
         <div className={styles.titleWrap}>
           <span className={styles.topTitle}>{object?.name || 'ОБЪЕКТ'}</span>
+          {object?.tender_won && <TenderWonBadge />}
           {object && (
             <div className={styles.infoWrap}>
               <button
@@ -123,6 +138,19 @@ export function ObjectDetailPage({ objectId, onBack, onOpenMeeting, onOpenLiveMe
                 {!object.address && !object.description && !object.notes && (
                   <div className={styles.infoVal}>Нет описания</div>
                 )}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={object.tender_won}
+                  className={cx('t-btn', styles.wonSwitch)}
+                  onClick={() => toggleTenderWon(object)}
+                  disabled={updateObjectMut.isPending}
+                >
+                  <span className={styles.wonSwitchLabel}>Тендер выигран</span>
+                  <span className={cx(styles.wonTrack, object.tender_won && styles.wonTrackOn)} aria-hidden>
+                    <span className={cx(styles.wonThumb, object.tender_won && styles.wonThumbOn)} />
+                  </span>
+                </button>
               </Dropdown>
             </div>
           )}

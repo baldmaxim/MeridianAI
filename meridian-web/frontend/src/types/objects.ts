@@ -20,6 +20,7 @@ export interface ProjectObject {
   notes: string | null;
   payhub_project_id: number | null;
   is_active: boolean;
+  tender_won: boolean;
   created_at: string;
   updated_at: string;
   customer_name: string | null;

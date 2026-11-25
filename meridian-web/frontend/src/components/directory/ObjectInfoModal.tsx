@@ -35,6 +35,12 @@ export const ObjectInfoModal: FC<IObjectInfoModalProps> = ({ open, object, meeti
               <dd className={cx(styles.value, styles.selectable)}>{object.address}</dd>
             </div>
           )}
+          {object.tender_won && (
+            <div className={styles.item}>
+              <dt className={styles.label}>Тендер</dt>
+              <dd className={styles.value}>выигран</dd>
+            </div>
+          )}
         </dl>
         <div className={styles.value}>Встреч: {meetingsCount}</div>
         <button

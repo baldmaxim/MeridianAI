@@ -453,3 +453,61 @@
     line-height: normal;
   }
 }
+
+/* Переключатель «Тендер выигран» в меню «инфо» */
+.wonSwitch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wonSwitch:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wonSwitchLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--fs-secondary);
+}
+
+.wonTrack {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+
+.wonTrackOn {
+  background: var(--accent-green-dim);
+  border-color: var(--accent-green);
+}
+
+.wonThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: var(--text-muted);
+  border-radius: 50%;
+}
+
+.wonThumbOn {
+  background: var(--accent-green);
+  transform: translateX(16px);
+}

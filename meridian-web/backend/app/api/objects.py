@@ -84,6 +84,7 @@ async def create_object(
         notes=data.notes,
         payhub_project_id=data.payhub_project_id,
         is_active=data.is_active,
+        tender_won=data.tender_won,
     )
     db.add(obj)
     await db.flush()
@@ -132,6 +133,8 @@ async def update_object(
     if not obj:
         raise HTTPException(404, "Объект не найден")
     updates = data.model_dump(exclude_unset=True)
+    if updates.get("tender_won", True) is None:
+        updates.pop("tender_won")  # NOT NULL: явный null = «не менять»
     if "customer_name" in updates:
         customer = await resolve_or_create_customer(db, user.id, updates.pop("customer_name"))
         obj.customer_id = customer.id

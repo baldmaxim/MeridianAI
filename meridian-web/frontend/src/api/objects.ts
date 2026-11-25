@@ -9,6 +9,7 @@ export interface ProjectObjectInput {
   notes?: string | null;
   payhub_project_id?: number | null;
   is_active?: boolean;
+  tender_won?: boolean;
 }
 
 export async function listObjects(customerId?: number): Promise<ProjectObject[]> {

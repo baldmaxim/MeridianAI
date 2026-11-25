@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Index,
     JSON,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -68,6 +69,10 @@ class ProjectObject(Base):
     # ID проекта во внешней системе PayHub (для сужения RAG-поиска писем по project_id).
     payhub_project_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Тендер выигран: ставится вручную или импортёром реестра TenderHub (только в True).
+    tender_won: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

@@ -43,6 +43,7 @@ class ProjectObjectCreate(BaseModel):
     notes: str | None = None
     payhub_project_id: int | None = None
     is_active: bool = True
+    tender_won: bool = False
 
 
 class ProjectObjectUpdate(BaseModel):
@@ -53,6 +54,7 @@ class ProjectObjectUpdate(BaseModel):
     notes: str | None = None
     payhub_project_id: int | None = None
     is_active: bool | None = None
+    tender_won: bool | None = None
 
 
 class ProjectObjectResponse(BaseModel):
@@ -65,6 +67,7 @@ class ProjectObjectResponse(BaseModel):
     notes: str | None
     payhub_project_id: int | None = None
     is_active: bool
+    tender_won: bool = False
     created_at: datetime
     updated_at: datetime
     customer_name: str | None = None

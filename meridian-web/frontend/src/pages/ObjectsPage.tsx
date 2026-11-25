@@ -4,6 +4,7 @@ import { paths, navTo } from '../lib/navigation';
 import { apiErrorMessage } from '../lib/apiError';
 import { ObjectCreateModal } from '../components/directory/ObjectCreateModal';
 import { ObjectInfoModal } from '../components/directory/ObjectInfoModal';
+import { TenderWonBadge } from '../components/directory/TenderWonBadge';
 import { useObjects, directoryKeys } from '../hooks/queries/directory';
 import { useMeetingsList } from '../hooks/queries/meetings';
 import type { ProjectObject } from '../types';
@@ -11,6 +12,14 @@ import styles from './ObjectsPage.module.css';
 import { cx } from '../utils/cx';
 import { TextInput } from '../components/common';
 import { Icon } from '../components/common/Icon';
+
+type TenderFilter = 'all' | 'tender' | 'won';
+
+const TENDER_FILTERS: ReadonlyArray<{ id: TenderFilter; label: string }> = [
+  { id: 'all', label: 'Все' },
+  { id: 'tender', label: 'В тендере' },
+  { id: 'won', label: 'Выигранные' },
+];
 
 interface Props {
   onOpenObject: (id: number) => void;
@@ -30,6 +39,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
   const meetingsQuery = useMeetingsList({ include_active: true }); // счётчики встреч по объектам
   const objects = objectsQuery.data ?? [];
   const [q, setQ] = useState('');
+  const [tenderFilter, setTenderFilter] = useState<TenderFilter>('all');
   const [showCreate, setShowCreate] = useState(false);
   // Карточка объекта (мобильная «i»): сам объект держим отдельно от флага — чтобы не пустела на exit-анимации
   const [infoObject, setInfoObject] = useState<ProjectObject | null>(null);
@@ -48,12 +58,15 @@ export function ObjectsPage({ onOpenObject }: Props) {
   }, [meetingsQuery.data]);
 
   const term = q.trim().toLowerCase();
+  const byTender = tenderFilter === 'all'
+    ? objects
+    : objects.filter((o) => (tenderFilter === 'won' ? o.tender_won : !o.tender_won));
   const filtered = term
-    ? objects.filter((o) =>
+    ? byTender.filter((o) =>
         o.name.toLowerCase().includes(term) ||
         (o.customer_name || '').toLowerCase().includes(term) ||
         (o.address || '').toLowerCase().includes(term))
-    : objects;
+    : byTender;
 
   // Группировка по заказчику (fallback — «Без заказчика»), группы по алфавиту.
   const groups = (() => {
@@ -86,6 +99,22 @@ export function ObjectsPage({ onOpenObject }: Props) {
           onClear={() => setQ('')}
           clearLabel="поиск"
         />
+      )}
+
+      {objects.length > 0 && (
+        <div className={styles.tenderFilter} role="group" aria-label="Фильтр по тендеру">
+          {TENDER_FILTERS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={tenderFilter === id}
+              onClick={() => setTenderFilter(id)}
+              className={cx(styles.tenderFilterBtn, tenderFilter === id && styles.tenderFilterBtnActive)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       )}
 
       {loading && <div className={styles.muted}>Загрузка…</div>}
@@ -122,6 +151,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
                       <div key={o.id} className={styles.rowWrap}>
                         <button className={styles.row} {...navTo(paths.objectDetail(o.id), () => onOpenObject(o.id))}>
                           <span className={styles.rowName}>{o.name}</span>
+                          {o.tender_won && <TenderWonBadge />}
                           {o.address && (
                             <span className={styles.rowAddr}>
                               <Icon name="pin" size={14} className={styles.addrIcon} />

@@ -89,3 +89,18 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
 }
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.checkLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--fs-secondary);
+  color: var(--text);
+}
