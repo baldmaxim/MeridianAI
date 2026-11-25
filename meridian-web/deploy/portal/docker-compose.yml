@@ -24,6 +24,9 @@ services:
       infra_web:
         aliases: [meridian-api]
     restart: unless-stopped
+    # общий с worker: api пишет WAV живой записи, worker архивирует его в S3 (meeting_audio_archive)
+    volumes:
+      - uploads:/app/uploads
     # tini PID 1: осиротевшие процессы healthcheck'а иначе копятся зомби у uvicorn
     init: true
     command: >
@@ -48,6 +51,8 @@ services:
       # GIGAAM_URL: "http://asr-tunnel:18763"
     mem_limit: 384m   # замер на проде ~98 MiB
     command: ["python", "-m", "app.worker"]
+    volumes:
+      - uploads:/app/uploads
     init: true
     healthcheck:
       disable: true   # HEALTHCHECK образа бьёт в :8000, а воркер HTTP не слушает
@@ -95,6 +100,10 @@ services:
     volumes:
       - ${DESKTOP_DIST_DIR:-/opt/portals/meridian/desktop-dist}:/usr/share/nginx/html/downloads:ro
     restart: unless-stopped
+
+volumes:
+  # uploads api+worker: временные WAV живой записи до заливки в S3
+  uploads: {}
 
 networks:
   internal:

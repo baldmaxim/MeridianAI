@@ -25,7 +25,7 @@ async def handle_meeting_audio_archive(payload: dict) -> None:
     wav_path = payload.get("wav_path")
 
     if not wav_path or not os.path.exists(wav_path):
-        logger.info("audio archive: wav отсутствует (%s) — пропуск", wav_path)
+        logger.warning("audio archive: wav отсутствует (%s) — пропуск", wav_path)
         return
     if user_id is None:
         logger.info("audio archive: meeting %s без владельца — пропуск, чищу wav", meeting_id)
