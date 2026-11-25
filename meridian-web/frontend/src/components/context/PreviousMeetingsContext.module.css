@@ -58,12 +58,17 @@
   border-radius: 8px;
 }
 
-/* Высота как у заголовка блока — кнопка по центру его первой строки */
+/* Кнопка во всю высоту свёрнутого блока (заголовок + рамка) */
 .rowAction {
   display: flex;
-  align-items: center;
   flex-shrink: 0;
-  min-height: 46px;
+  height: 46px;
+}
+
+.rowAction > .addToggle {
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
 }
 
 .rowToggle {
@@ -112,7 +117,7 @@
   }
 
   .rowAction {
-    min-height: 34px;
+    height: 34px;
   }
 }
 
