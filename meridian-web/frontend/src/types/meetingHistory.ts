@@ -80,3 +80,11 @@ export interface MeetingDetail {
   suggestions: MeetingSuggestionRecord[];
   documents: MeetingDocumentRecord[];
 }
+
+/** Часть записи встречи для плеера (GET /meetings/{id}/audio). */
+export interface MeetingAudioPart {
+  url: string;
+  source: 'batch' | 'mixed' | 'system' | 'mic' | 'live';
+  expires_in: number;
+  name: string;
+}

@@ -194,6 +194,7 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
             tab={mainTab}
             onTabChange={setTab}
             showSwitch={isWide}
+            ended={meeting.ended_at != null}
             protocolRefresh={protocolRefresh}
             onRolesChange={setRoles}
             onProtocolRebuild={() => setProtocolRefresh((k) => k + 1)}

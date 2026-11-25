@@ -1,5 +1,6 @@
+import { isAxiosError } from 'axios';
 import api from './client';
-import type { MeetingListItem, MeetingDetail } from '../types';
+import type { MeetingListItem, MeetingDetail, MeetingAudioPart } from '../types';
 
 export interface MeetingFilters {
   customer_id?: number;
@@ -39,4 +40,15 @@ export async function batchDeleteMeetings(ids: number[]): Promise<void> {
 
 export async function deleteMeeting(id: number): Promise<void> {
   await api.delete(`/meetings/${id}`);
+}
+
+/** Части записи встречи (presigned URL). 404 — записи нет: null; прочие ошибки пробрасываются. */
+export async function getMeetingAudio(id: number): Promise<MeetingAudioPart[] | null> {
+  try {
+    const { data } = await api.get<{ parts: MeetingAudioPart[] }>(`/meetings/${id}/audio`);
+    return data.parts;
+  } catch (e) {
+    if (isAxiosError(e) && e.response?.status === 404) return null;
+    throw e;
+  }
 }

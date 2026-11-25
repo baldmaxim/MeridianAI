@@ -25,6 +25,8 @@ from ..schemas.meeting import (
     TranscriptSegmentResponse,
     MeetingSuggestionResponse,
     MeetingDocumentResponse,
+    MeetingAudioOut,
+    MeetingAudioPart,
 )
 from ..schemas.directory import MeetingParticipantResponse
 from ..auth.dependencies import get_current_user
@@ -36,6 +38,7 @@ from ..services.access import (
     can_record_meeting,
 )
 from ..api.objects import resolve_or_create_customer
+from ..services.meeting_audio_links import list_meeting_audio_parts
 from ..services.meeting_room import compute_live_state
 from ..services.protocol_lists import load_protocol_lists
 from ..services.meeting_finalize import close_and_request_finalization, request_finalization
@@ -705,6 +708,26 @@ async def meeting_live_state(
         raise HTTPException(status_code=403, detail="Нет доступа к встрече")
 
     return await compute_live_state(db, meeting, user.id)
+
+
+@router.get("/{meeting_id}/audio", response_model=MeetingAudioOut)
+async def get_meeting_audio(
+    meeting_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Части записи встречи (presigned GET) для проигрывания; нет записи — 404 audio_not_found."""
+    if await db.get(MeetingSession, meeting_id) is None:
+        raise HTTPException(status_code=404, detail="Встреча не найдена")
+    if not await user_can_access_meeting(db, user.id, meeting_id):
+        raise HTTPException(status_code=403, detail="Нет доступа к встрече")
+    parts = await list_meeting_audio_parts(db, meeting_id)
+    if not parts:
+        raise HTTPException(status_code=404, detail="audio_not_found")
+    return MeetingAudioOut(parts=[
+        MeetingAudioPart(url=p.url, source=p.source, expires_in=p.expires_in, name=p.name)
+        for p in parts
+    ])
 
 
 @router.get("/{meeting_id}", response_model=MeetingDetailResponse)

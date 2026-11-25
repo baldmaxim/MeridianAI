@@ -6,6 +6,7 @@ import { cx } from '../../utils/cx';
 import { segmentSpeakerKey } from './speakerList';
 import { SpeakersEditor } from './SpeakersEditor';
 import { TranscriptRow } from './TranscriptRow';
+import { MeetingAudioPlayer } from './MeetingAudioPlayer';
 import { MainTabSwitch } from './MainTabSwitch';
 import type { TMainTab } from './MainTabSwitch';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
@@ -21,6 +22,8 @@ interface IMeetingMainWindowProps {
   onTabChange: (tab: TMainTab) => void;
   /** Сегмент «Транскрипт | Протокол» вверху окна (на узких экранах вкладки — на странице). */
   showSwitch: boolean;
+  /** Встреча завершена (ended_at) — тогда над вкладками показывается плеер записи. */
+  ended: boolean;
   protocolRefresh: number;
   onRolesChange: (roles: SpeakerRoleOut[]) => void;
   onProtocolRebuild: () => void;
@@ -28,7 +31,7 @@ interface IMeetingMainWindowProps {
 
 /** Главное окно прошедшей встречи: полоса спикеров, вкладки «Транскрипт»/«Протокол» со слайдом (transitions.dev 08). */
 export const MeetingMainWindow: FC<IMeetingMainWindowProps> = ({
-  meetingId, segments, rolesByLabel, tab, onTabChange, showSwitch,
+  meetingId, segments, rolesByLabel, tab, onTabChange, showSwitch, ended,
   protocolRefresh, onRolesChange, onProtocolRebuild,
 }) => {
   // Свайп влево — к протоколу, вправо — к транскрипту
@@ -42,6 +45,9 @@ export const MeetingMainWindow: FC<IMeetingMainWindowProps> = ({
           <span className={styles.meta}>{segments.length} сегментов</span>
         </div>
       )}
+
+      {/* Запись встречи: над обеими вкладками; нет записи — не рисуется */}
+      {ended && <MeetingAudioPlayer meetingId={meetingId} />}
 
       {/* Имена и стороны спикеров + пересборка протокола (при пустой транскрипции не рисуется) */}
       <SpeakersEditor

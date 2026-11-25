@@ -7,6 +7,7 @@ import { buildProtocolHtml } from '../../lib/protocolHtml';
 import { formatMoscowDateTime } from '../../lib/datetime';
 import { useBatchJob } from '../../hooks/queries/batch';
 import { useMe } from '../../hooks/queries/auth';
+import { AudioPlayer } from '../common/AudioPlayer';
 import { BatchStatusBadge } from './BatchStatusBadge';
 import { MarkdownView } from '../protocol/MarkdownView';
 import { BatchToMeetingModal } from './BatchToMeetingModal';
@@ -216,7 +217,7 @@ export function BatchJobDetail({ jobId }: Props) {
           {/* Плеер + вкладки: вне прокручиваемых областей (скроллятся реплики/протокол), поэтому всегда на виду */}
           <div className={styles.stickyBar}>
             {audioUrl && (
-              <audio ref={audioRef} src={audioUrl} controls preload="none" className={styles.audio} />
+              <AudioPlayer ref={audioRef} src={audioUrl} preload="none" />
             )}
             <div className={styles.tabs}>
               <BatchTabButton active={activeTab === 'transcript'} onClick={() => setTab('transcript')} disabled={!hasTranscript}>

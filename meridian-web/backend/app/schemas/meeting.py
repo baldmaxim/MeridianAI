@@ -138,6 +138,17 @@ class MeetingDetailResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MeetingAudioPart(BaseModel):
+    url: str  # presigned GET — секрет, не логировать
+    source: str  # batch | mixed | system | mic | live
+    expires_in: int
+    name: str
+
+
+class MeetingAudioOut(BaseModel):
+    parts: list[MeetingAudioPart]
+
+
 class MeetingTitleUpdate(BaseModel):
     title: str
 

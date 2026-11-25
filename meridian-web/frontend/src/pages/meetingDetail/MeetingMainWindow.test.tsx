@@ -5,9 +5,11 @@ import { MeetingMainWindow } from './MeetingMainWindow';
 import type { TMainTab } from './MeetingMainWindow';
 import * as speakerRolesApi from '../../api/speakerRoles';
 import * as finalizationApi from '../../api/finalization';
+import * as historyApi from '../../api/history';
 import type { TranscriptSegmentRecord } from '../../types';
 
 vi.mock('../../api/speakerRoles', () => ({ getSpeakerRoles: vi.fn(), putSpeakerRole: vi.fn() }));
+vi.mock('../../api/history', () => ({ getMeetingAudio: vi.fn() }));
 vi.mock('../../api/finalization', () => ({
   getFinalizationStatus: vi.fn(),
   getMeetingProtocol: vi.fn(),
@@ -19,7 +21,7 @@ const seg = (id: string, label: string, text: string): TranscriptSegmentRecord =
   start_time: 0, end_time: 1, wall_clock: '2026-11-24T10:00:00', origin: 'batch',
 });
 
-const Harness = ({ segments }: { segments: TranscriptSegmentRecord[] }) => {
+const Harness = ({ segments, ended = false }: { segments: TranscriptSegmentRecord[]; ended?: boolean }) => {
   const [tab, setTab] = useState<TMainTab>('transcript');
   return (
     <MeetingMainWindow
@@ -29,6 +31,7 @@ const Harness = ({ segments }: { segments: TranscriptSegmentRecord[] }) => {
       tab={tab}
       onTabChange={setTab}
       showSwitch
+      ended={ended}
       protocolRefresh={0}
       onRolesChange={() => {}}
       onProtocolRebuild={() => {}}
@@ -114,5 +117,19 @@ describe('MeetingMainWindow', () => {
     expect(screen.getByText('Нет данных транскрипции')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Спикеры/ })).toBeNull();
     await waitFor(() => expect(finalizationApi.getFinalizationStatus).toHaveBeenCalledWith(7));
+  });
+
+  it('плеер записи: только у завершённой встречи', async () => {
+    vi.mocked(historyApi.getMeetingAudio).mockResolvedValue([
+      { name: 'rec.mp3', url: 'https://s3/a', source: 'batch', expires_in: 21600 },
+    ]);
+    const first = render(<Harness segments={[]} />);
+    expect(first.container.querySelector('audio')).toBeNull();
+    expect(historyApi.getMeetingAudio).not.toHaveBeenCalled();
+    first.unmount();
+
+    const { container } = render(<Harness segments={[]} ended />);
+    await waitFor(() => expect(container.querySelector('audio')).toBeTruthy());
+    expect(historyApi.getMeetingAudio).toHaveBeenCalledWith(7);
   });
 });
