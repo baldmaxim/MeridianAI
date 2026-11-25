@@ -1,5 +1,5 @@
-import { afterEach, describe, it, expect } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TranscriptRow } from './TranscriptRow';
 import type { TranscriptSegmentRecord } from '../../types';
 
@@ -48,5 +48,31 @@ describe('TranscriptRow (история встречи)', () => {
     render(<TranscriptRow segment={{ ...base, speaker_label: 'Speaker_speaker_1' }} />);
     expect(screen.getByText('Спикер 2')).toBeTruthy();
     expect(screen.queryByText('Мы')).toBeNull();
+  });
+
+  it('без onSeek строка не кнопка', () => {
+    render(<TranscriptRow segment={base} />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('onSeek: клик и Enter/Space вызывают перемотку, активная строка выделяется', () => {
+    const onSeek = vi.fn();
+    render(<TranscriptRow segment={base} onSeek={onSeek} active />);
+    const row = screen.getByRole('button');
+    expect(row.getAttribute('tabindex')).toBe('0');
+    expect(row.className).toContain('rowActive');
+    fireEvent.click(row);
+    fireEvent.keyDown(row, { key: 'Enter' });
+    fireEvent.keyDown(row, { key: ' ' });
+    expect(onSeek).toHaveBeenCalledTimes(3);
+  });
+
+  it('onSeek не вызывается при выделенном тексте', () => {
+    const onSeek = vi.fn();
+    const spy = vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'Merh' } as Selection);
+    render(<TranscriptRow segment={base} onSeek={onSeek} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(onSeek).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

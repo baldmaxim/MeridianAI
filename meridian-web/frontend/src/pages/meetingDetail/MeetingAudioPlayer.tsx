@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FC, SyntheticEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { FC, RefObject, SyntheticEvent } from 'react';
 import { AudioPlayer } from '../../components/common/AudioPlayer';
 import { getMeetingAudio } from '../../api/history';
 import type { MeetingAudioPart } from '../../types';
@@ -8,6 +8,10 @@ import styles from './MeetingAudioPlayer.module.css';
 
 interface IMeetingAudioPlayerProps {
   meetingId: number;
+  /** Внешний ref на audio — чтобы родитель мог перематывать запись; нет — свой внутренний. */
+  audioRef?: RefObject<HTMLAudioElement | null>;
+  /** true, когда загружена ровно одна часть без ошибки (время реплик сопоставимо с записью); иначе false. */
+  onSeekableChange?: (seekable: boolean) => void;
 }
 
 interface IResume {
@@ -22,10 +26,11 @@ interface ILoaded {
 }
 
 /** Плеер записи прошедшей встречи: части (batch/архив ПК/живая запись) переключаются чипами. */
-export const MeetingAudioPlayer: FC<IMeetingAudioPlayerProps> = ({ meetingId }) => {
+export const MeetingAudioPlayer: FC<IMeetingAudioPlayerProps> = ({ meetingId, audioRef: externalRef, onSeekableChange }) => {
   const [loaded, setLoaded] = useState<ILoaded | null>(null);
   const [activeFor, setActiveFor] = useState<{ meetingId: number; index: number }>({ meetingId, index: 0 });
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const innerRef = useRef<HTMLAudioElement>(null);
+  const audioRef = externalRef ?? innerRef;
   // Один перезапрос ссылок на «серию» ошибок; сбрасывается, когда запись снова загрузилась
   const retriedRef = useRef(false);
   const resumeRef = useRef<IResume | null>(null);
@@ -45,7 +50,14 @@ export const MeetingAudioPlayer: FC<IMeetingAudioPlayerProps> = ({ meetingId }) 
   const parts = Array.isArray(current) ? current : [];
   const active = activeFor.meetingId === meetingId ? activeFor.index : 0;
 
-  const handleError = useCallback(async () => {
+  // Перемотка по репликам возможна только при одной части записи (время частей не сопоставлено)
+  const seekable = Array.isArray(current) && current.length === 1;
+  useEffect(() => {
+    onSeekableChange?.(seekable);
+    return () => onSeekableChange?.(false);
+  }, [seekable, onSeekableChange]);
+
+  const handleError = async () => {
     const audio = audioRef.current;
     if (retriedRef.current) {
       setLoaded({ meetingId, parts: 'error' });
@@ -59,7 +71,7 @@ export const MeetingAudioPlayer: FC<IMeetingAudioPlayerProps> = ({ meetingId }) 
     } catch {
       setLoaded({ meetingId, parts: 'error' });
     }
-  }, [meetingId]);
+  };
 
   const handleLoaded = (e: SyntheticEvent<HTMLAudioElement>) => {
     retriedRef.current = false;

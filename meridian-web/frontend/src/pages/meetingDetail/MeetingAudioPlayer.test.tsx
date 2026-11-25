@@ -1,3 +1,4 @@
+import { createRef } from 'react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MeetingAudioPlayer } from './MeetingAudioPlayer';
@@ -67,5 +68,31 @@ describe('MeetingAudioPlayer', () => {
     fireEvent.error(audioEl(container));
     expect(await screen.findByText('Запись недоступна')).toBeTruthy();
     expect(historyApi.getMeetingAudio).toHaveBeenCalledTimes(2);
+  });
+
+  it('onSeekableChange: true при одной части, false при двух и при размонтировании', async () => {
+    vi.mocked(historyApi.getMeetingAudio).mockResolvedValue([part('rec.mp3', 'https://s3/a', 'batch')]);
+    const onSeekable = vi.fn();
+    const one = render(<MeetingAudioPlayer meetingId={7} onSeekableChange={onSeekable} />);
+    await waitFor(() => expect(onSeekable).toHaveBeenLastCalledWith(true));
+    one.unmount();
+    expect(onSeekable).toHaveBeenLastCalledWith(false);
+
+    vi.mocked(historyApi.getMeetingAudio).mockResolvedValue([
+      part('Часть 1', 'https://s3/1'), part('Часть 2', 'https://s3/2'),
+    ]);
+    const onSeekable2 = vi.fn();
+    render(<MeetingAudioPlayer meetingId={8} onSeekableChange={onSeekable2} />);
+    await screen.findByRole('button', { name: 'Часть 2' });
+    expect(onSeekable2).not.toHaveBeenCalledWith(true);
+    expect(onSeekable2).toHaveBeenLastCalledWith(false);
+  });
+
+  it('передан внешний audioRef — указывает на audio', async () => {
+    vi.mocked(historyApi.getMeetingAudio).mockResolvedValue([part('rec.mp3', 'https://s3/a', 'batch')]);
+    const ref = createRef<HTMLAudioElement>();
+    const { container } = render(<MeetingAudioPlayer meetingId={7} audioRef={ref} />);
+    await waitFor(() => expect(audioEl(container)).toBeTruthy());
+    expect(ref.current).toBe(audioEl(container));
   });
 });

@@ -132,4 +132,36 @@ describe('MeetingMainWindow', () => {
     await waitFor(() => expect(container.querySelector('audio')).toBeTruthy());
     expect(historyApi.getMeetingAudio).toHaveBeenCalledWith(7);
   });
+
+  it('одна часть записи: клик по реплике перематывает к start_time, строка становится активной', async () => {
+    vi.mocked(historyApi.getMeetingAudio).mockResolvedValue([
+      { name: 'rec.mp3', url: 'https://s3/a', source: 'batch', expires_in: 21600 },
+    ]);
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const segments = [
+      { ...seg('1', 'Speaker_speaker_0', 'Первая'), start_time: 0 },
+      { ...seg('2', 'Speaker_speaker_0', 'Вторая'), start_time: 12.5 },
+    ];
+    const { container } = render(<Harness segments={segments} ended />);
+    await waitFor(() => expect(container.querySelector('audio')).toBeTruthy());
+    const rows = await waitFor(() => {
+      const found = container.querySelectorAll('[data-page-id="1"] [role="button"]');
+      expect(found.length).toBe(2);
+      return found;
+    });
+    fireEvent.click(rows[1]);
+    expect((container.querySelector('audio') as HTMLAudioElement).currentTime).toBe(12.5);
+    expect(play).toHaveBeenCalled();
+    play.mockRestore();
+  });
+
+  it('несколько частей записи: реплики не кликабельны', async () => {
+    vi.mocked(historyApi.getMeetingAudio).mockResolvedValue([
+      { name: 'Часть 1', url: 'https://s3/1', source: 'live', expires_in: 21600 },
+      { name: 'Часть 2', url: 'https://s3/2', source: 'live', expires_in: 21600 },
+    ]);
+    const { container } = render(<Harness segments={[seg('1', 'Speaker_speaker_0', 'Первая')]} ended />);
+    await screen.findByRole('button', { name: 'Часть 2' });
+    expect(container.querySelectorAll('[data-page-id="1"] [role="button"]').length).toBe(0);
+  });
 });

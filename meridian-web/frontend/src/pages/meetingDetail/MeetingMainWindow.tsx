@@ -1,3 +1,4 @@
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { FC } from 'react';
 import { ProtocolPane } from '../../components/protocol/ProtocolPane';
 import { toPublicSpeakerSide } from '../../lib/speakerSides';
@@ -9,6 +10,7 @@ import { TranscriptRow } from './TranscriptRow';
 import { MeetingAudioPlayer } from './MeetingAudioPlayer';
 import { MainTabSwitch } from './MainTabSwitch';
 import type { TMainTab } from './MainTabSwitch';
+import { useActiveSegment } from './useActiveSegment';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 import styles from './MeetingMainWindow.module.css';
 
@@ -22,7 +24,7 @@ interface IMeetingMainWindowProps {
   onTabChange: (tab: TMainTab) => void;
   /** Сегмент «Транскрипт | Протокол» вверху окна (на узких экранах вкладки — на странице). */
   showSwitch: boolean;
-  /** Встреча завершена (ended_at) — тогда над вкладками показывается плеер записи. */
+  /** Встреча завершена (ended_at или status = finalized) — тогда над вкладками показывается плеер записи. */
   ended: boolean;
   protocolRefresh: number;
   onRolesChange: (roles: SpeakerRoleOut[]) => void;
@@ -37,6 +39,18 @@ export const MeetingMainWindow: FC<IMeetingMainWindowProps> = ({
   // Свайп влево — к протоколу, вправо — к транскрипту
   const swipe = useHorizontalSwipe((dir) => onTabChange(dir === 'left' ? 'protocol' : 'transcript'));
 
+  // Перемотка записи по клику на реплику: только при одной части записи
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [seekable, setSeekable] = useState(false);
+  const starts = useMemo(() => segments.map((s) => s.start_time), [segments]);
+  const activeIdx = useActiveSegment(audioRef, starts, seekable);
+  const seekTo = useCallback((start: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = start;
+    audio.play().catch(() => { /* автозапуск мог быть запрещён браузером — перемотка уже выполнена */ });
+  }, []);
+
   return (
     <section className={styles.window}>
       {showSwitch && (
@@ -47,7 +61,7 @@ export const MeetingMainWindow: FC<IMeetingMainWindowProps> = ({
       )}
 
       {/* Запись встречи: над обеими вкладками; нет записи — не рисуется */}
-      {ended && <MeetingAudioPlayer meetingId={meetingId} />}
+      {ended && <MeetingAudioPlayer meetingId={meetingId} audioRef={audioRef} onSeekableChange={setSeekable} />}
 
       {/* Имена и стороны спикеров + пересборка протокола (при пустой транскрипции не рисуется) */}
       <SpeakersEditor
@@ -69,6 +83,8 @@ export const MeetingMainWindow: FC<IMeetingMainWindowProps> = ({
                 segment={seg}
                 speakerName={role?.display_name}
                 side={toPublicSpeakerSide(role?.side) || null}
+                active={i === activeIdx}
+                onSeek={seekable ? () => seekTo(seg.start_time) : undefined}
               />
             );
           })}

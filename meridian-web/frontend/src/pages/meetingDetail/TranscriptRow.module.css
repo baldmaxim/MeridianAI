@@ -7,6 +7,36 @@
   line-height: 1.6;
 }
 
+/* Строка с перемоткой записи: клик по реплике */
+.rowSeekable {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease-out;
+}
+
+.rowSeekable:hover {
+  background: var(--bg-hover);
+}
+
+.rowSeekable:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+/* Реплика, которая звучит сейчас: фон и левая полоса акцентом (полоса — тенью, без сдвига лейаута) */
+.rowActive,
+.rowActive.rowSeekable:hover {
+  background: var(--accent-amber-glow);
+  box-shadow: inset 2px 0 0 var(--accent-amber);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowSeekable {
+    transition: none;
+  }
+}
+
 .time {
   font-family: 'JetBrains Mono', monospace;
   font-size: var(--fs-meta);
