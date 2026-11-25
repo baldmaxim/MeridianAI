@@ -170,7 +170,7 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
 
       {variant === 'row' && (
         <>
-          <div className={styles.rowHead}>
+          <div className={styles.rowBox}>
             <button
               type="button"
               className={styles.rowToggle}
@@ -181,9 +181,9 @@ export function PreviousMeetingsContext({ meetingId, readOnly, currentCustomerId
               <span className={styles.title}>Предыдущие встречи как контекст</span>
               <span className={styles.rowCount}>{prevSources.length}</span>
             </button>
-            {addButton}
+            <Collapse open={rowOpen} className={styles.rowBody}>{body}</Collapse>
           </div>
-          <Collapse open={rowOpen} className={styles.rowBody}>{body}</Collapse>
+          {addButton && <div className={styles.rowAction}>{addButton}</div>}
         </>
       )}
 

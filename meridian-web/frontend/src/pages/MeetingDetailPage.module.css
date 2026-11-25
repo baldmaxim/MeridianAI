@@ -196,6 +196,9 @@
   border: 1px solid var(--border-default);
   border-radius: 10px;
   overflow: hidden;
+  /* overflow:hidden обнуляет min-height у flex-элемента: без этого секция ужимается
+     в колонке .side и обрезается, а прокручивать нечего */
+  flex-shrink: 0;
 }
 
 .knowledgeList {
