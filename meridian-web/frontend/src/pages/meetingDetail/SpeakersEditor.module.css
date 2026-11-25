@@ -56,22 +56,6 @@
   color: var(--accent-amber);
 }
 
-.chevron {
-  display: inline-flex;
-  color: var(--text-secondary);
-  transition: transform 150ms ease-out;
-}
-
-.chevronOpen {
-  transform: rotate(90deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chevron {
-    transition: none;
-  }
-}
-
 .title {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
@@ -80,19 +64,53 @@
   text-transform: uppercase;
 }
 
-.body {
+/* Модалка: шапка — заголовок + крестик */
+.head {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -6px -6px 0 0;
 }
 
-/* Список прокручивается внутри — не выдавливает панели страницы */
+.heading {
+  margin: 0;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: var(--fs-control);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 150ms ease-out;
+}
+
+.close:hover {
+  color: var(--text);
+}
+
+/* Список прокручивается внутри модалки, футер остаётся виден */
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-  max-height: min(34dvh, 320px);
+  gap: 12px;
+  min-height: 0;
+  max-height: 60dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -132,19 +150,37 @@
 
 .footer {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+}
+
+.status {
+  min-width: 0;
+}
+
+.status .error {
+  padding: 0;
 }
 
 .rebuildBtn {
+  flex-shrink: 0;
   min-height: 44px;
-  padding: 0 16px;
+  padding: 0 14px;
+  font-size: var(--fs-control);
 }
 
 .hint {
   font-size: var(--fs-meta);
   color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .close {
+    transition: none;
+  }
 }
 
 @media (min-width: 768px) {
@@ -159,13 +195,12 @@
   .footer {
     flex-direction: row;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
+    justify-content: space-between;
   }
 }
 
-@media (min-width: 1024px) {
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (hover: hover) and (pointer: fine) {
+  .rebuildBtn {
+    min-height: 34px;
   }
 }

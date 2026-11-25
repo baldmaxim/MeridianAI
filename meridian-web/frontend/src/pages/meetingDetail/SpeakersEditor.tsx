@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { isAxiosError } from 'axios';
-import { Collapse } from '../../components/common';
+import { Modal } from '../../components/common/Modal';
 import { Icon } from '../../components/common/Icon';
 import { SpeakerCard } from '../../components/meeting/SpeakerCard';
 import { retryFinalization } from '../../api/finalization';
@@ -32,7 +32,7 @@ const repliesWord = (n: number): string => {
   return 'реплик';
 };
 
-/** Полоса «Спикеры» страницы прошедшей встречи: чипы спикеров; по клику — редактор (имя, сторона) + пересборка протокола. */
+/** Полоса «Спикеры» страницы прошедшей встречи: чипы спикеров; по клику — модалка-редактор (имя, сторона) + пересборка протокола. */
 export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
   meetingId, segments, onRolesChange, onProtocolRebuild,
 }) => {
@@ -66,6 +66,7 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
       const list = await putSpeakerRole(meetingId, label, body);
       setRoles(list);
       setDirty(true);
+      setRebuildMsg(null);
       onRolesChange?.(list);
     } catch {
       setErrors((prev) => ({ ...prev, [label]: 'Не удалось сохранить, попробуйте ещё раз' }));
@@ -94,24 +95,26 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
     }
   }
 
+  const close = () => setOpen(false);
+
   return (
     <section className={styles.wrap}>
       <div className={styles.strip}>
-        <button
-          type="button"
-          className={styles.toggle}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <span className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ''}`} aria-hidden><Icon name="chevron-right" size={16} aria-hidden /></span>
+        <button type="button" className={styles.toggle} aria-haspopup="dialog" onClick={() => setOpen(true)}>
           <span className={styles.title}>Спикеры · {speakers.length}</span>
-          <span className={styles.action}>{open ? 'Свернуть' : 'Изменить'}</span>
+          <span className={styles.action}>Изменить</span>
         </button>
         <div className={styles.chips}>
-          <SpeakerChips speakers={speakers} roleByLabel={roleByLabel} onClick={() => setOpen((v) => !v)} />
+          <SpeakerChips speakers={speakers} roleByLabel={roleByLabel} onClick={() => setOpen(true)} />
         </div>
       </div>
-      <Collapse open={open} className={styles.body}>
+      <Modal open={open} onClose={close} maxWidth={820}>
+        <div className={styles.head}>
+          <h2 className={styles.heading}>Спикеры · {speakers.length}</h2>
+          <button type="button" className={styles.close} aria-label="Закрыть" onClick={close}>
+            <Icon name="close" size={18} aria-hidden />
+          </button>
+        </div>
         {loadError && <div className={styles.error}>Не удалось загрузить имена и стороны</div>}
         <div className={styles.grid}>
           {speakers.map((s) => {
@@ -140,6 +143,11 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
           })}
         </div>
         <div className={styles.footer}>
+          <span className={styles.status}>
+            {rebuildMsg ? (
+              <span className={rebuildMsg.error ? styles.error : styles.hint} role="status">{rebuildMsg.text}</span>
+            ) : dirty && <span className={styles.hint}>Имена и стороны попадут в протокол после пересборки</span>}
+          </span>
           <button
             type="button"
             className={`t-btn t-btn-amber ${styles.rebuildBtn}`}
@@ -148,12 +156,8 @@ export const SpeakersEditor: FC<ISpeakersEditorProps> = ({
           >
             Пересобрать протокол
           </button>
-          {dirty && <span className={styles.hint}>Имена и стороны попадут в протокол после пересборки</span>}
-          {rebuildMsg && (
-            <span className={rebuildMsg.error ? styles.error : styles.hint} role="status">{rebuildMsg.text}</span>
-          )}
         </div>
-      </Collapse>
+      </Modal>
     </section>
   );
 };
