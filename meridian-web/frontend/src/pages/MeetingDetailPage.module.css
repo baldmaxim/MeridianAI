@@ -146,6 +146,18 @@
   max-width: 60%;
 }
 
+/* ≥1024: название во всю ширину левой колонки, кнопки — отдельной строкой под ним */
+.titleBlockFull {
+  max-width: none;
+}
+
+.actionsRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .titleActions {
   display: flex;
   flex: 1;
@@ -312,7 +324,7 @@
   }
 }
 
-/* Десктоп: слева узкая колонка подсказок (~34%), справа главное окно (~66%) */
+/* Десктоп: слева колонка — шапка, кнопки, подсказки (~34%); справа транскрипт на всю высоту (~66%) */
 @media (min-width: 1024px) {
   .content {
     display: grid;

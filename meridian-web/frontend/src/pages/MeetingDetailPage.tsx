@@ -96,7 +96,7 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
   const mainTab: TMainTab = tab === 'protocol' ? 'protocol' : 'transcript';
   const mainVisible = tab === 'transcript' || tab === 'protocol';
 
-  // «Продолжить» и «Удалить»: на десктопе — в строке названия, на телефоне — в верхней панели
+  // «Продолжить» и «Удалить»: ≥1024 — строкой под названием слева, 769–1023 — в строке названия, телефон — в верхней панели
   const actions = (
     <>
       <button onClick={handleContinue} className={`t-btn t-btn-amber ${styles.continueBtn}`}>
@@ -111,8 +111,9 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
     </>
   );
 
-  return (
-    <div className={`detail-container ${styles.container}`}>
+  // Шапка: на десктопе ≥1024 — вверху левой колонки (правая целиком под транскрипт), иначе — над вкладками
+  const header = (
+    <>
       {/* Top bar */}
       <div className={styles.topBar}>
         <button onClick={onBack} className={`t-btn ${styles.backBtn}`}>
@@ -125,7 +126,7 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
 
       {/* Title */}
       <div className={styles.titleRow}>
-        <div className={styles.titleBlock}>
+        <div className={cx(styles.titleBlock, isWide && styles.titleBlockFull)}>
           {editingTitle ? (
             <TextInput
               value={titleDraft}
@@ -148,8 +149,10 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
             {recorded && ` · ${recorded}`}
           </div>
         </div>
-        {isDesktop && <div className={styles.titleActions}>{actions}</div>}
+        {isDesktop && !isWide && <div className={styles.titleActions}>{actions}</div>}
       </div>
+
+      {isWide && <div className={styles.actionsRow}>{actions}</div>}
 
       {/* Тема встречи — целиком, отдельной строкой под названием */}
       {meeting.meeting_topic && <p className={styles.topic}>{meeting.meeting_topic}</p>}
@@ -165,6 +168,12 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
 
       {/* Контекст встречи: чипы, заметки, «Подробнее» */}
       <MeetingContextHeader meeting={meeting} />
+    </>
+  );
+
+  return (
+    <div className={`detail-container ${styles.container}`}>
+      {!isWide && header}
 
       {/* Телефон/планшет: вкладки страницы */}
       {!isWide && (
@@ -204,6 +213,8 @@ export const MeetingDetailPage: FC<IMeetingDetailPageProps> = ({
         {/* Подсказки, усиления, база знаний: на десктопе стопкой слева, на узких — по вкладке */}
         {(isWide || !mainVisible) && (
           <div className={styles.side}>
+            {isWide && header}
+
             {/* Прошлые встречи как контекст — вверху левой колонки, окно справа не сдвигается */}
             {(isWide || tab === 'suggestions') && (
               <PreviousMeetingsContext
