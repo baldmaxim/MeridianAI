@@ -275,10 +275,9 @@
 }
 
 .tenderFilterBtn {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 8px;
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
   background: transparent;
   border: 1px solid var(--border-default);
   border-radius: 8px;
@@ -299,8 +298,9 @@
   color: var(--accent-amber);
 }
 
-@media (min-width: 768px) {
-  .tenderFilter {
-    max-width: 420px;
+/* Тач-экраны: тап-цель 44px */
+@media (pointer: coarse) {
+  .tenderFilterBtn {
+    min-height: 44px;
   }
 }
