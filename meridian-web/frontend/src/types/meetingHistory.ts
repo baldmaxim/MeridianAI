@@ -36,6 +36,13 @@ export interface MeetingSuggestionRecord {
   created_at: string;
 }
 
+/** Слово реплики с таймкодами записи (секунды, шкала start_time и audio.currentTime). */
+export interface TranscriptWordTiming {
+  text: string;
+  start: number;
+  end: number;
+}
+
 export interface TranscriptSegmentRecord {
   segment_id: string;
   text: string;
@@ -48,6 +55,7 @@ export interface TranscriptSegmentRecord {
   language?: string | null;          // ISO-код языка реплики (ElevenLabs)
   translation?: string | null;       // перевод иноязычной реплики на русский
   diarized_speaker?: string | null;  // метка говорящего из диаризации («s1_speaker_0»)
+  words?: TranscriptWordTiming[] | null;   // слова с таймкодами (для подсветки при воспроизведении)
 }
 
 export interface MeetingDocumentRecord {

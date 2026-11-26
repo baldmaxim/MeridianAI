@@ -84,6 +84,7 @@ export const MeetingMainWindow: FC<IMeetingMainWindowProps> = ({
                 speakerName={role?.display_name}
                 side={toPublicSpeakerSide(role?.side) || null}
                 active={i === activeIdx}
+                audioRef={seekable ? audioRef : undefined}
                 onSeek={seekable ? () => seekTo(seg.start_time) : undefined}
               />
             );

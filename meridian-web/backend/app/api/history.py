@@ -23,6 +23,7 @@ from ..schemas.meeting import (
     MeetingUpdate,
     MeetingCreateResponse,
     TranscriptSegmentResponse,
+    TranscriptWordResponse,
     MeetingSuggestionResponse,
     MeetingDocumentResponse,
     MeetingAudioOut,
@@ -39,6 +40,9 @@ from ..services.access import (
 )
 from ..api.objects import resolve_or_create_customer
 from ..services.meeting_audio_links import list_meeting_audio_parts
+from ..services.segment_words import assign_batch_words, parse_words_json
+from ..models.batch_job import BatchJob
+from ..core.batch.term_corrector import effective_transcription
 from ..services.meeting_room import compute_live_state
 from ..services.protocol_lists import load_protocol_lists
 from ..services.meeting_finalize import close_and_request_finalization, request_finalization
@@ -730,6 +734,37 @@ async def get_meeting_audio(
     ])
 
 
+async def _batch_words_for_segments(
+    db: AsyncSession, meeting_id: int, records: list[TranscriptSegmentRecord],
+) -> dict[str, list[dict]]:
+    """Слова батча по segment_id для сегментов batch_finalized без words_json.
+
+    Только если у встречи ровно одно распознавание; любой сбой — warning и пустой результат.
+    """
+    targets = [r for r in records if r.origin == "batch_finalized" and not parse_words_json(r.words_json)]
+    if not targets:
+        return {}
+    try:
+        jobs = (await db.execute(
+            select(BatchJob)
+            .where(BatchJob.meeting_id == meeting_id,
+                   BatchJob.transcription_json.isnot(None),
+                   BatchJob.transcription_json != "")
+            .limit(2)
+        )).scalars().all()
+        if len(jobs) != 1:
+            return {}
+        data = effective_transcription(jobs[0])
+        words = data.get("words") if isinstance(data, dict) else None
+        if not isinstance(words, list) or not words:
+            return {}
+        assigned = assign_batch_words([(r.start_time, r.end_time) for r in targets], words)
+        return {r.segment_id: w for r, w in zip(targets, assigned) if w}
+    except Exception as exc:  # noqa: BLE001 — слова необязательны, деталь встречи не должна падать
+        logger.warning("[meeting-words] meeting=%s: слова батча не разобраны (%s)", meeting_id, type(exc).__name__)
+        return {}
+
+
 @router.get("/{meeting_id}", response_model=MeetingDetailResponse)
 async def get_meeting_detail(
     meeting_id: int,
@@ -759,10 +794,15 @@ async def get_meeting_detail(
         .where(TranscriptSegmentRecord.session_id == meeting_id)
         .order_by(TranscriptSegmentRecord.wall_clock.asc())
     )
-    segments = [
-        TranscriptSegmentResponse.model_validate(s)
-        for s in seg_result.scalars().all()
-    ]
+    seg_records = list(seg_result.scalars().all())
+    batch_words = await _batch_words_for_segments(db, meeting_id, seg_records)
+    segments = []
+    for rec in seg_records:
+        seg = TranscriptSegmentResponse.model_validate(rec)
+        words = parse_words_json(rec.words_json) or batch_words.get(rec.segment_id)
+        if words:
+            seg.words = [TranscriptWordResponse(**w) for w in words]
+        segments.append(seg)
 
     # Load suggestions
     sug_result = await db.execute(

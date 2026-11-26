@@ -80,6 +80,12 @@ class MeetingListItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TranscriptWordResponse(BaseModel):
+    text: str
+    start: float
+    end: float
+
+
 class TranscriptSegmentResponse(BaseModel):
     segment_id: str
     text: str
@@ -92,6 +98,8 @@ class TranscriptSegmentResponse(BaseModel):
     language: str | None = None
     translation: str | None = None
     diarized_speaker: str | None = None
+    # Пословные таймкоды (секунды той же шкалы, что start_time) для подсветки в плеере
+    words: list[TranscriptWordResponse] | None = None
 
     model_config = {"from_attributes": True}
 

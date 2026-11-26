@@ -1,0 +1,19 @@
+/* Слово без рамок и отступов: раскладка текста не сдвигается, подсветка — только фоном и тенью */
+.word {
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+/* Фон плотнее, чем у активной строки (--accent-amber-glow); токены есть в обеих темах */
+.wordActive {
+  background-color: var(--border-amber);
+  box-shadow: 0 0 0 1.5px var(--accent-amber);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word {
+    transition: none;
+  }
+}

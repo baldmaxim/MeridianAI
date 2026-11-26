@@ -75,4 +75,35 @@ describe('TranscriptRow (история встречи)', () => {
     expect(onSeek).not.toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  describe('подсветка слов', () => {
+    const audioRef = { current: document.createElement('audio') };
+    const withWords: TranscriptSegmentRecord = {
+      ...base, text: 'добрый день', language: 'ru',
+      words: [{ text: 'добрый', start: 0, end: 0.4 }, { text: 'день', start: 0.5, end: 0.9 }],
+    };
+
+    it('активная строка со словами рендерит span-ы слов', () => {
+      render(<TranscriptRow segment={withWords} active audioRef={audioRef} />);
+      expect(screen.getByText('добрый').tagName).toBe('SPAN');
+      expect(screen.getByText('день').tagName).toBe('SPAN');
+    });
+
+    it('с переводом — обычный текст без span-ов слов', () => {
+      render(<TranscriptRow segment={{ ...withWords, translation: 'Добрый день' }} active audioRef={audioRef} />);
+      expect(screen.queryByText('добрый')).toBeNull();
+      expect(screen.getByText('добрый день')).toBeTruthy();
+    });
+
+    it('неактивная строка — без span-ов слов', () => {
+      render(<TranscriptRow segment={withWords} audioRef={audioRef} />);
+      expect(screen.queryByText('добрый')).toBeNull();
+      expect(screen.getByText('добрый день')).toBeTruthy();
+    });
+
+    it('без audioRef — без span-ов слов', () => {
+      render(<TranscriptRow segment={withWords} active />);
+      expect(screen.queryByText('добрый')).toBeNull();
+    });
+  });
 });

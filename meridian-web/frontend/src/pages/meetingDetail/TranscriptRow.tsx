@@ -1,7 +1,8 @@
-import type { FC, KeyboardEvent } from 'react';
+import type { FC, KeyboardEvent, RefObject } from 'react';
 import type { TranscriptSegmentRecord } from '../../types';
 import { foreignLanguageBadge, formatDiarizedSpeaker } from '../../lib/segmentMeta';
 import { getDiarizedSpeakerColor } from '../../styles/theme';
+import { KaraokeText } from './KaraokeText';
 import { TranslatedText } from '../../components/common/TranslatedText';
 import { formatTime, getSpeakerColorIndex } from './meetingDetailFormat';
 import { cx } from '../../utils/cx';
@@ -16,11 +17,13 @@ interface ITranscriptRowProps {
   side?: 'self' | 'opponent' | null;
   /** Реплика, которая сейчас звучит в плеере. */
   active?: boolean;
+  /** Аудио записи: у активной строки со словами звучащее слово подсвечивается. */
+  audioRef?: RefObject<HTMLAudioElement | null>;
   /** Задан — строка кликабельна (перемотка записи к реплике). */
   onSeek?: () => void;
 }
 
-export const TranscriptRow: FC<ITranscriptRowProps> = ({ segment, speakerName, side, active = false, onSeek }) => {
+export const TranscriptRow: FC<ITranscriptRowProps> = ({ segment, speakerName, side, active = false, audioRef, onSeek }) => {
   const speaker = segment.speaker_label || segment.speaker_id;
   const speakerLabel = speakerName || humanSpeakerLabel(speaker);
   const language = foreignLanguageBadge(segment.language);
@@ -68,7 +71,11 @@ export const TranscriptRow: FC<ITranscriptRowProps> = ({ segment, speakerName, s
           </span>
         )}
         {((language && !segment.translation) || diarized) && ' '}
-        <TranslatedText text={segment.text} translation={segment.translation} language={segment.language} />
+        {active && audioRef && segment.words?.length && !segment.translation ? (
+          <KaraokeText text={segment.text} words={segment.words} audioRef={audioRef} />
+        ) : (
+          <TranslatedText text={segment.text} translation={segment.translation} language={segment.language} />
+        )}
       </span>
     </div>
   );
