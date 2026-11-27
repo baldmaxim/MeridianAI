@@ -35,6 +35,8 @@ from ..schemas.batch import (
     FromStashRequest,
     ClipRequest,
 )
+from ..services.access import user_can_access_customer, user_can_access_object
+from ..models.directory import ProjectObject
 from ..services.jobs import enqueue
 from ..services import s3
 from ..services.audio_links import presign_audio
@@ -333,6 +335,16 @@ async def batch_to_meeting(
     )).scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Задача не найдена")
+
+    # привязка к проекту/заказчику — только к видимым пользователю
+    if data.object_id is not None:
+        if await db.get(ProjectObject, data.object_id) is None:
+            raise HTTPException(404, "Объект не найден")
+        if not await user_can_access_object(db, user.id, data.object_id):
+            raise HTTPException(403, "Нет доступа к объекту")
+    elif data.customer_id is not None:
+        if not await user_can_access_customer(db, user.id, data.customer_id):
+            raise HTTPException(403, "Нет доступа к заказчику")
 
     from ..services.ai_settings import get_or_create_default_profile
     from ..services.batch_to_meeting import (

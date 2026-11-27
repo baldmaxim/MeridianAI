@@ -27,7 +27,13 @@ from ..schemas.desktop import (
     DesktopOfferSubmission,
     DesktopSegmentOut,
 )
-from ..services.access import accessible_meeting_filter, user_can_access_meeting, user_can_access_object
+from ..services.access import (
+    accessible_customer_ids_select,
+    accessible_meeting_filter,
+    accessible_object_ids_select,
+    user_can_access_meeting,
+    user_can_access_object,
+)
 from ..core.http_files import safe_download_name
 from ..services.audio_links import presign_audio
 from ..services.protocol_lists import load_protocol_lists
@@ -211,10 +217,17 @@ async def meeting_audio(meeting_id: int, auth: Device, db: AsyncSession = Depend
 
 @router.get("/projects", response_model=list[DesktopCustomer])
 async def projects(auth: Device, db: AsyncSession = Depends(get_db)):
-    """Все заказчики с активными объектами (как справочник сайта). Двумя запросами, без N+1."""
-    customers = (await db.execute(select(Customer).order_by(Customer.name, Customer.id))).scalars().all()
+    """Видимые пользователю заказчики с активными объектами. Двумя запросами, без N+1."""
+    customers = (await db.execute(
+        select(Customer)
+        .where(Customer.id.in_(accessible_customer_ids_select(auth.user.id)))
+        .order_by(Customer.name, Customer.id)
+    )).scalars().all()
     objects = (await db.execute(
-        select(ProjectObject).where(ProjectObject.is_active == True)  # noqa: E712
+        select(ProjectObject).where(
+            ProjectObject.is_active == True,  # noqa: E712
+            ProjectObject.id.in_(accessible_object_ids_select(auth.user.id)),
+        )
         .order_by(ProjectObject.name, ProjectObject.id)
     )).scalars().all()
     by_customer: dict[int, list[DesktopObjectOut]] = {}

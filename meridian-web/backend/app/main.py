@@ -33,6 +33,7 @@ from .api.batch import router as batch_router
 from .api.stash import router as stash_router
 from .api.customers import router as customers_router
 from .api.objects import router as objects_router
+from .api.object_access import router as object_access_router, admin_router as object_access_admin_router
 from .api.letters import router as letters_router
 from .api.meeting_letters import router as meeting_letters_router
 from .api.mobile import router as mobile_router
@@ -298,6 +299,8 @@ app.include_router(stash_router, prefix="/api/stash", tags=["stash"])
 # фильтр истории, AI-настройки встречи), поэтому остаются открытыми.
 app.include_router(customers_router, prefix="/api/customers", tags=["customers"])
 app.include_router(objects_router, prefix="/api/objects", tags=["objects"])
+app.include_router(object_access_router, prefix="/api/objects", tags=["object-access"])
+app.include_router(object_access_admin_router, prefix="/api/admin", tags=["object-access"])
 app.include_router(letters_router, prefix="/api/letters", tags=["letters"])
 app.include_router(meeting_letters_router, prefix="/api/meetings", tags=["meeting-letters"])
 app.include_router(mobile_router, prefix="/api/mobile", tags=["mobile"])

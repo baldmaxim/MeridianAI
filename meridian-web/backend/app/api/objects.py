@@ -1,6 +1,8 @@
-"""ProjectObjects API (Этап 1 MVP). Объект виден только владельцу/создателю."""
+"""ProjectObjects API. Объект виден по правилам app/services/access.py (гранты/все проекты)."""
 
-from fastapi import APIRouter, Depends, HTTPException
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,13 +10,19 @@ from ..auth.dependencies import get_current_user
 from ..database import get_db
 from ..models.user import User
 from ..models.directory import Customer, ProjectObject
+from ..models.object_access import UserObjectAccess
 from ..schemas.directory import (
     ProjectObjectCreate,
     ProjectObjectUpdate,
     ProjectObjectResponse,
 )
 from ..schemas.document import OfferSubmission
-from ..services.access import user_can_access_object
+from ..services.access import (
+    accessible_object_ids_select,
+    user_can_access_object,
+    user_has_all_objects,
+)
+from ..services.audit import audit, client_ip
 from ..services.offer_submissions import list_object_offer_submissions
 
 router = APIRouter()
@@ -45,6 +53,66 @@ async def resolve_or_create_customer(
     return customer
 
 
+_QUOTES_RE = re.compile(r"[«»\"'„“”‟`]")
+_PUNCT_RE = re.compile(r"[^\w\s]|_")
+MIN_FUZZY_LEN = 4
+
+
+def normalize_object_text(value: str | None) -> str:
+    """Нормализация имени/адреса для поиска дублей: регистр, ё, кавычки, пунктуация, «жк»."""
+    text = (value or "").lower().replace("ё", "е")
+    text = _QUOTES_RE.sub("", text)
+    text = _PUNCT_RE.sub(" ", text)
+    return " ".join(t for t in text.split() if t != "жк")
+
+
+async def _find_duplicate_candidates(
+    db: AsyncSession, user_id: int, has_all: bool, name: str, address: str | None, customer_name: str,
+) -> tuple[bool, list[dict]]:
+    """Похожие объекты среди ВСЕХ (включая невидимые). Возвращает (есть_точное, кандидаты)."""
+    norm_name = normalize_object_text(name)
+    norm_addr = normalize_object_text(address)
+    customer_key = customer_name.strip().casefold()
+    rows = (
+        await db.execute(
+            select(
+                ProjectObject.id, ProjectObject.name, ProjectObject.address, Customer.name,
+            ).join(Customer, Customer.id == ProjectObject.customer_id)
+        )
+    ).all()
+    visible: set[int] = set()
+    if not has_all and rows:
+        visible = set((await db.execute(accessible_object_ids_select(user_id))).scalars().all())
+
+    exact_found = False
+    candidates: list[dict] = []
+    for obj_id, obj_name, obj_address, obj_customer in rows:
+        other_name = normalize_object_text(obj_name)
+        same_name = bool(norm_name) and norm_name == other_name
+        same_customer = (obj_customer or "").strip().casefold() == customer_key
+        exact = same_name and same_customer
+        fuzzy = (
+            same_name
+            or (
+                bool(norm_name) and bool(other_name)
+                and min(len(norm_name), len(other_name)) >= MIN_FUZZY_LEN
+                and (norm_name in other_name or other_name in norm_name)
+            )
+            or (bool(norm_addr) and norm_addr == normalize_object_text(obj_address))
+        )
+        if not (exact or fuzzy):
+            continue
+        exact_found = exact_found or exact
+        candidates.append({
+            "id": obj_id,
+            "name": obj_name,
+            "customer_name": obj_customer,
+            "has_access": has_all or obj_id in visible,
+            "_exact": exact,
+        })
+    return exact_found, candidates
+
+
 def _obj_response(obj: ProjectObject, customer_name: str | None = None) -> ProjectObjectResponse:
     resp = ProjectObjectResponse.model_validate(obj)
     resp.customer_name = customer_name
@@ -60,6 +128,7 @@ async def list_objects(
     stmt = (
         select(ProjectObject, Customer.name)
         .join(Customer, Customer.id == ProjectObject.customer_id)
+        .where(ProjectObject.id.in_(accessible_object_ids_select(user.id)))
     )
     if customer_id is not None:
         stmt = stmt.where(ProjectObject.customer_id == customer_id)
@@ -71,10 +140,32 @@ async def list_objects(
 @router.post("", response_model=ProjectObjectResponse)
 async def create_object(
     data: ProjectObjectCreate,
+    request: Request = None,  # инжектится FastAPI; None — при прямом вызове в тестах
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    customer = await resolve_or_create_customer(db, user.id, data.customer_name)
+    """Создать объект. Похожие объекты → 409 duplicate_object (заказчик ещё не создаётся)."""
+    customer_name = (data.customer_name or "").strip()
+    if not customer_name:
+        raise HTTPException(422, "Укажите заказчика")
+    has_all = await user_has_all_objects(db, user.id)
+    exact, candidates = await _find_duplicate_candidates(
+        db, user.id, has_all, data.name, data.address, customer_name
+    )
+    # Точное совпадение: обычному сотруднику — всегда стоп (force игнорируется), админ может
+    # создать. Только нечёткое совпадение — стоп, пока нет force («создать всё равно»).
+    if candidates and (
+        (exact and user.role != "admin") or (not exact and not data.force)
+    ):
+        raise HTTPException(
+            409,
+            detail={
+                "code": "duplicate_object",
+                "exact": exact,
+                "candidates": [{k: v for k, v in c.items() if k != "_exact"} for c in candidates],
+            },
+        )
+    customer = await resolve_or_create_customer(db, user.id, customer_name)
     obj = ProjectObject(
         owner_user_id=user.id,
         customer_id=customer.id,
@@ -89,6 +180,11 @@ async def create_object(
     db.add(obj)
     await db.flush()
     await db.refresh(obj)
+    if not has_all:
+        # создатель не должен потерять только что созданный проект
+        db.add(UserObjectAccess(user_id=user.id, object_id=obj.id, granted_by_user_id=user.id))
+        await db.flush()
+    await audit("object_created", actor_user_id=user.id, ip=client_ip(request), object_id=obj.id)
     return _obj_response(obj, customer.name)
 
 
@@ -99,7 +195,7 @@ async def get_object(
     db: AsyncSession = Depends(get_db),
 ):
     obj = await db.get(ProjectObject, object_id)
-    if not obj:
+    if not obj or not await user_can_access_object(db, user.id, object_id):
         raise HTTPException(404, "Объект не найден")
     customer = await db.get(Customer, obj.customer_id)
     return _obj_response(obj, customer.name if customer else None)
@@ -130,7 +226,7 @@ async def update_object(
     db: AsyncSession = Depends(get_db),
 ):
     obj = await db.get(ProjectObject, object_id)
-    if not obj:
+    if not obj or not await user_can_access_object(db, user.id, object_id):
         raise HTTPException(404, "Объект не найден")
     updates = data.model_dump(exclude_unset=True)
     if updates.get("tender_won", True) is None:
@@ -153,7 +249,7 @@ async def delete_object(
     db: AsyncSession = Depends(get_db),
 ):
     obj = await db.get(ProjectObject, object_id)
-    if not obj:
+    if not obj or not await user_can_access_object(db, user.id, object_id):
         raise HTTPException(404, "Объект не найден")
     await db.delete(obj)
     await db.flush()

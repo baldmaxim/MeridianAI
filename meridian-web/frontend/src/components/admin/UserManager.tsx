@@ -5,6 +5,7 @@ import { useMe } from '../../hooks/queries/auth';
 import styles from './UserManager.module.css';
 import { cx } from '../../utils/cx';
 import { EditUserModal } from './EditUserModal';
+import { ObjectAccessModal } from './ObjectAccessModal';
 
 /** Цветовые варианты аватара (цвета — токены темы, см. UserManager.module.css). */
 const AVATAR_TONES = [
@@ -37,6 +38,9 @@ function getInitials(user: User): string {
 
 export function UserManager() {
   const [editing, setEditing] = useState<User | null>(null);
+  // пользователь держим отдельно от флага: на exit-анимации модалка не должна опустеть
+  const [accessUser, setAccessUser] = useState<User | null>(null);
+  const [accessOpen, setAccessOpen] = useState(false);
 
   const { data: users = [] } = useUsers();
   const { data: me } = useMe();
@@ -102,6 +106,17 @@ export function UserManager() {
                     Изменить
                   </button>
 
+                  {u.role === 'admin' ? (
+                    <span className={styles.seesAll}>Видит все</span>
+                  ) : (
+                    <button
+                      onClick={() => { setAccessUser(u); setAccessOpen(true); }}
+                      className={cx('t-btn', styles.editBtn, styles.accessBtn)}
+                    >
+                      Проекты
+                    </button>
+                  )}
+
                   {!isSelf && (
                     <button
                       onClick={() => toggleActive(u)}
@@ -131,6 +146,8 @@ export function UserManager() {
           onSaved={() => setEditing(null)}
         />
       )}
+
+      <ObjectAccessModal user={accessUser} open={accessOpen} onClose={() => setAccessOpen(false)} />
     </div>
   );
 }

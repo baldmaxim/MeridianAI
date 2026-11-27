@@ -41,6 +41,7 @@ def _safe_ct(content_type: str | None) -> str:
     """Content-type для лога: не PII, но обрезаем и схлопываем пробелы (защита от мусора)."""
     return " ".join(str(content_type or "-").split())[:80]
 from ..services.access import (
+    document_filter,
     user_can_access_object,
     user_can_access_document,
     user_can_manage_document,
@@ -236,9 +237,10 @@ async def list_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Список документов (общая хронология — видны все)."""
+    """Список документов: видны документы доступных объектов и собственные «без проекта»."""
     stmt = (
         select(DocumentRecord, _chunks_count_subq().label("chunks_count"))
+        .where(document_filter(user.id))
         .order_by(DocumentRecord.created_at.desc(), DocumentRecord.id.desc())
     )
     if customer_id is not None:

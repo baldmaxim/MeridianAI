@@ -27,7 +27,7 @@ from app.services.meeting_room import MeetingRoom, MeetingConnection
 # ---------- helpers ----------
 
 async def _mk_user(db, email: str) -> User:
-    u = User(email=email, password_hash="x", role="user", is_active=True)
+    u = User(email=email, password_hash="x", role="user", is_active=True, all_objects_access=True)
     db.add(u)
     await db.flush()
     await db.refresh(u)
@@ -172,7 +172,7 @@ async def test_finalize_meeting_by_meeting_id(sqlite_sessionmaker):
     sm = sqlite_sessionmaker
     # подготовить пользователя + встречу
     async with sm() as db:
-        owner = User(email="fin-owner@test.local", password_hash="x", role="user", is_active=True)
+        owner = User(email="fin-owner@test.local", password_hash="x", role="user", is_active=True, all_objects_access=True)
         db.add(owner)
         await db.flush()
         meeting = MeetingSession(

@@ -193,3 +193,16 @@
   color: var(--accent-green);
   border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
 }
+
+.seesAll {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .accessBtn {
+    min-height: 44px;
+  }
+}

@@ -173,6 +173,7 @@ async def _link_or_create_user(db, sub, email, email_verified, roles) -> User:
         password_hash="!",  # локальный логин невозможен (не bcrypt-хэш)
         role=role,
         display_name=email or sub,
+        is_active=False,  # как при регистрации: ждёт одобрения администратором
     )
     db.add(user)
     await db.flush()

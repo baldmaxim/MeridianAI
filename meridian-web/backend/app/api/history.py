@@ -33,6 +33,7 @@ from ..schemas.directory import MeetingParticipantResponse
 from ..auth.dependencies import get_current_user
 from ..services.access import (
     accessible_meeting_filter,
+    user_can_access_customer,
     user_can_access_object,
     user_can_access_meeting,
     user_can_access_document,
@@ -88,6 +89,8 @@ async def _resolve_customer_object(
     elif customer_id is not None:
         if await db.get(Customer, customer_id) is None:
             raise HTTPException(422, "Заказчик не найден")
+        if not await user_can_access_customer(db, user.id, customer_id):
+            raise HTTPException(403, "Нет доступа к заказчику")
     elif customer_name and customer_name.strip():
         customer = await resolve_or_create_customer(db, user.id, customer_name)
         customer_id = customer.id
@@ -359,6 +362,8 @@ async def add_participant(
     meeting = await db.get(MeetingSession, meeting_id)
     if not meeting:
         raise HTTPException(404, "Meeting not found")
+    if not await can_record_meeting(db, user.id, meeting_id):
+        raise HTTPException(403, "Нет доступа к встрече")
     if not _is_meeting_owner(meeting, user):
         raise HTTPException(403, "Только создатель встречи может управлять участниками")
     target = await db.get(User, user_id)
@@ -399,6 +404,8 @@ async def remove_participant(
     meeting = await db.get(MeetingSession, meeting_id)
     if not meeting:
         raise HTTPException(404, "Meeting not found")
+    if not await can_record_meeting(db, user.id, meeting_id):
+        raise HTTPException(403, "Нет доступа к встрече")
     if not _is_meeting_owner(meeting, user):
         raise HTTPException(403, "Только создатель встречи может управлять участниками")
     result = await db.execute(
@@ -907,6 +914,8 @@ async def delete_meeting(
     if not meeting:
         logger.warning(f"[delete] meeting {meeting_id} not found")
         raise HTTPException(status_code=404, detail="Meeting not found")
+    if not await can_record_meeting(db, user.id, meeting_id):
+        raise HTTPException(status_code=403, detail="Нет доступа к встрече")
     if not _is_meeting_owner(meeting, user):
         raise HTTPException(status_code=403, detail="Удалять встречу может только создатель")
 

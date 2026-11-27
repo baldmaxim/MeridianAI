@@ -3,11 +3,17 @@ import type { PageAccessConfig } from '../../types';
 import { listUsers, updateUser, deleteUser, type UserPatch } from '../../api/users';
 import { listApiKeys, createApiKey, updateApiKey, deleteApiKey, testLmStudio } from '../../api/settings';
 import { getPageAccess, updatePageAccess } from '../../api/pageAccess';
+import {
+  getUserObjectAccess, setUserObjectAccess, listObjectAccessRequests,
+  approveObjectAccessRequest, rejectObjectAccessRequest, type IObjectAccess,
+} from '../../api/objectAccess';
 
 export const adminKeys = {
   users: ['admin', 'users'] as const,
   apiKeys: ['admin', 'api-keys'] as const,
   pageAccess: ['admin', 'page-access'] as const,
+  objectAccess: (userId: number) => ['admin', 'object-access', userId] as const,
+  accessRequests: ['admin', 'object-access-requests'] as const,
 };
 
 // --- пользователи ---
@@ -95,5 +101,41 @@ export function useUpdatePageAccess() {
       if (ctx?.prev) qc.setQueryData(adminKeys.pageAccess, ctx.prev);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: adminKeys.pageAccess }),
+  });
+}
+
+// --- доступ к проектам ---
+
+export function useUserObjectAccess(userId: number) {
+  // staleTime 0: при каждом открытии модалки — свежее состояние с сервера
+  return useQuery({
+    queryKey: adminKeys.objectAccess(userId),
+    queryFn: () => getUserObjectAccess(userId),
+    staleTime: 0,
+  });
+}
+
+export function useSetUserObjectAccess(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (access: IObjectAccess) => setUserObjectAccess(userId, access),
+    onSuccess: (data) => qc.setQueryData(adminKeys.objectAccess(userId), data),
+  });
+}
+
+export function useObjectAccessRequests() {
+  return useQuery({
+    queryKey: adminKeys.accessRequests,
+    queryFn: () => listObjectAccessRequests('pending'),
+    staleTime: 0,
+  });
+}
+
+export function useResolveAccessRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, approve }: { id: number; approve: boolean }) =>
+      approve ? approveObjectAccessRequest(id) : rejectObjectAccessRequest(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.accessRequests }),
   });
 }

@@ -25,7 +25,7 @@ SUB_2 = "002 29.06.2026 Скидка"
 
 
 async def _setup(db):
-    user = User(email="own@t.local", password_hash="x", role="user", is_active=True)
+    user = User(email="own@t.local", password_hash="x", role="user", is_active=True, all_objects_access=True)
     cust = Customer(name="A")
     db.add_all([user, cust])
     await db.flush()
@@ -274,7 +274,7 @@ def test_offer_submission_from_meta(source, expected):
 ])
 async def test_upload_session_fills_offer_submission(commit_db, monkeypatch, source, expected):  # noqa: F811
     _enable_s3(monkeypatch)
-    user = User(email="imp@t.local", password_hash="x", role="user", is_active=True)
+    user = User(email="imp@t.local", password_hash="x", role="user", is_active=True, all_objects_access=True)
     commit_db.add(user)
     await commit_db.flush()
     resp = await create_s3_document_upload(

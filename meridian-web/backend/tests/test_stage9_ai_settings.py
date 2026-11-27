@@ -24,7 +24,7 @@ from sqlalchemy import select, func
 
 
 async def _mk_user(db, email):
-    u = User(email=email, password_hash="x", role="user", is_active=True)
+    u = User(email=email, password_hash="x", role="user", is_active=True, all_objects_access=True)
     db.add(u); await db.flush(); await db.refresh(u)
     return u
 

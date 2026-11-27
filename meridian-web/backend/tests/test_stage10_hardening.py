@@ -21,7 +21,7 @@ from app.api.history import list_meeting_documents
 
 
 async def _mk_user(db, email, role="user"):
-    u = User(email=email, password_hash="x", role=role, is_active=True)
+    u = User(email=email, password_hash="x", role=role, is_active=True, all_objects_access=True)
     db.add(u); await db.flush(); await db.refresh(u)
     return u
 

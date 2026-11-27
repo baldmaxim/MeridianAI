@@ -60,7 +60,7 @@ async def client(sm):
 async def _user(sm, email="eng@test.local") -> User:
     async with sm() as db:
         u = User(email=email, password_hash=hash_password("pw-123456"), role="user",
-                 is_active=True, display_name="Инженер")
+                 is_active=True, display_name="Инженер", all_objects_access=True)
         db.add(u)
         await db.commit()
         return u

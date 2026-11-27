@@ -193,6 +193,7 @@ export function ObjectsPage({ onOpenObject }: Props) {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={() => { setShowCreate(false); qc.invalidateQueries({ queryKey: directoryKeys.objectsAll }); }}
+        onOpenObject={onOpenObject}
       />
     </div>
   );

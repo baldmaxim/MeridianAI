@@ -3,6 +3,9 @@ import type { Customer } from '../../types';
 import { createObject } from '../../api/objects';
 import { listCustomers } from '../../api/customers';
 import { apiErrorMessage } from '../../lib/apiError';
+import { errorStatus, errorDetailObject } from '../../lib/errorDetail';
+import type { IDuplicateObjectDetail } from '../../api/objectAccess';
+import { DuplicateObjectNotice } from './DuplicateObjectNotice';
 import { Modal } from '../common/Modal';
 import { Combobox, TextInput } from '../common';
 import { theme } from '../../styles/theme';
@@ -14,6 +17,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  /** Открыть существующий проект (из блока «Похожий проект уже есть»). */
+  onOpenObject?: (id: number) => void;
 }
 
 /** Стиль поля <Combobox>: компонент принимает только style (не className). */
@@ -32,7 +37,7 @@ const comboInputStyle: React.CSSProperties = {
  *  Заказчик — текстовое поле с подсказками из уже созданных (combobox): можно выбрать
  *  существующего или вписать нового — он создастся вместе с объектом.
  *  Анимации transitions.dev: вход/выход — Modal (06), ошибка — error-shake (12). */
-export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
+export function ObjectCreateModal({ open, onClose, onCreated, onOpenObject }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [name, setName] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -41,6 +46,7 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
   const [payhubProjectId, setPayhubProjectId] = useState('');
   const [tenderWon, setTenderWon] = useState(false);
   const [error, setError] = useState('');
+  const [duplicate, setDuplicate] = useState<IDuplicateObjectDetail | null>(null);
   const [saving, setSaving] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const formRef = useErrorShake<HTMLDivElement>(shakeKey);
@@ -55,8 +61,9 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
     setShakeKey((k) => k + 1);
   }
 
-  async function save() {
+  async function save(force = false) {
     setError('');
+    setDuplicate(null);
     if (!name.trim()) { fail('Укажите название объекта'); return; }
     if (!customerName.trim()) { fail('Укажите заказчика'); return; }
     const payhubRaw = payhubProjectId.trim();
@@ -70,9 +77,15 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
         description: description.trim() || null,
         payhub_project_id: payhubRaw ? Number(payhubRaw) : null,
         tender_won: tenderWon,
+        ...(force ? { force: true } : {}),
       });
       onCreated();
     } catch (e) {
+      const detail = errorStatus(e) === 409 ? errorDetailObject(e) : null;
+      if (detail?.code === 'duplicate_object') {
+        setDuplicate(detail as unknown as IDuplicateObjectDetail);
+        return;
+      }
       fail(apiErrorMessage(e, 'Не удалось создать объект'));
     } finally {
       setSaving(false);
@@ -88,12 +101,12 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
 
       <div ref={formRef} className={cx('t-input', styles.formCard)}>
         <label className={styles.label}>Название *</label>
-        <TextInput inputClassName={styles.input} value={name} onChange={(e) => setName(e.target.value)} onClear={() => setName('')} clearLabel="название" placeholder="ЖК «Рассвет», корпус 2" autoFocus />
+        <TextInput inputClassName={styles.input} value={name} onChange={(e) => { setName(e.target.value); setDuplicate(null); }} onClear={() => { setName(''); setDuplicate(null); }} clearLabel="название" placeholder="ЖК «Рассвет», корпус 2" autoFocus />
         <label className={styles.label}>Заказчик *</label>
         <Combobox
           style={comboInputStyle}
           value={customerName}
-          onChange={setCustomerName}
+          onChange={(v) => { setCustomerName(v); setDuplicate(null); }}
           options={customers.map((c) => c.name)}
           placeholder="ООО «Стройзаказ» — выберите или впишите нового"
         />
@@ -108,10 +121,19 @@ export function ObjectCreateModal({ open, onClose, onCreated }: Props) {
           <span className={styles.checkLabel}>Тендер выигран</span>
         </label>
         <div className={styles.formRow}>
-          <button className={cx('t-btn t-btn-amber', styles.btn)} onClick={save} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
+          <button className={cx('t-btn t-btn-amber', styles.btn)} onClick={() => save()} disabled={saving}>{saving ? 'Сохранение…' : 'Создать'}</button>
           <button className={cx('t-btn', styles.btnGhost)} onClick={onClose}>Отмена</button>
         </div>
       </div>
+
+      {duplicate && (
+        <DuplicateObjectNotice
+          detail={duplicate}
+          saving={saving}
+          onOpen={(id) => { onClose(); onOpenObject?.(id); }}
+          onForceCreate={() => save(true)}
+        />
+      )}
 
       {error && <div className={styles.error}>{error}</div>}
     </Modal>

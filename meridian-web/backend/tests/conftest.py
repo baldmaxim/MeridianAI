@@ -75,3 +75,25 @@ def _no_llm_keys_for_classify(monkeypatch):
         return {}
 
     monkeypatch.setattr("app.services.document_classify.load_api_keys", _no_keys)
+
+
+class _NullAuditSession:
+    """Заглушка сессии аудита: audit() пишет в отдельную сессию боевой БД — в тестах не нужно."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def add(self, _obj) -> None:
+        pass
+
+    async def commit(self) -> None:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _no_real_audit_writes(monkeypatch):
+    """Прямые вызовы эндпоинтов не должны писать audit_log в БД из настроек (это может быть прод)."""
+    monkeypatch.setattr("app.services.audit.async_session", lambda: _NullAuditSession())

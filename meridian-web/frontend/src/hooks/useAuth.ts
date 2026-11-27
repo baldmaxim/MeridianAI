@@ -50,14 +50,16 @@ export function useAuth() {
     return me;
   }, []);
 
-  const register = useCallback(async (email: string, password: string, displayName?: string, department?: string) => {
+  const register = useCallback(async (email: string, password: string, displayName?: string, department?: string): Promise<{ pending: boolean }> => {
     const res = await apiRegister(email, password, displayName, department);
+    // Заявка ждёт одобрения админом: токена нет, сессию не открываем.
+    if (res.pending || !res.access_token) return { pending: true };
     localStorage.setItem('token', res.access_token);
     queryClient.clear();
     const me = await getMe();
     queryClient.setQueryData(authKeys.me, me);
     setUser(me);
-    return me;
+    return { pending: false };
   }, []);
 
   const logout = useCallback(() => {

@@ -13,3 +13,10 @@ export const errorDetail = (e: unknown): string | undefined => {
 
 /** Текст сообщения обычной ошибки (Error.message). */
 export const errorText = (e: unknown): string | undefined => (e instanceof Error ? e.message : undefined);
+
+/** Объектный detail ответа FastAPI (например {code, ...}); null, если detail — не объект. */
+export const errorDetailObject = (e: unknown): Record<string, unknown> | null => {
+  if (!axios.isAxiosError(e)) return null;
+  const detail = (e.response?.data as { detail?: unknown } | undefined)?.detail;
+  return detail && typeof detail === 'object' && !Array.isArray(detail) ? (detail as Record<string, unknown>) : null;
+};

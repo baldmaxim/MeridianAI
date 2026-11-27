@@ -2,8 +2,8 @@
 
 Папки базы знаний (CRUD), привязка существующих документов к папкам и подключение
 папок к контексту встречи через meeting_context_sources (source_type='rag_folder').
-Доступ — общая модель: list/CRUD папок требуют авторизации; документ — user_can_access_document;
-встреча — can_record_meeting (изменение) / user_can_access_meeting (просмотр).
+Доступ: папка — rag_folder_filter (по объекту, без объекта — автор/has_all); документ —
+user_can_access_document; встреча — can_record_meeting (изменение) / user_can_access_meeting (просмотр).
 
 Router монтируется под /api: пути /rag/... и /meetings/{id}/rag-folders.
 """
@@ -11,16 +11,20 @@ Router монтируется под /api: пути /rag/... и /meetings/{id}/r
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models.user import User
 from ..models.meeting import MeetingSession
+from ..models.directory import Customer, ProjectObject
+from ..models.rag import RagFolder
 from ..models.document import DocumentRecord
 from ..models.context_source import MeetingContextSource
 from ..auth.dependencies import get_current_user
 from ..services.access import (
     user_can_access_meeting, can_record_meeting, user_can_access_document,
+    user_can_access_object, user_can_access_customer, rag_folder_filter,
 )
 from ..services.meeting_room import room_registry
 from ..services import rag_context as rag
@@ -44,11 +48,28 @@ async def _notify_updated(meeting_id: int) -> None:
             pass
 
 
-async def _get_folder_or_404(db: AsyncSession, folder_id: int):
+async def _get_folder_or_404(db: AsyncSession, folder_id: int, user_id: int):
+    """Папка по id; невидимая пользователю — тоже 404 (не раскрываем существование)."""
     folder = await rag.get_rag_folder(db, folder_id)
-    if folder is None:
+    if folder is None or (
+        await db.scalar(
+            select(RagFolder.id).where(RagFolder.id == folder_id, rag_folder_filter(user_id))
+        )
+    ) is None:
         raise HTTPException(404, "RAG-папка не найдена")
     return folder
+
+
+async def _check_folder_scope(
+    db: AsyncSession, user_id: int, customer_id: int | None, object_id: int | None,
+) -> None:
+    """Папку можно привязать только к видимому объекту/заказчику."""
+    if object_id is not None and await db.get(ProjectObject, object_id) is not None:
+        if not await user_can_access_object(db, user_id, object_id):
+            raise HTTPException(403, "Нет доступа к объекту")
+    if customer_id is not None and await db.get(Customer, customer_id) is not None:
+        if not await user_can_access_customer(db, user_id, customer_id):
+            raise HTTPException(403, "Нет доступа к заказчику")
 
 
 # ── папки ─────────────────────────────────────────────────────────────────────
@@ -73,6 +94,7 @@ async def create_folder(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _check_folder_scope(db, user.id, data.customer_id, data.object_id)
     try:
         return await rag.create_rag_folder(db, user.id, data)
     except ValueError as e:
@@ -85,7 +107,7 @@ async def get_folder(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    folder = await _get_folder_or_404(db, folder_id)
+    folder = await _get_folder_or_404(db, folder_id, user.id)
     return await rag.folder_out(db, folder)
 
 
@@ -96,7 +118,8 @@ async def update_folder(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    folder = await _get_folder_or_404(db, folder_id)
+    folder = await _get_folder_or_404(db, folder_id, user.id)
+    await _check_folder_scope(db, user.id, data.customer_id, data.object_id)
     try:
         return await rag.update_rag_folder(db, folder, data)
     except ValueError as e:
@@ -109,7 +132,7 @@ async def delete_folder(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    folder = await _get_folder_or_404(db, folder_id)
+    folder = await _get_folder_or_404(db, folder_id, user.id)
     await rag.delete_rag_folder(db, folder)
     return {"ok": True}
 
@@ -122,7 +145,7 @@ async def list_folder_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_folder_or_404(db, folder_id)
+    await _get_folder_or_404(db, folder_id, user.id)
     return await rag.list_rag_folder_documents(db, folder_id)
 
 
@@ -133,7 +156,7 @@ async def attach_folder_document(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_folder_or_404(db, folder_id)
+    await _get_folder_or_404(db, folder_id, user.id)
     if await db.get(DocumentRecord, data.document_id) is None:
         raise HTTPException(404, "Документ не найден")
     if not await user_can_access_document(db, user.id, data.document_id):
@@ -148,7 +171,7 @@ async def detach_folder_document(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_folder_or_404(db, folder_id)
+    await _get_folder_or_404(db, folder_id, user.id)
     await rag.detach_document_from_rag_folder(db, folder_id, document_id)
     return {"ok": True}
 
@@ -177,7 +200,7 @@ async def attach_meeting_rag_folder(
         raise HTTPException(404, "Встреча не найдена")
     if not await can_record_meeting(db, user.id, meeting_id):
         raise HTTPException(403, "Недостаточно прав для изменения контекста встречи")
-    await _get_folder_or_404(db, data.folder_id)
+    await _get_folder_or_404(db, data.folder_id, user.id)
     try:
         out = await rag.attach_rag_folder_to_meeting(
             db, meeting_id, data.folder_id, user.id,

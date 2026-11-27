@@ -196,7 +196,7 @@ def test_rank_rows_boost_only_for_offer_chunks_with_bm25():
 async def test_relevant_chunks_prefer_offer_documents(db):
     from app.models.user import User
 
-    user = User(email="boost@t.local", password_hash="x", role="user", is_active=True)
+    user = User(email="boost@t.local", password_hash="x", role="user", is_active=True, all_objects_access=True)
     cust = Customer(name="A")
     db.add_all([user, cust])
     await db.flush()

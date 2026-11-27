@@ -106,7 +106,7 @@ def test_docx_with_only_deleted_text_stays_empty(tmp_path):
     assert dp._extract_docx(str(path))[0]["text"] == ""
 
 async def _mk_user(db, email):
-    u = User(email=email, password_hash="x", role="user", is_active=True)
+    u = User(email=email, password_hash="x", role="user", is_active=True, all_objects_access=True)
     db.add(u)
     await db.flush()
     await db.refresh(u)

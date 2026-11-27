@@ -38,6 +38,7 @@ from ..database import async_session
 from ..models.meeting import MeetingSession, TranscriptSegmentRecord
 from ..schemas.desktop import SegmentsRequest
 from ..services import desktop_sync as sync
+from ..services.access import user_can_access_meeting
 from ..services.desktop_devices import authenticate_device, touch_device
 from ..services.meeting_room import MeetingConnection, MeetingRoom, room_registry
 
@@ -203,6 +204,10 @@ async def _authorize(websocket: WebSocket, meeting_id: int, token: str) -> _Auth
         await touch_device(db, auth.device)
         found = await sync.get_linked_meeting(db, user_id, meeting_id)
         if found is None:
+            await _reject(websocket, CLOSE_NOT_FOUND, "meeting_not_found", "Встреча не найдена")
+            return None
+        # связь с устройством не даёт доступа сама по себе: проект могли отозвать
+        if not await user_can_access_meeting(db, user_id, meeting_id):
             await _reject(websocket, CLOSE_NOT_FOUND, "meeting_not_found", "Встреча не найдена")
             return None
         if sync.is_finalized(found[0]):

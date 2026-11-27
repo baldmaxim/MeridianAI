@@ -21,6 +21,7 @@ from .directory import (
     MeetingParticipant,
     TenderHubRegistryLink,
 )
+from .object_access import UserObjectAccess, UserCustomerAccess, ObjectAccessRequest
 from .document import DocumentRecord, DocumentChunk
 from .ocr import OcrAgent, DocumentOcrTask, DocumentOcrPage
 from .desktop import DesktopDevice, DesktopLoginCode, DesktopMeetingLink
@@ -63,6 +64,9 @@ __all__ = [
     "ProjectObject",
     "MeetingParticipant",
     "TenderHubRegistryLink",
+    "UserObjectAccess",
+    "UserCustomerAccess",
+    "ObjectAccessRequest",
     "DocumentRecord",
     "DocumentChunk",
     "MeetingDecision",

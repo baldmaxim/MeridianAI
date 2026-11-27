@@ -76,7 +76,7 @@ async def client(sm, monkeypatch):
 async def _user(sm, email="eng@test.local", active=True, role="user") -> User:
     async with sm() as db:
         u = User(email=email, password_hash=hash_password(PASSWORD), role=role, is_active=active,
-                 display_name="Инженер")
+                 display_name="Инженер", all_objects_access=True)
         db.add(u)
         await db.commit()
         return u

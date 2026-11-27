@@ -1,7 +1,7 @@
-"""Customers directory API (Этап 1 MVP).
+"""Customers directory API.
 
-Scope — общий для фирмы: все авторизованные читают и управляют.
-owner_user_id фиксирует создателя (seam под будущий organization_id).
+Читать можно только видимых заказчиков (has_all, грант заказчика или видимый объект);
+править/удалять — только has_all. owner_user_id фиксирует создателя.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,11 +13,21 @@ from ..database import get_db
 from ..models.user import User
 from ..models.directory import Customer, ProjectObject
 from ..schemas.directory import CustomerCreate, CustomerUpdate, CustomerResponse
+from ..services.access import (
+    accessible_customer_ids_select,
+    user_can_access_customer,
+    user_has_all_objects,
+)
 
 router = APIRouter()
 
 # Справочников больше нет: заказчик создаётся на лету при добавлении объекта.
-# Чтение и редкие прямые мутации доступны любому авторизованному.
+# Чтение — по видимости, прямые мутации (PUT/DELETE) — только has_all.
+
+
+async def _require_has_all(db: AsyncSession, user: User) -> None:
+    if not await user_has_all_objects(db, user.id):
+        raise HTTPException(403, "Недостаточно прав")
 
 
 @router.get("", response_model=list[CustomerResponse])
@@ -25,7 +35,11 @@ async def list_customers(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Customer).order_by(Customer.name))
+    result = await db.execute(
+        select(Customer)
+        .where(Customer.id.in_(accessible_customer_ids_select(user.id)))
+        .order_by(Customer.name)
+    )
     return result.scalars().all()
 
 
@@ -49,7 +63,7 @@ async def get_customer(
     db: AsyncSession = Depends(get_db),
 ):
     customer = await db.get(Customer, customer_id)
-    if not customer:
+    if customer is None or not await user_can_access_customer(db, user.id, customer_id):
         raise HTTPException(404, "Заказчик не найден")
     return customer
 
@@ -61,6 +75,7 @@ async def update_customer(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _require_has_all(db, user)
     customer = await db.get(Customer, customer_id)
     if not customer:
         raise HTTPException(404, "Заказчик не найден")
@@ -77,6 +92,7 @@ async def delete_customer(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _require_has_all(db, user)
     customer = await db.get(Customer, customer_id)
     if not customer:
         raise HTTPException(404, "Заказчик не найден")

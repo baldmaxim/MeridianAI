@@ -23,6 +23,7 @@ from ..models.rag import RagFolder, RagFolderDocument
 from ..models.document import DocumentRecord, DocumentChunk
 from ..models.context_source import MeetingContextSource
 from ..models.directory import Customer, ProjectObject
+from .access import rag_folder_filter
 from .document_names import document_display_name
 from ..schemas.rag import (
     RAG_FOLDER_STATUSES, RagFolderCreate, RagFolderUpdate, RagFolderOut,
@@ -149,7 +150,7 @@ async def list_rag_folders(
     limit: int = 50,
 ) -> list[RagFolderOut]:
     limit = min(max(limit, 1), 100)
-    stmt = select(RagFolder)
+    stmt = select(RagFolder).where(rag_folder_filter(user_id))
     if customer_id is not None or object_id is not None:
         ors = [and_(RagFolder.customer_id.is_(None), RagFolder.object_id.is_(None))]
         if customer_id is not None:

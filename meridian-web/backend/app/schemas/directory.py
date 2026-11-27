@@ -44,6 +44,8 @@ class ProjectObjectCreate(BaseModel):
     payhub_project_id: int | None = None
     is_active: bool = True
     tender_won: bool = False
+    # «создать всё равно» при нечётком совпадении с существующим объектом (в модель не пишется)
+    force: bool = False
 
 
 class ProjectObjectUpdate(BaseModel):

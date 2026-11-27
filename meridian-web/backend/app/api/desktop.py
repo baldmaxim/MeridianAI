@@ -119,7 +119,8 @@ def _user_out(user: User) -> DesktopUserOut:
 
 async def _linked(db: AsyncSession, auth: DesktopAuth, meeting_id: int):
     found = await sync.get_linked_meeting(db, auth.user.id, meeting_id)
-    if found is None:
+    # Связь с устройством не даёт доступа после отзыва гранта на объект.
+    if found is None or not await user_can_access_meeting(db, auth.user.id, meeting_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Встреча не найдена")
     return found
 
@@ -231,6 +232,9 @@ async def meetings_upsert(data: MeetingUpsertRequest, auth: Device, db: AsyncSes
         customer_id, object_id = await _resolve_customer_object(
             db, auth.user, data.customer_id, data.object_id
         )
+    elif not await user_can_access_meeting(db, auth.user.id, link.meeting_id):
+        # повтор по client_uuid: доступ к проекту встречи могли отозвать
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Нет доступа к встрече")
     if data.offer_submission is not None:
         # подача — из подач объекта встречи (у существующей встречи — её объект)
         if link is not None:

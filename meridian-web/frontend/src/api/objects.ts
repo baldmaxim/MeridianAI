@@ -10,6 +10,8 @@ export interface ProjectObjectInput {
   payhub_project_id?: number | null;
   is_active?: boolean;
   tender_won?: boolean;
+  /** Создать, даже если найден похожий проект (ответ 409 duplicate_object). */
+  force?: boolean;
 }
 
 export async function listObjects(customerId?: number): Promise<ProjectObject[]> {

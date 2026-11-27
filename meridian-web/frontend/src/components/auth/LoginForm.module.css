@@ -40,6 +40,15 @@
   font-size: 13px;
 }
 
+.notice {
+  padding: 8px;
+  background: var(--accent-green-dim);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+  border-radius: 6px;
+  color: var(--accent-green);
+  font-size: 13px;
+}
+
 .switch {
   color: var(--text-secondary);
   text-align: center;

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, Integer, text
+from sqlalchemy import String, Boolean, DateTime, Integer, false, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -22,6 +22,10 @@ class User(Base):
     # токены с другим claim `tv` перестают приниматься (отзыв без refresh-токенов).
     token_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
+    )
+    # «Все проекты»: видит все объекты/встречи/документы (админ — всегда, независимо от флага).
+    all_objects_access: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

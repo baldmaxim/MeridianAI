@@ -8,9 +8,10 @@ interface Props {
   onLogin: (email: string, password: string) => Promise<void>;
   onSwitchToRegister: () => void;
   error?: string;
+  notice?: string;
 }
 
-export function LoginForm({ onLogin, onSwitchToRegister, error }: Props) {
+export function LoginForm({ onLogin, onSwitchToRegister, error, notice }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,7 @@ export function LoginForm({ onLogin, onSwitchToRegister, error }: Props) {
   return (
     <form ref={formRef} onSubmit={handleSubmit} className={cx('auth-form t-input', styles.form)}>
       <h2 className={styles.title}>Вход</h2>
+      {notice && <div className={styles.notice}>{notice}</div>}
       {error && <div className={styles.error}>{error}</div>}
       <TextInput
         type="email"

@@ -64,6 +64,9 @@ def api(monkeypatch):
         async def get(self, model, pk):
             return object() if state.meeting_exists else None
 
+        async def scalar(self, stmt):
+            return 1 if state.meeting_exists else None
+
     async def _db():
         yield FakeDB()
 

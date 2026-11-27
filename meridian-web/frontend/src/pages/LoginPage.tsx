@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { LoginForm } from '../components/auth/LoginForm';
 import { RegisterForm } from '../components/auth/RegisterForm';
-import { errorDetail } from '../lib/errorDetail';
+import { errorDetail, errorStatus } from '../lib/errorDetail';
 import styles from './LoginPage.module.css';
 
 interface Props {
   onLogin: (email: string, password: string) => Promise<unknown>;
-  onRegister: (email: string, password: string, displayName?: string, department?: string) => Promise<unknown>;
+  onRegister: (email: string, password: string, displayName?: string, department?: string) => Promise<{ pending: boolean }>;
 }
 
 /* Inline SVG compass mark */
@@ -27,6 +27,7 @@ function LogoMark() {
 export function LoginPage({ onLogin, onRegister }: Props) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [ssoEnabled, setSsoEnabled] = useState(false);
 
   useEffect(() => {
@@ -38,17 +39,26 @@ export function LoginPage({ onLogin, onRegister }: Props) {
 
   const handleLogin = async (email: string, password: string) => {
     setError('');
+    setNotice('');
     try {
       await onLogin(email, password);
     } catch (err) {
-      setError(errorDetail(err) || 'Ошибка входа');
+      setError(
+        errorStatus(err) === 403
+          ? 'Доступ ещё не открыт администратором или учётная запись отключена'
+          : errorDetail(err) || 'Ошибка входа',
+      );
     }
   };
 
   const handleRegister = async (email: string, password: string, displayName?: string, department?: string) => {
     setError('');
     try {
-      await onRegister(email, password, displayName, department);
+      const { pending } = await onRegister(email, password, displayName, department);
+      if (pending) {
+        setNotice('Заявка отправлена. Войти можно после того, как администратор откроет доступ.');
+        setMode('login');
+      }
     } catch (err) {
       setError(errorDetail(err) || 'Ошибка регистрации');
     }
@@ -65,8 +75,9 @@ export function LoginPage({ onLogin, onRegister }: Props) {
       {mode === 'login' ? (
         <LoginForm
           onLogin={handleLogin}
-          onSwitchToRegister={() => { setMode('register'); setError(''); }}
+          onSwitchToRegister={() => { setMode('register'); setError(''); setNotice(''); }}
           error={error}
+          notice={notice}
         />
       ) : (
         <RegisterForm

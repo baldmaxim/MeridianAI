@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models.user import User
 from ..models.settings import UserSettings
-from ..schemas.auth import RegisterRequest, LoginRequest, TokenResponse, UserResponse
+from ..schemas.auth import RegisterRequest, RegisterResponse, LoginRequest, TokenResponse, UserResponse
 from ..ratelimit import limiter
 from ..services.audit import audit, hmac_email, client_ip
 from ..services.page_access import get_allowed_pages
@@ -22,10 +22,10 @@ logger = logging.getLogger("meridian.auth")
 router = APIRouter()
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=RegisterResponse)
 @limiter.limit("5/minute")
 async def register(request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Register a new user."""
+    """Register a new user. Первый — admin с токеном; остальные ждут одобрения админом (is_active=False)."""
     data.email = data.email.strip().lower()
 
     # Check if email already exists
@@ -47,6 +47,7 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
         display_name=data.display_name,
         department=(data.department or "").strip() or None,
         role="admin" if is_first_user else "user",
+        is_active=is_first_user,
     )
     db.add(user)
     await db.flush()
@@ -55,15 +56,19 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     settings = UserSettings(user_id=user.id)
     db.add(settings)
 
-    token = create_access_token(user.id, user.role, user.token_version)
+    pending = not is_first_user
     await audit(
         "user_registered",
         actor_user_id=user.id,
         ip=client_ip(request),
         email_hmac=hmac_email(data.email),
         role=user.role,
+        pending=pending,
     )
-    return TokenResponse(access_token=token)
+    if pending:
+        return RegisterResponse(pending=True)
+    token = create_access_token(user.id, user.role, user.token_version)
+    return RegisterResponse(access_token=token, pending=False)
 
 
 @router.post("/login", response_model=TokenResponse)

@@ -1,8 +1,9 @@
-"""Тесты справочников и модели «общей хронологии».
+"""Тесты справочников и базового доступа к объектам/встречам.
 
 Эндпоинты вызываются как обычные корутины (db/user передаются явно) — без HTTP.
-Доступ глобальный: любой авторизованный видит все объекты/встречи. Поля автора
-(owner_user_id/user_id) при удалении пользователя обнуляются (SET NULL), запись цела.
+Объект виден создателю (явный грант), владельцам грантов и has_all; чужому — нет.
+Поля автора (owner_user_id/user_id) при удалении пользователя обнуляются (SET NULL), запись цела.
+Матрица прав — tests/test_object_access.py.
 """
 
 
@@ -46,18 +47,18 @@ async def test_create_object(db):
     assert o.customer_name == "Cust-1"
 
 
-async def test_object_visible_to_everyone(db):
+async def test_object_visible_to_creator_only(db):
     owner = await _mk_user(db, "owner-acc@test.local")
     stranger = await _mk_user(db, "stranger-acc@test.local")
     c = await create_customer(CustomerCreate(name="Cust-Acc"), user=owner, db=db)
     o = await create_object(ProjectObjectCreate(customer_name=c.name, name="Obj-Acc"), user=owner, db=db)
     await db.flush()
 
-    assert await user_can_access_object(db, owner.id, o.id) is True
-    assert await user_can_access_object(db, stranger.id, o.id) is True   # общая модель
+    assert await user_can_access_object(db, owner.id, o.id) is True      # грант создателю
+    assert await user_can_access_object(db, stranger.id, o.id) is False  # чужой без грантов
 
 
-async def test_meeting_visible_to_everyone(db):
+async def test_meeting_of_object_visible_by_object_access(db):
     owner = await _mk_user(db, "owner-mtg@test.local")
     stranger = await _mk_user(db, "stranger-mtg@test.local")
     c = await create_customer(CustomerCreate(name="Cust-Mtg"), user=owner, db=db)
@@ -68,7 +69,7 @@ async def test_meeting_visible_to_everyone(db):
     await db.flush()
 
     assert await user_can_access_meeting(db, owner.id, m.id) is True
-    assert await user_can_access_meeting(db, stranger.id, m.id) is True  # общая хронология
+    assert await user_can_access_meeting(db, stranger.id, m.id) is False  # доступ по объекту
 
 
 async def test_meeting_and_document_survive_user_deletion(db):
@@ -124,7 +125,7 @@ async def test_object_tender_won_default_set_and_null_ignored(db):
     assert o.tender_won is False
 
     created = await create_object(
-        ProjectObjectCreate(customer_name="Cust-Won", name="Obj-Won-2", tender_won=True),
+        ProjectObjectCreate(customer_name="Cust-Won", name="Another-Tender", tender_won=True),
         user=owner, db=db,
     )
     assert created.tender_won is True

@@ -29,6 +29,14 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class RegisterResponse(BaseModel):
+    """Токен выдаётся только первому пользователю; остальные ждут одобрения админом."""
+
+    access_token: str | None = None
+    token_type: str = "bearer"
+    pending: bool
+
+
 class UserResponse(BaseModel):
     id: int
     email: str

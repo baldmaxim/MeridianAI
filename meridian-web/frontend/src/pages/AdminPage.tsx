@@ -4,17 +4,19 @@ import { LMStudioTest } from '../components/admin/LMStudioTest';
 import { OcrAgentManager } from '../components/admin/OcrAgentManager';
 import { UserManager } from '../components/admin/UserManager';
 import { PageAccessMatrix } from '../components/admin/PageAccessMatrix';
+import { AccessRequests } from '../components/admin/AccessRequests';
 import { theme } from '../styles/theme';
 import styles from './AdminPage.module.css';
 import { cx } from '../utils/cx';
 
-type AdminTab = 'stats' | 'keys' | 'users' | 'access';
+type AdminTab = 'stats' | 'keys' | 'users' | 'access' | 'requests';
 
 const TABS: { key: AdminTab; label: string }[] = [
   { key: 'stats', label: 'Статистика' },
   { key: 'keys', label: 'API-ключи' },
   { key: 'users', label: 'Пользователи' },
   { key: 'access', label: 'Доступ' },
+  { key: 'requests', label: 'Заявки' },
 ];
 
 function StatCard({ value, label, change, changeColor }: {
@@ -110,6 +112,12 @@ export function AdminPage({ onBack, embedded }: Props) {
       {tab === 'access' && (
         <div className={cx('admin-section', styles.section)}>
           <PageAccessMatrix />
+        </div>
+      )}
+
+      {tab === 'requests' && (
+        <div className={cx('admin-section', styles.section)}>
+          <AccessRequests />
         </div>
       )}
     </div>

@@ -27,6 +27,7 @@ from ..models.context_source import MeetingContextSource
 from ..models.directory import ProjectObject
 from ..models.meeting import MeetingSession
 from ..schemas.letters import MeetingLetterAttach, MeetingLetterOut
+from .access import user_has_all_objects
 
 logger = logging.getLogger("meridian.rag_letters")
 
@@ -44,18 +45,26 @@ _SNAPSHOT_FIELDS = (
 _throttle: dict[int, tuple[float, str]] = {}
 
 
-async def _resolve_payhub_project_id(meeting_id: int) -> int | None:
-    """PayHub project_id для встречи (или None → искать по всему корпусу)."""
+async def _resolve_payhub_project_id(meeting_id: int) -> tuple[int | None, bool]:
+    """(PayHub project_id, можно ли искать по всему корпусу) для встречи.
+
+    Без project_id (нет объекта/привязки) поиск по всему корпусу разрешён, только если
+    автор встречи видит всё (admin/«все проекты»); иначе письма не подмешиваем.
+    """
     try:
         async with async_session() as db:
             meeting = await db.get(MeetingSession, meeting_id)
-            if meeting is None or meeting.object_id is None:
-                return None
-            obj = await db.get(ProjectObject, meeting.object_id)
-            return obj.payhub_project_id if obj else None
+            if meeting is None:
+                return None, False
+            if meeting.object_id is not None:
+                obj = await db.get(ProjectObject, meeting.object_id)
+                if obj is not None and obj.payhub_project_id is not None:
+                    return obj.payhub_project_id, True
+            author_id = meeting.user_id or meeting.created_by_user_id
+            return None, await user_has_all_objects(db, author_id)
     except Exception as e:
         logger.warning("rag_letters: resolve project_id failed for meeting %s: %s", meeting_id, e)
-        return None
+        return None, False
 
 
 # ── снапшот письма ↔ JSON / RagHit / схема ────────────────────────────────────
@@ -222,9 +231,12 @@ async def build_meeting_letters_context(meeting_id: int, query_text: str = "") -
         return cached[1]
 
     try:
-        project_id = await _resolve_payhub_project_id(meeting_id)
-        hits = await search_letters(query, k=s.letters_context_k, project_id=project_id)
-        block = build_rag_context(hits)
+        project_id, corpus_allowed = await _resolve_payhub_project_id(meeting_id)
+        if project_id is None and not corpus_allowed:
+            block = ""
+        else:
+            hits = await search_letters(query, k=s.letters_context_k, project_id=project_id)
+            block = build_rag_context(hits)
     except Exception as e:
         logger.error("rag_letters: build context failed for meeting %s: %s", meeting_id, e)
         block = ""
